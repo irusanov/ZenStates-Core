@@ -1,5 +1,0 @@
-C:\GIT\ZenStates.Core\bin\Debug\ZenStates.Core.dll
-C:\GIT\ZenStates.Core\bin\Debug\ZenStates.Core.pdb
-C:\GIT\ZenStates.Core\obj\Debug\ZenStates.Core.csproj.CoreCompileInputs.cache
-C:\GIT\ZenStates.Core\obj\Debug\ZenStates.Core.dll
-C:\GIT\ZenStates.Core\obj\Debug\ZenStates.Core.pdb
