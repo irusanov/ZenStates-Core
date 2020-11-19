@@ -25,7 +25,7 @@ namespace ZenStates.Core
             TYPE_UNSUPPORTED = 0xFF,
         };
 
-        public enum CPUType : int
+        public enum CodeName : int
         {
             Unsupported = 0,
             DEBUG,
@@ -64,7 +64,7 @@ namespace ZenStates.Core
         public SMU()
         {
             Version = 0;
-            CpuType = CPUType.Unsupported;
+            CODE_NAME = CodeName.Unsupported;
             // SMU
             //ManualOverclockSupported = false;
 
@@ -96,7 +96,7 @@ namespace ZenStates.Core
         }
 
         public uint Version { get; set; }
-        public CPUType CpuType { get; set; }
+        public CodeName CODE_NAME { get; set; }
         //public bool ManualOverclockSupported { get; protected set; }
 
         public SmuType SMU_TYPE { get; protected set; }
@@ -294,34 +294,34 @@ namespace ZenStates.Core
 
     public static class GetMaintainedSettings
     {
-        private static readonly Dictionary<SMU.CPUType, SMU> settings = new Dictionary<SMU.CPUType, SMU>()
+        private static readonly Dictionary<SMU.CodeName, SMU> settings = new Dictionary<SMU.CodeName, SMU>()
         {
             // Zen
-            { SMU.CPUType.SummitRidge, new SummitRidgeSettings() },
-            { SMU.CPUType.Naples, new SummitRidgeSettings() },
-            { SMU.CPUType.Threadripper, new SummitRidgeSettings() },
+            { SMU.CodeName.SummitRidge, new SummitRidgeSettings() },
+            { SMU.CodeName.Naples, new SummitRidgeSettings() },
+            { SMU.CodeName.Threadripper, new SummitRidgeSettings() },
 
             // Zen+
-            { SMU.CPUType.PinnacleRidge, new ZenPSettings() },
-            { SMU.CPUType.Colfax, new ColfaxSettings() },
+            { SMU.CodeName.PinnacleRidge, new ZenPSettings() },
+            { SMU.CodeName.Colfax, new ColfaxSettings() },
 
             // Zen2
-            { SMU.CPUType.Matisse, new Zen2Settings() },
-            { SMU.CPUType.CastlePeak, new Zen2Settings() },
-            { SMU.CPUType.Rome, new RomeSettings() },
+            { SMU.CodeName.Matisse, new Zen2Settings() },
+            { SMU.CodeName.CastlePeak, new Zen2Settings() },
+            { SMU.CodeName.Rome, new RomeSettings() },
 
             // Zen3
-            { SMU.CPUType.Vermeer, new Zen3Settings() },
-            { SMU.CPUType.Genesis, new Zen3Settings() },
+            { SMU.CodeName.Vermeer, new Zen3Settings() },
+            { SMU.CodeName.Genesis, new Zen3Settings() },
 
             // APU
-            { SMU.CPUType.RavenRidge, new APUSettings0() },
-            { SMU.CPUType.Fenghuang, new APUSettings0() },
-            { SMU.CPUType.Picasso, new APUSettings0() },
-            { SMU.CPUType.Renoir, new APUSettings1() },
+            { SMU.CodeName.RavenRidge, new APUSettings0() },
+            { SMU.CodeName.Fenghuang, new APUSettings0() },
+            { SMU.CodeName.Picasso, new APUSettings0() },
+            { SMU.CodeName.Renoir, new APUSettings1() },
         };
 
-        public static SMU GetByType(SMU.CPUType type)
+        public static SMU GetByType(SMU.CodeName type)
         {
             if (!settings.TryGetValue(type, out SMU output))
             {

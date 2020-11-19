@@ -6,7 +6,7 @@ using System.Text;
 
 namespace ZenStates.Core
 {
-    public class Zen : IDisposable
+    public class ZenCpu : IDisposable
     {
         private bool disposedValue;
         public readonly Ols Ols;
@@ -61,7 +61,7 @@ namespace ZenStates.Core
             }
         }
 
-        public Zen() {
+        public ZenCpu() {
             Ols = new Ols();
             CheckOlsStatus();
             Ops = new Ops(Ols);
