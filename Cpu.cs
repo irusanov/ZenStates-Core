@@ -4,30 +4,173 @@ using System.Threading;
 
 namespace ZenStates.Core
 {
-    public class Ops : IDisposable
+    public class Cpu : IDisposable
     {
+        private bool disposedValue;
         private static Mutex amdSmuMutex;
         private const ushort SMU_TIMEOUT = 8192;
-        private readonly Ols Ols;
         private static readonly Utils utils = new Utils();
-        public CPUInfo cpuinfo = new CPUInfo();
+        private const string InitializationExceptionText = "CPU module initialization failed.";
+        public enum LibStatus
+        {
+            OK = 0,
+            INITIALIZE_ERROR = 1,
+        }
 
-        public Ops(Ols ols)
+        public readonly CPUInfo info = new CPUInfo();
+        public readonly Ols Ols;
+        public readonly SMU smu;
+
+        public struct CPUInfo
+        {
+            public uint cpuid;
+            public SMU.CpuFamily family;
+            public SMU.CodeName codeName;
+            public string cpuName;
+            public uint packageType; // SMU.PackageType
+            public uint model;
+            public uint extModel;
+            public uint ccds;
+            public uint ccxs;
+            public uint coresPerCcx;
+            public uint cores;
+            public uint logicalCores;
+            public uint threadsPerCore;
+            public uint patchLevel;
+            public uint smuVersion;
+        }
+
+        public LibStatus Status { get; private set; } = LibStatus.INITIALIZE_ERROR;
+
+        public Cpu()
         {
             amdSmuMutex = new Mutex();
-            Ols = ols ?? throw new ArgumentNullException(nameof(Ols));
-            InitCpu();
+            Ols = new Ols();
+            CheckOlsStatus();
+
+            uint eax = 0, ebx = 0, ecx = 0, edx = 0;
+            uint ccdsPresent = 0, ccdsDown = 0, coreDisableMap = 0;
+            uint fuse1 = 0x5D218;
+            //uint fuse2 = 0x5D21C;
+            uint offset = 0x238;
+
+            if (Ols.Cpuid(0x00000001, ref eax, ref ebx, ref ecx, ref edx) == 1)
+            {
+                info.cpuid = eax;
+                info.family = (SMU.CpuFamily)(utils.GetBits(eax, 8, 4) + utils.GetBits(eax, 20, 8));
+                info.model = (eax & 0xf0) >> 4;
+                info.extModel = info.model + ((eax & 0xf0000) >> 12);
+                info.logicalCores = utils.GetBits(ebx, 16, 8);
+            }
+            else
+            {
+                throw new ApplicationException(InitializationExceptionText);
+            }
+
+            // Package type
+            if (Ols.Cpuid(0x80000001, ref eax, ref ebx, ref ecx, ref edx) == 1)
+            {
+                info.packageType = ebx >> 28;
+                info.codeName = GetCodeName(info.cpuid, info.packageType);
+                smu = GetMaintainedSettings.GetByType(info.codeName);
+                info.smuVersion = smu.Version = GetSmuVersion();
+            } 
+            else
+            {
+                throw new ApplicationException(InitializationExceptionText);
+            }
+
+            info.cpuName = GetCpuName();
+
+            if (Ols.Cpuid(0x8000001E, ref eax, ref ebx, ref ecx, ref edx) == 1)
+            {
+                info.threadsPerCore = utils.GetBits(ebx, 8, 4) + 1;
+                if (info.threadsPerCore == 0)
+                    info.cores = info.logicalCores;
+                else
+                    info.cores = info.logicalCores / info.threadsPerCore;
+            }
+            else
+            {
+                throw new ApplicationException(InitializationExceptionText);
+            }
+
+            if (info.family == SMU.CpuFamily.FAMILY_19H)
+            {
+                fuse1 += 0x10;
+                //fuse2 += 0x10;
+                offset = 0x598;
+            }
+            else if (info.family == SMU.CpuFamily.FAMILY_17H && info.extModel != 0x71)
+            {
+                fuse1 += 0x40;
+                //fuse2 += 0x40;
+            }
+
+            if (!SmuReadReg(fuse1, ref ccdsPresent)/* || !SmuReadReg(fuse2, ref ccdsDown)*/)
+                throw new ApplicationException(InitializationExceptionText);
+
+            uint ccdEnableMap = utils.GetBits(ccdsPresent, 22, 8);
+            //uint ccdDisableMap = utils.GetBits(ccdsPresent, 30, 2) | (utils.GetBits(ccdsDown, 0, 6) << 2);
+
+            uint coreDisableMapAddress = (0x30081800 + offset) | ((ccdEnableMap & 1) == 0 ? 0x2000000 : 0u);
+
+            if (!SmuReadReg(coreDisableMapAddress, ref coreDisableMap))
+                throw new ApplicationException(InitializationExceptionText);
+
+            info.coresPerCcx = (8 - utils.CountSetBits(coreDisableMap & 0xff)) / 2;
+            info.ccds = utils.CountSetBits(ccdEnableMap);
+            info.ccxs = (info.cores == info.coresPerCcx ? 1 : info.ccds * 2);
+
+            info.patchLevel = GetPatchLevel();
 
             //if (!SendTestMessage())
             //    throw new ApplicationException("SMU is not responding");
+
+            Status = LibStatus.OK;
+        }
+
+        private void CheckOlsStatus()
+        {
+            // Check support library status
+            switch (Ols.GetStatus())
+            {
+                case (uint)Ols.Status.NO_ERROR:
+                    break;
+                case (uint)Ols.Status.DLL_NOT_FOUND:
+                    throw new ApplicationException("WinRing DLL_NOT_FOUND");
+                case (uint)Ols.Status.DLL_INCORRECT_VERSION:
+                    throw new ApplicationException("WinRing DLL_INCORRECT_VERSION");
+                case (uint)Ols.Status.DLL_INITIALIZE_ERROR:
+                    throw new ApplicationException("WinRing DLL_INITIALIZE_ERROR");
+            }
+
+            // Check WinRing0 status
+            switch (Ols.GetDllStatus())
+            {
+                case (uint)Ols.OlsDllStatus.OLS_DLL_NO_ERROR:
+                    break;
+                case (uint)Ols.OlsDllStatus.OLS_DLL_DRIVER_NOT_LOADED:
+                    throw new ApplicationException("WinRing OLS_DRIVER_NOT_LOADED");
+                case (uint)Ols.OlsDllStatus.OLS_DLL_UNSUPPORTED_PLATFORM:
+                    throw new ApplicationException("WinRing OLS_UNSUPPORTED_PLATFORM");
+                case (uint)Ols.OlsDllStatus.OLS_DLL_DRIVER_NOT_FOUND:
+                    throw new ApplicationException("WinRing OLS_DLL_DRIVER_NOT_FOUND");
+                case (uint)Ols.OlsDllStatus.OLS_DLL_DRIVER_UNLOADED:
+                    throw new ApplicationException("WinRing OLS_DLL_DRIVER_UNLOADED");
+                case (uint)Ols.OlsDllStatus.OLS_DLL_DRIVER_NOT_LOADED_ON_NETWORK:
+                    throw new ApplicationException("WinRing DRIVER_NOT_LOADED_ON_NETWORK");
+                case (uint)Ols.OlsDllStatus.OLS_DLL_UNKNOWN_ERROR:
+                    throw new ApplicationException("WinRing OLS_DLL_UNKNOWN_ERROR");
+            }
         }
 
         public bool SmuWriteReg(uint addr, uint data)
         {
             bool res = false;
             amdSmuMutex.WaitOne(5000);
-            if (Ols.WritePciConfigDwordEx(cpuinfo.smu.SMU_PCI_ADDR, cpuinfo.smu.SMU_OFFSET_ADDR, addr) == 1)
-                res = (Ols.WritePciConfigDwordEx(cpuinfo.smu.SMU_PCI_ADDR, cpuinfo.smu.SMU_OFFSET_DATA, data) == 1);
+            if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr) == 1)
+                res = (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, data) == 1);
             amdSmuMutex.ReleaseMutex();
             return res;
         }
@@ -36,8 +179,8 @@ namespace ZenStates.Core
         {
             bool res = false;
             amdSmuMutex.WaitOne(5000);
-            if (Ols.WritePciConfigDwordEx(cpuinfo.smu.SMU_PCI_ADDR, cpuinfo.smu.SMU_OFFSET_ADDR, addr) == 1)
-                res = (Ols.ReadPciConfigDwordEx(cpuinfo.smu.SMU_PCI_ADDR, cpuinfo.smu.SMU_OFFSET_DATA, ref data) == 1);
+            if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr) == 1)
+                res = (Ols.ReadPciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, ref data) == 1);
             amdSmuMutex.ReleaseMutex();
             return res;
         }
@@ -49,7 +192,7 @@ namespace ZenStates.Core
             uint data = 0;
 
             do
-                res = SmuReadReg(cpuinfo.smu.SMU_ADDR_RSP, ref data);
+                res = SmuReadReg(smu.SMU_ADDR_RSP, ref data);
             while ((!res || data != 1) && --timeout > 0);
 
             if (timeout == 0 || data != 1) res = false;
@@ -75,38 +218,38 @@ namespace ZenStates.Core
                 // Clear response register
                 bool temp;
                 do
-                    temp = SmuWriteReg(cpuinfo.smu.SMU_ADDR_RSP, 0);
+                    temp = SmuWriteReg(smu.SMU_ADDR_RSP, 0);
                 while ((!temp) && --timeout > 0);
 
                 if (timeout == 0)
                 {
                     amdSmuMutex.ReleaseMutex();
-                    SmuReadReg(cpuinfo.smu.SMU_ADDR_RSP, ref status);
+                    SmuReadReg(smu.SMU_ADDR_RSP, ref status);
                     return (SMU.Status)status;
                 }
 
                 // Write data
                 for (int i = 0; i < cmdArgs.Length; ++i)
-                    SmuWriteReg(cpuinfo.smu.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]);
+                    SmuWriteReg(smu.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]);
 
                 // Send message
-                SmuWriteReg(cpuinfo.smu.SMU_ADDR_MSG, msg);
+                SmuWriteReg(smu.SMU_ADDR_MSG, msg);
 
                 // Wait done
                 if (!SmuWaitDone())
                 {
                     amdSmuMutex.ReleaseMutex();
-                    SmuReadReg(cpuinfo.smu.SMU_ADDR_RSP, ref status);
+                    SmuReadReg(smu.SMU_ADDR_RSP, ref status);
                     return (SMU.Status)status;
                 }
 
                 // Read back args
                 for (int i = 0; i < args.Length; ++i)
-                    SmuReadReg(cpuinfo.smu.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]);
+                    SmuReadReg(smu.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]);
             }
 
             amdSmuMutex.ReleaseMutex();
-            SmuReadReg(cpuinfo.smu.SMU_ADDR_RSP, ref status);
+            SmuReadReg(smu.SMU_ADDR_RSP, ref status);
 
             return (SMU.Status)status;
         }
@@ -120,8 +263,8 @@ namespace ZenStates.Core
 
         public uint ReadDword(uint value)
         {
-            Ols.WritePciConfigDword(cpuinfo.smu.SMU_PCI_ADDR, (byte)cpuinfo.smu.SMU_OFFSET_ADDR, value);
-            return Ols.ReadPciConfigDword(cpuinfo.smu.SMU_PCI_ADDR, (byte)cpuinfo.smu.SMU_OFFSET_DATA);
+            Ols.WritePciConfigDword(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, value);
+            return Ols.ReadPciConfigDword(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA);
         }
 
         private double GetCoreMulti(int index)
@@ -140,7 +283,7 @@ namespace ZenStates.Core
         {
             bool res = true;
 
-            for (var i = 0; i < cpuinfo.logicalCores; i++)
+            for (var i = 0; i < info.logicalCores; i++)
             {
                 if (Ols.WrmsrTx(msr, eax, edx, (UIntPtr)(1 << i)) != 1) res = false;
             }
@@ -212,94 +355,6 @@ namespace ZenStates.Core
 
             return codeName;
         }
-        
-        // TODO
-        public struct CPUInfo
-        {
-            public uint cpuid;
-            public SMU.CpuFamily family;
-            public SMU.CodeName codeName;
-            public string cpuName;
-            public uint packageType; // SMU.PackageType
-            public uint model;
-            public uint extModel;
-            public uint ccds;
-            public uint ccxs;
-            public uint coresPerCcx;
-            public uint cores;
-            public uint logicalCores;
-            public uint threadsPerCore;
-            public uint patchLevel;
-            public uint smuVersion;
-            public SMU smu;
-        }
-
-        public void InitCpu()
-        {
-            uint eax = 0, ebx = 0, ecx = 0, edx = 0;
-            uint ccdsPresent = 0, ccdsDown = 0, coreDisableMap = 0;
-            uint fuse1 = 0x5D218;
-            //uint fuse2 = 0x5D21C;
-            uint offset = 0x238;
-
-            if (Ols.Cpuid(0x00000001, ref eax, ref ebx, ref ecx, ref edx) == 1)
-            {
-                cpuinfo.cpuid = eax;
-                cpuinfo.family = (SMU.CpuFamily)(utils.GetBits(eax, 8, 4) + utils.GetBits(eax, 20, 8));
-                cpuinfo.model = (eax & 0xf0) >> 4;
-                cpuinfo.extModel = cpuinfo.model + ((eax & 0xf0000) >> 12);
-                cpuinfo.logicalCores = utils.GetBits(ebx, 16, 8);
-            }
-
-            // Package type
-            if (Ols.Cpuid(0x80000001, ref eax, ref ebx, ref ecx, ref edx) == 1)
-            {
-                cpuinfo.packageType = ebx >> 28;
-                cpuinfo.codeName = GetCodeName(cpuinfo.cpuid, cpuinfo.packageType);
-                cpuinfo.smu = GetMaintainedSettings.GetByType(cpuinfo.codeName);
-                cpuinfo.smuVersion = cpuinfo.smu.Version = GetSmuVersion();
-            }
-
-            cpuinfo.cpuName = GetCpuName();
-
-            if (Ols.Cpuid(0x8000001E, ref eax, ref ebx, ref ecx, ref edx) == 1)
-            {
-                cpuinfo.threadsPerCore = utils.GetBits(ebx, 8, 4) + 1;
-                if (cpuinfo.threadsPerCore == 0)
-                    cpuinfo.cores = cpuinfo.logicalCores;
-                else
-                    cpuinfo.cores = cpuinfo.logicalCores / cpuinfo.threadsPerCore;
-            }
-
-            if (cpuinfo.family == SMU.CpuFamily.FAMILY_19H)
-            {
-                fuse1 += 0x10;
-                //fuse2 += 0x10;
-                offset = 0x598;
-            }
-            else if (cpuinfo.family == SMU.CpuFamily.FAMILY_17H && cpuinfo.extModel != 0x71)
-            {
-                fuse1 += 0x40;
-                //fuse2 += 0x40;
-            }
-
-            if (!SmuReadReg(fuse1, ref ccdsPresent)/* || !SmuReadReg(fuse2, ref ccdsDown)*/)
-                return;
-
-            uint ccdEnableMap = utils.GetBits(ccdsPresent, 22, 8);
-            //uint ccdDisableMap = utils.GetBits(ccdsPresent, 30, 2) | (utils.GetBits(ccdsDown, 0, 6) << 2);
-
-            uint coreDisableMapAddress = (0x30081800 + offset) | ((ccdEnableMap & 1) == 0 ? 0x2000000 : 0u);
-
-            if (!SmuReadReg(coreDisableMapAddress, ref coreDisableMap))
-                return;
-
-            cpuinfo.coresPerCcx = (8 - utils.CountSetBits(coreDisableMap & 0xff)) / 2;
-            cpuinfo.ccds = utils.CountSetBits(ccdEnableMap);
-            cpuinfo.ccxs = (cpuinfo.cores == cpuinfo.coresPerCcx ? 1 : cpuinfo.ccds * 2);
-
-            cpuinfo.patchLevel = GetPatchLevel();
-        }
 
         public string GetCpuName()
         {
@@ -331,7 +386,7 @@ namespace ZenStates.Core
         public uint GetSmuVersion()
         {
             uint[] args = new uint[6];
-            if (SendSmuCommand(cpuinfo.smu.SMU_MSG_GetSmuVersion, ref args) == SMU.Status.OK)
+            if (SendSmuCommand(smu.SMU_MSG_GetSmuVersion, ref args) == SMU.Status.OK)
                 return args[0];
 
             return 0;
@@ -366,7 +421,7 @@ namespace ZenStates.Core
         public float GetPBOScalar()
         {
             uint[] args = new uint[6];
-            if (SendSmuCommand(cpuinfo.smu.SMU_MSG_GetPBOScalar, ref args) == SMU.Status.OK)
+            if (SendSmuCommand(smu.SMU_MSG_GetPBOScalar, ref args) == SMU.Status.OK)
             {
                 byte[] bytes = BitConverter.GetBytes(args[0]);
                 float scalar = BitConverter.ToSingle(bytes, 0);
@@ -381,13 +436,13 @@ namespace ZenStates.Core
         {
             uint[] args = { 1, 1, 0, 0, 0, 0 };
 
-            if (cpuinfo.smu.SMU_TYPE == SMU.SmuType.TYPE_APU0)
+            if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU0)
             {
                 args[0] = 3;
                 args[1] = 0;
             }
 
-            return SendSmuCommand(cpuinfo.smu.SMU_MSG_TransferTableToDram, ref args);
+            return SendSmuCommand(smu.SMU_MSG_TransferTableToDram, ref args);
         }
 
         public ulong GetDramBaseAddress()
@@ -397,24 +452,24 @@ namespace ZenStates.Core
 
             SMU.Status status = SMU.Status.FAILED;
 
-            switch (cpuinfo.smu.SMU_TYPE)
+            switch (smu.SMU_TYPE)
             {
                 // SummitRidge, PinnacleRidge, Colfax
                 case SMU.SmuType.TYPE_CPU0:
                 case SMU.SmuType.TYPE_CPU1:
                     args[0] = 0;
-                    status = SendSmuCommand(cpuinfo.smu.SMU_MSG_GetDramBaseAddress - 1, ref args);
+                    status = SendSmuCommand(smu.SMU_MSG_GetDramBaseAddress - 1, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
-                    status = SendSmuCommand(cpuinfo.smu.SMU_MSG_GetDramBaseAddress, ref args);
+                    status = SendSmuCommand(smu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
                     address = args[0];
 
                     args[0] = 0;
-                    status = SendSmuCommand(cpuinfo.smu.SMU_MSG_GetDramBaseAddress + 2, ref args);
+                    status = SendSmuCommand(smu.SMU_MSG_GetDramBaseAddress + 2, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
                     break;
@@ -422,7 +477,7 @@ namespace ZenStates.Core
                 // Matisse, CastlePeak, Rome, Vermeer
                 case SMU.SmuType.TYPE_CPU2:
                 case SMU.SmuType.TYPE_CPU3:
-                    status = SendSmuCommand(cpuinfo.smu.SMU_MSG_GetDramBaseAddress, ref args);
+                    status = SendSmuCommand(smu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
                     address = args[0] | ((ulong)args[1] << 32);
@@ -430,7 +485,7 @@ namespace ZenStates.Core
 
                 // Renoir
                 case SMU.SmuType.TYPE_APU1:
-                    status = SendSmuCommand(cpuinfo.smu.SMU_MSG_GetDramBaseAddress, ref args);
+                    status = SendSmuCommand(smu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
                     address = args[0] | ((ulong)args[1] << 32);
@@ -441,12 +496,12 @@ namespace ZenStates.Core
                     uint[] parts = new uint[2];
 
                     args[0] = 3;
-                    status = SendSmuCommand(cpuinfo.smu.SMU_MSG_GetDramBaseAddress - 1, ref args);
+                    status = SendSmuCommand(smu.SMU_MSG_GetDramBaseAddress - 1, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
                     args[0] = 3;
-                    status = SendSmuCommand(cpuinfo.smu.SMU_MSG_GetDramBaseAddress, ref args);
+                    status = SendSmuCommand(smu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
@@ -454,11 +509,11 @@ namespace ZenStates.Core
                     parts[0] = args[0];
 
                     args[0] = 5;
-                    status = SendSmuCommand(cpuinfo.smu.SMU_MSG_GetDramBaseAddress - 1, ref args);
+                    status = SendSmuCommand(smu.SMU_MSG_GetDramBaseAddress - 1, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
-                    status = SendSmuCommand(cpuinfo.smu.SMU_MSG_GetDramBaseAddress, ref args);
+                    status = SendSmuCommand(smu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
@@ -480,7 +535,7 @@ namespace ZenStates.Core
         public bool SendTestMessage()
         {
             uint[] args = new uint[6];
-            return SendSmuCommand(cpuinfo.smu.SMU_MSG_TestMessage, ref args) == SMU.Status.OK;
+            return SendSmuCommand(smu.SMU_MSG_TestMessage, ref args) == SMU.Status.OK;
         }
 
         public bool IsProchotEnabled()
@@ -489,9 +544,26 @@ namespace ZenStates.Core
             return (data & 1) == 1;
         }
 
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    amdSmuMutex.ReleaseMutex();
+                    Ols.DeinitializeOls();
+                    Ols.Dispose();
+                }
+
+                disposedValue = true;
+            }
+        }
+
         public void Dispose()
         {
-            amdSmuMutex.ReleaseMutex();
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
     }
 }

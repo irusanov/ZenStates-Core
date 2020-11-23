@@ -48,9 +48,8 @@
   <ItemGroup>
     <Compile Include="InteropMethods.cs" />
     <Compile Include="Utils.cs" />
-    <Compile Include="ZenCpu.cs" />
     <Compile Include="Ols.cs" />
-    <Compile Include="Ops.cs" />
+    <Compile Include="Cpu.cs" />
     <Compile Include="PowerTable.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SMU.cs" />
