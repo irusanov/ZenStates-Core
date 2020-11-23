@@ -17,6 +17,41 @@ namespace ZenStates.Core
             INITIALIZE_ERROR = 1,
         }
 
+        public enum Family
+        {
+            UNSUPPORTED = 0x0,
+            FAMILY_17H = 0x17,
+            FAMILY_18H = 0x18,
+            FAMILY_19H = 0x19,
+        };
+
+        public enum CodeName : int
+        {
+            Unsupported = 0,
+            DEBUG,
+            SummitRidge,
+            Threadripper,
+            Naples,
+            RavenRidge,
+            PinnacleRidge,
+            Colfax,
+            Picasso,
+            Fenghuang,
+            Matisse,
+            CastlePeak,
+            Rome,
+            Renoir,
+            Vermeer,
+            Genesis
+        };
+
+        public enum PackageType : int
+        {
+            FP6 = 0,
+            AM4 = 2,
+            SP3 = 7
+        }
+
         public readonly CPUInfo info = new CPUInfo();
         public readonly Ols Ols;
         public readonly SMU smu;
@@ -24,12 +59,13 @@ namespace ZenStates.Core
         public struct CPUInfo
         {
             public uint cpuid;
-            public SMU.CpuFamily family;
-            public SMU.CodeName codeName;
+            public Family family;
+            public CodeName codeName;
             public string cpuName;
             public uint packageType; // SMU.PackageType
-            public uint model;
+            public uint baseModel;
             public uint extModel;
+            public uint model;
             public uint ccds;
             public uint ccxs;
             public uint coresPerCcx;
@@ -57,9 +93,10 @@ namespace ZenStates.Core
             if (Ols.Cpuid(0x00000001, ref eax, ref ebx, ref ecx, ref edx) == 1)
             {
                 info.cpuid = eax;
-                info.family = (SMU.CpuFamily)(utils.GetBits(eax, 8, 4) + utils.GetBits(eax, 20, 8));
-                info.model = (eax & 0xf0) >> 4;
-                info.extModel = info.model + ((eax & 0xf0000) >> 12);
+                info.family = (Family)(utils.GetBits(eax, 8, 4) + utils.GetBits(eax, 20, 8));
+                info.baseModel = (eax & 0xf0) >> 4;
+                info.extModel = (eax & 0xf0000) >> 12;
+                info.model = info.baseModel + info.extModel;
                 info.logicalCores = utils.GetBits(ebx, 16, 8);
             }
             else
@@ -71,7 +108,7 @@ namespace ZenStates.Core
             if (Ols.Cpuid(0x80000001, ref eax, ref ebx, ref ecx, ref edx) == 1)
             {
                 info.packageType = ebx >> 28;
-                info.codeName = GetCodeName(info.cpuid, info.packageType);
+                info.codeName = GetCodeName(info);
                 smu = GetMaintainedSettings.GetByType(info.codeName);
                 info.smuVersion = smu.Version = GetSmuVersion();
             } 
@@ -95,13 +132,13 @@ namespace ZenStates.Core
                 throw new ApplicationException(InitializationExceptionText);
             }
 
-            if (info.family == SMU.CpuFamily.FAMILY_19H)
+            if (info.family == Family.FAMILY_19H)
             {
                 fuse1 += 0x10;
                 //fuse2 += 0x10;
                 offset = 0x598;
             }
-            else if (info.family == SMU.CpuFamily.FAMILY_17H && info.extModel != 0x71)
+            else if (info.family == Family.FAMILY_17H && info.extModel != 0x71)
             {
                 fuse1 += 0x40;
                 //fuse2 += 0x40;
@@ -267,7 +304,7 @@ namespace ZenStates.Core
             return Ols.ReadPciConfigDword(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA);
         }
 
-        private double GetCoreMulti(int index)
+        public double GetCoreMulti(int index = 0)
         {
             uint eax = default, edx = default;
             if (Ols.RdmsrTx(0xC0010293, ref eax, ref edx, (UIntPtr)(1 << index)) != 1)
@@ -291,65 +328,65 @@ namespace ZenStates.Core
             return res;
         }
 
-        public SMU.CodeName GetCodeName(uint cpuid, uint packageType)
+        public CodeName GetCodeName(CPUInfo cpuInfo)
         {
-            SMU.CodeName codeName;
+            CodeName codeName;
 
             // CPU Check. Compare family, model, ext family, ext model
-            switch (cpuid)
+            switch (cpuInfo.cpuid)
             {
                 case 0x00800F11: // CPU \ Zen \ Summit Ridge \ ZP - B0 \ 14nm
                 case 0x00800F00: // CPU \ Zen \ Summit Ridge \ ZP - A0 \ 14nm
-                    if (packageType == 4 || packageType == 7)
-                        codeName = SMU.CodeName.Threadripper;
+                    if (cpuInfo.packageType == 4 || cpuInfo.packageType == 7)
+                        codeName = CodeName.Threadripper;
                     else
-                        codeName = SMU.CodeName.SummitRidge;
+                        codeName = CodeName.SummitRidge;
                     break;
                 case 0x00800F12:
-                    codeName = SMU.CodeName.Naples;
+                    codeName = CodeName.Naples;
                     break;
                 case 0x00800F82: // CPU \ Zen + \ Pinnacle Ridge \ 12nm
-                    if (packageType == 4 || packageType == 7)
-                        codeName = SMU.CodeName.Colfax;
+                    if (cpuInfo.packageType == 4 || cpuInfo.packageType == 7)
+                        codeName = CodeName.Colfax;
                     else
-                        codeName = SMU.CodeName.PinnacleRidge;
+                        codeName = CodeName.PinnacleRidge;
                     break;
                 case 0x00810F81: // APU \ Zen + \ Picasso \ 12nm
-                    codeName = SMU.CodeName.Picasso;
+                    codeName = CodeName.Picasso;
                     break;
                 case 0x00810F00: // APU \ Zen \ Raven Ridge \ RV - A0 \ 14nm
                 case 0x00810F10: // APU \ Zen \ Raven Ridge \ 14nm
                 case 0x00820F00: // APU \ Zen \ Raven Ridge 2 \ RV2 - A0 \ 14nm
                 case 0x00820F01: // APU \ Zen \ Dali
-                    codeName = SMU.CodeName.RavenRidge;
+                    codeName = CodeName.RavenRidge;
                     break;
                 case 0x00870F10: // CPU \ Zen2 \ Matisse \ MTS - B0 \ 7nm + 14nm I/ O Die
                 case 0x00870F00: // CPU \ Zen2 \ Matisse \ MTS - A0 \ 7nm + 14nm I/ O Die
-                    codeName = SMU.CodeName.Matisse;
+                    codeName = CodeName.Matisse;
                     break;
                 case 0x00830F00:
                 case 0x00830F10: // CPU \ Epyc 2 \ Rome \ Treadripper 2 \ Castle Peak 7nm
-                    if (packageType == 7)
-                        codeName = SMU.CodeName.Rome;
+                    if (cpuInfo.packageType == 7)
+                        codeName = CodeName.Rome;
                     else
-                        codeName = SMU.CodeName.CastlePeak;
+                        codeName = CodeName.CastlePeak;
                     break;
                 case 0x00850F00: // Subor Z+
-                    codeName = SMU.CodeName.Fenghuang;
+                    codeName = CodeName.Fenghuang;
                     break;
                 case 0x00860F01: // APU \ Renoir
-                    codeName = SMU.CodeName.Renoir;
+                    codeName = CodeName.Renoir;
                     break;
                 case 0x00A20F00: // CPU \ Vermeer
                 case 0x00A20F10:
-                    codeName = SMU.CodeName.Vermeer;
+                    codeName = CodeName.Vermeer;
                     break;
                 //case 0x00A00F00: // CPU \ Genesis
                 //case 0x00A00F10:
                     //codeName = SMU.CodeName.Genesis;
                     //break;
                 default:
-                    codeName = SMU.CodeName.Unsupported;
+                    codeName = CodeName.Unsupported;
                     break;
             }
 

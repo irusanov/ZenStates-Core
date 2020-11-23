@@ -6,14 +6,6 @@ namespace ZenStates.Core
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "<Pending>")]
     public abstract class SMU
     {
-        public enum CpuFamily
-        {
-            UNSUPPORTED = 0x0,
-            FAMILY_17H = 0x17,
-            FAMILY_18H = 0x18,
-            FAMILY_19H = 0x19,
-        };
-
         public enum SmuType
         {
             TYPE_CPU0 = 0x0,
@@ -24,33 +16,6 @@ namespace ZenStates.Core
             TYPE_APU1 = 0x11,
             TYPE_UNSUPPORTED = 0xFF,
         };
-
-        public enum CodeName : int
-        {
-            Unsupported = 0,
-            DEBUG,
-            SummitRidge,
-            Threadripper,
-            Naples,
-            RavenRidge,
-            PinnacleRidge,
-            Colfax,
-            Picasso,
-            Fenghuang,
-            Matisse,
-            CastlePeak,
-            Rome,
-            Renoir,
-            Vermeer,
-            Genesis
-        };
-
-        public enum PackageType : int
-        {
-            FP6 = 0,
-            AM4 = 2,
-            SP3 = 7
-        }
 
         public enum Status : byte
         {
@@ -64,7 +29,6 @@ namespace ZenStates.Core
         public SMU()
         {
             Version = 0;
-            CODE_NAME = CodeName.Unsupported;
             // SMU
             //ManualOverclockSupported = false;
 
@@ -96,7 +60,6 @@ namespace ZenStates.Core
         }
 
         public uint Version { get; set; }
-        public CodeName CODE_NAME { get; set; }
         //public bool ManualOverclockSupported { get; protected set; }
 
         public SmuType SMU_TYPE { get; protected set; }
@@ -294,34 +257,34 @@ namespace ZenStates.Core
 
     public static class GetMaintainedSettings
     {
-        private static readonly Dictionary<SMU.CodeName, SMU> settings = new Dictionary<SMU.CodeName, SMU>()
+        private static readonly Dictionary<Cpu.CodeName, SMU> settings = new Dictionary<Cpu.CodeName, SMU>()
         {
             // Zen
-            { SMU.CodeName.SummitRidge, new SummitRidgeSettings() },
-            { SMU.CodeName.Naples, new SummitRidgeSettings() },
-            { SMU.CodeName.Threadripper, new SummitRidgeSettings() },
+            { Cpu.CodeName.SummitRidge, new SummitRidgeSettings() },
+            { Cpu.CodeName.Naples, new SummitRidgeSettings() },
+            { Cpu.CodeName.Threadripper, new SummitRidgeSettings() },
 
             // Zen+
-            { SMU.CodeName.PinnacleRidge, new ZenPSettings() },
-            { SMU.CodeName.Colfax, new ColfaxSettings() },
+            { Cpu.CodeName.PinnacleRidge, new ZenPSettings() },
+            { Cpu.CodeName.Colfax, new ColfaxSettings() },
 
             // Zen2
-            { SMU.CodeName.Matisse, new Zen2Settings() },
-            { SMU.CodeName.CastlePeak, new Zen2Settings() },
-            { SMU.CodeName.Rome, new RomeSettings() },
+            { Cpu.CodeName.Matisse, new Zen2Settings() },
+            { Cpu.CodeName.CastlePeak, new Zen2Settings() },
+            { Cpu.CodeName.Rome, new RomeSettings() },
 
             // Zen3
-            { SMU.CodeName.Vermeer, new Zen3Settings() },
-            { SMU.CodeName.Genesis, new Zen3Settings() },
+            { Cpu.CodeName.Vermeer, new Zen3Settings() },
+            { Cpu.CodeName.Genesis, new Zen3Settings() },
 
             // APU
-            { SMU.CodeName.RavenRidge, new APUSettings0() },
-            { SMU.CodeName.Fenghuang, new APUSettings0() },
-            { SMU.CodeName.Picasso, new APUSettings0() },
-            { SMU.CodeName.Renoir, new APUSettings1() },
+            { Cpu.CodeName.RavenRidge, new APUSettings0() },
+            { Cpu.CodeName.Fenghuang, new APUSettings0() },
+            { Cpu.CodeName.Picasso, new APUSettings0() },
+            { Cpu.CodeName.Renoir, new APUSettings1() },
         };
 
-        public static SMU GetByType(SMU.CodeName type)
+        public static SMU GetByType(Cpu.CodeName type)
         {
             if (!settings.TryGetValue(type, out SMU output))
             {
