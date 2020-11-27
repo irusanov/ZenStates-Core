@@ -9,7 +9,6 @@ namespace ZenStates.Core
         private bool disposedValue;
         private static Mutex amdSmuMutex;
         private const ushort SMU_TIMEOUT = 8192;
-        private static readonly Utils utils = new Utils();
         private const string InitializationExceptionText = "CPU module initialization failed.";
         public enum LibStatus
         {
@@ -52,6 +51,7 @@ namespace ZenStates.Core
             SP3 = 7
         }
 
+        public readonly Utils utils = new Utils();
         public readonly CPUInfo info = new CPUInfo();
         public readonly Ols Ols;
         public readonly SMU smu;
@@ -73,7 +73,6 @@ namespace ZenStates.Core
             public uint logicalCores;
             public uint threadsPerCore;
             public uint patchLevel;
-            public uint smuVersion;
         }
 
         public LibStatus Status { get; private set; } = LibStatus.INITIALIZE_ERROR;
@@ -110,7 +109,7 @@ namespace ZenStates.Core
                 info.packageType = ebx >> 28;
                 info.codeName = GetCodeName(info);
                 smu = GetMaintainedSettings.GetByType(info.codeName);
-                info.smuVersion = smu.Version = GetSmuVersion();
+                smu.Version = GetSmuVersion();
             } 
             else
             {
@@ -138,7 +137,7 @@ namespace ZenStates.Core
                 //fuse2 += 0x10;
                 offset = 0x598;
             }
-            else if (info.family == Family.FAMILY_17H && info.extModel != 0x71)
+            else if (info.family == Family.FAMILY_17H && info.model != 0x71)
             {
                 fuse1 += 0x40;
                 //fuse2 += 0x40;
@@ -250,7 +249,7 @@ namespace ZenStates.Core
             for (int i = 0; i < argsLength; ++i)
                 cmdArgs[i] = args[i];
 
-            if (amdSmuMutex.WaitOne(5000))
+            //if (amdSmuMutex.WaitOne(5000))
             {
                 // Clear response register
                 bool temp;
@@ -260,7 +259,7 @@ namespace ZenStates.Core
 
                 if (timeout == 0)
                 {
-                    amdSmuMutex.ReleaseMutex();
+                    //amdSmuMutex.ReleaseMutex();
                     SmuReadReg(smu.SMU_ADDR_RSP, ref status);
                     return (SMU.Status)status;
                 }
@@ -275,7 +274,7 @@ namespace ZenStates.Core
                 // Wait done
                 if (!SmuWaitDone())
                 {
-                    amdSmuMutex.ReleaseMutex();
+                    //amdSmuMutex.ReleaseMutex();
                     SmuReadReg(smu.SMU_ADDR_RSP, ref status);
                     return (SMU.Status)status;
                 }
@@ -285,7 +284,7 @@ namespace ZenStates.Core
                     SmuReadReg(smu.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]);
             }
 
-            amdSmuMutex.ReleaseMutex();
+            //amdSmuMutex.ReleaseMutex();
             SmuReadReg(smu.SMU_ADDR_RSP, ref status);
 
             return (SMU.Status)status;
@@ -300,17 +299,19 @@ namespace ZenStates.Core
 
         public uint ReadDword(uint value)
         {
+            amdSmuMutex.WaitOne(5000);
             Ols.WritePciConfigDword(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, value);
-            return Ols.ReadPciConfigDword(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA);
+            uint res = Ols.ReadPciConfigDword(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA);
+            amdSmuMutex.ReleaseMutex();
+
+            return res;
         }
 
         public double GetCoreMulti(int index = 0)
         {
             uint eax = default, edx = default;
             if (Ols.RdmsrTx(0xC0010293, ref eax, ref edx, (UIntPtr)(1 << index)) != 1)
-            {
                 return 0;
-            }
 
             double multi = 25 * (eax & 0xFF) / (12.5 * (eax >> 8 & 0x3F));
             return Math.Round(multi * 4, MidpointRounding.ToEven) / 4;

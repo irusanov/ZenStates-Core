@@ -71,7 +71,7 @@ namespace ZenStates.Core
             [FieldOffset(0x0C8)] public uint Uclk;
             [FieldOffset(0x0CC)] public uint Mclk;
             [FieldOffset(0x1F4)] public uint CldoVddp;
-            [FieldOffset(0x1F8)] public uint CldoVddgIod;
+            [FieldOffset(0x1F8)] public uint CldoVddgCcd;
         };
 
         [Serializable]
