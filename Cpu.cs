@@ -88,6 +88,7 @@ namespace ZenStates.Core
             uint fuse1 = 0x5D218;
             //uint fuse2 = 0x5D21C;
             uint offset = 0x238;
+            uint ccxPerCcd = 2;
 
             if (Ols.Cpuid(0x00000001, ref eax, ref ebx, ref ecx, ref edx) == 1)
             {
@@ -136,6 +137,7 @@ namespace ZenStates.Core
                 fuse1 += 0x10;
                 //fuse2 += 0x10;
                 offset = 0x598;
+                ccxPerCcd = 1;
             }
             else if (info.family == Family.FAMILY_17H && info.model != 0x71)
             {
@@ -154,9 +156,9 @@ namespace ZenStates.Core
             if (!SmuReadReg(coreDisableMapAddress, ref coreDisableMap))
                 throw new ApplicationException(InitializationExceptionText);
 
-            info.coresPerCcx = (8 - utils.CountSetBits(coreDisableMap & 0xff)) / 2;
+            info.coresPerCcx = (8 - utils.CountSetBits(coreDisableMap & 0xff)) / ccxPerCcd;
             info.ccds = utils.CountSetBits(ccdEnableMap);
-            info.ccxs = (info.cores == info.coresPerCcx ? 1 : info.ccds * 2);
+            info.ccxs = info.ccds * ccxPerCcd;
 
             info.patchLevel = GetPatchLevel();
 
