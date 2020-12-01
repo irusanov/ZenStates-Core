@@ -134,7 +134,7 @@ namespace ZenStates.Core
 
             if (info.family == Family.FAMILY_19H)
             {
-                fuse1 += 0x10;
+                //fuse1 += 0x10;
                 //fuse2 += 0x10;
                 offset = 0x598;
                 ccxPerCcd = 1;
