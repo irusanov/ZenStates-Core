@@ -71,6 +71,7 @@ namespace ZenStates.Core
             public uint coresPerCcx;
             public uint cores;
             public uint logicalCores;
+            public uint physicalCores;
             public uint threadsPerCore;
             public uint patchLevel;
         }
@@ -159,6 +160,7 @@ namespace ZenStates.Core
             info.coresPerCcx = (8 - utils.CountSetBits(coreDisableMap & 0xff)) / ccxPerCcd;
             info.ccds = utils.CountSetBits(ccdEnableMap);
             info.ccxs = info.ccds * ccxPerCcd;
+            info.physicalCores = info.ccxs * 8 / ccxPerCcd;
 
             info.patchLevel = GetPatchLevel();
 
