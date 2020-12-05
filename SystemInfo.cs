@@ -1,56 +1,57 @@
 ﻿using System;
+using System.Management;
 
 namespace ZenStates.Core
 {
     [Serializable]
     public class SystemInfo
     {
-        private static string SmuVersionToString(uint version)
+        private void Init(Cpu cpu)
         {
-            string[] versionString = new string[3];
-            versionString[0] = ((version & 0x00FF0000) >> 16).ToString("D2");
-            versionString[1] = ((version & 0x0000FF00) >> 8).ToString("D2");
-            versionString[2] = (version & 0x000000FF).ToString("D2");
+            CpuId = cpu.info.cpuid;
+            CpuName = cpu.info.cpuName;
+            NodesPerProcessor = cpu.GetCpuNodes();
+            PackageType = cpu.info.packageType;
+            PatchLevel = cpu.info.patchLevel;
+            SmuVersion = cpu.smu.Version;
+            FusedCoreCount = (int)cpu.info.cores;
+            Threads = (int)cpu.info.logicalCores;
+            CCDCount = (int)cpu.info.ccds;
+            CCXCount = (int)cpu.info.ccxs;
+            NumCoresInCCX = (int)cpu.info.coresPerCcx;
+            PhysicalCoreCount = (int)cpu.info.physicalCores;
+            CodeName = $"{cpu.info.codeName}";
+            SMT = (int)cpu.info.threadsPerCore > 1;
+            Model = cpu.info.model;
+            ExtendedModel = cpu.info.extModel;
 
-            return string.Join(".", versionString);
+            ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BaseBoard");
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                MbVendor = ((string)obj["Manufacturer"]).Trim();
+                MbName = ((string)obj["Product"]).Trim();
+            }
+            if (searcher != null) searcher.Dispose();
+
+            searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS");
+            foreach (ManagementObject obj in searcher.Get())
+            {
+                BiosVersion = ((string)obj["SMBIOSBIOSVersion"]).Trim();
+            }
+            if (searcher != null) searcher.Dispose();
         }
 
         public SystemInfo()
         {
-            CpuId = 0;
-            Model = 0;
-            ExtendedModel = 0;
-            NodesPerProcessor = 1;
-            PackageType = 0;
-            MbVendor = "";
-            MbName = "";
-            CpuName = "";
-            CodeName = "";
-            BiosVersion = "";
-            SmuVersion = 0;
-            FusedCoreCount = 2; // minimum cores
-            Threads = 2;
-            PatchLevel = 0;
+            Init(new Cpu());
         }
 
-        public SystemInfo(uint cpuId, uint model, uint eModel, int nodes, uint pkgType,
-            string mbVendor, string mbName, string cpuName, string codeName, string biosVersion,
-            uint smuVersion, int fusedCoreCount, int threads, uint patchLevel)
+        public SystemInfo(Cpu cpu)
         {
-            CpuId = cpuId;
-            Model = model;
-            ExtendedModel = eModel;
-            NodesPerProcessor = nodes;
-            PackageType = pkgType;
-            MbVendor = mbVendor ?? throw new ArgumentNullException(nameof(mbVendor));
-            MbName = mbName ?? throw new ArgumentNullException(nameof(mbName));
-            CpuName = cpuName ?? throw new ArgumentNullException(nameof(cpuName));
-            CodeName = codeName ?? throw new ArgumentNullException(nameof(codeName));
-            BiosVersion = biosVersion ?? throw new ArgumentNullException(nameof(biosVersion));
-            SmuVersion = smuVersion;
-            FusedCoreCount = fusedCoreCount;
-            Threads = threads;
-            PatchLevel = patchLevel;
+            if (cpu == null)
+                throw new ArgumentNullException("cpu is not initialized");
+
+            Init(cpu);
         }
 
         public string CpuName { get; set; }
@@ -73,6 +74,16 @@ namespace ZenStates.Core
         public string BiosVersion { get; set; }
         public uint SmuVersion { get; set; }
         public uint PatchLevel { get; set; }
+
+        private static string SmuVersionToString(uint version)
+        {
+            string[] versionString = new string[3];
+            versionString[0] = ((version & 0x00FF0000) >> 16).ToString("D2");
+            versionString[1] = ((version & 0x0000FF00) >> 8).ToString("D2");
+            versionString[2] = (version & 0x000000FF).ToString("D2");
+
+            return string.Join(".", versionString);
+        }
 
         public string GetSmuVersionString()
         {
