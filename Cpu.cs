@@ -69,6 +69,7 @@ namespace ZenStates.Core
             public uint physicalCores;
             public uint threadsPerCore;
             public uint patchLevel;
+            public uint coreDisableMap;
         }
 
         public Utils.LibStatus Status { get; private set; } = Utils.LibStatus.INITIALIZE_ERROR;
@@ -107,6 +108,7 @@ namespace ZenStates.Core
                 info.codeName = GetCodeName(info);
                 smu = GetMaintainedSettings.GetByType(info.codeName);
                 smu.Version = GetSmuVersion();
+                smu.TableVerion = GetTableVersion();
             } 
             else
             {
@@ -156,7 +158,7 @@ namespace ZenStates.Core
             info.ccds = utils.CountSetBits(ccdEnableMap);
             info.ccxs = info.ccds * ccxPerCcd;
             info.physicalCores = info.ccxs * 8 / ccxPerCcd;
-
+            info.coreDisableMap = coreDisableMap;
             info.patchLevel = GetPatchLevel();
 
             //if (!SendTestMessage())
@@ -480,6 +482,18 @@ namespace ZenStates.Core
             }
 
             return SendSmuCommand(smu.SMU_MSG_TransferTableToDram, ref args);
+        }
+
+        public uint GetTableVersion()
+        {
+            uint[] args = new uint[6];
+
+            SMU.Status status = SendSmuCommand(smu.SMU_MSG_GetTableVersion, ref args);
+
+            if (status == SMU.Status.OK)
+                return args[0];
+
+            return 0;
         }
 
         public ulong GetDramBaseAddress()

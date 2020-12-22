@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Management;
 
 namespace ZenStates.Core
@@ -14,6 +14,7 @@ namespace ZenStates.Core
             PackageType = cpu.info.packageType;
             PatchLevel = cpu.info.patchLevel;
             SmuVersion = cpu.smu.Version;
+            SmuTableVersion = cpu.smu.TableVerion;
             FusedCoreCount = (int)cpu.info.cores;
             Threads = (int)cpu.info.logicalCores;
             CCDCount = (int)cpu.info.ccds;
@@ -73,6 +74,7 @@ namespace ZenStates.Core
         public string MbName { get; set; }
         public string BiosVersion { get; set; }
         public uint SmuVersion { get; set; }
+        public uint SmuTableVersion { get; set; }
         public uint PatchLevel { get; set; }
 
         private static string SmuVersionToString(uint version)

@@ -45,6 +45,7 @@ namespace ZenStates.Core
             // SMU Messages
             SMU_MSG_TestMessage = 0x1;
             SMU_MSG_GetSmuVersion = 0x2;
+            SMU_MSG_GetTableVersion = 0x0;
             SMU_MSG_TransferTableToDram = 0x0;
             SMU_MSG_GetDramBaseAddress = 0x0;
             SMU_MSG_SetOverclockFrequencyAllCores = 0x0;
@@ -60,6 +61,7 @@ namespace ZenStates.Core
         }
 
         public uint Version { get; set; }
+        public uint TableVerion { get; set; }
         //public bool ManualOverclockSupported { get; protected set; }
 
         public SmuType SMU_TYPE { get; protected set; }
@@ -74,6 +76,7 @@ namespace ZenStates.Core
 
         public uint SMU_MSG_TestMessage { get; protected set; }
         public uint SMU_MSG_GetSmuVersion { get; protected set; }
+        public uint SMU_MSG_GetTableVersion { get; protected set; }
         public uint SMU_MSG_TransferTableToDram { get; protected set; }
         public uint SMU_MSG_GetDramBaseAddress { get; protected set; }
         public uint SMU_MSG_SetOverclockFrequencyAllCores { get; protected set; }
@@ -173,6 +176,7 @@ namespace ZenStates.Core
 
             SMU_MSG_TransferTableToDram = 0x5;
             SMU_MSG_GetDramBaseAddress = 0x6;
+            SMU_MSG_GetTableVersion = 0x8;
             SMU_MSG_EnableOcMode = 0x5A;
             SMU_MSG_DisableOcMode = 0x5B;
             SMU_MSG_SetOverclockFrequencyAllCores = 0x5C;
@@ -208,6 +212,7 @@ namespace ZenStates.Core
 
             SMU_MSG_TransferTableToDram = 0x5;
             SMU_MSG_GetDramBaseAddress = 0x6;
+            //SMU_MSG_GetTableVersion = 0x8;
             SMU_MSG_SetOverclockFrequencyAllCores = 0x18;
             // SMU_MSG_SetOverclockFrequencyPerCore = 0x19;
             SMU_MSG_SetOverclockCpuVid = 0x12;
@@ -226,6 +231,7 @@ namespace ZenStates.Core
             SMU_ADDR_ARG = 0x03B10A88;
 
             SMU_MSG_GetDramBaseAddress = 0xB;
+            SMU_MSG_GetTableVersion = 0xC;
             SMU_MSG_TransferTableToDram = 0x3D;
 
             SMU_MSG_GetPBOScalar = 0x62;
@@ -249,6 +255,7 @@ namespace ZenStates.Core
             SMU_ADDR_ARG = 0x03B10A88;
 
             //SMU_MSG_GetPBOScalar = 0xF;
+            SMU_MSG_GetTableVersion = 0x6;
             SMU_MSG_TransferTableToDram = 0x65;
             SMU_MSG_GetDramBaseAddress = 0x66;
             SMU_MSG_EnableOcMode = 0x17;
