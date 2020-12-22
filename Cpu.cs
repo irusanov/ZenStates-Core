@@ -10,11 +10,6 @@ namespace ZenStates.Core
         private static Mutex amdSmuMutex;
         private const ushort SMU_TIMEOUT = 8192;
         private const string InitializationExceptionText = "CPU module initialization failed.";
-        public enum LibStatus
-        {
-            OK = 0,
-            INITIALIZE_ERROR = 1,
-        }
 
         public enum Family
         {
@@ -76,7 +71,7 @@ namespace ZenStates.Core
             public uint patchLevel;
         }
 
-        public LibStatus Status { get; private set; } = LibStatus.INITIALIZE_ERROR;
+        public Utils.LibStatus Status { get; private set; } = Utils.LibStatus.INITIALIZE_ERROR;
 
         public Cpu()
         {
@@ -167,7 +162,7 @@ namespace ZenStates.Core
             //if (!SendTestMessage())
             //    throw new ApplicationException("SMU is not responding");
 
-            Status = LibStatus.OK;
+            Status = Utils.LibStatus.OK;
         }
 
         private void CheckOlsStatus()
