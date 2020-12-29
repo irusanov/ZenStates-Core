@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Management;
 
 namespace ZenStates.Core
@@ -77,14 +77,19 @@ namespace ZenStates.Core
         public uint SmuTableVersion { get; set; }
         public uint PatchLevel { get; set; }
 
-        private static string SmuVersionToString(uint version)
+        private static string SmuVersionToString(uint ver)
         {
-            string[] versionString = new string[3];
-            versionString[0] = ((version & 0x00FF0000) >> 16).ToString("D2");
-            versionString[1] = ((version & 0x0000FF00) >> 8).ToString("D2");
-            versionString[2] = (version & 0x000000FF).ToString("D2");
 
-            return string.Join(".", versionString);
+            if ((ver & 0xFF000000) > 0)
+            {
+                return string.Format("{0:D2}.{1:D2}.{2:D2}.{3:D2}", 
+                    (ver >> 24) & 0xff, (ver >> 16) & 0xff, (ver >> 8) & 0xff, ver & 0xff);
+            }
+            else
+            {
+                return string.Format("{0:D2}.{1:D2}.{2:D2}",
+                    (ver >> 16) & 0xff, (ver >> 8) & 0xff, ver & 0xff);
+            }
         }
 
         public string GetSmuVersionString()
