@@ -108,7 +108,7 @@ namespace ZenStates.Core
                 info.codeName = GetCodeName(info);
                 smu = GetMaintainedSettings.GetByType(info.codeName);
                 smu.Version = GetSmuVersion();
-                smu.TableVerion = GetTableVersion();
+                smu.TableVersion = GetTableVersion();
             } 
             else
             {

@@ -61,7 +61,7 @@ namespace ZenStates.Core
         }
 
         public uint Version { get; set; }
-        public uint TableVerion { get; set; }
+        public uint TableVersion { get; set; }
         //public bool ManualOverclockSupported { get; protected set; }
 
         public SmuType SMU_TYPE { get; protected set; }

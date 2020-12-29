@@ -87,108 +87,32 @@ namespace ZenStates.Core
             [FieldOffset(0x22C)] public uint CldoVddgCcd;
         };
 
-        public PowerTable(SMU.SmuType smutype) => SmuType = smutype;
-
-        private void ParseTable(uint[] pt)
+        // SMU version 56.27.00
+        [Serializable]
+        [StructLayout(LayoutKind.Explicit)]
+        private struct PowerTableCPU_0x2D0903
         {
-            if (pt == null)
-                return;
+            [FieldOffset(0x0B0)] public uint VddcrSoc;
+            [FieldOffset(0x0BC)] public uint Fclk;
+            [FieldOffset(0x0C4)] public uint Uclk;
+            [FieldOffset(0x0C8)] public uint Mclk;
+            [FieldOffset(0x21C)] public uint CldoVddp;
+            [FieldOffset(0x220)] public uint CldoVddgIod;
+            [FieldOffset(0x224)] public uint CldoVddgCcd;
+        };
 
-            GCHandle handle = GCHandle.Alloc(pt, GCHandleType.Pinned);
+        public PowerTable(uint version, SMU.SmuType smutype)
+        {
+            SmuType = smutype;
+            TableVersion = version;
+        }
+
+        private static T ReadUsingMarshalSafe<T>(uint[] data) where T : struct
+        {
+            GCHandle handle = GCHandle.Alloc(data, GCHandleType.Pinned);
             try
             {
-                dynamic powerTable = null;
-                byte[] bytes = new byte[4];
-
-                switch (SmuType)
-                {
-                    case SMU.SmuType.TYPE_CPU0:
-                        powerTable = (PowerTableCPU0)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(PowerTableCPU0));
-                        break;
-
-                    case SMU.SmuType.TYPE_CPU1:
-                        powerTable = (PowerTableCPU1)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(PowerTableCPU1));
-                        break;
-
-                    case SMU.SmuType.TYPE_CPU2:
-                        powerTable = (PowerTableCPU2)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(PowerTableCPU2));
-                        break;
-
-                    case SMU.SmuType.TYPE_CPU3:
-                        powerTable = (PowerTableCPU3)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(PowerTableCPU3));
-                        break;
-
-                    case SMU.SmuType.TYPE_APU0:
-                        powerTable = (PowerTableAPU0)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(PowerTableAPU0));
-                        break;
-
-                    case SMU.SmuType.TYPE_APU1:
-                        powerTable = (PowerTableAPU1)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(PowerTableAPU1));
-                        break;
-
-                    default:
-                        return;
-                }
-
-                float bclkCorrection = 1.00f;
-
-                try
-                {
-                    bytes = BitConverter.GetBytes(powerTable.Mclk);
-                    float mclkFreq = BitConverter.ToSingle(bytes, 0);
-
-                    // Compensate for lack of BCLK detection, based on configuredClockSpeed
-                    float dramFreq = ConfiguredClockSpeed / 2;
-                    //if ((dramFreq + 1) / mclkFreq > 1 && dramFreq % mclkFreq > 1)
-                    bclkCorrection = dramFreq / mclkFreq;
-
-                    MCLK = mclkFreq * bclkCorrection;
-                }
-                catch { }
-
-                try
-                {
-                    bytes = BitConverter.GetBytes(powerTable.Fclk);
-                    float fclkFreq = BitConverter.ToSingle(bytes, 0);
-                    FCLK = fclkFreq * bclkCorrection;
-                }
-                catch { }
-
-                try
-                {
-                    bytes = BitConverter.GetBytes(powerTable.Uclk);
-                    float uclkFreq = BitConverter.ToSingle(bytes, 0);
-                    UCLK = uclkFreq * bclkCorrection;
-                }
-                catch { }
-
-                try
-                {
-                    bytes = BitConverter.GetBytes(powerTable.VddcrSoc);
-                    VDDCR_SOC = BitConverter.ToSingle(bytes, 0);
-                }
-                catch { }
-
-                try
-                {
-                    bytes = BitConverter.GetBytes(powerTable.CldoVddp);
-                    CLDO_VDDP = BitConverter.ToSingle(bytes, 0);
-                }
-                catch { }
-
-                try
-                {
-                    bytes = BitConverter.GetBytes(powerTable.CldoVddgIod);
-                    CLDO_VDDG_IOD = BitConverter.ToSingle(bytes, 0);
-                }
-                catch { }
-
-                try
-                {
-                    bytes = BitConverter.GetBytes(powerTable.CldoVddgCcd);
-                    CLDO_VDDG_CCD = BitConverter.ToSingle(bytes, 0);
-                }
-                catch { }
+                return (T)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(T));
             }
             finally
             {
@@ -196,7 +120,111 @@ namespace ZenStates.Core
             }
         }
 
+        private void ParseTable(uint[] pt)
+        {
+            if (pt == null)
+                return;
+
+            dynamic powerTable = null;
+
+            switch (SmuType)
+            {
+                case SMU.SmuType.TYPE_CPU0:
+                    powerTable = ReadUsingMarshalSafe<PowerTableCPU0>(pt);
+                    break;
+
+                case SMU.SmuType.TYPE_CPU1:
+                    powerTable = ReadUsingMarshalSafe<PowerTableCPU1>(pt);
+                    break;
+
+                case SMU.SmuType.TYPE_CPU2:
+                    powerTable = ReadUsingMarshalSafe<PowerTableCPU2>(pt);
+                    break;
+
+                case SMU.SmuType.TYPE_CPU3:
+                    if (TableVersion == 0x2D0903)
+                        powerTable = ReadUsingMarshalSafe<PowerTableCPU_0x2D0903>(pt);
+                    else
+                        powerTable = ReadUsingMarshalSafe<PowerTableCPU3>(pt);
+                    break;
+
+                case SMU.SmuType.TYPE_APU0:
+                    powerTable = ReadUsingMarshalSafe<PowerTableAPU0>(pt);
+                    break;
+
+                case SMU.SmuType.TYPE_APU1:
+                    powerTable = ReadUsingMarshalSafe<PowerTableAPU1>(pt);
+                    break;
+
+                default:
+                    return;
+            }
+
+            float bclkCorrection = 1.00f;
+            byte[] bytes;
+
+            try
+            {
+                bytes = BitConverter.GetBytes(powerTable.Mclk);
+                float mclkFreq = BitConverter.ToSingle(bytes, 0);
+
+                // Compensate for lack of BCLK detection, based on configuredClockSpeed
+                float dramFreq = ConfiguredClockSpeed / 2;
+                //if ((dramFreq + 1) / mclkFreq > 1 && dramFreq % mclkFreq > 1)
+                bclkCorrection = dramFreq / mclkFreq;
+
+                MCLK = mclkFreq * bclkCorrection;
+            }
+            catch { }
+
+            try
+            {
+                bytes = BitConverter.GetBytes(powerTable.Fclk);
+                float fclkFreq = BitConverter.ToSingle(bytes, 0);
+                FCLK = fclkFreq * bclkCorrection;
+            }
+            catch { }
+
+            try
+            {
+                bytes = BitConverter.GetBytes(powerTable.Uclk);
+                float uclkFreq = BitConverter.ToSingle(bytes, 0);
+                UCLK = uclkFreq * bclkCorrection;
+            }
+            catch { }
+
+            try
+            {
+                bytes = BitConverter.GetBytes(powerTable.VddcrSoc);
+                VDDCR_SOC = BitConverter.ToSingle(bytes, 0);
+            }
+            catch { }
+
+            try
+            {
+                bytes = BitConverter.GetBytes(powerTable.CldoVddp);
+                CLDO_VDDP = BitConverter.ToSingle(bytes, 0);
+            }
+            catch { }
+
+            try
+            {
+                bytes = BitConverter.GetBytes(powerTable.CldoVddgIod);
+                CLDO_VDDG_IOD = BitConverter.ToSingle(bytes, 0);
+            }
+            catch { }
+
+            try
+            {
+                bytes = BitConverter.GetBytes(powerTable.CldoVddgCcd);
+                CLDO_VDDG_CCD = BitConverter.ToSingle(bytes, 0);
+            }
+            catch { }
+        }
+
         public SMU.SmuType SmuType { get; protected set; }
+        public uint TableVersion { get; protected set; }
+
         public uint[] Table
         {
             get => table;
