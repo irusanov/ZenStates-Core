@@ -24,10 +24,11 @@ namespace ZenStates.Core
         [StructLayout(LayoutKind.Explicit)]
         private struct PowerTableAPU0
         {
+            [FieldOffset(0x0F0)] public uint CldoVddp;
             [FieldOffset(0x104)] public uint VddcrSoc;
             [FieldOffset(0x298)] public uint Fclk;
-            [FieldOffset(0x2C8)] public uint Uclk;
-            [FieldOffset(0x2CC)] public uint Mclk;
+            [FieldOffset(0x29C)] public uint Uclk;
+            [FieldOffset(0x2A0)] public uint Mclk;
         };
 
         [Serializable]
@@ -71,7 +72,7 @@ namespace ZenStates.Core
             [FieldOffset(0x0C8)] public uint Uclk;
             [FieldOffset(0x0CC)] public uint Mclk;
             [FieldOffset(0x1F4)] public uint CldoVddp;
-            [FieldOffset(0x1F8)] public uint CldoVddgCcd;
+            [FieldOffset(0x1F8)] public uint CldoVddgIod;
         };
 
         [Serializable]
