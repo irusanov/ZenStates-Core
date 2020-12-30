@@ -158,7 +158,8 @@ namespace ZenStates.Core
                     break;
 
                 default:
-                    return;
+                    powerTable = null;
+                    break;
             }
 
             float bclkCorrection = 1.00f;

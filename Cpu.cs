@@ -24,7 +24,7 @@ namespace ZenStates.Core
             Unsupported = 0,
             DEBUG,
             SummitRidge,
-            Threadripper,
+            Whitehaven,
             Naples,
             RavenRidge,
             PinnacleRidge,
@@ -34,16 +34,29 @@ namespace ZenStates.Core
             Matisse,
             CastlePeak,
             Rome,
+            Dali,
             Renoir,
+            VanGogh,
             Vermeer,
-            Genesis
+            GenesisPeak,
+            Milan,
+            Cezanne,
+            Rembrandt,
         };
 
+
+        // CPUID_Fn80000001_EBX [BrandId Identifier] (BrandId)
+        // [31:28] PkgType: package type.
+        // Socket FP5/FP6 = 0
+        // Socket AM4 = 2
+        // Socket SP3 = 4
+        // Socket TR4/TRX4 (SP3r2/SP3r3) = 7
         public enum PackageType : int
         {
-            FP6 = 0,
+            FPX = 0,
             AM4 = 2,
-            SP3 = 7
+            SP3 = 4,
+            TRX = 7,
         }
 
         public readonly Utils utils = new Utils();
@@ -57,7 +70,7 @@ namespace ZenStates.Core
             public Family family;
             public CodeName codeName;
             public string cpuName;
-            public uint packageType; // SMU.PackageType
+            public PackageType packageType;
             public uint baseModel;
             public uint extModel;
             public uint model;
@@ -104,7 +117,7 @@ namespace ZenStates.Core
             // Package type
             if (Ols.Cpuid(0x80000001, ref eax, ref ebx, ref ecx, ref edx) == 1)
             {
-                info.packageType = ebx >> 28;
+                info.packageType = (PackageType)(ebx >> 28);
                 info.codeName = GetCodeName(info);
                 smu = GetMaintainedSettings.GetByType(info.codeName);
                 smu.Version = GetSmuVersion();
@@ -330,66 +343,90 @@ namespace ZenStates.Core
             return res;
         }
 
+        // https://en.wikichip.org/wiki/amd/cpuid
         public CodeName GetCodeName(CPUInfo cpuInfo)
         {
-            CodeName codeName;
+            CodeName codeName = CodeName.Unsupported;
 
-            // CPU Check. Compare family, model, ext family, ext model
-            switch (cpuInfo.cpuid)
+            if (cpuInfo.family == Family.FAMILY_17H)
             {
-                case 0x00800F11: // CPU \ Zen \ Summit Ridge \ ZP - B0 \ 14nm
-                case 0x00800F00: // CPU \ Zen \ Summit Ridge \ ZP - A0 \ 14nm
-                    if (cpuInfo.packageType == 4 || cpuInfo.packageType == 7)
-                        codeName = CodeName.Threadripper;
-                    else
-                        codeName = CodeName.SummitRidge;
-                    break;
-                case 0x00800F12:
-                    codeName = CodeName.Naples;
-                    break;
-                case 0x00800F82: // CPU \ Zen + \ Pinnacle Ridge \ 12nm
-                    if (cpuInfo.packageType == 4 || cpuInfo.packageType == 7)
-                        codeName = CodeName.Colfax;
-                    else
-                        codeName = CodeName.PinnacleRidge;
-                    break;
-                case 0x00810F81: // APU \ Zen + \ Picasso \ 12nm
-                    codeName = CodeName.Picasso;
-                    break;
-                case 0x00810F00: // APU \ Zen \ Raven Ridge \ RV - A0 \ 14nm
-                case 0x00810F10: // APU \ Zen \ Raven Ridge \ 14nm
-                case 0x00820F00: // APU \ Zen \ Raven Ridge 2 \ RV2 - A0 \ 14nm
-                case 0x00820F01: // APU \ Zen \ Dali
-                    codeName = CodeName.RavenRidge;
-                    break;
-                case 0x00870F10: // CPU \ Zen2 \ Matisse \ MTS - B0 \ 7nm + 14nm I/ O Die
-                case 0x00870F00: // CPU \ Zen2 \ Matisse \ MTS - A0 \ 7nm + 14nm I/ O Die
-                    codeName = CodeName.Matisse;
-                    break;
-                case 0x00830F00:
-                case 0x00830F10: // CPU \ Epyc 2 \ Rome \ Treadripper 2 \ Castle Peak 7nm
-                    if (cpuInfo.packageType == 7)
-                        codeName = CodeName.Rome;
-                    else
-                        codeName = CodeName.CastlePeak;
-                    break;
-                case 0x00850F00: // Subor Z+
-                    codeName = CodeName.Fenghuang;
-                    break;
-                case 0x00860F01: // APU \ Renoir
-                    codeName = CodeName.Renoir;
-                    break;
-                case 0x00A20F00: // CPU \ Vermeer
-                case 0x00A20F10:
-                    codeName = CodeName.Vermeer;
-                    break;
-                //case 0x00A00F00: // CPU \ Genesis
-                //case 0x00A00F10:
-                    //codeName = SMU.CodeName.Genesis;
-                    //break;
-                default:
-                    codeName = CodeName.Unsupported;
-                    break;
+                switch (cpuInfo.model)
+                {
+                    // Zen
+                    case 0x1:
+                        if (cpuInfo.packageType == PackageType.SP3)
+                            codeName = CodeName.Naples;
+                        else if (cpuInfo.packageType == PackageType.TRX)
+                            codeName = CodeName.Whitehaven;
+                        else
+                            codeName = CodeName.SummitRidge;
+                        break;
+                    case 0x11:
+                        codeName = CodeName.RavenRidge;
+                        break;
+                    case 0x20:
+                        codeName = CodeName.Dali;
+                        break;
+                    // Zen+
+                    case 0x8:
+                        if (cpuInfo.packageType == PackageType.SP3 || cpuInfo.packageType == PackageType.TRX)
+                            codeName = CodeName.Colfax;
+                        else
+                            codeName = CodeName.PinnacleRidge;
+                        break;
+                    case 0x18:
+                        codeName = CodeName.Picasso;
+                        break;
+                    case 0x50: // Subor Z+, CPUID 0x00850F00
+                        codeName = CodeName.Fenghuang;
+                        break;
+                    // Zen2
+                    case 0x31:
+                        if (cpuInfo.packageType == PackageType.TRX)
+                            codeName = CodeName.CastlePeak;
+                        else
+                            codeName = CodeName.Rome;
+                        break;
+                    case 0x60:
+                        codeName = CodeName.Renoir;
+                        break;
+                    case 0x71:
+                        codeName = CodeName.Matisse;
+                        break;
+                    case 0x90:
+                        codeName = CodeName.VanGogh;
+                        break;
+
+                    default:
+                        codeName = CodeName.Unsupported;
+                        break;
+                }
+            }
+            else if (cpuInfo.family == Family.FAMILY_19H)
+            {
+                switch (cpuInfo.model)
+                {
+                    // Does GenesisPeak has different model number than Milan?
+                    case 0x0:
+                        if (cpuInfo.packageType == PackageType.TRX)
+                            codeName = CodeName.GenesisPeak;
+                        else
+                            codeName = CodeName.Milan;
+                        break;
+                    case 0x20:
+                        codeName = CodeName.Vermeer;
+                        break;
+                    case 0x40:
+                        codeName = CodeName.Rembrandt;
+                        break;
+                    case 0x50:
+                        codeName = CodeName.Cezanne;
+                        break;
+
+                    default:
+                        codeName = CodeName.Unsupported;
+                        break;
+                }
             }
 
             return codeName;
@@ -525,7 +562,7 @@ namespace ZenStates.Core
                         return 0;
                     break;
 
-                // Matisse, CastlePeak, Rome, Vermeer
+                // Matisse, CastlePeak, Rome, Vermeer, Genesis?, Milan?
                 case SMU.SmuType.TYPE_CPU2:
                 case SMU.SmuType.TYPE_CPU3:
                     status = SendSmuCommand(smu.SMU_MSG_GetDramBaseAddress, ref args);
@@ -601,7 +638,13 @@ namespace ZenStates.Core
             {
                 if (disposing)
                 {
-                    amdSmuMutex.ReleaseMutex();
+                    try
+                    {
+                        amdSmuMutex.ReleaseMutex();
+                    }
+                    catch { }
+
+                    utils.Dispose();
                     Ols.DeinitializeOls();
                     Ols.Dispose();
                 }

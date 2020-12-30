@@ -11,7 +11,7 @@ namespace ZenStates.Core
             CpuId = cpu.info.cpuid;
             CpuName = cpu.info.cpuName;
             NodesPerProcessor = cpu.GetCpuNodes();
-            PackageType = cpu.info.packageType;
+            PackageType = (uint)cpu.info.packageType;
             PatchLevel = cpu.info.patchLevel;
             SmuVersion = cpu.smu.Version;
             SmuTableVersion = cpu.smu.TableVersion;
@@ -82,12 +82,12 @@ namespace ZenStates.Core
 
             if ((ver & 0xFF000000) > 0)
             {
-                return string.Format("{0:D2}.{1:D2}.{2:D2}.{3:D2}", 
+                return string.Format("{0}.{1}.{2}.{3}", 
                     (ver >> 24) & 0xff, (ver >> 16) & 0xff, (ver >> 8) & 0xff, ver & 0xff);
             }
             else
             {
-                return string.Format("{0:D2}.{1:D2}.{2:D2}",
+                return string.Format("{0}.{1}.{2}",
                     (ver >> 16) & 0xff, (ver >> 8) & 0xff, ver & 0xff);
             }
         }

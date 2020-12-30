@@ -32,7 +32,7 @@ namespace ZenStates.Core
             // SMU
             //ManualOverclockSupported = false;
 
-            SMU_TYPE = SmuType.TYPE_CPU0;
+            SMU_TYPE = SmuType.TYPE_UNSUPPORTED;
 
             SMU_PCI_ADDR = 0x00000000;
             SMU_OFFSET_ADDR = 0x60;
@@ -91,7 +91,7 @@ namespace ZenStates.Core
         public uint SMU_MSG_SetEDCLimit { get; protected set; }
     }
 
-    // Zen (Summit Ridge), ThreadRipper
+    // Zen (Summit Ridge), ThreadRipper (Whitehaven)
     public class SummitRidgeSettings : SMU
     {
         public SummitRidgeSettings()
@@ -266,6 +266,11 @@ namespace ZenStates.Core
         }
     }
 
+    public class UnsupportedSettings : SMU
+    {
+        public UnsupportedSettings() {}
+    }
+
     public static class GetMaintainedSettings
     {
         private static readonly Dictionary<Cpu.CodeName, SMU> settings = new Dictionary<Cpu.CodeName, SMU>()
@@ -273,7 +278,7 @@ namespace ZenStates.Core
             // Zen
             { Cpu.CodeName.SummitRidge, new SummitRidgeSettings() },
             { Cpu.CodeName.Naples, new SummitRidgeSettings() },
-            { Cpu.CodeName.Threadripper, new SummitRidgeSettings() },
+            { Cpu.CodeName.Whitehaven, new SummitRidgeSettings() },
 
             // Zen+
             { Cpu.CodeName.PinnacleRidge, new ZenPSettings() },
@@ -286,13 +291,19 @@ namespace ZenStates.Core
 
             // Zen3
             { Cpu.CodeName.Vermeer, new Zen3Settings() },
-            { Cpu.CodeName.Genesis, new Zen3Settings() },
+            // GenesisPeak and Milan are unknown for now
+            // { Cpu.CodeName.GenesisPeak, new Zen3Settings() },
+            // { Cpu.CodeName.Milan, new Zen3Settings() },
 
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },
+            { Cpu.CodeName.Dali, new APUSettings0() },
             { Cpu.CodeName.Fenghuang, new APUSettings0() },
             { Cpu.CodeName.Picasso, new APUSettings0() },
+
             { Cpu.CodeName.Renoir, new APUSettings1() },
+
+            { Cpu.CodeName.Unsupported, new UnsupportedSettings() },
         };
 
         public static SMU GetByType(Cpu.CodeName type)
