@@ -11,6 +11,19 @@ namespace ZenStates.Core
         private const ushort SMU_TIMEOUT = 8192;
         private const string InitializationExceptionText = "CPU module initialization failed.";
 
+        public const uint F17H_M01H_SVI = 0x0005A000;
+        public const uint F17H_M60H_SVI = 0x0006F000; // Renoir only?
+        public const uint F17H_M01H_SVI_TEL_PLANE0 = (F17H_M01H_SVI + 0xC);
+        public const uint F17H_M01H_SVI_TEL_PLANE1 = (F17H_M01H_SVI + 0x10);
+        public const uint F17H_M30H_SVI_TEL_PLANE0 = (F17H_M01H_SVI + 0x14);
+        public const uint F17H_M30H_SVI_TEL_PLANE1 = (F17H_M01H_SVI + 0x10);
+        public const uint F17H_M60H_SVI_TEL_PLANE0 = (F17H_M60H_SVI + 0x38);
+        public const uint F17H_M60H_SVI_TEL_PLANE1 = (F17H_M60H_SVI + 0x3C);
+        public const uint F17H_M70H_SVI_TEL_PLANE0 = (F17H_M01H_SVI + 0x10);
+        public const uint F17H_M70H_SVI_TEL_PLANE1 = (F17H_M01H_SVI + 0xC);
+        public const uint F19H_M21H_SVI_TEL_PLANE0 = (F17H_M01H_SVI + 0x10);
+        public const uint F19H_M21H_SVI_TEL_PLANE1 = (F17H_M01H_SVI + 0xC);
+
         public enum Family
         {
             UNSUPPORTED = 0x0,
@@ -64,6 +77,12 @@ namespace ZenStates.Core
         public readonly Ols Ols;
         public readonly SMU smu;
 
+        public struct SVI2
+        {
+            public uint CoreAddress;
+            public uint SocAddress;
+        }
+
         public struct CPUInfo
         {
             public uint cpuid;
@@ -83,6 +102,7 @@ namespace ZenStates.Core
             public uint threadsPerCore;
             public uint patchLevel;
             public uint coreDisableMap;
+            public SVI2 SVI2;
         }
 
         public Utils.LibStatus Status { get; private set; } = Utils.LibStatus.INITIALIZE_ERROR;
@@ -173,6 +193,7 @@ namespace ZenStates.Core
             info.physicalCores = info.ccxs * 8 / ccxPerCcd;
             info.coreDisableMap = coreDisableMap;
             info.patchLevel = GetPatchLevel();
+            info.SVI2 = GetSVI2Info(info.codeName);
 
             //if (!SendTestMessage())
             //    throw new ApplicationException("SMU is not responding");
@@ -430,6 +451,83 @@ namespace ZenStates.Core
             }
 
             return codeName;
+        }
+
+        // SVI2 interface
+        public SVI2 GetSVI2Info(CodeName codeName)
+        {
+            SVI2 svi = new SVI2();
+ 
+            switch (codeName)
+            {
+                //Zen, Zen+
+                case CodeName.SummitRidge:
+                case CodeName.PinnacleRidge:
+                case CodeName.RavenRidge:
+                case CodeName.Fenghuang:
+                case CodeName.Dali:
+                    svi.CoreAddress = F17H_M01H_SVI_TEL_PLANE0;
+                    svi.SocAddress = F17H_M01H_SVI_TEL_PLANE1;
+                    break;
+
+                // Zen Threadripper/EPYC
+                case CodeName.Whitehaven:
+                case CodeName.Naples:
+                case CodeName.Colfax:
+                    svi.CoreAddress = F17H_M01H_SVI_TEL_PLANE1;
+                    svi.SocAddress = F17H_M01H_SVI_TEL_PLANE0;
+                    break;
+
+                // Zen2 Threadripper/EPYC
+                case CodeName.CastlePeak:
+                case CodeName.Rome:
+                    svi.CoreAddress = F17H_M30H_SVI_TEL_PLANE0;
+                    svi.SocAddress = F17H_M30H_SVI_TEL_PLANE1;
+                    break;
+
+                // Picasso
+                case CodeName.Picasso:
+                    if ((smu.Version & 0xFF000000) > 0)
+                    {
+                        svi.CoreAddress = F17H_M01H_SVI_TEL_PLANE0;
+                        svi.SocAddress = F17H_M01H_SVI_TEL_PLANE1;
+                    }
+                    else
+                    {
+                        svi.CoreAddress = F17H_M01H_SVI_TEL_PLANE1;
+                        svi.SocAddress = F17H_M01H_SVI_TEL_PLANE0;
+                    }
+                    break;
+
+                // Zen2
+                case CodeName.Matisse:
+                    svi.CoreAddress = F17H_M70H_SVI_TEL_PLANE0;
+                    svi.SocAddress = F17H_M70H_SVI_TEL_PLANE1;
+                    break;
+
+                // Zen2 APU, Zen3 APU ?
+                case CodeName.Renoir:
+                    //case Cpu.CodeName.VanGogh:
+                    //case Cpu.CodeName.Cezanne:
+                    svi.CoreAddress = F17H_M60H_SVI_TEL_PLANE0;
+                    svi.SocAddress = F17H_M60H_SVI_TEL_PLANE1;
+                    break;
+
+                // Zen3, Zen3 Threadripper/EPYC ?
+                case CodeName.Vermeer:
+                    //case Cpu.CodeName.GenesisPeak:
+                    //case Cpu.CodeName.Milan:
+                    svi.CoreAddress = F19H_M21H_SVI_TEL_PLANE0;
+                    svi.SocAddress = F19H_M21H_SVI_TEL_PLANE1;
+                    break;
+
+                default:
+                    svi.CoreAddress = F17H_M01H_SVI_TEL_PLANE0;
+                    svi.SocAddress = F17H_M01H_SVI_TEL_PLANE1;
+                    break;
+            }
+
+            return svi;
         }
 
         public string GetCpuName()
