@@ -434,7 +434,7 @@ namespace ZenStates.Core
                         else
                             codeName = CodeName.Milan;
                         break;
-                    case 0x20:
+                    case 0x21:
                         codeName = CodeName.Vermeer;
                         break;
                     case 0x40:
