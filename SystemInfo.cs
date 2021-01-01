@@ -50,7 +50,7 @@ namespace ZenStates.Core
         public SystemInfo(Cpu cpu)
         {
             if (cpu == null)
-                throw new ArgumentNullException("cpu is not initialized");
+                throw new ArgumentNullException("CPU module is not initialized.");
 
             Init(cpu);
         }

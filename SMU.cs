@@ -96,11 +96,6 @@ namespace ZenStates.Core
     {
         public SummitRidgeSettings()
         {
-            /*
-            SMU_ADDR_MSG = 0x03B10528;
-            SMU_ADDR_RSP = 0x03B10564;
-            SMU_ADDR_ARG = 0x03B10598;
-            */
             SMU_TYPE = SmuType.TYPE_CPU0;
 
             SMU_ADDR_MSG = 0x03B1051C;
@@ -109,7 +104,14 @@ namespace ZenStates.Core
 
             SMU_MSG_TransferTableToDram = 0xA;
             SMU_MSG_GetDramBaseAddress = 0xC;
+
+            // SMU_MSG_EnableOcMode = 0x63; // Disable PROCHOT
+
             /*
+            SMU_ADDR_MSG = 0x03B10528;
+            SMU_ADDR_RSP = 0x03B10564;
+            SMU_ADDR_ARG = 0x03B10598;
+
             SMU_MSG_EnableOcMode = 0x23;
             SMU_MSG_DisableOcMode = 0x24;
             SMU_MSG_SetOverclockFrequencyAllCores = 0x26;
@@ -132,11 +134,16 @@ namespace ZenStates.Core
 
             SMU_MSG_TransferTableToDram = 0xA;
             SMU_MSG_GetDramBaseAddress = 0xC;
-            SMU_MSG_EnableOcMode = 0x6B; //0x63;
+            SMU_MSG_EnableOcMode = 0x6B; //0x63; <-- Disable PROCHOT?
             //SMU_MSG_DisableOcMode = 0x64;
             SMU_MSG_SetOverclockFrequencyAllCores = 0x6C;
             SMU_MSG_SetOverclockFrequencyPerCore = 0x6D;
             SMU_MSG_SetOverclockCpuVid = 0x6E;
+            
+            SMU_MSG_SetPPTLimit = 0x64; // ?
+            SMU_MSG_SetTDCLimit = 0x65; // ?
+            SMU_MSG_SetEDCLimit = 0x66;
+
             SMU_MSG_SetPBOScalar = 0x6A;
             SMU_MSG_GetPBOScalar = 0x6F;
         }
@@ -160,6 +167,12 @@ namespace ZenStates.Core
             SMU_MSG_SetOverclockFrequencyAllCores = 0x68;
             SMU_MSG_SetOverclockFrequencyPerCore = 0x69;
             SMU_MSG_SetOverclockCpuVid = 0x6A;
+
+            SMU_MSG_SetTDCLimit = 0x6B; // ?
+            SMU_MSG_SetEDCLimit = 0x6C; // ?
+
+            SMU_MSG_SetPBOScalar = 0x6F;
+            SMU_MSG_GetPBOScalar = 0x70;
         }
     }
 
@@ -268,7 +281,10 @@ namespace ZenStates.Core
 
     public class UnsupportedSettings : SMU
     {
-        public UnsupportedSettings() {}
+        public UnsupportedSettings()
+        {
+            SMU_TYPE = SmuType.TYPE_UNSUPPORTED;
+        }
     }
 
     public static class GetMaintainedSettings
