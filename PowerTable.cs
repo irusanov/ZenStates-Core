@@ -20,6 +20,7 @@ namespace ZenStates.Core
             return true;
         }
 
+        // Zen and Zen+ APU
         [Serializable]
         [StructLayout(LayoutKind.Explicit)]
         private struct PowerTableAPU0
@@ -31,16 +32,19 @@ namespace ZenStates.Core
             [FieldOffset(0x2A0)] public uint Mclk;
         };
 
+        // Renoir
         [Serializable]
         [StructLayout(LayoutKind.Explicit)]
         private struct PowerTableAPU1
         {
-            [FieldOffset(0x144)] public uint Fclk;
-            [FieldOffset(0x154)] public uint Uclk;
-            [FieldOffset(0x164)] public uint Mclk;
+            [FieldOffset(0x144)] public uint Fclk; // 5E8
+            [FieldOffset(0x154)] public uint Uclk; // 5EC
+            [FieldOffset(0x164)] public uint Mclk; // 5F0
             [FieldOffset(0x198)] public uint VddcrSoc;
+            //[FieldOffset(0x860)] public uint CldoVddp;
         };
 
+        // Zen
         [Serializable]
         [StructLayout(LayoutKind.Explicit)]
         private struct PowerTableCPU0
@@ -52,6 +56,7 @@ namespace ZenStates.Core
             [FieldOffset(0x084)] public uint Mclk;
         };
 
+        // Zen+
         [Serializable]
         [StructLayout(LayoutKind.Explicit)]
         private struct PowerTableCPU1
@@ -63,6 +68,7 @@ namespace ZenStates.Core
             [FieldOffset(0x084)] public uint Mclk;
         };
 
+        // Zen2
         [Serializable]
         [StructLayout(LayoutKind.Explicit)]
         private struct PowerTableCPU2
@@ -75,6 +81,7 @@ namespace ZenStates.Core
             [FieldOffset(0x1F8)] public uint CldoVddgIod;
         };
 
+        // Zen3
         [Serializable]
         [StructLayout(LayoutKind.Explicit)]
         private struct PowerTableCPU3
@@ -88,6 +95,7 @@ namespace ZenStates.Core
             [FieldOffset(0x22C)] public uint CldoVddgCcd;
         };
 
+        // Zen 3
         // SMU version 56.27.00
         [Serializable]
         [StructLayout(LayoutKind.Explicit)]

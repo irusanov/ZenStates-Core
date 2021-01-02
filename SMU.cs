@@ -203,7 +203,7 @@ namespace ZenStates.Core
         }
     }
 
-    // Ryzen 5000 (Vermeer), TR 5000 (Genesis)?
+    // Ryzen 5000 (Vermeer), TR 5000 (Chagall)?
     public class Zen3Settings : Zen2Settings
     {
         public Zen3Settings()
@@ -307,8 +307,8 @@ namespace ZenStates.Core
 
             // Zen3
             { Cpu.CodeName.Vermeer, new Zen3Settings() },
-            // GenesisPeak and Milan are unknown for now
-            // { Cpu.CodeName.GenesisPeak, new Zen3Settings() },
+            // Chagall and Milan are unknown for now
+            // { Cpu.CodeName.Chagall, new Zen3Settings() },
             // { Cpu.CodeName.Milan, new Zen3Settings() },
 
             // APU

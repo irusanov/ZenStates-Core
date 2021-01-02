@@ -51,7 +51,7 @@ namespace ZenStates.Core
             Renoir,
             VanGogh,
             Vermeer,
-            GenesisPeak,
+            Chagall,
             Milan,
             Cezanne,
             Rembrandt,
@@ -163,6 +163,8 @@ namespace ZenStates.Core
                 throw new ApplicationException(InitializationExceptionText);
             }
 
+            // Get CCD and CCX configuration
+            // https://gitlab.com/leogx9r/ryzen_smu/-/blob/master/userspace/monitor_cpu.c
             if (info.family == Family.FAMILY_19H)
             {
                 //fuse1 += 0x10;
@@ -170,7 +172,7 @@ namespace ZenStates.Core
                 offset = 0x598;
                 ccxPerCcd = 1;
             }
-            else if (info.family == Family.FAMILY_17H && info.model != 0x71)
+            else if (info.family == Family.FAMILY_17H && info.model != 0x71 && info.model != 0x31)
             {
                 fuse1 += 0x40;
                 //fuse2 += 0x40;
@@ -427,10 +429,10 @@ namespace ZenStates.Core
             {
                 switch (cpuInfo.model)
                 {
-                    // Does GenesisPeak has different model number than Milan?
+                    // Does Chagall (Zen3 TR) has different model number than Milan?
                     case 0x0:
                         if (cpuInfo.packageType == PackageType.TRX)
-                            codeName = CodeName.GenesisPeak;
+                            codeName = CodeName.Chagall;
                         else
                             codeName = CodeName.Milan;
                         break;
@@ -515,7 +517,7 @@ namespace ZenStates.Core
 
                 // Zen3, Zen3 Threadripper/EPYC ?
                 case CodeName.Vermeer:
-                    //case Cpu.CodeName.GenesisPeak:
+                    //case Cpu.CodeName.Chagall:
                     //case Cpu.CodeName.Milan:
                     svi.CoreAddress = F19H_M21H_SVI_TEL_PLANE0;
                     svi.SocAddress = F19H_M21H_SVI_TEL_PLANE1;
@@ -577,17 +579,18 @@ namespace ZenStates.Core
 
         public bool GetOcMode()
         {
-            /*
-            uint eax = 0;
-            uint edx = 0;
-
-            if (ols.Rdmsr(MSR_PStateStat, ref eax, ref edx) == 1)
+            if (info.codeName == CodeName.SummitRidge)
             {
-                // Summit Ridge, Raven Ridge
-                return Convert.ToBoolean((eax >> 1) & 1);
+                uint eax = 0;
+                uint edx = 0;
+
+                if (Ols.Rdmsr(0xC0010063, ref eax, ref edx) == 1)
+                {
+                    // Summit Ridge, Raven Ridge
+                    return Convert.ToBoolean((eax >> 1) & 1);
+                }
+                return false;
             }
-            return false;
-            */
 
             return GetPBOScalar() == 0;
         }
@@ -660,7 +663,7 @@ namespace ZenStates.Core
                         return 0;
                     break;
 
-                // Matisse, CastlePeak, Rome, Vermeer, Genesis?, Milan?
+                // Matisse, CastlePeak, Rome, Vermeer, Chagall?, Milan?
                 case SMU.SmuType.TYPE_CPU2:
                 case SMU.SmuType.TYPE_CPU3:
                     status = SendSmuCommand(smu.SMU_MSG_GetDramBaseAddress, ref args);
