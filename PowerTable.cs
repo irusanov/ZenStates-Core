@@ -304,9 +304,8 @@ namespace ZenStates.Core
                 float mclkFreq = BitConverter.ToSingle(bytes, 0);
 
                 // Compensate for lack of BCLK detection, based on configuredClockSpeed
-                float dramFreq = ConfiguredClockSpeed / 2;
-                //if ((dramFreq + 1) / mclkFreq > 1 && dramFreq % mclkFreq > 1)
-                bclkCorrection = dramFreq / mclkFreq;
+                if (ConfiguredClockSpeed > 0 && MemRatio > 0)
+                    bclkCorrection = ConfiguredClockSpeed / (MemRatio * 200);
 
                 MCLK = mclkFreq * bclkCorrection;
             }
@@ -428,6 +427,7 @@ namespace ZenStates.Core
         }
 
         public float ConfiguredClockSpeed { get; set; }
+        public float MemRatio { get; set; }
     }
 
     internal static class InternalEventArgsCache
