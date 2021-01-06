@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Runtime.InteropServices;
 
 namespace ZenStates.Core
 {
@@ -105,7 +104,7 @@ namespace ZenStates.Core
             { 0x202, 0x7E4, 0xBC, 0xC4, 0xC8, 0xB0, 0x1F0, 0x1F4, -1 },
             // version from 0x240003 to 0x240903 ?
             // Generic Zen2 CPU (latest known)
-            { 0x203, 0x7E4, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, -1 },
+            { 0x203, 0x7E4, 0xC0, 0xC8, 0xCC, 0xB4, 0x1F4, 0x1F8, -1 },
 
             // Zen3 CPU
             // This table is found in some early beta bioses for Vermeer (SMU version 56.27.00)
@@ -113,97 +112,7 @@ namespace ZenStates.Core
             // Generic Zen 3 CPU (latest known)
             { 0x300, 0x7E4, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C },
         };
-        /*
-        // Zen and Zen+ APU
-        [Serializable]
-        [StructLayout(LayoutKind.Explicit)]
-        private struct PowerTableAPU0
-        {
-            [FieldOffset(0x0F0)] public uint CldoVddp;
-            [FieldOffset(0x104)] public uint VddcrSoc;
-            [FieldOffset(0x298)] public uint Fclk;
-            [FieldOffset(0x29C)] public uint Uclk;
-            [FieldOffset(0x2A0)] public uint Mclk;
-        };
 
-        // Renoir
-        [Serializable]
-        [StructLayout(LayoutKind.Explicit)]
-        private struct PowerTableAPU1
-        {
-            [FieldOffset(0x5E8)] public uint Fclk; // 5E8
-            [FieldOffset(0x5EC)] public uint Uclk; // 5EC
-            [FieldOffset(0x5F0)] public uint Mclk; // 5F0
-            [FieldOffset(0x198)] public uint VddcrSoc;
-            //[FieldOffset(0x860)] public uint CldoVddp;
-        };
-
-        // Zen
-        [Serializable]
-        [StructLayout(LayoutKind.Explicit)]
-        private struct PowerTableCPU0
-        {
-            [FieldOffset(0x044)] public uint CldoVddp;
-            [FieldOffset(0x068)] public uint VddcrSoc;
-            [FieldOffset(0x084)] public uint Fclk;
-            [FieldOffset(0x084)] public uint Uclk;
-            [FieldOffset(0x084)] public uint Mclk;
-        };
-
-        // Zen+
-        [Serializable]
-        [StructLayout(LayoutKind.Explicit)]
-        private struct PowerTableCPU1
-        {
-            [FieldOffset(0x03C)] public uint CldoVddp;
-            [FieldOffset(0x060)] public uint VddcrSoc;
-            [FieldOffset(0x084)] public uint Fclk;
-            [FieldOffset(0x084)] public uint Uclk;
-            [FieldOffset(0x084)] public uint Mclk;
-        };
-
-        // Zen2
-        [Serializable]
-        [StructLayout(LayoutKind.Explicit)]
-        private struct PowerTableCPU2
-        {
-            [FieldOffset(0x0B4)] public uint VddcrSoc;
-            [FieldOffset(0x0C0)] public uint Fclk;
-            [FieldOffset(0x0C8)] public uint Uclk;
-            [FieldOffset(0x0CC)] public uint Mclk;
-            [FieldOffset(0x1F4)] public uint CldoVddp;
-            [FieldOffset(0x1F8)] public uint CldoVddgIod;
-        };
-
-        // Zen3
-        [Serializable]
-        [StructLayout(LayoutKind.Explicit)]
-        private struct PowerTableCPU3
-        {
-            [FieldOffset(0x0B4)] public uint VddcrSoc;
-            [FieldOffset(0x0C0)] public uint Fclk;
-            [FieldOffset(0x0C8)] public uint Uclk;
-            [FieldOffset(0x0CC)] public uint Mclk;
-            [FieldOffset(0x224)] public uint CldoVddp;
-            [FieldOffset(0x228)] public uint CldoVddgIod;
-            [FieldOffset(0x22C)] public uint CldoVddgCcd;
-        };
-
-        // Zen 3
-        // SMU version 56.27.00
-        [Serializable]
-        [StructLayout(LayoutKind.Explicit)]
-        private struct PowerTableCPU_0x2D0903
-        {
-            [FieldOffset(0x0B0)] public uint VddcrSoc;
-            [FieldOffset(0x0BC)] public uint Fclk;
-            [FieldOffset(0x0C4)] public uint Uclk;
-            [FieldOffset(0x0C8)] public uint Mclk;
-            [FieldOffset(0x21C)] public uint CldoVddp;
-            [FieldOffset(0x220)] public uint CldoVddgIod;
-            [FieldOffset(0x224)] public uint CldoVddgCcd;
-        };
-        */
         private PTDef GetDefByVersion(uint version)
         {
             return powerTables.Find(x => x.tableVersion == version);
@@ -224,7 +133,7 @@ namespace ZenStates.Core
                     break;
 
                 case SMU.SmuType.TYPE_CPU2:
-                    uint temp = tableVersion & 0x4;
+                    uint temp = tableVersion & 0x7;
                     if (temp == 0)
                         version = 0x200;
                     else if (temp == 1 || temp == 2 || temp == 4)
