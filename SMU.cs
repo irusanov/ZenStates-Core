@@ -232,7 +232,7 @@ namespace ZenStates.Core
         }
     }
 
-    // RavenRidge, RavenRidge 2, Fenghuang, Picasso
+    // RavenRidge, RavenRidge 2, FireFlight, Picasso
     public class APUSettings0 : SMU
     {
         public APUSettings0()
@@ -314,7 +314,7 @@ namespace ZenStates.Core
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },
             { Cpu.CodeName.Dali, new APUSettings0() },
-            { Cpu.CodeName.Fenghuang, new APUSettings0() },
+            { Cpu.CodeName.FireFlight, new APUSettings0() },
             { Cpu.CodeName.Picasso, new APUSettings0() },
 
             { Cpu.CodeName.Renoir, new APUSettings1() },

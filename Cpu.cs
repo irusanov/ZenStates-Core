@@ -43,7 +43,7 @@ namespace ZenStates.Core
             PinnacleRidge,
             Colfax,
             Picasso,
-            Fenghuang,
+            FireFlight,
             Matisse,
             CastlePeak,
             Rome,
@@ -401,7 +401,7 @@ namespace ZenStates.Core
                         codeName = CodeName.Picasso;
                         break;
                     case 0x50: // Subor Z+, CPUID 0x00850F00
-                        codeName = CodeName.Fenghuang;
+                        codeName = CodeName.FireFlight;
                         break;
                     // Zen2
                     case 0x31:
@@ -466,7 +466,7 @@ namespace ZenStates.Core
                 case CodeName.SummitRidge:
                 case CodeName.PinnacleRidge:
                 case CodeName.RavenRidge:
-                case CodeName.Fenghuang:
+                case CodeName.FireFlight:
                 case CodeName.Dali:
                     svi.CoreAddress = F17H_M01H_SVI_TEL_PLANE0;
                     svi.SocAddress = F17H_M01H_SVI_TEL_PLANE1;
