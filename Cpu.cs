@@ -1,5 +1,6 @@
 using OpenLibSys;
 using System;
+using System.Security.AccessControl;
 using System.Threading;
 
 namespace ZenStates.Core
@@ -109,7 +110,20 @@ namespace ZenStates.Core
 
         public Cpu()
         {
-            amdSmuMutex = new Mutex();
+            string pciMutexName = "Global\\Access_PCI";
+            try
+            {
+                amdSmuMutex = new Mutex(false, pciMutexName);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                try
+                {
+                    amdSmuMutex = Mutex.OpenExisting(pciMutexName, MutexRights.Synchronize);
+                }
+                catch { }
+            }
+
             Ols = new Ols();
             CheckOlsStatus();
 
@@ -241,20 +255,23 @@ namespace ZenStates.Core
         public bool SmuWriteReg(uint addr, uint data)
         {
             bool res = false;
-            amdSmuMutex.WaitOne(5000);
-            if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr) == 1)
-                res = (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, data) == 1);
-            amdSmuMutex.ReleaseMutex();
+            if (WaitPciBusMutex(10)) {
+                if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr) == 1)
+                    res = (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, data) == 1);
+                ReleasePciBusMutex();
+            }
             return res;
         }
 
         public bool SmuReadReg(uint addr, ref uint data)
         {
             bool res = false;
-            amdSmuMutex.WaitOne(5000);
-            if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr) == 1)
-                res = (Ols.ReadPciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, ref data) == 1);
-            amdSmuMutex.ReleaseMutex();
+            if (WaitPciBusMutex(10))
+            {
+                if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr) == 1)
+                    res = (Ols.ReadPciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, ref data) == 1);
+                ReleasePciBusMutex();
+            }
             return res;
         }
 
@@ -336,10 +353,13 @@ namespace ZenStates.Core
 
         public uint ReadDword(uint value)
         {
-            amdSmuMutex.WaitOne(5000);
-            Ols.WritePciConfigDword(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, value);
-            uint res = Ols.ReadPciConfigDword(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA);
-            amdSmuMutex.ReleaseMutex();
+            uint res = 0;
+            if (WaitPciBusMutex(10))
+            {
+                Ols.WritePciConfigDword(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, value);
+                res = Ols.ReadPciConfigDword(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA);
+                ReleasePciBusMutex();
+            }
 
             return res;
         }
@@ -733,17 +753,36 @@ namespace ZenStates.Core
             return (data & 1) == 1;
         }
 
+        private static bool WaitPciBusMutex(int millisecondsTimeout)
+        {
+            if (amdSmuMutex == null)
+                return true;
+            try
+            {
+                return amdSmuMutex.WaitOne(millisecondsTimeout, false);
+            }
+            catch (AbandonedMutexException) { return true; }
+            catch (InvalidOperationException) { return false; }
+        }
+
+        private static void ReleasePciBusMutex()
+        {
+            if (amdSmuMutex == null)
+                return;
+            amdSmuMutex.ReleaseMutex();
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
             {
                 if (disposing)
                 {
-                    try
+                    if (amdSmuMutex != null)
                     {
-                        amdSmuMutex.ReleaseMutex();
+                        amdSmuMutex.Close();
+                        amdSmuMutex = null;
                     }
-                    catch { }
 
                     utils.Dispose();
                     Ols.DeinitializeOls();
