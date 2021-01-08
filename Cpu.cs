@@ -75,6 +75,7 @@ namespace ZenStates.Core
 
         public readonly Utils utils = new Utils();
         public readonly CPUInfo info = new CPUInfo();
+        public readonly SystemInfo systemInfo;
         public readonly Ols Ols;
         public readonly SMU smu;
 
@@ -213,6 +214,8 @@ namespace ZenStates.Core
 
             //if (!SendTestMessage())
             //    throw new ApplicationException("SMU is not responding");
+
+            systemInfo = new SystemInfo(this);
 
             Status = Utils.LibStatus.OK;
         }
