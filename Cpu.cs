@@ -111,6 +111,8 @@ namespace ZenStates.Core
 
         public Cpu()
         {
+            // Based on OpenHardwareMonitor 
+            // https://github.com/openhardwaremonitor/openhardwaremonitor/commit/0751abb5c5ae3fff18eee35be498941e32eb2c9b
             string pciMutexName = "Global\\Access_PCI";
             try
             {
@@ -756,6 +758,8 @@ namespace ZenStates.Core
             return (data & 1) == 1;
         }
 
+        // Based on OpenHardwareMonitor 
+        // https://github.com/openhardwaremonitor/openhardwaremonitor/commit/0751abb5c5ae3fff18eee35be498941e32eb2c9b
         private static bool WaitPciBusMutex(int millisecondsTimeout)
         {
             if (amdSmuMutex == null)
