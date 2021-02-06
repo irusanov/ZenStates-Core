@@ -225,7 +225,7 @@ namespace ZenStates.Core
 
             SMU_MSG_TransferTableToDram = 0x5;
             SMU_MSG_GetDramBaseAddress = 0x6;
-            //SMU_MSG_GetTableVersion = 0x8;
+            SMU_MSG_GetTableVersion = 0x8;
             SMU_MSG_SetOverclockFrequencyAllCores = 0x18;
             // SMU_MSG_SetOverclockFrequencyPerCore = 0x19;
             SMU_MSG_SetOverclockCpuVid = 0x12;
