@@ -76,7 +76,7 @@ namespace ZenStates.Core
         public readonly Utils utils = new Utils();
         public readonly CPUInfo info = new CPUInfo();
         public readonly SystemInfo systemInfo;
-        public readonly Ols Ols;
+        public readonly Ols Ols = new Ols();
         public readonly SMU smu;
 
         public struct SVI2
@@ -127,7 +127,6 @@ namespace ZenStates.Core
                 catch { }
             }
 
-            Ols = new Ols();
             CheckOlsStatus();
 
             uint eax = 0, ebx = 0, ecx = 0, edx = 0;
@@ -206,10 +205,10 @@ namespace ZenStates.Core
             if (!SmuReadReg(coreDisableMapAddress, ref coreDisableMap))
                 throw new ApplicationException(InitializationExceptionText);
 
-            info.coresPerCcx = (8 - utils.CountSetBits(coreDisableMap & 0xff)) / ccxPerCcd;
             info.ccds = utils.CountSetBits(ccdEnableMap);
             info.ccxs = info.ccds * ccxPerCcd;
             info.physicalCores = info.ccxs * 8 / ccxPerCcd;
+            info.coresPerCcx = (8 - utils.CountSetBits(coreDisableMap & 0xff)) / ccxPerCcd;
             info.coreDisableMap = coreDisableMap;
             info.patchLevel = GetPatchLevel();
             info.SVI2 = GetSVI2Info(info.codeName);
@@ -257,30 +256,23 @@ namespace ZenStates.Core
             }
         }
 
-        public bool SmuWriteReg(uint addr, uint data)
+        private bool SmuWriteReg(uint addr, uint data)
         {
             bool res = false;
-            if (WaitPciBusMutex(10)) {
-                if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr) == 1)
-                    res = (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, data) == 1);
-                ReleasePciBusMutex();
-            }
+            if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr) == 1)
+                res = (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, data) == 1);
             return res;
         }
 
-        public bool SmuReadReg(uint addr, ref uint data)
+        private bool SmuReadReg(uint addr, ref uint data)
         {
             bool res = false;
-            if (WaitPciBusMutex(10))
-            {
-                if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr) == 1)
-                    res = (Ols.ReadPciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, ref data) == 1);
-                ReleasePciBusMutex();
-            }
+            if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr) == 1)
+                res = (Ols.ReadPciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, ref data) == 1);
             return res;
         }
 
-        public bool SmuWaitDone()
+        private bool SmuWaitDone()
         {
             bool res;
             ushort timeout = SMU_TIMEOUT;
@@ -308,7 +300,7 @@ namespace ZenStates.Core
             for (int i = 0; i < argsLength; ++i)
                 cmdArgs[i] = args[i];
 
-            //if (amdSmuMutex.WaitOne(5000))
+            if (WaitPciBusMutex(10))
             {
                 // Clear response register
                 bool temp;
@@ -318,8 +310,8 @@ namespace ZenStates.Core
 
                 if (timeout == 0)
                 {
-                    //amdSmuMutex.ReleaseMutex();
                     SmuReadReg(smu.SMU_ADDR_RSP, ref status);
+                    ReleasePciBusMutex();
                     return (SMU.Status)status;
                 }
 
@@ -333,8 +325,8 @@ namespace ZenStates.Core
                 // Wait done
                 if (!SmuWaitDone())
                 {
-                    //amdSmuMutex.ReleaseMutex();
                     SmuReadReg(smu.SMU_ADDR_RSP, ref status);
+                    ReleasePciBusMutex();
                     return (SMU.Status)status;
                 }
 
@@ -343,8 +335,8 @@ namespace ZenStates.Core
                     SmuReadReg(smu.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]);
             }
 
-            //amdSmuMutex.ReleaseMutex();
             SmuReadReg(smu.SMU_ADDR_RSP, ref status);
+            ReleasePciBusMutex();
 
             return (SMU.Status)status;
         }
