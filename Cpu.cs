@@ -289,19 +289,20 @@ namespace ZenStates.Core
 
         public SMU.Status SendSmuCommand(uint msg, ref uint[] args)
         {
-            ushort timeout = SMU_TIMEOUT;
-            uint[] cmdArgs = new uint[6];
-            int argsLength = args.Length;
-            uint status = 0;
-
-            if (argsLength > cmdArgs.Length)
-                argsLength = cmdArgs.Length;
-
-            for (int i = 0; i < argsLength; ++i)
-                cmdArgs[i] = args[i];
+            uint status = 0xFF; // SMU.Status.FAILED;
 
             if (WaitPciBusMutex(10))
             {
+                ushort timeout = SMU_TIMEOUT;
+                uint[] cmdArgs = new uint[6];
+                int argsLength = args.Length;
+
+                if (argsLength > cmdArgs.Length)
+                    argsLength = cmdArgs.Length;
+
+                for (int i = 0; i < argsLength; ++i)
+                    cmdArgs[i] = args[i];
+
                 // Clear response register
                 bool temp;
                 do
@@ -333,10 +334,10 @@ namespace ZenStates.Core
                 // Read back args
                 for (int i = 0; i < args.Length; ++i)
                     SmuReadReg(smu.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]);
-            }
 
-            SmuReadReg(smu.SMU_ADDR_RSP, ref status);
-            ReleasePciBusMutex();
+                SmuReadReg(smu.SMU_ADDR_RSP, ref status);
+                ReleasePciBusMutex();
+            }
 
             return (SMU.Status)status;
         }
@@ -378,6 +379,7 @@ namespace ZenStates.Core
             for (var i = 0; i < info.logicalCores; i++)
             {
                 if (Ols.WrmsrTx(msr, eax, edx, (UIntPtr)(1 << i)) != 1) res = false;
+
             }
 
             return res;
