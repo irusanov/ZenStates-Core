@@ -378,8 +378,8 @@ namespace ZenStates.Core
 
             for (var i = 0; i < info.logicalCores; i++)
             {
-                if (Ols.WrmsrTx(msr, eax, edx, (UIntPtr)(1 << i)) != 1) res = false;
-
+                if (Ols.WrmsrTx(msr, eax, edx, (UIntPtr)(1 << i)) != 1)
+                    res = false;
             }
 
             return res;
@@ -528,16 +528,16 @@ namespace ZenStates.Core
 
                 // Zen2 APU, Zen3 APU ?
                 case CodeName.Renoir:
-                    //case Cpu.CodeName.VanGogh:
-                    //case Cpu.CodeName.Cezanne:
+                case CodeName.Cezanne:
+                //case CodeName.VanGogh:
                     svi.CoreAddress = F17H_M60H_SVI_TEL_PLANE0;
                     svi.SocAddress = F17H_M60H_SVI_TEL_PLANE1;
                     break;
 
                 // Zen3, Zen3 Threadripper/EPYC ?
                 case CodeName.Vermeer:
-                    //case Cpu.CodeName.Chagall:
-                    //case Cpu.CodeName.Milan:
+                case CodeName.Chagall:
+                case CodeName.Milan:
                     svi.CoreAddress = F19H_M21H_SVI_TEL_PLANE0;
                     svi.SocAddress = F19H_M21H_SVI_TEL_PLANE1;
                     break;

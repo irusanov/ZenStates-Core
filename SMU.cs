@@ -38,9 +38,9 @@ namespace ZenStates.Core
             SMU_OFFSET_ADDR = 0x60;
             SMU_OFFSET_DATA = 0x64;
 
-            SMU_ADDR_MSG = 0x03B10528;
-            SMU_ADDR_RSP = 0x03B10564;
-            SMU_ADDR_ARG = 0x03B10598;
+            SMU_ADDR_MSG = 0x0;
+            SMU_ADDR_RSP = 0x0;
+            SMU_ADDR_ARG = 0x0;
 
             // SMU Messages
             SMU_MSG_TestMessage = 0x1;
@@ -308,8 +308,8 @@ namespace ZenStates.Core
             // Zen3
             { Cpu.CodeName.Vermeer, new Zen3Settings() },
             // Chagall and Milan are unknown for now
-            // { Cpu.CodeName.Chagall, new Zen3Settings() },
-            // { Cpu.CodeName.Milan, new Zen3Settings() },
+            { Cpu.CodeName.Chagall, new UnsupportedSettings() },
+            { Cpu.CodeName.Milan, new UnsupportedSettings() },
 
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },
@@ -318,6 +318,9 @@ namespace ZenStates.Core
             { Cpu.CodeName.Picasso, new APUSettings0() },
 
             { Cpu.CodeName.Renoir, new APUSettings1() },
+            { Cpu.CodeName.VanGogh, new UnsupportedSettings() },
+            { Cpu.CodeName.Cezanne, new UnsupportedSettings() },
+            { Cpu.CodeName.Rembrandt, new UnsupportedSettings() },
 
             { Cpu.CodeName.Unsupported, new UnsupportedSettings() },
         };

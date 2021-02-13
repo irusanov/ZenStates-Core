@@ -69,6 +69,7 @@ namespace ZenStates.Core
             }
         }
 
+        // version, size, FCLK, UCLK, MCLK, VDDCR_SOC, CLDO_VDDP, CLDO_VDDG_IOD, CLDO_VDDG_CCD
         private static readonly PowerTableDef powerTables = new PowerTableDef()
         {
             // Zen and Zen+ APU
