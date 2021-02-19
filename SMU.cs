@@ -14,6 +14,7 @@ namespace ZenStates.Core
             TYPE_CPU3 = 0x3,
             TYPE_APU0 = 0x10,
             TYPE_APU1 = 0x11,
+            TYPE_APU2 = 0x12,
             TYPE_UNSUPPORTED = 0xFF,
         };
 
@@ -112,8 +113,9 @@ namespace ZenStates.Core
             SMU_ADDR_RSP = 0x03B10564;
             SMU_ADDR_ARG = 0x03B10598;
 
+            SMU_MSG_TransferTableToDram = 0x21; ?
             SMU_MSG_EnableOcMode = 0x23;
-            SMU_MSG_DisableOcMode = 0x24;
+            SMU_MSG_DisableOcMode = 0x37;
             SMU_MSG_SetOverclockFrequencyAllCores = 0x26;
             SMU_MSG_SetOverclockFrequencyPerCore = 0x27;
             SMU_MSG_SetOverclockCpuVid = 0x28;
@@ -279,6 +281,14 @@ namespace ZenStates.Core
         }
     }
 
+    public class APUSettings2 : SMU
+    {
+        public APUSettings2()
+        {
+            SMU_TYPE = SmuType.TYPE_APU2;
+        }
+    }
+
     public class UnsupportedSettings : SMU
     {
         public UnsupportedSettings()
@@ -318,8 +328,9 @@ namespace ZenStates.Core
             { Cpu.CodeName.Picasso, new APUSettings0() },
 
             { Cpu.CodeName.Renoir, new APUSettings1() },
+            { Cpu.CodeName.Cezanne, new APUSettings2() },
+
             { Cpu.CodeName.VanGogh, new UnsupportedSettings() },
-            { Cpu.CodeName.Cezanne, new UnsupportedSettings() },
             { Cpu.CodeName.Rembrandt, new UnsupportedSettings() },
 
             { Cpu.CodeName.Unsupported, new UnsupportedSettings() },

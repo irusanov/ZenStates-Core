@@ -14,12 +14,16 @@ namespace ZenStates.Core
 
         protected bool SetProperty<T>(ref T storage, T value, PropertyChangedEventArgs args)
         {
-            if (Equals(storage, value) || value == null) return false;
+            if (Equals(storage, value) || value == null)
+                return false;
+
             storage = value;
             OnPropertyChanged(args);
+            
             return true;
         }
 
+        // Power table definition
         private struct PTDef
         {
             public int tableVersion;
@@ -32,7 +36,7 @@ namespace ZenStates.Core
             public int offsetCldoVddgIod;
             public int offsetCldoVddgCcd;
 
-            public PTDef (int tableVersion, int tableSize, int offsetFclk, int offsetUclk, int offsetMclk,
+            public PTDef(int tableVersion, int tableSize, int offsetFclk, int offsetUclk, int offsetMclk,
                 int offsetVddcrSoc, int offsetCldoVddp, int offsetCldoVddgIod, int offsetCldoVddgCcd)
             {
                 this.tableVersion = tableVersion;
@@ -45,18 +49,6 @@ namespace ZenStates.Core
                 this.offsetCldoVddgIod = offsetCldoVddgIod;
                 this.offsetCldoVddgCcd = offsetCldoVddgCcd;
             }
-        }
-
-        [Serializable]
-        private struct PT
-        {
-            public uint Fclk;
-            public uint Uclk;
-            public uint Mclk;
-            public uint VddcrSoc;
-            public uint CldoVddp;
-            public uint CldoVddgIod;
-            public uint CldoVddgCcd;
         }
 
         private class PowerTableDef : List<PTDef>
@@ -91,8 +83,12 @@ namespace ZenStates.Core
             // Generic Zen2 APU (latest known)
             { 0x11, 0x8D0, 0x5E8, 0x5EC, 0x5F0, 0x198, 0x860, -1, -1 },
 
+            // Zen3 APU (Cezanne)
+            { 0x11, 0x8D0, 0x63C, 0x640, 0x644, 0x19C, 0x8B4, -1, -1 },
+
             // Zen CPU
             { 0x100, 0x7E4, 0x84, 0x84, 0x84, 0x68, 0x44, -1, -1 },
+
             // Zen+ CPU
             { 0x101, 0x7E4, 0x84, 0x84, 0x84, 0x60, 0x3C, -1, -1 },
 
@@ -155,6 +151,10 @@ namespace ZenStates.Core
                     version = 0x11;
                     break;
 
+                case SMU.SmuType.TYPE_APU2:
+                    version = 0x12;
+                    break;
+
                 default:
                     break;
             }
@@ -194,23 +194,12 @@ namespace ZenStates.Core
             if (pt == null)
                 return;
 
-            PT powerTable = new PT
-            {
-                Fclk = GetDiscreteValue(pt, tableDef.offsetFclk),
-                Uclk = GetDiscreteValue(pt, tableDef.offsetUclk),
-                Mclk = GetDiscreteValue(pt, tableDef.offsetMclk),
-                VddcrSoc = GetDiscreteValue(pt, tableDef.offsetVddcrSoc),
-                CldoVddp = GetDiscreteValue(pt, tableDef.offsetCldoVddp),
-                CldoVddgIod = GetDiscreteValue(pt, tableDef.offsetCldoVddgIod),
-                CldoVddgCcd = GetDiscreteValue(pt, tableDef.offsetCldoVddgCcd)
-            };
-
             float bclkCorrection = 1.00f;
             byte[] bytes;
 
             try
             {
-                bytes = BitConverter.GetBytes(powerTable.Mclk);
+                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetFclk));
                 float mclkFreq = BitConverter.ToSingle(bytes, 0);
 
                 // Compensate for lack of BCLK detection, based on configuredClockSpeed
@@ -223,7 +212,7 @@ namespace ZenStates.Core
 
             try
             {
-                bytes = BitConverter.GetBytes(powerTable.Fclk);
+                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetUclk));
                 float fclkFreq = BitConverter.ToSingle(bytes, 0);
                 FCLK = fclkFreq * bclkCorrection;
             }
@@ -231,7 +220,7 @@ namespace ZenStates.Core
 
             try
             {
-                bytes = BitConverter.GetBytes(powerTable.Uclk);
+                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetMclk));
                 float uclkFreq = BitConverter.ToSingle(bytes, 0);
                 UCLK = uclkFreq * bclkCorrection;
             }
@@ -239,28 +228,28 @@ namespace ZenStates.Core
 
             try
             {
-                bytes = BitConverter.GetBytes(powerTable.VddcrSoc);
+                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetVddcrSoc));
                 VDDCR_SOC = BitConverter.ToSingle(bytes, 0);
             }
             catch { }
 
             try
             {
-                bytes = BitConverter.GetBytes(powerTable.CldoVddp);
+                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetCldoVddp));
                 CLDO_VDDP = BitConverter.ToSingle(bytes, 0);
             }
             catch { }
 
             try
             {
-                bytes = BitConverter.GetBytes(powerTable.CldoVddgIod);
+                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetCldoVddgIod));
                 CLDO_VDDG_IOD = BitConverter.ToSingle(bytes, 0);
             }
             catch { }
 
             try
             {
-                bytes = BitConverter.GetBytes(powerTable.CldoVddgCcd);
+                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetCldoVddgCcd));
                 CLDO_VDDG_CCD = BitConverter.ToSingle(bytes, 0);
             }
             catch { }

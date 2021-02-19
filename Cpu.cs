@@ -158,7 +158,7 @@ namespace ZenStates.Core
                 smu = GetMaintainedSettings.GetByType(info.codeName);
                 smu.Version = GetSmuVersion();
                 smu.TableVersion = GetTableVersion();
-            } 
+            }
             else
             {
                 throw new ApplicationException(InitializationExceptionText);
@@ -179,37 +179,43 @@ namespace ZenStates.Core
                 throw new ApplicationException(InitializationExceptionText);
             }
 
-            // Get CCD and CCX configuration
-            // https://gitlab.com/leogx9r/ryzen_smu/-/blob/master/userspace/monitor_cpu.c
-            if (info.family == Family.FAMILY_19H)
+            // TODO: replace with power table core power reading
+            try
             {
-                //fuse1 += 0x10;
-                //fuse2 += 0x10;
-                offset = 0x598;
-                ccxPerCcd = 1;
+                // Get CCD and CCX configuration
+                // https://gitlab.com/leogx9r/ryzen_smu/-/blob/master/userspace/monitor_cpu.c
+                if (info.family == Family.FAMILY_19H)
+                {
+                    //fuse1 += 0x10;
+                    //fuse2 += 0x10;
+                    offset = 0x598;
+                    ccxPerCcd = 1;
+                }
+                else if (info.family == Family.FAMILY_17H && info.model != 0x71 && info.model != 0x31)
+                {
+                    fuse1 += 0x40;
+                    //fuse2 += 0x40;
+                }
+
+                if (!ReadDwordEx(fuse1, ref ccdsPresent)/* || !ReadDwordEx(fuse2, ref ccdsDown)*/)
+                    throw new ApplicationException(InitializationExceptionText);
+
+                uint ccdEnableMap = utils.GetBits(ccdsPresent, 22, 8);
+                //uint ccdDisableMap = utils.GetBits(ccdsPresent, 30, 2) | (utils.GetBits(ccdsDown, 0, 6) << 2);
+
+                uint coreDisableMapAddress = (0x30081800 + offset) | ((ccdEnableMap & 1) == 0 ? 0x2000000 : 0u);
+
+                if (!ReadDwordEx(coreDisableMapAddress, ref coreDisableMap))
+                    throw new ApplicationException(InitializationExceptionText);
+
+                info.ccds = utils.CountSetBits(ccdEnableMap);
+                info.ccxs = info.ccds * ccxPerCcd;
+                info.physicalCores = info.ccxs * 8 / ccxPerCcd;
+                info.coresPerCcx = (8 - utils.CountSetBits(coreDisableMap & 0xff)) / ccxPerCcd;
+                info.coreDisableMap = coreDisableMap;
             }
-            else if (info.family == Family.FAMILY_17H && info.model != 0x71 && info.model != 0x31)
-            {
-                fuse1 += 0x40;
-                //fuse2 += 0x40;
-            }
+            catch { }
 
-            if (!SmuReadReg(fuse1, ref ccdsPresent)/* || !SmuReadReg(fuse2, ref ccdsDown)*/)
-                throw new ApplicationException(InitializationExceptionText);
-
-            uint ccdEnableMap = utils.GetBits(ccdsPresent, 22, 8);
-            //uint ccdDisableMap = utils.GetBits(ccdsPresent, 30, 2) | (utils.GetBits(ccdsDown, 0, 6) << 2);
-
-            uint coreDisableMapAddress = (0x30081800 + offset) | ((ccdEnableMap & 1) == 0 ? 0x2000000 : 0u);
-
-            if (!SmuReadReg(coreDisableMapAddress, ref coreDisableMap))
-                throw new ApplicationException(InitializationExceptionText);
-
-            info.ccds = utils.CountSetBits(ccdEnableMap);
-            info.ccxs = info.ccds * ccxPerCcd;
-            info.physicalCores = info.ccxs * 8 / ccxPerCcd;
-            info.coresPerCcx = (8 - utils.CountSetBits(coreDisableMap & 0xff)) / ccxPerCcd;
-            info.coreDisableMap = coreDisableMap;
             info.patchLevel = GetPatchLevel();
             info.SVI2 = GetSVI2Info(info.codeName);
 
@@ -349,12 +355,24 @@ namespace ZenStates.Core
             return SendSmuCommand(msg, ref args) == SMU.Status.OK;
         }
 
-        public uint ReadDword(uint value)
+        public bool ReadDwordEx(uint addr, ref uint data)
+        {
+            bool res = false;
+            if (WaitPciBusMutex(10))
+            {
+                if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr) == 1)
+                    res = (Ols.ReadPciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, ref data) == 1);
+                ReleasePciBusMutex();
+            }
+            return res;
+        }
+
+        public uint ReadDword(uint addr)
         {
             uint res = 0;
             if (WaitPciBusMutex(10))
             {
-                Ols.WritePciConfigDword(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, value);
+                Ols.WritePciConfigDword(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr);
                 res = Ols.ReadPciConfigDword(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA);
                 ReleasePciBusMutex();
             }
@@ -691,8 +709,9 @@ namespace ZenStates.Core
                     address = args[0] | ((ulong)args[1] << 32);
                     break;
 
-                // Renoir
+                // Renoir, Cezanne
                 case SMU.SmuType.TYPE_APU1:
+                case SMU.SmuType.TYPE_APU2:
                     status = SendSmuCommand(smu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
