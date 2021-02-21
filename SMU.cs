@@ -60,6 +60,7 @@ namespace ZenStates.Core
         public uint SMU_OFFSET_ADDR { get; protected set; }
         public uint SMU_OFFSET_DATA { get; protected set; }
 
+        // SMU has different mailboxes, each with own registers and command IDs
         public Mailbox Rsmu { get; protected set; }
         public Mailbox Mp1smu { get; protected set; }
     }

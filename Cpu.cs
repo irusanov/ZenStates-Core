@@ -297,6 +297,12 @@ namespace ZenStates.Core
         {
             uint status = 0xFF; // SMU.Status.FAILED;
 
+            // Check all the arguments and don't execute if invalid
+            // If the mailbox addresses are not set, they would have the default value of 0x0
+            if (mailbox == null || mailbox.SMU_ADDR_MSG == 0 || mailbox.SMU_ADDR_ARG == 0 || mailbox.SMU_ADDR_RSP == 0
+                || msg == 0 || args.Length == 0)
+                return SMU.Status.FAILED;
+
             if (WaitPciBusMutex(10))
             {
                 ushort timeout = SMU_TIMEOUT;
