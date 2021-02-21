@@ -6,11 +6,16 @@ namespace ZenStates.Core
 {
     public class PowerTable : INotifyPropertyChanged
     {
-        public int tableSize;
+        private readonly PTDef tableDef;
         private uint[] table;
-        private PTDef tableDef;
+        public readonly int tableSize;
 
         public event PropertyChangedEventHandler PropertyChanged;
+
+        protected void OnPropertyChanged(PropertyChangedEventArgs eventArgs)
+        {
+            PropertyChanged?.Invoke(this, eventArgs);
+        }
 
         protected bool SetProperty<T>(ref T storage, T value, PropertyChangedEventArgs args)
         {
@@ -19,7 +24,7 @@ namespace ZenStates.Core
 
             storage = value;
             OnPropertyChanged(args);
-            
+
             return true;
         }
 
@@ -35,79 +40,77 @@ namespace ZenStates.Core
             public int offsetCldoVddp;
             public int offsetCldoVddgIod;
             public int offsetCldoVddgCcd;
-
-            public PTDef(int tableVersion, int tableSize, int offsetFclk, int offsetUclk, int offsetMclk,
-                int offsetVddcrSoc, int offsetCldoVddp, int offsetCldoVddgIod, int offsetCldoVddgCcd)
-            {
-                this.tableVersion = tableVersion;
-                this.tableSize = tableSize;
-                this.offsetFclk = offsetFclk;
-                this.offsetUclk = offsetUclk;
-                this.offsetMclk = offsetMclk;
-                this.offsetVddcrSoc = offsetVddcrSoc;
-                this.offsetCldoVddp = offsetCldoVddp;
-                this.offsetCldoVddgIod = offsetCldoVddgIod;
-                this.offsetCldoVddgCcd = offsetCldoVddgCcd;
-            }
+            public int offsetCoresPower;
         }
 
         private class PowerTableDef : List<PTDef>
         {
             public void Add(int tableVersion, int tableSize, int offsetFclk, int offsetUclk, int offsetMclk,
-                int offsetVddcrSoc, int offsetCldoVddp, int offsetCldoVddgIod, int offsetCldoVddgCcd)
+                int offsetVddcrSoc, int offsetCldoVddp, int offsetCldoVddgIod, int offsetCldoVddgCcd, int offsetCoresPower)
             {
-                Add(new PTDef(tableVersion, tableSize,  offsetFclk, offsetUclk, offsetMclk,
-                    offsetVddcrSoc, offsetCldoVddp, offsetCldoVddgIod, offsetCldoVddgCcd));
+                Add(new PTDef
+                {
+                    tableVersion = tableVersion,
+                    tableSize = tableSize,
+                    offsetFclk = offsetFclk,
+                    offsetUclk = offsetUclk,
+                    offsetMclk = offsetMclk,
+                    offsetVddcrSoc = offsetVddcrSoc,
+                    offsetCldoVddp = offsetCldoVddp,
+                    offsetCldoVddgIod = offsetCldoVddgIod,
+                    offsetCldoVddgCcd = offsetCldoVddgCcd,
+                    offsetCoresPower = offsetCoresPower
+                });
             }
         }
 
         // version, size, FCLK, UCLK, MCLK, VDDCR_SOC, CLDO_VDDP, CLDO_VDDG_IOD, CLDO_VDDG_CCD
-        private static readonly PowerTableDef powerTables = new PowerTableDef()
+        private static readonly PowerTableDef powerTables = new PowerTableDef
         {
             // Zen and Zen+ APU
-            { 0x1E0001, 0x570, 0x460, 0x464, 0x468, 0x10C, 0xF8, -1, -1 },
-            { 0x1E0002, 0x570, 0x474, 0x478, 0x47C, 0x10C, 0xF8, -1, -1 },
-            { 0x1E0003, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1 },
+            { 0x1E0001, 0x570, 0x460, 0x464, 0x468, 0x10C, 0xF8, -1, -1, -1 },
+            { 0x1E0002, 0x570, 0x474, 0x478, 0x47C, 0x10C, 0xF8, -1, -1, -1 },
+            { 0x1E0003, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1, -1 },
             // Generic (latest known)
-            { 0x10, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1 },
+            { 0x10, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1, -1 },
 
             // FireFlight
-            { 0x260001, 0x610, 0x28, 0x2C, 0x30, 0x10, -1, -1, -1 },
+            { 0x260001, 0x610, 0x28, 0x2C, 0x30, 0x10, -1, -1, -1, -1 },
 
             // Zen2 APU (Renoir)
-            { 0x370000, 0x79C, 0x4B4, 0x4B8, 0x4BC, 0x190, 0x72C, -1, -1 },
-            { 0x370001, 0x88C, 0x5A4, 0x5A8, 0x5AC, 0x190, 0x81C, -1, -1 },
-            { 0x370002, 0x894, 0x5AC, 0x5B0, 0x5B4, 0x198, 0x824, -1, -1 },
-            { 0x370003, 0x8B4, 0x5CC, 0x5D0, 0x5D4, 0x198, 0x844, -1, -1 },
-            { 0x370005, 0x8D0, 0x5E8, 0x5EC, 0x5F0, 0x198, 0x860, -1, -1 },
+            { 0x370000, 0x79C, 0x4B4, 0x4B8, 0x4BC, 0x190, 0x72C, -1, -1, -1 },
+            { 0x370001, 0x88C, 0x5A4, 0x5A8, 0x5AC, 0x190, 0x81C, -1, -1, -1 },
+            { 0x370002, 0x894, 0x5AC, 0x5B0, 0x5B4, 0x198, 0x824, -1, -1, -1 },
+            { 0x370003, 0x8B4, 0x5CC, 0x5D0, 0x5D4, 0x198, 0x844, -1, -1, -1 },
+            { 0x370005, 0x8D0, 0x5E8, 0x5EC, 0x5F0, 0x198, 0x860, -1, -1, -1 },
             // Generic Zen2 APU (latest known)
-            { 0x11, 0x8D0, 0x5E8, 0x5EC, 0x5F0, 0x198, 0x860, -1, -1 },
+            { 0x11, 0x8D0, 0x5E8, 0x5EC, 0x5F0, 0x198, 0x860, -1, -1, -1 },
 
             // Zen3 APU (Cezanne)
-            { 0x11, 0x8D0, 0x63C, 0x640, 0x644, 0x19C, 0x8B4, -1, -1 },
+            { 0x11, 0x8D0, 0x63C, 0x640, 0x644, 0x19C, 0x8B4, -1, -1, -1 },
 
             // Zen CPU
-            { 0x100, 0x7E4, 0x84, 0x84, 0x84, 0x68, 0x44, -1, -1 },
+            { 0x100, 0x7E4, 0x84, 0x84, 0x84, 0x68, 0x44, -1, -1, -1 },
 
             // Zen+ CPU
-            { 0x101, 0x7E4, 0x84, 0x84, 0x84, 0x60, 0x3C, -1, -1 },
+            { 0x101, 0x7E4, 0x84, 0x84, 0x84, 0x60, 0x3C, -1, -1, -1 },
 
             // Zen2 CPU combined versions
             // version from 0x240000 to 0x240900 ?
-            { 0x200, 0x7E4, 0xB0, 0xB8, 0xBC, 0xA4, 0x1E4, 0x1E8, -1 },
+            { 0x200, 0x7E4, 0xB0, 0xB8, 0xBC, 0xA4, 0x1E4, 0x1E8, -1, -1 },
             // version from 0x240001 to 0x240901 ?
             // version from 0x240002 to 0x240902 ?
             // version from 0x240004 to 0x240904 ?
-            { 0x202, 0x7E4, 0xBC, 0xC4, 0xC8, 0xB0, 0x1F0, 0x1F4, -1 },
+            { 0x202, 0x7E4, 0xBC, 0xC4, 0xC8, 0xB0, 0x1F0, 0x1F4, -1, -1 },
             // version from 0x240003 to 0x240903 ?
             // Generic Zen2 CPU (latest known)
-            { 0x203, 0x7E4, 0xC0, 0xC8, 0xCC, 0xB4, 0x1F4, 0x1F8, -1 },
+            { 0x203, 0x7E4, 0xC0, 0xC8, 0xCC, 0xB4, 0x1F4, 0x1F8, -1, 0x24C },
 
             // Zen3 CPU
             // This table is found in some early beta bioses for Vermeer (SMU version 56.27.00)
-            { 0x2D0903, 0x7E4, 0xBC, 0xC4, 0xC8, 0xB0, 0x220, 0x224, -1 },
+            { 0x2D0903, 0x7E4, 0xBC, 0xC4, 0xC8, 0xB0, 0x220, 0x224, -1, -1 },
             // Generic Zen 3 CPU (latest known)
-            { 0x300, 0x7E4, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C },
+            { 0x300, 0x7E4, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, -1 },
         };
 
         private PTDef GetDefByVersion(uint version)
@@ -255,9 +258,13 @@ namespace ZenStates.Core
             catch { }
         }
 
-        public SMU.SmuType SmuType { get; protected set; }
-        public uint TableVersion { get; protected set; }
+        // Static one-time properties
+        public static SMU.SmuType SmuType { get; protected set; }
+        public static uint TableVersion { get; protected set; }
+        public static float ConfiguredClockSpeed { get; set; }
+        public static float MemRatio { get; set; }
 
+        // Dynamic properties
         public uint[] Table
         {
             get => table;
@@ -319,14 +326,6 @@ namespace ZenStates.Core
             get => cldo_vddg_ccd;
             set => SetProperty(ref cldo_vddg_ccd, value, InternalEventArgsCache.CLDO_VDDG_CCD);
         }
-
-        protected void OnPropertyChanged(PropertyChangedEventArgs eventArgs)
-        {
-            PropertyChanged?.Invoke(this, eventArgs);
-        }
-
-        public float ConfiguredClockSpeed { get; set; }
-        public float MemRatio { get; set; }
     }
 
     internal static class InternalEventArgsCache
