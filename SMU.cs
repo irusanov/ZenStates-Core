@@ -60,7 +60,7 @@ namespace ZenStates.Core
         public uint SMU_OFFSET_ADDR { get; protected set; }
         public uint SMU_OFFSET_DATA { get; protected set; }
 
-        // SMU has different mailboxes, each with own registers and command IDs
+        // SMU has different mailboxes, each with its own registers and command IDs
         public Mailbox Rsmu { get; protected set; }
         public Mailbox Mp1smu { get; protected set; }
     }
@@ -88,7 +88,7 @@ namespace ZenStates.Core
 
             //Mp1smu.SMU_MSG_TransferTableToDram = 0x21; // ?
             Mp1smu.SMU_MSG_EnableOcMode = 0x23;
-            Mp1smu.SMU_MSG_DisableOcMode = 0x37;
+            Mp1smu.SMU_MSG_DisableOcMode = 0x24; // is this still working?
             Mp1smu.SMU_MSG_SetOverclockFrequencyAllCores = 0x26;
             Mp1smu.SMU_MSG_SetOverclockFrequencyPerCore = 0x27;
             Mp1smu.SMU_MSG_SetOverclockCpuVid = 0x28;
@@ -102,6 +102,7 @@ namespace ZenStates.Core
         {
             SMU_TYPE = SmuType.TYPE_CPU1;
 
+            // RSMU
             Rsmu.SMU_ADDR_MSG = 0x03B1051C;
             Rsmu.SMU_ADDR_RSP = 0x03B10568;
             Rsmu.SMU_ADDR_ARG = 0x03B10590;
@@ -120,6 +121,11 @@ namespace ZenStates.Core
 
             Rsmu.SMU_MSG_SetPBOScalar = 0x6A;
             Rsmu.SMU_MSG_GetPBOScalar = 0x6F;
+
+            // MP1
+            Mp1smu.SMU_ADDR_MSG = 0x03B10528;
+            Mp1smu.SMU_ADDR_RSP = 0x03B10564;
+            Mp1smu.SMU_ADDR_ARG = 0x03B10598;
         }
     }
 
@@ -130,6 +136,7 @@ namespace ZenStates.Core
         {
             SMU_TYPE = SmuType.TYPE_CPU1;
 
+            // RSMU
             Rsmu.SMU_ADDR_MSG = 0x03B1051C;
             Rsmu.SMU_ADDR_RSP = 0x03B10568;
             Rsmu.SMU_ADDR_ARG = 0x03B10590;
@@ -147,6 +154,11 @@ namespace ZenStates.Core
 
             Rsmu.SMU_MSG_SetPBOScalar = 0x6F;
             Rsmu.SMU_MSG_GetPBOScalar = 0x70;
+
+            // MP1
+            Mp1smu.SMU_ADDR_MSG = 0x03B10528;
+            Mp1smu.SMU_ADDR_RSP = 0x03B10564;
+            Mp1smu.SMU_ADDR_ARG = 0x03B10598;
         }
     }
 
@@ -157,6 +169,7 @@ namespace ZenStates.Core
         {
             SMU_TYPE = SmuType.TYPE_CPU2;
 
+            // RSMU
             Rsmu.SMU_ADDR_MSG = 0x03B10524;
             Rsmu.SMU_ADDR_RSP = 0x03B10570;
             Rsmu.SMU_ADDR_ARG = 0x03B10A40;
@@ -174,6 +187,12 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetEDCLimit = 0x55;
             Rsmu.SMU_MSG_SetPBOScalar = 0x58;
             Rsmu.SMU_MSG_GetPBOScalar = 0x6C;
+
+            // MP1
+            Mp1smu.SMU_ADDR_MSG = 0x3B10530;
+            Mp1smu.SMU_ADDR_RSP = 0x3B1057C;
+            Mp1smu.SMU_ADDR_ARG = 0x3B109C4;
+
         }
     }
 
@@ -193,6 +212,7 @@ namespace ZenStates.Core
         {
             SMU_TYPE = SmuType.TYPE_CPU2;
 
+            // RSMU
             Rsmu.SMU_ADDR_MSG = 0x03B10524;
             Rsmu.SMU_ADDR_RSP = 0x03B10570;
             Rsmu.SMU_ADDR_ARG = 0x03B10A40;
@@ -203,6 +223,11 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x18;
             // SMU_MSG_SetOverclockFrequencyPerCore = 0x19;
             Rsmu.SMU_MSG_SetOverclockCpuVid = 0x12;
+
+            // MP1
+            Mp1smu.SMU_ADDR_MSG = 0x3B10530;
+            Mp1smu.SMU_ADDR_RSP = 0x3B1057C;
+            Mp1smu.SMU_ADDR_ARG = 0x3B109C4;
         }
     }
 
@@ -227,6 +252,11 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x7D;
             Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x7E;
             Rsmu.SMU_MSG_SetOverclockCpuVid = 0x7F;
+
+            // MP1
+            Mp1smu.SMU_ADDR_MSG = 0x03B10528;
+            Mp1smu.SMU_ADDR_RSP = 0x03B10564;
+            Mp1smu.SMU_ADDR_ARG = 0x03B10998;
         }
     }
 
@@ -250,6 +280,11 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x19;
             Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x1A;
             Rsmu.SMU_MSG_SetOverclockCpuVid = 0x1B;
+
+            // MP1
+            Mp1smu.SMU_ADDR_MSG = 0x03B10528;
+            Mp1smu.SMU_ADDR_RSP = 0x03B10564;
+            Mp1smu.SMU_ADDR_ARG = 0x03B10598;
         }
     }
 
@@ -258,6 +293,8 @@ namespace ZenStates.Core
         public APUSettings2()
         {
             SMU_TYPE = SmuType.TYPE_APU2;
+
+            // RSMU and MP1 unknown
         }
     }
 
