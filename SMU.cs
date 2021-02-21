@@ -27,6 +27,13 @@ namespace ZenStates.Core
             CMD_REJECTED_BUSY       = 0xFC
         }
 
+        public enum MailboxType
+        {
+            UNSUPPORTED = 0,
+            RSMU,
+            MP1
+        }
+
         public SMU()
         {
             Version = 0;
@@ -39,26 +46,8 @@ namespace ZenStates.Core
             SMU_OFFSET_ADDR = 0x60;
             SMU_OFFSET_DATA = 0x64;
 
-            SMU_ADDR_MSG = 0x0;
-            SMU_ADDR_RSP = 0x0;
-            SMU_ADDR_ARG = 0x0;
-
-            // SMU Messages
-            SMU_MSG_TestMessage = 0x1;
-            SMU_MSG_GetSmuVersion = 0x2;
-            SMU_MSG_GetTableVersion = 0x0;
-            SMU_MSG_TransferTableToDram = 0x0;
-            SMU_MSG_GetDramBaseAddress = 0x0;
-            SMU_MSG_SetOverclockFrequencyAllCores = 0x0;
-            SMU_MSG_SetOverclockFrequencyPerCore = 0x0;
-            SMU_MSG_SetOverclockCpuVid = 0x0;
-            SMU_MSG_EnableOcMode = 0x0;
-            SMU_MSG_DisableOcMode = 0x0;
-            SMU_MSG_GetPBOScalar = 0x0;
-            SMU_MSG_SetPBOScalar = 0x0;
-            SMU_MSG_SetPPTLimit = 0x0;
-            SMU_MSG_SetTDCLimit = 0x0;
-            SMU_MSG_SetEDCLimit = 0x0;
+            Rsmu = new Mailbox();
+            Mp1smu = new Mailbox();
         }
 
         public uint Version { get; set; }
@@ -71,25 +60,8 @@ namespace ZenStates.Core
         public uint SMU_OFFSET_ADDR { get; protected set; }
         public uint SMU_OFFSET_DATA { get; protected set; }
 
-        public uint SMU_ADDR_MSG { get; set; }
-        public uint SMU_ADDR_RSP { get; set; }
-        public uint SMU_ADDR_ARG { get; set; }
-
-        public uint SMU_MSG_TestMessage { get; protected set; }
-        public uint SMU_MSG_GetSmuVersion { get; protected set; }
-        public uint SMU_MSG_GetTableVersion { get; protected set; }
-        public uint SMU_MSG_TransferTableToDram { get; protected set; }
-        public uint SMU_MSG_GetDramBaseAddress { get; protected set; }
-        public uint SMU_MSG_SetOverclockFrequencyAllCores { get; protected set; }
-        public uint SMU_MSG_SetOverclockFrequencyPerCore { get; protected set; }
-        public uint SMU_MSG_SetOverclockCpuVid { get; protected set; }
-        public uint SMU_MSG_EnableOcMode { get; protected set; }
-        public uint SMU_MSG_DisableOcMode { get; protected set; }
-        public uint SMU_MSG_GetPBOScalar { get; protected set; }
-        public uint SMU_MSG_SetPBOScalar { get; protected set; }
-        public uint SMU_MSG_SetPPTLimit { get; protected set; }
-        public uint SMU_MSG_SetTDCLimit { get; protected set; }
-        public uint SMU_MSG_SetEDCLimit { get; protected set; }
+        public Mailbox Rsmu { get; protected set; }
+        public Mailbox Mp1smu { get; protected set; }
     }
 
     // Zen (Summit Ridge), ThreadRipper (Whitehaven)
@@ -99,12 +71,12 @@ namespace ZenStates.Core
         {
             SMU_TYPE = SmuType.TYPE_CPU0;
 
-            SMU_ADDR_MSG = 0x03B1051C;
-            SMU_ADDR_RSP = 0x03B10568;
-            SMU_ADDR_ARG = 0x03B10590;
+            Rsmu.SMU_ADDR_MSG = 0x03B1051C;
+            Rsmu.SMU_ADDR_RSP = 0x03B10568;
+            Rsmu.SMU_ADDR_ARG = 0x03B10590;
 
-            SMU_MSG_TransferTableToDram = 0xA;
-            SMU_MSG_GetDramBaseAddress = 0xC;
+            Rsmu.SMU_MSG_TransferTableToDram = 0xA;
+            Rsmu.SMU_MSG_GetDramBaseAddress = 0xC;
 
             // SMU_MSG_EnableOcMode = 0x63; // Disable PROCHOT
 
@@ -130,24 +102,24 @@ namespace ZenStates.Core
         {
             SMU_TYPE = SmuType.TYPE_CPU1;
 
-            SMU_ADDR_MSG = 0x03B1051C;
-            SMU_ADDR_RSP = 0x03B10568;
-            SMU_ADDR_ARG = 0x03B10590;
+            Rsmu.SMU_ADDR_MSG = 0x03B1051C;
+            Rsmu.SMU_ADDR_RSP = 0x03B10568;
+            Rsmu.SMU_ADDR_ARG = 0x03B10590;
 
-            SMU_MSG_TransferTableToDram = 0xA;
-            SMU_MSG_GetDramBaseAddress = 0xC;
-            SMU_MSG_EnableOcMode = 0x6B; //0x63; <-- Disable PROCHOT?
+            Rsmu.SMU_MSG_TransferTableToDram = 0xA;
+            Rsmu.SMU_MSG_GetDramBaseAddress = 0xC;
+            Rsmu.SMU_MSG_EnableOcMode = 0x6B; //0x63; <-- Disable PROCHOT?
             //SMU_MSG_DisableOcMode = 0x64;
-            SMU_MSG_SetOverclockFrequencyAllCores = 0x6C;
-            SMU_MSG_SetOverclockFrequencyPerCore = 0x6D;
-            SMU_MSG_SetOverclockCpuVid = 0x6E;
-            
-            SMU_MSG_SetPPTLimit = 0x64; // ?
-            SMU_MSG_SetTDCLimit = 0x65; // ?
-            SMU_MSG_SetEDCLimit = 0x66;
+            Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x6C;
+            Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x6D;
+            Rsmu.SMU_MSG_SetOverclockCpuVid = 0x6E;
 
-            SMU_MSG_SetPBOScalar = 0x6A;
-            SMU_MSG_GetPBOScalar = 0x6F;
+            Rsmu.SMU_MSG_SetPPTLimit = 0x64; // ?
+            Rsmu.SMU_MSG_SetTDCLimit = 0x65; // ?
+            Rsmu.SMU_MSG_SetEDCLimit = 0x66;
+
+            Rsmu.SMU_MSG_SetPBOScalar = 0x6A;
+            Rsmu.SMU_MSG_GetPBOScalar = 0x6F;
         }
     }
 
@@ -158,23 +130,23 @@ namespace ZenStates.Core
         {
             SMU_TYPE = SmuType.TYPE_CPU1;
 
-            SMU_ADDR_MSG = 0x03B1051C;
-            SMU_ADDR_RSP = 0x03B10568;
-            SMU_ADDR_ARG = 0x03B10590;
+            Rsmu.SMU_ADDR_MSG = 0x03B1051C;
+            Rsmu.SMU_ADDR_RSP = 0x03B10568;
+            Rsmu.SMU_ADDR_ARG = 0x03B10590;
 
-            SMU_MSG_TransferTableToDram = 0xA;
-            SMU_MSG_GetDramBaseAddress = 0xC;
-            SMU_MSG_EnableOcMode = 0x63;
-            SMU_MSG_DisableOcMode = 0x64;
-            SMU_MSG_SetOverclockFrequencyAllCores = 0x68;
-            SMU_MSG_SetOverclockFrequencyPerCore = 0x69;
-            SMU_MSG_SetOverclockCpuVid = 0x6A;
+            Rsmu.SMU_MSG_TransferTableToDram = 0xA;
+            Rsmu.SMU_MSG_GetDramBaseAddress = 0xC;
+            Rsmu.SMU_MSG_EnableOcMode = 0x63;
+            Rsmu.SMU_MSG_DisableOcMode = 0x64;
+            Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x68;
+            Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x69;
+            Rsmu.SMU_MSG_SetOverclockCpuVid = 0x6A;
 
-            SMU_MSG_SetTDCLimit = 0x6B; // ?
-            SMU_MSG_SetEDCLimit = 0x6C; // ?
+            Rsmu.SMU_MSG_SetTDCLimit = 0x6B; // ?
+            Rsmu.SMU_MSG_SetEDCLimit = 0x6C; // ?
 
-            SMU_MSG_SetPBOScalar = 0x6F;
-            SMU_MSG_GetPBOScalar = 0x70;
+            Rsmu.SMU_MSG_SetPBOScalar = 0x6F;
+            Rsmu.SMU_MSG_GetPBOScalar = 0x70;
         }
     }
 
@@ -185,23 +157,23 @@ namespace ZenStates.Core
         {
             SMU_TYPE = SmuType.TYPE_CPU2;
 
-            SMU_ADDR_MSG = 0x03B10524;
-            SMU_ADDR_RSP = 0x03B10570;
-            SMU_ADDR_ARG = 0x03B10A40;
+            Rsmu.SMU_ADDR_MSG = 0x03B10524;
+            Rsmu.SMU_ADDR_RSP = 0x03B10570;
+            Rsmu.SMU_ADDR_ARG = 0x03B10A40;
 
-            SMU_MSG_TransferTableToDram = 0x5;
-            SMU_MSG_GetDramBaseAddress = 0x6;
-            SMU_MSG_GetTableVersion = 0x8;
-            SMU_MSG_EnableOcMode = 0x5A;
-            SMU_MSG_DisableOcMode = 0x5B;
-            SMU_MSG_SetOverclockFrequencyAllCores = 0x5C;
-            SMU_MSG_SetOverclockFrequencyPerCore = 0x5D;
-            SMU_MSG_SetOverclockCpuVid = 0x61;
-            SMU_MSG_SetPPTLimit = 0x53;
-            SMU_MSG_SetTDCLimit = 0x54;
-            SMU_MSG_SetEDCLimit = 0x55;
-            SMU_MSG_SetPBOScalar = 0x58;
-            SMU_MSG_GetPBOScalar = 0x6C;
+            Rsmu.SMU_MSG_TransferTableToDram = 0x5;
+            Rsmu.SMU_MSG_GetDramBaseAddress = 0x6;
+            Rsmu.SMU_MSG_GetTableVersion = 0x8;
+            Rsmu.SMU_MSG_EnableOcMode = 0x5A;
+            Rsmu.SMU_MSG_DisableOcMode = 0x5B;
+            Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x5C;
+            Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x5D;
+            Rsmu.SMU_MSG_SetOverclockCpuVid = 0x61;
+            Rsmu.SMU_MSG_SetPPTLimit = 0x53;
+            Rsmu.SMU_MSG_SetTDCLimit = 0x54;
+            Rsmu.SMU_MSG_SetEDCLimit = 0x55;
+            Rsmu.SMU_MSG_SetPBOScalar = 0x58;
+            Rsmu.SMU_MSG_GetPBOScalar = 0x6C;
         }
     }
 
@@ -221,16 +193,16 @@ namespace ZenStates.Core
         {
             SMU_TYPE = SmuType.TYPE_CPU2;
 
-            SMU_ADDR_MSG = 0x03B10524;
-            SMU_ADDR_RSP = 0x03B10570;
-            SMU_ADDR_ARG = 0x03B10A40;
+            Rsmu.SMU_ADDR_MSG = 0x03B10524;
+            Rsmu.SMU_ADDR_RSP = 0x03B10570;
+            Rsmu.SMU_ADDR_ARG = 0x03B10A40;
 
-            SMU_MSG_TransferTableToDram = 0x5;
-            SMU_MSG_GetDramBaseAddress = 0x6;
-            SMU_MSG_GetTableVersion = 0x8;
-            SMU_MSG_SetOverclockFrequencyAllCores = 0x18;
+            Rsmu.SMU_MSG_TransferTableToDram = 0x5;
+            Rsmu.SMU_MSG_GetDramBaseAddress = 0x6;
+            Rsmu.SMU_MSG_GetTableVersion = 0x8;
+            Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x18;
             // SMU_MSG_SetOverclockFrequencyPerCore = 0x19;
-            SMU_MSG_SetOverclockCpuVid = 0x12;
+            Rsmu.SMU_MSG_SetOverclockCpuVid = 0x12;
         }
     }
 
@@ -241,20 +213,20 @@ namespace ZenStates.Core
         {
             SMU_TYPE = SmuType.TYPE_APU0;
 
-            SMU_ADDR_MSG = 0x03B10A20;
-            SMU_ADDR_RSP = 0x03B10A80;
-            SMU_ADDR_ARG = 0x03B10A88;
+            Rsmu.SMU_ADDR_MSG = 0x03B10A20;
+            Rsmu.SMU_ADDR_RSP = 0x03B10A80;
+            Rsmu.SMU_ADDR_ARG = 0x03B10A88;
 
-            SMU_MSG_GetDramBaseAddress = 0xB;
-            SMU_MSG_GetTableVersion = 0xC;
-            SMU_MSG_TransferTableToDram = 0x3D;
+            Rsmu.SMU_MSG_GetDramBaseAddress = 0xB;
+            Rsmu.SMU_MSG_GetTableVersion = 0xC;
+            Rsmu.SMU_MSG_TransferTableToDram = 0x3D;
 
-            SMU_MSG_GetPBOScalar = 0x62;
-            SMU_MSG_EnableOcMode = 0x69;
-            SMU_MSG_DisableOcMode = 0x6A;
-            SMU_MSG_SetOverclockFrequencyAllCores = 0x7D;
-            SMU_MSG_SetOverclockFrequencyPerCore = 0x7E;
-            SMU_MSG_SetOverclockCpuVid = 0x7F;
+            Rsmu.SMU_MSG_GetPBOScalar = 0x62;
+            Rsmu.SMU_MSG_EnableOcMode = 0x69;
+            Rsmu.SMU_MSG_DisableOcMode = 0x6A;
+            Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x7D;
+            Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x7E;
+            Rsmu.SMU_MSG_SetOverclockCpuVid = 0x7F;
         }
     }
 
@@ -265,19 +237,19 @@ namespace ZenStates.Core
         {
             SMU_TYPE = SmuType.TYPE_APU1;
 
-            SMU_ADDR_MSG = 0x03B10A20;
-            SMU_ADDR_RSP = 0x03B10A80;
-            SMU_ADDR_ARG = 0x03B10A88;
+            Rsmu.SMU_ADDR_MSG = 0x03B10A20;
+            Rsmu.SMU_ADDR_RSP = 0x03B10A80;
+            Rsmu.SMU_ADDR_ARG = 0x03B10A88;
 
             //SMU_MSG_GetPBOScalar = 0xF;
-            SMU_MSG_GetTableVersion = 0x6;
-            SMU_MSG_TransferTableToDram = 0x65;
-            SMU_MSG_GetDramBaseAddress = 0x66;
-            SMU_MSG_EnableOcMode = 0x17;
-            SMU_MSG_DisableOcMode = 0x18;
-            SMU_MSG_SetOverclockFrequencyAllCores = 0x19;
-            SMU_MSG_SetOverclockFrequencyPerCore = 0x1A;
-            SMU_MSG_SetOverclockCpuVid = 0x1B;
+            Rsmu.SMU_MSG_GetTableVersion = 0x6;
+            Rsmu.SMU_MSG_TransferTableToDram = 0x65;
+            Rsmu.SMU_MSG_GetDramBaseAddress = 0x66;
+            Rsmu.SMU_MSG_EnableOcMode = 0x17;
+            Rsmu.SMU_MSG_DisableOcMode = 0x18;
+            Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x19;
+            Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x1A;
+            Rsmu.SMU_MSG_SetOverclockCpuVid = 0x1B;
         }
     }
 
