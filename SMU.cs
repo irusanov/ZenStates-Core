@@ -71,27 +71,26 @@ namespace ZenStates.Core
         {
             SMU_TYPE = SmuType.TYPE_CPU0;
 
+            // RSMU
             Rsmu.SMU_ADDR_MSG = 0x03B1051C;
             Rsmu.SMU_ADDR_RSP = 0x03B10568;
             Rsmu.SMU_ADDR_ARG = 0x03B10590;
 
             Rsmu.SMU_MSG_TransferTableToDram = 0xA;
             Rsmu.SMU_MSG_GetDramBaseAddress = 0xC;
+            // Rsmu.SMU_MSG_EnableOcMode = 0x63; // Disable PROCHOT?
 
-            // SMU_MSG_EnableOcMode = 0x63; // Disable PROCHOT
+            // MP1
+            Mp1smu.SMU_ADDR_MSG = 0x03B10528;
+            Mp1smu.SMU_ADDR_RSP = 0x03B10564;
+            Mp1smu.SMU_ADDR_ARG = 0x03B10598;
 
-            /*
-            SMU_ADDR_MSG = 0x03B10528;
-            SMU_ADDR_RSP = 0x03B10564;
-            SMU_ADDR_ARG = 0x03B10598;
-
-            SMU_MSG_TransferTableToDram = 0x21; ?
-            SMU_MSG_EnableOcMode = 0x23;
-            SMU_MSG_DisableOcMode = 0x37;
-            SMU_MSG_SetOverclockFrequencyAllCores = 0x26;
-            SMU_MSG_SetOverclockFrequencyPerCore = 0x27;
-            SMU_MSG_SetOverclockCpuVid = 0x28;
-            */
+            //Mp1smu.SMU_MSG_TransferTableToDram = 0x21; // ?
+            Mp1smu.SMU_MSG_EnableOcMode = 0x23;
+            Mp1smu.SMU_MSG_DisableOcMode = 0x37;
+            Mp1smu.SMU_MSG_SetOverclockFrequencyAllCores = 0x26;
+            Mp1smu.SMU_MSG_SetOverclockFrequencyPerCore = 0x27;
+            Mp1smu.SMU_MSG_SetOverclockCpuVid = 0x28;
         }
     }
 
