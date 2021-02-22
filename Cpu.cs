@@ -78,6 +78,7 @@ namespace ZenStates.Core
         public readonly SystemInfo systemInfo;
         public readonly Ols Ols = new Ols();
         public readonly SMU smu;
+        public readonly PowerTable powerTable;
 
         public struct SVI2
         {
@@ -222,6 +223,7 @@ namespace ZenStates.Core
             //if (!SendTestMessage())
             //    throw new ApplicationException("SMU is not responding");
 
+            powerTable = new PowerTable(smu.TableVersion, smu.SMU_TYPE, (uint)(GetDramBaseAddress() & 0xFFFFFFFF));
             systemInfo = new SystemInfo(this);
 
             Status = Utils.LibStatus.OK;
@@ -763,6 +765,50 @@ namespace ZenStates.Core
                 return address;
 
             return 0;
+        }
+
+        public SMU.Status RefreshPowerTable()
+        {
+            if (powerTable.dramBaseAddress > 0)
+            {
+                try
+                {
+                    SMU.Status status = TransferTableToDram();
+
+                    if (status != SMU.Status.OK)
+                        return status;
+
+                    uint[] table = new uint[powerTable.tableSize / 4];
+                    bool allZero = true;
+
+                    for (int i = 0; i < table.Length; ++i)
+                    {
+                        utils.GetPhysLong((UIntPtr)(powerTable.dramBaseAddress + (i * 4)), out uint data);
+                        table[i] = data;
+                    }
+
+                    foreach (var value in table)
+                    {
+                        if (value != 0)
+                        {
+                            allZero = false;
+                            break;
+                        }
+                    }
+
+                    if (allZero)
+                        status = SMU.Status.FAILED;
+                    else
+                        powerTable.Table = table;
+
+                    return status;
+                }
+                catch
+                {
+                    //throw new Exception("Could not refresh power table");
+                }
+            }
+            return SMU.Status.FAILED;
         }
 
         public bool SendTestMessage()

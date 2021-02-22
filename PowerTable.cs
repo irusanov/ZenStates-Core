@@ -8,6 +8,7 @@ namespace ZenStates.Core
     {
         private readonly PTDef tableDef;
         private uint[] table;
+        public readonly uint dramBaseAddress;
         public readonly int tableSize;
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -64,6 +65,20 @@ namespace ZenStates.Core
             }
         }
 
+
+        /// <summary>
+        /// List of power table definitions for the different table versions found.
+        /// If the sepcific detected version isn't found in the list, a generic one
+        /// (usually the newest known) is selected.
+        /// 
+        /// Generic tables are defined with a faux version.
+        /// APU faux versions start from 0x10
+        /// CPU faux versions:
+        /// Zen : 0x100
+        /// Zen+: 0x101
+        /// Zen2: 0x200
+        /// Zen3: 0x300
+        /// </summary>
         // version, size, FCLK, UCLK, MCLK, VDDCR_SOC, CLDO_VDDP, CLDO_VDDG_IOD, CLDO_VDDG_CCD
         private static readonly PowerTableDef powerTables = new PowerTableDef
         {
@@ -72,7 +87,7 @@ namespace ZenStates.Core
             { 0x1E0002, 0x570, 0x474, 0x478, 0x47C, 0x10C, 0xF8, -1, -1, -1 },
             { 0x1E0003, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1, -1 },
             // Generic (latest known)
-            { 0x10, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1, -1 },
+            { 0x000010, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1, -1 },
 
             // FireFlight
             { 0x260001, 0x610, 0x28, 0x2C, 0x30, 0x10, -1, -1, -1, -1 },
@@ -84,33 +99,33 @@ namespace ZenStates.Core
             { 0x370003, 0x8B4, 0x5CC, 0x5D0, 0x5D4, 0x198, 0x844, -1, -1, -1 },
             { 0x370005, 0x8D0, 0x5E8, 0x5EC, 0x5F0, 0x198, 0x860, -1, -1, -1 },
             // Generic Zen2 APU (latest known)
-            { 0x11, 0x8D0, 0x5E8, 0x5EC, 0x5F0, 0x198, 0x860, -1, -1, -1 },
+            { 0x000011, 0x8D0, 0x5E8, 0x5EC, 0x5F0, 0x198, 0x860, -1, -1, -1 },
 
             // Zen3 APU (Cezanne)
-            { 0x11, 0x8D0, 0x63C, 0x640, 0x644, 0x19C, 0x8B4, -1, -1, -1 },
+            { 0x000011, 0x8D0, 0x63C, 0x640, 0x644, 0x19C, 0x8B4, -1, -1, -1 },
 
             // Zen CPU
-            { 0x100, 0x7E4, 0x84, 0x84, 0x84, 0x68, 0x44, -1, -1, -1 },
+            { 0x000100, 0x7E4, 0x84, 0x84, 0x84, 0x68, 0x44, -1, -1, -1 },
 
             // Zen+ CPU
-            { 0x101, 0x7E4, 0x84, 0x84, 0x84, 0x60, 0x3C, -1, -1, -1 },
+            { 0x000101, 0x7E4, 0x84, 0x84, 0x84, 0x60, 0x3C, -1, -1, -1 },
 
             // Zen2 CPU combined versions
             // version from 0x240000 to 0x240900 ?
-            { 0x200, 0x7E4, 0xB0, 0xB8, 0xBC, 0xA4, 0x1E4, 0x1E8, -1, -1 },
+            { 0x000200, 0x7E4, 0xB0, 0xB8, 0xBC, 0xA4, 0x1E4, 0x1E8, -1, -1 },
             // version from 0x240001 to 0x240901 ?
             // version from 0x240002 to 0x240902 ?
             // version from 0x240004 to 0x240904 ?
-            { 0x202, 0x7E4, 0xBC, 0xC4, 0xC8, 0xB0, 0x1F0, 0x1F4, -1, -1 },
+            { 0x000202, 0x7E4, 0xBC, 0xC4, 0xC8, 0xB0, 0x1F0, 0x1F4, -1, -1 },
             // version from 0x240003 to 0x240903 ?
             // Generic Zen2 CPU (latest known)
-            { 0x203, 0x7E4, 0xC0, 0xC8, 0xCC, 0xB4, 0x1F4, 0x1F8, -1, 0x24C },
+            { 0x000203, 0x7E4, 0xC0, 0xC8, 0xCC, 0xB4, 0x1F4, 0x1F8, -1, 0x24C },
 
             // Zen3 CPU
             // This table is found in some early beta bioses for Vermeer (SMU version 56.27.00)
             { 0x2D0903, 0x7E4, 0xBC, 0xC4, 0xC8, 0xB0, 0x220, 0x224, -1, -1 },
             // Generic Zen 3 CPU (latest known)
-            { 0x300, 0x7E4, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, -1 },
+            { 0x000300, 0x7E4, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, -1 },
         };
 
         private PTDef GetDefByVersion(uint version)
@@ -176,13 +191,17 @@ namespace ZenStates.Core
             throw new Exception("Power Table not supported");
         }
 
-        public PowerTable(uint version, SMU.SmuType smutype)
+        public PowerTable(uint version, SMU.SmuType smutype, uint dramAddress)
         {
+            if (dramAddress == 0)
+                throw new Exception("Could not get DRAM base address.");
+
             SmuType = smutype;
             TableVersion = version;
             tableDef = GetPowerTableDef(version, smutype);
             tableSize = tableDef.tableSize;
             table = new uint[tableSize / 4];
+            dramBaseAddress = dramAddress;
         }
 
         private uint GetDiscreteValue(uint[] pt, int index)
@@ -256,13 +275,26 @@ namespace ZenStates.Core
                 CLDO_VDDG_CCD = BitConverter.ToSingle(bytes, 0);
             }
             catch { }
+            
+            // Test
+            if (tableDef.offsetCoresPower > 0)
+            {
+                Console.WriteLine();
+                for (int i = 0; i < 16; i++)
+                {
+                    bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetCoresPower + i * 4));
+                    float power = BitConverter.ToSingle(bytes, 0);
+                    string status = power > 0 ? "Enabled" : "Disabled";
+                    Console.WriteLine($"Core{i}: {power} -> {status}");
+                }
+            }
         }
 
         // Static one-time properties
         public static SMU.SmuType SmuType { get; protected set; }
         public static uint TableVersion { get; protected set; }
-        public static float ConfiguredClockSpeed { get; set; }
-        public static float MemRatio { get; set; }
+        public float ConfiguredClockSpeed { get; set; } = 0;
+        public float MemRatio { get; set; } = 0;
 
         // Dynamic properties
         public uint[] Table
@@ -321,6 +353,7 @@ namespace ZenStates.Core
         }
 
         float cldo_vddg_ccd;
+
         public float CLDO_VDDG_CCD
         {
             get => cldo_vddg_ccd;
