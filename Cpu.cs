@@ -56,6 +56,7 @@ namespace ZenStates.Core
             Milan,
             Cezanne,
             Rembrandt,
+            Lucienne
         };
 
 
@@ -458,6 +459,9 @@ namespace ZenStates.Core
                     case 0x60:
                         codeName = CodeName.Renoir;
                         break;
+                    case 0x68:
+                        codeName = CodeName.Lucienne;
+                        break;
                     case 0x71:
                         codeName = CodeName.Matisse;
                         break;
@@ -554,6 +558,7 @@ namespace ZenStates.Core
 
                 // Zen2 APU, Zen3 APU ?
                 case CodeName.Renoir:
+                case CodeName.Lucienne:
                 case CodeName.Cezanne:
                 //case CodeName.VanGogh:
                     svi.CoreAddress = F17H_M60H_SVI_TEL_PLANE0;

@@ -337,6 +337,8 @@ namespace ZenStates.Core
             { Cpu.CodeName.Picasso, new APUSettings0() },
 
             { Cpu.CodeName.Renoir, new APUSettings1() },
+            { Cpu.CodeName.Lucienne, new APUSettings1() },
+            // Cezanne might use the same as Renoir or some other codename. Currently unkown to me.
             { Cpu.CodeName.Cezanne, new APUSettings2() },
 
             { Cpu.CodeName.VanGogh, new UnsupportedSettings() },
