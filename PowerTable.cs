@@ -86,6 +86,7 @@ namespace ZenStates.Core
             { 0x1E0001, 0x570, 0x460, 0x464, 0x468, 0x10C, 0xF8, -1, -1, -1 },
             { 0x1E0002, 0x570, 0x474, 0x478, 0x47C, 0x10C, 0xF8, -1, -1, -1 },
             { 0x1E0003, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1, -1 },
+            { 0x1E0004, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1, -1 },
             // Generic (latest known)
             { 0x000010, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1, -1 },
 
@@ -97,6 +98,7 @@ namespace ZenStates.Core
             { 0x370001, 0x88C, 0x5A4, 0x5A8, 0x5AC, 0x190, 0x81C, -1, -1, -1 },
             { 0x370002, 0x894, 0x5AC, 0x5B0, 0x5B4, 0x198, 0x824, -1, -1, -1 },
             { 0x370003, 0x8B4, 0x5CC, 0x5D0, 0x5D4, 0x198, 0x844, -1, -1, -1 },
+            // 0x370004 missing
             { 0x370005, 0x8D0, 0x5E8, 0x5EC, 0x5F0, 0x198, 0x860, -1, -1, -1 },
             // Generic Zen2 APU (latest known)
             { 0x000011, 0x8D0, 0x5E8, 0x5EC, 0x5F0, 0x198, 0x860, -1, -1, -1 },
@@ -219,22 +221,21 @@ namespace ZenStates.Core
             float bclkCorrection = 1.00f;
             byte[] bytes;
 
+            // Compensate for lack of BCLK detection, based on configuredClockSpeed
+            if (ConfiguredClockSpeed > 0 && MemRatio > 0)
+                bclkCorrection = ConfiguredClockSpeed / (MemRatio * 200);
+
             try
             {
-                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetFclk));
+                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetMclk));
                 float mclkFreq = BitConverter.ToSingle(bytes, 0);
-
-                // Compensate for lack of BCLK detection, based on configuredClockSpeed
-                if (ConfiguredClockSpeed > 0 && MemRatio > 0)
-                    bclkCorrection = ConfiguredClockSpeed / (MemRatio * 200);
-
                 MCLK = mclkFreq * bclkCorrection;
             }
             catch { }
 
             try
             {
-                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetUclk));
+                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetFclk));
                 float fclkFreq = BitConverter.ToSingle(bytes, 0);
                 FCLK = fclkFreq * bclkCorrection;
             }
@@ -242,7 +243,7 @@ namespace ZenStates.Core
 
             try
             {
-                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetMclk));
+                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetUclk));
                 float uclkFreq = BitConverter.ToSingle(bytes, 0);
                 UCLK = uclkFreq * bclkCorrection;
             }
@@ -293,8 +294,8 @@ namespace ZenStates.Core
         // Static one-time properties
         public static SMU.SmuType SmuType { get; protected set; }
         public static uint TableVersion { get; protected set; }
-        public float ConfiguredClockSpeed { get; set; } = 0;
-        public float MemRatio { get; set; } = 0;
+        public float ConfiguredClockSpeed { get; set; }
+        public float MemRatio { get; set; }
 
         // Dynamic properties
         public uint[] Table
