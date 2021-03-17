@@ -141,7 +141,7 @@ namespace ZenStates.Core
             if (Ols.Cpuid(0x00000001, ref eax, ref ebx, ref ecx, ref edx) == 1)
             {
                 info.cpuid = eax;
-                info.family = (Family)(utils.GetBits(eax, 8, 4) + utils.GetBits(eax, 20, 8));
+                info.family = (Family)(((eax & 0xf00) >> 8) + ((eax & 0xff00000) >> 20));
                 info.baseModel = (eax & 0xf0) >> 4;
                 info.extModel = (eax & 0xf0000) >> 12;
                 info.model = info.baseModel + info.extModel;
@@ -724,7 +724,6 @@ namespace ZenStates.Core
 
                 // Renoir, Cezanne
                 case SMU.SmuType.TYPE_APU1:
-                case SMU.SmuType.TYPE_APU2:
                     status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;

@@ -14,7 +14,6 @@ namespace ZenStates.Core
             TYPE_CPU3 = 0x3,
             TYPE_APU0 = 0x10,
             TYPE_APU1 = 0x11,
-            TYPE_APU2 = 0x12,
             TYPE_UNSUPPORTED = 0xFF,
         };
 
@@ -288,16 +287,6 @@ namespace ZenStates.Core
         }
     }
 
-    public class APUSettings2 : SMU
-    {
-        public APUSettings2()
-        {
-            SMU_TYPE = SmuType.TYPE_APU2;
-
-            // RSMU and MP1 unknown
-        }
-    }
-
     public class UnsupportedSettings : SMU
     {
         public UnsupportedSettings()
@@ -339,7 +328,7 @@ namespace ZenStates.Core
             { Cpu.CodeName.Renoir, new APUSettings1() },
             { Cpu.CodeName.Lucienne, new APUSettings1() },
             // Cezanne might use the same as Renoir or some other codename. Currently unkown to me.
-            { Cpu.CodeName.Cezanne, new APUSettings2() },
+            { Cpu.CodeName.Cezanne, new APUSettings1() },
 
             { Cpu.CodeName.VanGogh, new UnsupportedSettings() },
             { Cpu.CodeName.Rembrandt, new UnsupportedSettings() },

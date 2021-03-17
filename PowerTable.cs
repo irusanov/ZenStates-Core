@@ -79,7 +79,7 @@ namespace ZenStates.Core
         /// Zen2: 0x200
         /// Zen3: 0x300
         /// </summary>
-        // version, size, FCLK, UCLK, MCLK, VDDCR_SOC, CLDO_VDDP, CLDO_VDDG_IOD, CLDO_VDDG_CCD
+        // version, size, FCLK, UCLK, MCLK, VDDCR_SOC, CLDO_VDDP, CLDO_VDDG_IOD, CLDO_VDDG_CCD, Cores Power Offset
         private static readonly PowerTableDef powerTables = new PowerTableDef
         {
             // Zen and Zen+ APU
@@ -104,7 +104,13 @@ namespace ZenStates.Core
             { 0x000011, 0x8D0, 0x5E8, 0x5EC, 0x5F0, 0x198, 0x860, -1, -1, -1 },
 
             // Zen3 APU (Cezanne)
-            { 0x000011, 0x8D0, 0x63C, 0x640, 0x644, 0x19C, 0x8B4, -1, -1, -1 },
+            { 0x400001, 0x8D0, 0x624, 0x628, 0x62C, 0x19C, 0x89C, -1, -1, -1 },
+            { 0x400002, 0x8D0, 0x63C, 0x640, 0x644, 0x19C, 0x8B4, -1, -1, -1 },            
+            { 0x400003, 0x944, 0x660, 0x664, 0x668, 0x19C, 0x8D8, -1, -1, -1 },
+            { 0x400004, 0x948, 0x664, 0x668, 0x66C, 0x19C, 0x8DC, -1, -1, -1 },
+            { 0x400005, 0x948, 0x664, 0x668, 0x66C, 0x19C, 0x8DC, -1, -1, -1 },
+            // Generic Zen3 APU
+            { 0x000012, 0x948, 0x664, 0x668, 0x66C, 0x19C, 0x8DC, -1, -1, -1 },
 
             // Zen CPU
             { 0x000100, 0x7E4, 0x84, 0x84, 0x84, 0x68, 0x44, -1, -1, -1 },
@@ -168,11 +174,10 @@ namespace ZenStates.Core
                     break;
 
                 case SMU.SmuType.TYPE_APU1:
-                    version = 0x11;
-                    break;
-
-                case SMU.SmuType.TYPE_APU2:
-                    version = 0x12;
+                    if ((tableVersion >> 16) == 0x37)
+                        version = 0x11;
+                    else
+                        version = 0x12;
                     break;
 
                 default:
