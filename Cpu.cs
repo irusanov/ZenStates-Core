@@ -74,13 +74,6 @@ namespace ZenStates.Core
             TRX = 7,
         }
 
-        public readonly Utils utils = new Utils();
-        public readonly CPUInfo info = new CPUInfo();
-        public readonly SystemInfo systemInfo;
-        public readonly Ols Ols = new Ols();
-        public readonly SMU smu;
-        public readonly PowerTable powerTable;
-
         public struct SVI2
         {
             public uint CoreAddress;
@@ -109,6 +102,13 @@ namespace ZenStates.Core
             public SVI2 SVI2;
         }
 
+        public readonly Utils utils = new Utils();
+        public readonly CPUInfo info = new CPUInfo();
+        public readonly SystemInfo systemInfo;
+        public readonly Ols Ols = new Ols();
+        public readonly SMU smu;
+        public readonly PowerTable powerTable;
+
         public Utils.LibStatus Status { get; private set; } = Utils.LibStatus.INITIALIZE_ERROR;
 
         public Cpu()
@@ -132,9 +132,9 @@ namespace ZenStates.Core
             CheckOlsStatus();
 
             uint eax = 0, ebx = 0, ecx = 0, edx = 0;
-            uint ccdsPresent = 0, ccdsDown = 0, coreDisableMap = 0;
+            uint ccdsPresent = 0, ccdsDown = 0, coreFuse = 0;
             uint fuse1 = 0x5D218;
-            //uint fuse2 = 0x5D21C;
+            uint fuse2 = 0x5D21C;
             uint offset = 0x238;
             uint ccxPerCcd = 2;
 
@@ -188,33 +188,36 @@ namespace ZenStates.Core
                 // https://gitlab.com/leogx9r/ryzen_smu/-/blob/master/userspace/monitor_cpu.c
                 if (info.family == Family.FAMILY_19H)
                 {
-                    //fuse1 += 0x10;
-                    //fuse2 += 0x10;
                     offset = 0x598;
                     ccxPerCcd = 1;
                 }
                 else if (info.family == Family.FAMILY_17H && info.model != 0x71 && info.model != 0x31)
                 {
                     fuse1 += 0x40;
-                    //fuse2 += 0x40;
+                    fuse2 += 0x40;
                 }
 
-                if (!ReadDwordEx(fuse1, ref ccdsPresent)/* || !ReadDwordEx(fuse2, ref ccdsDown)*/)
+                if (!ReadDwordEx(fuse1, ref ccdsPresent) || !ReadDwordEx(fuse2, ref ccdsDown))
                     throw new ApplicationException(InitializationExceptionText);
 
                 uint ccdEnableMap = utils.GetBits(ccdsPresent, 22, 8);
-                //uint ccdDisableMap = utils.GetBits(ccdsPresent, 30, 2) | (utils.GetBits(ccdsDown, 0, 6) << 2);
+                uint ccdDisableMap = utils.GetBits(ccdsPresent, 30, 2) | (utils.GetBits(ccdsDown, 0, 6) << 2);
 
-                uint coreDisableMapAddress = (0x30081800 + offset) | ((ccdEnableMap & 1) == 0 ? 0x2000000 : 0u);
+                uint coreDisableMapAddress = 0x30081800 + offset;
 
-                if (!ReadDwordEx(coreDisableMapAddress, ref coreDisableMap))
+                if (info.family == Family.FAMILY_17H)
+                    coreDisableMapAddress |= (ccdEnableMap & 1) == 0 ? 0x2000000 : 0u;
+                else
+                    coreDisableMapAddress |= ((ccdDisableMap & ccdEnableMap) & 1) == 1 ? 0x2000000 : 0u;
+
+                if (!ReadDwordEx(coreDisableMapAddress, ref coreFuse))
                     throw new ApplicationException(InitializationExceptionText);
 
                 info.ccds = utils.CountSetBits(ccdEnableMap);
                 info.ccxs = info.ccds * ccxPerCcd;
                 info.physicalCores = info.ccxs * 8 / ccxPerCcd;
-                info.coresPerCcx = (8 - utils.CountSetBits(coreDisableMap & 0xff)) / ccxPerCcd;
-                info.coreDisableMap = coreDisableMap;
+                info.coresPerCcx = (8 - utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
+                info.coreDisableMap = coreFuse;
             }
             catch { }
 

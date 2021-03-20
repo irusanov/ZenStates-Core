@@ -283,7 +283,7 @@ namespace ZenStates.Core
             catch { }
             
             // Test
-            if (tableDef.offsetCoresPower > 0)
+            /*if (tableDef.offsetCoresPower > 0)
             {
                 Console.WriteLine();
                 for (int i = 0; i < 16; i++)
@@ -293,7 +293,7 @@ namespace ZenStates.Core
                     string status = power > 0 ? "Enabled" : "Disabled";
                     Console.WriteLine($"Core{i}: {power} -> {status}");
                 }
-            }
+            }*/
         }
 
         // Static one-time properties
