@@ -774,6 +774,22 @@ namespace ZenStates.Core
             return 0;
         }
 
+        private SMU.Status SetOcMode(bool enabled, uint arg = 0U)
+        {
+            uint cmd = enabled ? smu.Rsmu.SMU_MSG_EnableOcMode : smu.Rsmu.SMU_MSG_DisableOcMode;
+            if (cmd != 0)
+            {
+                uint[] args = { arg };
+                return SendSmuCommand(smu.Rsmu, cmd, ref args);
+            }
+            return SMU.Status.UNKNOWN_CMD;
+        }
+
+        // TODO: Set OC vid based on current PState0 VID
+        public SMU.Status EnableOcMode() => SetOcMode(true);
+
+        public SMU.Status DisableOcMode() => SetOcMode(false);
+
         public SMU.Status RefreshPowerTable()
         {
             if (powerTable.dramBaseAddress > 0)
