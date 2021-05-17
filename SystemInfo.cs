@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Management;
+using System.ServiceProcess;
 
 namespace ZenStates.Core
 {
@@ -28,7 +29,13 @@ namespace ZenStates.Core
 
             try
             {
+                var sc = new ServiceController("Windows Management Instrumentation");
+                if (sc.Status != ServiceControllerStatus.Running)
+                    throw new ManagementException(@"Windows Management Instrumentation service is not running");
+
                 var scope = new ManagementScope(@"root\cimv2");
+                scope.Connect();
+
                 if (!scope.IsConnected)
                     throw new ManagementException(@"Failed to connect to root\cimv2");
 
