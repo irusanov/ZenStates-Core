@@ -26,20 +26,36 @@ namespace ZenStates.Core
             Model = cpu.info.model;
             ExtendedModel = cpu.info.extModel;
 
-            ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BaseBoard");
-            foreach (ManagementObject obj in searcher.Get())
+            try
             {
-                MbVendor = ((string)obj["Manufacturer"]).Trim();
-                MbName = ((string)obj["Product"]).Trim();
-            }
-            if (searcher != null) searcher.Dispose();
+                var scope = new ManagementScope(@"root\cimv2");
+                if (!scope.IsConnected)
+                    throw new ManagementException(@"Failed to connect to root\cimv2");
 
-            searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS");
-            foreach (ManagementObject obj in searcher.Get())
-            {
-                BiosVersion = ((string)obj["SMBIOSBIOSVersion"]).Trim();
+                ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BaseBoard");
+                if (searcher != null)
+                {
+                    foreach (ManagementObject obj in searcher.Get())
+                    {
+                        MbVendor = ((string)obj["Manufacturer"]).Trim();
+                        MbName = ((string)obj["Product"]).Trim();
+                    }
+                    searcher.Dispose();
+                }
+
+                searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS");
+                if (searcher != null) {
+                    foreach (ManagementObject obj in searcher.Get())
+                    {
+                        BiosVersion = ((string)obj["SMBIOSBIOSVersion"]).Trim();
+                    }
+                    searcher.Dispose();
+                }
             }
-            if (searcher != null) searcher.Dispose();
+            catch (ManagementException ex)
+            {
+                Console.WriteLine("WMI: {0}", ex.Message.ToString());
+            }
         }
 
         public SystemInfo()
