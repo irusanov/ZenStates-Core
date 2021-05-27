@@ -802,24 +802,14 @@ namespace ZenStates.Core
                         return status;
 
                     uint[] table = new uint[powerTable.tableSize / 4];
-                    bool allZero = true;
 
                     for (int i = 0; i < table.Length; ++i)
                     {
-                        utils.GetPhysLong((UIntPtr)(powerTable.dramBaseAddress + (i * 4)), out uint data);
+                        utils.GetPhysLong((UIntPtr)(powerTable.dramBaseAddress + i * 4), out uint data);
                         table[i] = data;
                     }
 
-                    foreach (var value in table)
-                    {
-                        if (value != 0)
-                        {
-                            allZero = false;
-                            break;
-                        }
-                    }
-
-                    if (allZero)
+                    if (utils.AllZero(table))
                         status = SMU.Status.FAILED;
                     else
                         powerTable.Table = table;

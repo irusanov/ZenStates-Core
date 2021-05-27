@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Runtime.InteropServices;
 
 namespace ZenStates.Core
@@ -134,6 +134,29 @@ namespace ZenStates.Core
         {
             return 1.55 - vid * 0.00625;
         }
+
+        private bool CheckAllZero<T>(ref T[] typedArray)
+        {
+            T[] arr = typedArray;
+            bool allZero = true;
+
+            foreach (var value in arr)
+            {
+                if (Convert.ToUInt32(value) != 0)
+                {
+                    allZero = false;
+                    break;
+                }
+            }
+
+            return allZero;
+        }
+
+        public bool AllZero(byte[] arr) => CheckAllZero(ref arr);
+
+        public bool AllZero(int[] arr) => CheckAllZero(ref arr);
+
+        public bool AllZero(uint[] arr) => CheckAllZero(ref arr);
 
         public void Dispose()
         {
