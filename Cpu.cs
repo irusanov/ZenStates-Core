@@ -659,7 +659,7 @@ namespace ZenStates.Core
                 if (scalar > 0)
                     return scalar;
             }
-            return 0f;
+            return 0;
         }
 
         public SMU.Status TransferTableToDram()

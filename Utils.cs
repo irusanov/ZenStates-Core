@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Runtime.InteropServices;
 
 namespace ZenStates.Core
@@ -33,7 +33,7 @@ namespace ZenStates.Core
             }
             else
             {
-                fileName = "WinIo32.dll";
+                fileName = "WinIo.dll";
             }
 
             ioModule = LoadLibrary(fileName);

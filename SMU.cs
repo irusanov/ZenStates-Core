@@ -42,8 +42,8 @@ namespace ZenStates.Core
             SMU_TYPE = SmuType.TYPE_UNSUPPORTED;
 
             SMU_PCI_ADDR = 0x00000000;
-            SMU_OFFSET_ADDR = 0x60;
-            SMU_OFFSET_DATA = 0x64;
+            SMU_OFFSET_ADDR = 0x60; // 0xC4
+            SMU_OFFSET_DATA = 0x64; // 0xC8
 
             Rsmu = new Mailbox();
             Mp1smu = new Mailbox();
@@ -352,7 +352,6 @@ namespace ZenStates.Core
 
             { Cpu.CodeName.Renoir, new APUSettings1() },
             { Cpu.CodeName.Lucienne, new APUSettings1() },
-            // Cezanne might use the same as Renoir or some other codename. Currently unkown to me.
             { Cpu.CodeName.Cezanne, new APUSettings1() },
 
             { Cpu.CodeName.VanGogh, new UnsupportedSettings() },
