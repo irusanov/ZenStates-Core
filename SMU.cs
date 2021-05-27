@@ -47,6 +47,7 @@ namespace ZenStates.Core
 
             Rsmu = new Mailbox();
             Mp1smu = new Mailbox();
+            Hsmp = new Mailbox();
         }
 
         public uint Version { get; set; }
@@ -62,6 +63,7 @@ namespace ZenStates.Core
         // SMU has different mailboxes, each with its own registers and command IDs
         public Mailbox Rsmu { get; protected set; }
         public Mailbox Mp1smu { get; protected set; }
+        public Mailbox Hsmp { get; protected set; }
     }
 
     // Zen (Summit Ridge), ThreadRipper (Whitehaven)
@@ -192,6 +194,29 @@ namespace ZenStates.Core
             Mp1smu.SMU_ADDR_RSP = 0x3B1057C;
             Mp1smu.SMU_ADDR_ARG = 0x3B109C4;
 
+            // HSMP
+            Hsmp.SMU_ADDR_MSG = 0x3B10534;
+            Hsmp.SMU_ADDR_RSP = 0x3B10980;
+            Hsmp.SMU_ADDR_ARG = 0x3B109E0;
+
+            Hsmp.GetInterfaceVersion = 0x3;
+            Hsmp.ReadSocketPower = 0x4;
+            Hsmp.WriteSocketPowerLimit = 0x5;
+            Hsmp.ReadSocketPowerLimit = 0x6;
+            Hsmp.ReadMaxSocketPowerLimit = 0x7;
+            Hsmp.WriteBoostLimit = 0x8;
+            Hsmp.WriteBoostLimitAllCores = 0x9;
+            Hsmp.ReadBoostLimit = 0xA;
+            Hsmp.ReadProchotStatus = 0xB;
+            Hsmp.SetXgmiLinkWidthRange = 0xC;
+            Hsmp.APBDisable = 0xD;
+            Hsmp.APBEnable = 0xE;
+            Hsmp.ReadCurrentFclkMemclk = 0xF;
+            Hsmp.ReadCclkFrequencyLimit = 0x10;
+            Hsmp.ReadSocketC0Residency = 0x11;
+            Hsmp.SetLclkDpmLevelRange = 0x12;
+            //Hsmp.Reserved = 0x13;
+            Hsmp.GetMaxDDRBandwidthAndUtilization = 0x14;
         }
     }
 
