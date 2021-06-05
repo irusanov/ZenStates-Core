@@ -188,6 +188,7 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetEDCLimit = 0x55;
             Rsmu.SMU_MSG_SetPBOScalar = 0x58;
             Rsmu.SMU_MSG_GetPBOScalar = 0x6C;
+            //Rsmu.ReadBoostLimit = 0x6E;
 
             // MP1
             Mp1smu.SMU_ADDR_MSG = 0x3B10530;

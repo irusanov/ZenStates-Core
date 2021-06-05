@@ -201,7 +201,7 @@ namespace ZenStates.Core
         public PowerTable(uint version, SMU.SmuType smutype, uint dramAddress)
         {
             if (dramAddress == 0)
-                throw new Exception("Could not get DRAM base address.");
+                throw new ApplicationException("Could not get DRAM base address.");
 
             SmuType = smutype;
             TableVersion = version;
@@ -297,10 +297,10 @@ namespace ZenStates.Core
         }
 
         // Static one-time properties
-        public static SMU.SmuType SmuType { get; protected set; }
-        public static uint TableVersion { get; protected set; }
-        public float ConfiguredClockSpeed { get; set; }
-        public float MemRatio { get; set; }
+        public static SMU.SmuType SmuType { get; protected set; } = SMU.SmuType.TYPE_UNSUPPORTED;
+        public static uint TableVersion { get; protected set; } = 0;
+        public float ConfiguredClockSpeed { get; set; } = 0;
+        public float MemRatio { get; set; } = 0;
 
         // Dynamic properties
         public uint[] Table

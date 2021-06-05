@@ -18,8 +18,9 @@ namespace ZenStates.Core
 
         public enum LibStatus
         {
-            OK = 0,
-            INITIALIZE_ERROR = 1,
+            INITIALIZE_ERROR = 0,
+            OK = 1,
+            PARTIALLY_OK = 0
         }
 
         public LibStatus WinIoStatus { get; private set; } = LibStatus.INITIALIZE_ERROR;

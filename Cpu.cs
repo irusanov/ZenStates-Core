@@ -110,6 +110,7 @@ namespace ZenStates.Core
         public readonly PowerTable powerTable;
 
         public Utils.LibStatus Status { get; private set; } = Utils.LibStatus.INITIALIZE_ERROR;
+        public Exception LastError { get; private set; } = null;
 
         public Cpu()
         {
@@ -218,19 +219,23 @@ namespace ZenStates.Core
                 info.physicalCores = info.ccxs * 8 / ccxPerCcd;
                 info.coresPerCcx = (8 - utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
                 info.coreDisableMap = coreFuse;
+
+                info.patchLevel = GetPatchLevel();
+                info.SVI2 = GetSVI2Info(info.codeName);
+
+                powerTable = new PowerTable(smu.TableVersion, smu.SMU_TYPE, (uint)(GetDramBaseAddress() & 0xFFFFFFFF));
+                systemInfo = new SystemInfo(this);
+
+                if (!SendTestMessage())
+                    LastError = new ApplicationException("SMU is not responding to test message");
+
+                Status = Utils.LibStatus.OK;
             }
-            catch { }
-
-            info.patchLevel = GetPatchLevel();
-            info.SVI2 = GetSVI2Info(info.codeName);
-
-            //if (!SendTestMessage())
-            //    throw new ApplicationException("SMU is not responding");
-
-            powerTable = new PowerTable(smu.TableVersion, smu.SMU_TYPE, (uint)(GetDramBaseAddress() & 0xFFFFFFFF));
-            systemInfo = new SystemInfo(this);
-
-            Status = Utils.LibStatus.OK;
+            catch (Exception ex)
+            {
+                LastError = ex;
+                Status = Utils.LibStatus.PARTIALLY_OK;
+            } 
         }
 
         private void CheckOlsStatus()
@@ -391,6 +396,19 @@ namespace ZenStates.Core
 
             return res;
         }
+        public bool WriteDwordEx(uint addr, uint data)
+        {
+            bool res = false;
+            if (WaitPciBusMutex(10))
+            {
+                if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) == 1)
+                    res = Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, data) == 1;
+                ReleasePciBusMutex();
+            }
+
+            return res;
+        }
+
 
         public double GetCoreMulti(int index = 0)
         {
