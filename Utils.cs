@@ -20,7 +20,7 @@ namespace ZenStates.Core
         {
             INITIALIZE_ERROR = 0,
             OK = 1,
-            PARTIALLY_OK = 0
+            PARTIALLY_OK = 2
         }
 
         public LibStatus WinIoStatus { get; private set; } = LibStatus.INITIALIZE_ERROR;
