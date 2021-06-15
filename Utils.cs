@@ -6,7 +6,7 @@ namespace ZenStates.Core
     public class Utils : IDisposable
     {
         [DllImport("kernel32")]
-        public extern static IntPtr LoadLibrary(string lpFileName);
+        public static extern IntPtr LoadLibrary(string lpFileName);
 
         [DllImport("kernel32", SetLastError = true)]
         private static extern bool FreeLibrary(IntPtr hModule);
@@ -14,7 +14,8 @@ namespace ZenStates.Core
         [DllImport("kernel32", CharSet = CharSet.Ansi, SetLastError = true, ExactSpelling = false)]
         private static extern IntPtr GetProcAddress(IntPtr hModule, [MarshalAs(UnmanagedType.LPStr)] string lpProcName);
 
-        private IntPtr ioModule = IntPtr.Zero;
+        private IntPtr ioModule;
+        private readonly bool is64bit = (IntPtr.Size == 8);
 
         public enum LibStatus
         {
@@ -23,12 +24,12 @@ namespace ZenStates.Core
             PARTIALLY_OK = 2
         }
 
-        public LibStatus WinIoStatus { get; private set; } = LibStatus.INITIALIZE_ERROR;
+        public LibStatus WinIoStatus { get; } = LibStatus.INITIALIZE_ERROR;
 
         public Utils()
         {
             string fileName;
-            if (IntPtr.Size == 8)
+            if (is64bit)
             {
                 fileName = "inpoutx64.dll";
             }
@@ -46,7 +47,7 @@ namespace ZenStates.Core
             GetPhysLong = (_GetPhysLong)GetDelegate(ioModule, "GetPhysLong", typeof(_GetPhysLong));
 
             // 64bit only
-            if (IntPtr.Size == 8)
+            if (is64bit)
             {
                 IsInpOutDriverOpen64 = (_IsInpOutDriverOpen64)GetDelegate(ioModule, "IsInpOutDriverOpen", typeof(_IsInpOutDriverOpen64));
             }
@@ -77,7 +78,7 @@ namespace ZenStates.Core
 
         public bool IsInpOutDriverOpen()
         {
-            if (IntPtr.Size == 8)
+            if (is64bit)
                 return IsInpOutDriverOpen64() != 0;
 
             return true;
@@ -85,7 +86,7 @@ namespace ZenStates.Core
 
         public bool InitializeWinIo()
         {
-            if (IntPtr.Size == 8)
+            if (is64bit)
                 return true;
 
             return InitializeWinIo32();
@@ -128,7 +129,7 @@ namespace ZenStates.Core
             uint part3 = val >> 16 & 0xff;
             uint part4 = val >> 24 & 0xff;
 
-            return string.Format("{0}{1}{2}{3}", GetStringPart(part1), GetStringPart(part2), GetStringPart(part3), GetStringPart(part4));
+            return $"{GetStringPart(part1)}{GetStringPart(part2)}{GetStringPart(part3)}{GetStringPart(part4)}";
         }
 
         public double VidToVoltage(uint vid)
@@ -136,7 +137,7 @@ namespace ZenStates.Core
             return 1.55 - vid * 0.00625;
         }
 
-        private bool CheckAllZero<T>(ref T[] typedArray)
+        private static bool CheckAllZero<T>(ref T[] typedArray)
         {
             T[] arr = typedArray;
             bool allZero = true;
@@ -161,19 +162,17 @@ namespace ZenStates.Core
 
         public void Dispose()
         {
-            if (ioModule != IntPtr.Zero)
+            if (ioModule == IntPtr.Zero) return;
+            if (IntPtr.Size == 4)
             {
-                if (IntPtr.Size == 4)
-                {
-                    ShutdownWinIo32();
-                }
-
-                FreeLibrary(ioModule);
-                ioModule = IntPtr.Zero;
+                ShutdownWinIo32();
             }
+
+            FreeLibrary(ioModule);
+            ioModule = IntPtr.Zero;
         }
 
-        private Delegate GetDelegate(IntPtr moduleName, string procName, Type delegateType)
+        private static Delegate GetDelegate(IntPtr moduleName, string procName, Type delegateType)
         {
             IntPtr ptr = GetProcAddress(moduleName, procName);
             if (ptr != IntPtr.Zero)

@@ -33,7 +33,7 @@ namespace ZenStates.Core
             FAMILY_19H = 0x19,
         };
 
-        public enum CodeName : int
+        public enum CodeName
         {
             Unsupported = 0,
             DEBUG,
@@ -66,7 +66,7 @@ namespace ZenStates.Core
         // Socket AM4 = 2
         // Socket SP3 = 4
         // Socket TR4/TRX4 (SP3r2/SP3r3) = 7
-        public enum PackageType : int
+        public enum PackageType
         {
             FPX = 0,
             AM4 = 2,
@@ -76,8 +76,8 @@ namespace ZenStates.Core
 
         public struct SVI2
         {
-            public uint CoreAddress;
-            public uint SocAddress;
+            public uint coreAddress;
+            public uint socAddress;
         }
 
         public struct CPUInfo
@@ -99,18 +99,18 @@ namespace ZenStates.Core
             public uint threadsPerCore;
             public uint patchLevel;
             public uint coreDisableMap;
-            public SVI2 SVI2;
+            public SVI2 svi2;
         }
 
         public readonly Utils utils = new Utils();
-        public readonly CPUInfo info = new CPUInfo();
+        public readonly CPUInfo info;
         public readonly SystemInfo systemInfo;
         public readonly Ols Ols = new Ols();
         public readonly SMU smu;
         public readonly PowerTable powerTable;
 
-        public Utils.LibStatus Status { get; private set; } = Utils.LibStatus.INITIALIZE_ERROR;
-        public Exception LastError { get; private set; } = null;
+        public Utils.LibStatus Status { get; }
+        public Exception LastError { get; }
 
         public Cpu()
         {
@@ -127,7 +127,10 @@ namespace ZenStates.Core
                 {
                     amdSmuMutex = Mutex.OpenExisting(pciMutexName, MutexRights.Synchronize);
                 }
-                catch { }
+                catch
+                {
+                    // ignored
+                }
             }
 
             CheckOlsStatus();
@@ -182,7 +185,7 @@ namespace ZenStates.Core
                 throw new ApplicationException(InitializationExceptionText);
             }
 
-            // TODO: replace with power table core power reading
+            // Non-critical block
             try
             {
                 // Get CCD and CCX configuration
@@ -199,7 +202,7 @@ namespace ZenStates.Core
                 }
 
                 if (!ReadDwordEx(fuse1, ref ccdsPresent) || !ReadDwordEx(fuse2, ref ccdsDown))
-                    throw new ApplicationException(InitializationExceptionText);
+                    throw new ApplicationException("Could not read CCD fuse!");
 
                 uint ccdEnableMap = utils.GetBits(ccdsPresent, 22, 8);
                 uint ccdDisableMap = utils.GetBits(ccdsPresent, 30, 2) | (utils.GetBits(ccdsDown, 0, 6) << 2);
@@ -212,22 +215,31 @@ namespace ZenStates.Core
                     coreDisableMapAddress |= ((ccdDisableMap & ccdEnableMap) & 1) == 1 ? 0x2000000 : 0u;
 
                 if (!ReadDwordEx(coreDisableMapAddress, ref coreFuse))
-                    throw new ApplicationException(InitializationExceptionText);
+                    throw new ApplicationException("Could not read core fuse!");
 
                 info.ccds = utils.CountSetBits(ccdEnableMap);
                 info.ccxs = info.ccds * ccxPerCcd;
                 info.physicalCores = info.ccxs * 8 / ccxPerCcd;
                 info.coresPerCcx = (8 - utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
                 info.coreDisableMap = coreFuse;
+            }
+            catch (Exception ex)
+            {
+                LastError = ex;
+                Status = Utils.LibStatus.PARTIALLY_OK;
+            }
 
+            // TODO: replace with power table core power reading
+            try
+            {
                 info.patchLevel = GetPatchLevel();
-                info.SVI2 = GetSVI2Info(info.codeName);
+                info.svi2 = GetSVI2Info(info.codeName);
 
                 powerTable = new PowerTable(smu.TableVersion, smu.SMU_TYPE, (uint)(GetDramBaseAddress() & 0xFFFFFFFF));
                 systemInfo = new SystemInfo(this);
 
                 if (!SendTestMessage())
-                    LastError = new ApplicationException("SMU is not responding to test message");
+                    LastError = new ApplicationException("SMU is not responding to test message!");
 
                 Status = Utils.LibStatus.OK;
             }
@@ -299,7 +311,7 @@ namespace ZenStates.Core
                 res = SmuReadReg(mailbox.SMU_ADDR_RSP, ref data);
             while ((!res || data != 1) && --timeout > 0);
 
-            if (timeout == 0 || data != 1) res = false;
+            res &= (timeout != 0 && data == 1);
 
             return res;
         }
@@ -412,7 +424,7 @@ namespace ZenStates.Core
 
         public double GetCoreMulti(int index = 0)
         {
-            uint eax = default, edx = default;
+            uint eax = 0, edx = 0;
             if (Ols.RdmsrTx(0xC0010293, ref eax, ref edx, (UIntPtr)(1 << index)) != 1)
                 return 0;
 
@@ -426,8 +438,7 @@ namespace ZenStates.Core
 
             for (var i = 0; i < info.logicalCores; i++)
             {
-                if (Ols.WrmsrTx(msr, eax, edx, (UIntPtr)(1 << i)) != 1)
-                    res = false;
+                res &= Ols.WrmsrTx(msr, eax, edx, (UIntPtr)(1 << i)) == 1;
             }
 
             return res;
@@ -528,7 +539,7 @@ namespace ZenStates.Core
         // SVI2 interface
         public SVI2 GetSVI2Info(CodeName codeName)
         {
-            SVI2 svi = new SVI2();
+            var svi = new SVI2();
  
             switch (codeName)
             {
@@ -538,43 +549,43 @@ namespace ZenStates.Core
                 case CodeName.RavenRidge:
                 case CodeName.FireFlight:
                 case CodeName.Dali:
-                    svi.CoreAddress = F17H_M01H_SVI_TEL_PLANE0;
-                    svi.SocAddress = F17H_M01H_SVI_TEL_PLANE1;
+                    svi.coreAddress = F17H_M01H_SVI_TEL_PLANE0;
+                    svi.socAddress = F17H_M01H_SVI_TEL_PLANE1;
                     break;
 
                 // Zen Threadripper/EPYC
                 case CodeName.Whitehaven:
                 case CodeName.Naples:
                 case CodeName.Colfax:
-                    svi.CoreAddress = F17H_M01H_SVI_TEL_PLANE1;
-                    svi.SocAddress = F17H_M01H_SVI_TEL_PLANE0;
+                    svi.coreAddress = F17H_M01H_SVI_TEL_PLANE1;
+                    svi.socAddress = F17H_M01H_SVI_TEL_PLANE0;
                     break;
 
                 // Zen2 Threadripper/EPYC
                 case CodeName.CastlePeak:
                 case CodeName.Rome:
-                    svi.CoreAddress = F17H_M30H_SVI_TEL_PLANE0;
-                    svi.SocAddress = F17H_M30H_SVI_TEL_PLANE1;
+                    svi.coreAddress = F17H_M30H_SVI_TEL_PLANE0;
+                    svi.socAddress = F17H_M30H_SVI_TEL_PLANE1;
                     break;
 
                 // Picasso
                 case CodeName.Picasso:
                     if ((smu.Version & 0xFF000000) > 0)
                     {
-                        svi.CoreAddress = F17H_M01H_SVI_TEL_PLANE0;
-                        svi.SocAddress = F17H_M01H_SVI_TEL_PLANE1;
+                        svi.coreAddress = F17H_M01H_SVI_TEL_PLANE0;
+                        svi.socAddress = F17H_M01H_SVI_TEL_PLANE1;
                     }
                     else
                     {
-                        svi.CoreAddress = F17H_M01H_SVI_TEL_PLANE1;
-                        svi.SocAddress = F17H_M01H_SVI_TEL_PLANE0;
+                        svi.coreAddress = F17H_M01H_SVI_TEL_PLANE1;
+                        svi.socAddress = F17H_M01H_SVI_TEL_PLANE0;
                     }
                     break;
 
                 // Zen2
                 case CodeName.Matisse:
-                    svi.CoreAddress = F17H_M70H_SVI_TEL_PLANE0;
-                    svi.SocAddress = F17H_M70H_SVI_TEL_PLANE1;
+                    svi.coreAddress = F17H_M70H_SVI_TEL_PLANE0;
+                    svi.socAddress = F17H_M70H_SVI_TEL_PLANE1;
                     break;
 
                 // Zen2 APU, Zen3 APU ?
@@ -582,21 +593,21 @@ namespace ZenStates.Core
                 case CodeName.Lucienne:
                 case CodeName.Cezanne:
                 //case CodeName.VanGogh:
-                    svi.CoreAddress = F17H_M60H_SVI_TEL_PLANE0;
-                    svi.SocAddress = F17H_M60H_SVI_TEL_PLANE1;
+                    svi.coreAddress = F17H_M60H_SVI_TEL_PLANE0;
+                    svi.socAddress = F17H_M60H_SVI_TEL_PLANE1;
                     break;
 
                 // Zen3, Zen3 Threadripper/EPYC ?
                 case CodeName.Vermeer:
                 case CodeName.Chagall:
                 case CodeName.Milan:
-                    svi.CoreAddress = F19H_M21H_SVI_TEL_PLANE0;
-                    svi.SocAddress = F19H_M21H_SVI_TEL_PLANE1;
+                    svi.coreAddress = F19H_M21H_SVI_TEL_PLANE0;
+                    svi.socAddress = F19H_M21H_SVI_TEL_PLANE1;
                     break;
 
                 default:
-                    svi.CoreAddress = F17H_M01H_SVI_TEL_PLANE0;
-                    svi.SocAddress = F17H_M01H_SVI_TEL_PLANE1;
+                    svi.coreAddress = F17H_M01H_SVI_TEL_PLANE0;
+                    svi.socAddress = F17H_M01H_SVI_TEL_PLANE1;
                     break;
             }
 
@@ -663,7 +674,7 @@ namespace ZenStates.Core
                 return false;
             }
 
-            return GetPBOScalar() == 0;
+            return Equals(GetPBOScalar(), 0.0f);
         }
 
         public float GetPBOScalar()
@@ -677,7 +688,7 @@ namespace ZenStates.Core
                 if (scalar > 0)
                     return scalar;
             }
-            return 0;
+            return 0.0f;
         }
 
         public SMU.Status TransferTableToDram()
@@ -781,9 +792,6 @@ namespace ZenStates.Core
                     parts[1] = args[0];
                     address = (ulong)parts[1] << 32 | parts[0];
                     break;
-
-                default:
-                    break;
             }
 
             if (status == SMU.Status.OK)
@@ -810,7 +818,7 @@ namespace ZenStates.Core
 
         public SMU.Status RefreshPowerTable()
         {
-            if (powerTable.dramBaseAddress > 0)
+            if (powerTable.DramBaseAddress > 0)
             {
                 try
                 {
@@ -819,11 +827,11 @@ namespace ZenStates.Core
                     if (status != SMU.Status.OK)
                         return status;
 
-                    uint[] table = new uint[powerTable.tableSize / 4];
+                    uint[] table = new uint[powerTable.TableSize / 4];
 
                     for (int i = 0; i < table.Length; ++i)
                     {
-                        utils.GetPhysLong((UIntPtr)(powerTable.dramBaseAddress + i * 4), out uint data);
+                        utils.GetPhysLong((UIntPtr)(powerTable.DramBaseAddress + i * 4), out uint data);
                         table[i] = data;
                     }
 
@@ -836,6 +844,7 @@ namespace ZenStates.Core
                 }
                 catch
                 {
+                    return SMU.Status.FAILED;
                     //throw new Exception("Could not refresh power table");
                 }
             }

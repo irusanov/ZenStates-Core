@@ -1,11 +1,18 @@
-using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ZenStates.Core
 {
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "<Pending>")]
+    [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "<Pending>")]
     public abstract class SMU
     {
+        public enum MailboxType
+        {
+            UNSUPPORTED = 0,
+            RSMU,
+            MP1
+        }
+
         public enum SmuType
         {
             TYPE_CPU0 = 0x0,
@@ -14,8 +21,8 @@ namespace ZenStates.Core
             TYPE_CPU3 = 0x3,
             TYPE_APU0 = 0x10,
             TYPE_APU1 = 0x11,
-            TYPE_UNSUPPORTED = 0xFF,
-        };
+            TYPE_UNSUPPORTED = 0xFF
+        }
 
         public enum Status : byte
         {
@@ -26,14 +33,7 @@ namespace ZenStates.Core
             CMD_REJECTED_BUSY       = 0xFC
         }
 
-        public enum MailboxType
-        {
-            UNSUPPORTED = 0,
-            RSMU,
-            MP1
-        }
-
-        public SMU()
+        protected internal SMU()
         {
             Version = 0;
             // SMU
@@ -46,11 +46,12 @@ namespace ZenStates.Core
             SMU_OFFSET_DATA = 0x64; // 0xC8
 
             Rsmu = new Mailbox();
-            Mp1smu = new Mailbox();
+            Mp1Smu = new Mailbox();
             Hsmp = new Mailbox();
         }
 
         public uint Version { get; set; }
+
         public uint TableVersion { get; set; }
         //public bool ManualOverclockSupported { get; protected set; }
 
@@ -62,7 +63,7 @@ namespace ZenStates.Core
 
         // SMU has different mailboxes, each with its own registers and command IDs
         public Mailbox Rsmu { get; protected set; }
-        public Mailbox Mp1smu { get; protected set; }
+        public Mailbox Mp1Smu { get; protected set; }
         public Mailbox Hsmp { get; protected set; }
     }
 
@@ -83,16 +84,16 @@ namespace ZenStates.Core
             // Rsmu.SMU_MSG_EnableOcMode = 0x63; // Disable PROCHOT?
 
             // MP1
-            Mp1smu.SMU_ADDR_MSG = 0x03B10528;
-            Mp1smu.SMU_ADDR_RSP = 0x03B10564;
-            Mp1smu.SMU_ADDR_ARG = 0x03B10598;
+            Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
+            Mp1Smu.SMU_ADDR_RSP = 0x03B10564;
+            Mp1Smu.SMU_ADDR_ARG = 0x03B10598;
 
-            //Mp1smu.SMU_MSG_TransferTableToDram = 0x21; // ?
-            Mp1smu.SMU_MSG_EnableOcMode = 0x23;
-            Mp1smu.SMU_MSG_DisableOcMode = 0x24; // is this still working?
-            Mp1smu.SMU_MSG_SetOverclockFrequencyAllCores = 0x26;
-            Mp1smu.SMU_MSG_SetOverclockFrequencyPerCore = 0x27;
-            Mp1smu.SMU_MSG_SetOverclockCpuVid = 0x28;
+            //Mp1Smu.SMU_MSG_TransferTableToDram = 0x21; // ?
+            Mp1Smu.SMU_MSG_EnableOcMode = 0x23;
+            Mp1Smu.SMU_MSG_DisableOcMode = 0x24; // is this still working?
+            Mp1Smu.SMU_MSG_SetOverclockFrequencyAllCores = 0x26;
+            Mp1Smu.SMU_MSG_SetOverclockFrequencyPerCore = 0x27;
+            Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x28;
         }
     }
 
@@ -124,9 +125,9 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_GetPBOScalar = 0x6F;
 
             // MP1
-            Mp1smu.SMU_ADDR_MSG = 0x03B10528;
-            Mp1smu.SMU_ADDR_RSP = 0x03B10564;
-            Mp1smu.SMU_ADDR_ARG = 0x03B10598;
+            Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
+            Mp1Smu.SMU_ADDR_RSP = 0x03B10564;
+            Mp1Smu.SMU_ADDR_ARG = 0x03B10598;
         }
     }
 
@@ -157,9 +158,9 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_GetPBOScalar = 0x70;
 
             // MP1
-            Mp1smu.SMU_ADDR_MSG = 0x03B10528;
-            Mp1smu.SMU_ADDR_RSP = 0x03B10564;
-            Mp1smu.SMU_ADDR_ARG = 0x03B10598;
+            Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
+            Mp1Smu.SMU_ADDR_RSP = 0x03B10564;
+            Mp1Smu.SMU_ADDR_ARG = 0x03B10598;
         }
     }
 
@@ -191,9 +192,9 @@ namespace ZenStates.Core
             //Rsmu.ReadBoostLimit = 0x6E;
 
             // MP1
-            Mp1smu.SMU_ADDR_MSG = 0x3B10530;
-            Mp1smu.SMU_ADDR_RSP = 0x3B1057C;
-            Mp1smu.SMU_ADDR_ARG = 0x3B109C4;
+            Mp1Smu.SMU_ADDR_MSG = 0x3B10530;
+            Mp1Smu.SMU_ADDR_RSP = 0x3B1057C;
+            Mp1Smu.SMU_ADDR_ARG = 0x3B109C4;
 
             // HSMP
             Hsmp.SMU_ADDR_MSG = 0x3B10534;
@@ -250,9 +251,9 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetOverclockCpuVid = 0x12;
 
             // MP1
-            Mp1smu.SMU_ADDR_MSG = 0x3B10530;
-            Mp1smu.SMU_ADDR_RSP = 0x3B1057C;
-            Mp1smu.SMU_ADDR_ARG = 0x3B109C4;
+            Mp1Smu.SMU_ADDR_MSG = 0x3B10530;
+            Mp1Smu.SMU_ADDR_RSP = 0x3B1057C;
+            Mp1Smu.SMU_ADDR_ARG = 0x3B109C4;
         }
     }
 
@@ -279,9 +280,9 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetOverclockCpuVid = 0x7F;
 
             // MP1
-            Mp1smu.SMU_ADDR_MSG = 0x03B10528;
-            Mp1smu.SMU_ADDR_RSP = 0x03B10564;
-            Mp1smu.SMU_ADDR_ARG = 0x03B10998;
+            Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
+            Mp1Smu.SMU_ADDR_RSP = 0x03B10564;
+            Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
         }
     }
 
@@ -307,9 +308,9 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetOverclockCpuVid = 0x1B;
 
             // MP1
-            Mp1smu.SMU_ADDR_MSG = 0x03B10528;
-            Mp1smu.SMU_ADDR_RSP = 0x03B10564;
-            Mp1smu.SMU_ADDR_ARG = 0x03B10598;
+            Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
+            Mp1Smu.SMU_ADDR_RSP = 0x03B10564;
+            Mp1Smu.SMU_ADDR_ARG = 0x03B10598;
         }
     }
 
@@ -323,7 +324,7 @@ namespace ZenStates.Core
 
     public static class GetMaintainedSettings
     {
-        private static readonly Dictionary<Cpu.CodeName, SMU> settings = new Dictionary<Cpu.CodeName, SMU>()
+        private static readonly Dictionary<Cpu.CodeName, SMU> settings = new Dictionary<Cpu.CodeName, SMU>
         {
             // Zen
             { Cpu.CodeName.SummitRidge, new SummitRidgeSettings() },
@@ -365,7 +366,7 @@ namespace ZenStates.Core
         {
             if (!settings.TryGetValue(type, out SMU output))
             {
-                throw new NotImplementedException();
+                return new UnsupportedSettings();
             }
             return output;
         }
@@ -373,7 +374,7 @@ namespace ZenStates.Core
 
     public static class GetSMUStatus
     {
-        private static readonly Dictionary<SMU.Status, String> status = new Dictionary<SMU.Status, string>()
+        private static readonly Dictionary<SMU.Status, string> status = new Dictionary<SMU.Status, string>
         {
             { SMU.Status.OK, "OK" },
             { SMU.Status.FAILED, "Failed" },

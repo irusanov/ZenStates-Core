@@ -1,5 +1,4 @@
-﻿
-namespace ZenStates.Core
+﻿namespace ZenStates.Core
 {
     public sealed class Mailbox
     {

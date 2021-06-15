@@ -8,8 +8,8 @@ namespace ZenStates.Core
     {
         private readonly PTDef tableDef;
         private uint[] table;
-        public readonly uint dramBaseAddress;
-        public readonly int tableSize;
+        public readonly uint DramBaseAddress;
+        public readonly int TableSize;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -20,7 +20,7 @@ namespace ZenStates.Core
 
         protected bool SetProperty<T>(ref T storage, T value, PropertyChangedEventArgs args)
         {
-            if (Equals(storage, value) || value == null)
+            if (Equals(storage, value))
                 return false;
 
             storage = value;
@@ -80,7 +80,7 @@ namespace ZenStates.Core
         /// Zen3: 0x300
         /// </summary>
         // version, size, FCLK, UCLK, MCLK, VDDCR_SOC, CLDO_VDDP, CLDO_VDDG_IOD, CLDO_VDDG_CCD, Cores Power Offset
-        private static readonly PowerTableDef powerTables = new PowerTableDef
+        private static readonly PowerTableDef PowerTables = new PowerTableDef
         {
             // Zen and Zen+ APU
             { 0x1E0001, 0x570, 0x460, 0x464, 0x468, 0x10C, 0xF8, -1, -1, -1 },
@@ -138,7 +138,7 @@ namespace ZenStates.Core
 
         private PTDef GetDefByVersion(uint version)
         {
-            return powerTables.Find(x => x.tableVersion == version);
+            return PowerTables.Find(x => x.tableVersion == version);
         }
 
         private PTDef GetDefaultTableDef(uint tableVersion, SMU.SmuType smutype)
@@ -179,9 +179,6 @@ namespace ZenStates.Core
                     else
                         version = 0x12;
                     break;
-
-                default:
-                    break;
             }
 
             return GetDefByVersion(version);
@@ -192,10 +189,7 @@ namespace ZenStates.Core
             PTDef temp = GetDefByVersion(tableVersion);
             if (temp.tableSize != 0)
                 return temp;
-            else
-                return GetDefaultTableDef(tableVersion, smutype);
-
-            throw new Exception("Power Table not supported");
+            return GetDefaultTableDef(tableVersion, smutype);
         }
 
         public PowerTable(uint version, SMU.SmuType smutype, uint dramAddress)
@@ -206,14 +200,14 @@ namespace ZenStates.Core
             SmuType = smutype;
             TableVersion = version;
             tableDef = GetPowerTableDef(version, smutype);
-            tableSize = tableDef.tableSize;
-            table = new uint[tableSize / 4];
-            dramBaseAddress = dramAddress;
+            TableSize = tableDef.tableSize;
+            table = new uint[TableSize / 4];
+            DramBaseAddress = dramAddress;
         }
 
         private uint GetDiscreteValue(uint[] pt, int index)
         {
-            if (index > 0 && index < tableSize)
+            if (index > 0 && index < TableSize)
                 return pt[index / 4];
             return 0;
         }
@@ -236,7 +230,10 @@ namespace ZenStates.Core
                 float mclkFreq = BitConverter.ToSingle(bytes, 0);
                 MCLK = mclkFreq * bclkCorrection;
             }
-            catch { }
+            catch
+            {
+                // ignored
+            }
 
             try
             {
@@ -244,7 +241,10 @@ namespace ZenStates.Core
                 float fclkFreq = BitConverter.ToSingle(bytes, 0);
                 FCLK = fclkFreq * bclkCorrection;
             }
-            catch { }
+            catch
+            {
+                // ignored
+            }
 
             try
             {
@@ -252,36 +252,51 @@ namespace ZenStates.Core
                 float uclkFreq = BitConverter.ToSingle(bytes, 0);
                 UCLK = uclkFreq * bclkCorrection;
             }
-            catch { }
+            catch
+            {
+                // ignored
+            }
 
             try
             {
                 bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetVddcrSoc));
                 VDDCR_SOC = BitConverter.ToSingle(bytes, 0);
             }
-            catch { }
+            catch
+            {
+                // ignored
+            }
 
             try
             {
                 bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetCldoVddp));
                 CLDO_VDDP = BitConverter.ToSingle(bytes, 0);
             }
-            catch { }
+            catch
+            {
+                // ignored
+            }
 
             try
             {
                 bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetCldoVddgIod));
                 CLDO_VDDG_IOD = BitConverter.ToSingle(bytes, 0);
             }
-            catch { }
+            catch
+            {
+                // ignored
+            }
 
             try
             {
                 bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetCldoVddgCcd));
                 CLDO_VDDG_CCD = BitConverter.ToSingle(bytes, 0);
             }
-            catch { }
-            
+            catch
+            {
+                // ignored
+            }
+
             // Test
             /*if (tableDef.offsetCoresPower > 0)
             {
@@ -298,7 +313,7 @@ namespace ZenStates.Core
 
         // Static one-time properties
         public static SMU.SmuType SmuType { get; protected set; } = SMU.SmuType.TYPE_UNSUPPORTED;
-        public static uint TableVersion { get; protected set; } = 0;
+        public static uint TableVersion { get; protected set; }
         public float ConfiguredClockSpeed { get; set; } = 0;
         public float MemRatio { get; set; } = 0;
 
