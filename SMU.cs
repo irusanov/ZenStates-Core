@@ -344,7 +344,7 @@ namespace ZenStates.Core
             { Cpu.CodeName.Vermeer, new Zen3Settings() },
             // Chagall and Milan are unknown for now
             { Cpu.CodeName.Chagall, new UnsupportedSettings() },
-            { Cpu.CodeName.Milan, new UnsupportedSettings() },
+            { Cpu.CodeName.Milan, new Zen3Settings() },
 
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },
