@@ -118,8 +118,8 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetOverclockCpuVid = 0x6E;
 
             Rsmu.SMU_MSG_SetPPTLimit = 0x64; // ?
-            Rsmu.SMU_MSG_SetTDCLimit = 0x65; // ?
-            Rsmu.SMU_MSG_SetEDCLimit = 0x66;
+            Rsmu.SMU_MSG_SetTDCVDDLimit = 0x65; // ?
+            Rsmu.SMU_MSG_SetEDCVDDLimit = 0x66;
 
             Rsmu.SMU_MSG_SetPBOScalar = 0x6A;
             Rsmu.SMU_MSG_GetPBOScalar = 0x6F;
@@ -151,8 +151,8 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x69;
             Rsmu.SMU_MSG_SetOverclockCpuVid = 0x6A;
 
-            Rsmu.SMU_MSG_SetTDCLimit = 0x6B; // ?
-            Rsmu.SMU_MSG_SetEDCLimit = 0x6C; // ?
+            Rsmu.SMU_MSG_SetTDCVDDLimit = 0x6B; // ?
+            Rsmu.SMU_MSG_SetEDCVDDLimit = 0x6C; // ?
 
             Rsmu.SMU_MSG_SetPBOScalar = 0x6F;
             Rsmu.SMU_MSG_GetPBOScalar = 0x70;
@@ -185,8 +185,8 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x5D;
             Rsmu.SMU_MSG_SetOverclockCpuVid = 0x61;
             Rsmu.SMU_MSG_SetPPTLimit = 0x53;
-            Rsmu.SMU_MSG_SetTDCLimit = 0x54;
-            Rsmu.SMU_MSG_SetEDCLimit = 0x55;
+            Rsmu.SMU_MSG_SetTDCVDDLimit = 0x54;
+            Rsmu.SMU_MSG_SetEDCVDDLimit = 0x55;
             Rsmu.SMU_MSG_SetPBOScalar = 0x58;
             Rsmu.SMU_MSG_GetPBOScalar = 0x6C;
             //Rsmu.ReadBoostLimit = 0x6E;
@@ -271,13 +271,12 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_GetDramBaseAddress = 0xB;
             Rsmu.SMU_MSG_GetTableVersion = 0xC;
             Rsmu.SMU_MSG_TransferTableToDram = 0x3D;
-
-            Rsmu.SMU_MSG_GetPBOScalar = 0x62;
             Rsmu.SMU_MSG_EnableOcMode = 0x69;
             Rsmu.SMU_MSG_DisableOcMode = 0x6A;
             Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x7D;
             Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x7E;
             Rsmu.SMU_MSG_SetOverclockCpuVid = 0x7F;
+            Rsmu.SMU_MSG_GetPBOScalar = 0x68;
 
             // MP1
             Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
@@ -286,7 +285,15 @@ namespace ZenStates.Core
         }
     }
 
-    // Renoir
+    public class APUSettings0_Picasso : APUSettings0
+    {
+        public APUSettings0_Picasso()
+        {
+            Rsmu.SMU_MSG_GetPBOScalar = 0x62;
+        }
+    }
+
+    // Renoir, Cezanne
     public class APUSettings1 : SMU
     {
         public APUSettings1()
@@ -306,6 +313,13 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x19;
             Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x1A;
             Rsmu.SMU_MSG_SetOverclockCpuVid = 0x1B;
+            Rsmu.SMU_MSG_SetPPTLimit = 0x33;
+            Rsmu.SMU_MSG_SetTDCVDDLimit = 0x38;
+            Rsmu.SMU_MSG_SetTDCSOCLimit = 0x39;
+            Rsmu.SMU_MSG_SetEDCVDDLimit = 0x3A;
+            Rsmu.SMU_MSG_SetEDCSOCLimit = 0x3B;
+            Rsmu.SMU_MSG_SetPBOScalar = 0x3F;
+            Rsmu.SMU_MSG_GetPBOScalar = 0x0F;
 
             // MP1
             Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
@@ -342,7 +356,7 @@ namespace ZenStates.Core
 
             // Zen3
             { Cpu.CodeName.Vermeer, new Zen3Settings() },
-            // Chagall and Milan are unknown for now
+            // Chagall is unknown for now
             { Cpu.CodeName.Chagall, new UnsupportedSettings() },
             { Cpu.CodeName.Milan, new Zen3Settings() },
 
@@ -350,7 +364,7 @@ namespace ZenStates.Core
             { Cpu.CodeName.RavenRidge, new APUSettings0() },
             { Cpu.CodeName.Dali, new APUSettings0() },
             { Cpu.CodeName.FireFlight, new APUSettings0() },
-            { Cpu.CodeName.Picasso, new APUSettings0() },
+            { Cpu.CodeName.Picasso, new APUSettings0_Picasso() },
 
             { Cpu.CodeName.Renoir, new APUSettings1() },
             { Cpu.CodeName.Lucienne, new APUSettings1() },

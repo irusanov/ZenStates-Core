@@ -811,10 +811,28 @@ namespace ZenStates.Core
             return SMU.Status.UNKNOWN_CMD;
         }
 
+        private SMU.Status SetLimit(uint cmd, uint arg = 0U)
+        {
+            uint[] args = { arg * 1000 };
+            return SendSmuCommand(smu.Rsmu, cmd, ref args);
+        }
+
+        public SMU.Status SetPPTLimit(uint arg = 0U) => SetLimit(smu.Rsmu.SMU_MSG_SetPPTLimit, arg);
+        public SMU.Status SetEDCVDDLimit(uint arg = 0U) => SetLimit(smu.Rsmu.SMU_MSG_SetEDCVDDLimit, arg);
+        public SMU.Status SetEDCSOCLimit(uint arg = 0U) => SetLimit(smu.Rsmu.SMU_MSG_SetEDCSOCLimit, arg);
+        public SMU.Status SetTDCVDDLimit(uint arg = 0U) => SetLimit(smu.Rsmu.SMU_MSG_SetTDCVDDLimit, arg);
+        public SMU.Status SetTDCSOCLimit(uint arg = 0U) => SetLimit(smu.Rsmu.SMU_MSG_SetTDCSOCLimit, arg);
+
         // TODO: Set OC vid based on current PState0 VID
         public SMU.Status EnableOcMode() => SetOcMode(true);
 
         public SMU.Status DisableOcMode() => SetOcMode(false);
+
+        public SMU.Status SetPBOScalar(uint arg = 1)
+        {
+            uint[] args = { arg * 100 };
+            return SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_SetPBOScalar, ref args);
+        }
 
         public SMU.Status RefreshPowerTable()
         {
