@@ -28,6 +28,8 @@
         public uint SMU_MSG_SetTDCSOCLimit { get; set; } = 0x0;
         public uint SMU_MSG_SetEDCVDDLimit { get; set; } = 0x0;
         public uint SMU_MSG_SetEDCSOCLimit { get; set; } = 0x0;
+        public uint SMU_MSG_SetHTCLimit { get; set; } = 0x0;
+
 
         // HSMP
         // Processor Programming Reference (PPR) for Family 19h Model 01h, Revision B1 Processors, vol 2
