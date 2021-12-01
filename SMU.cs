@@ -26,11 +26,11 @@ namespace ZenStates.Core
 
         public enum Status : byte
         {
-            OK                      = 0x01,
-            FAILED                  = 0xFF,
-            UNKNOWN_CMD             = 0xFE,
-            CMD_REJECTED_PREREQ     = 0xFD,
-            CMD_REJECTED_BUSY       = 0xFC
+            OK = 0x01,
+            FAILED = 0xFF,
+            UNKNOWN_CMD = 0xFE,
+            CMD_REJECTED_PREREQ = 0xFD,
+            CMD_REJECTED_BUSY = 0xFC
         }
 
         protected internal SMU()

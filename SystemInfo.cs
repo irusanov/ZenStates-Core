@@ -42,7 +42,7 @@ namespace ZenStates.Core
                 ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BaseBoard");
                 foreach (var obj in searcher.Get())
                 {
-                    var mo = (ManagementObject) obj;
+                    var mo = (ManagementObject)obj;
                     MbVendor = ((string)mo["Manufacturer"]).Trim();
                     MbName = ((string)mo["Product"]).Trim();
                 }
@@ -51,7 +51,7 @@ namespace ZenStates.Core
                 searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS");
                 foreach (var obj in searcher.Get())
                 {
-                    var mo = (ManagementObject) obj;
+                    var mo = (ManagementObject)obj;
                     BiosVersion = ((string)mo["SMBIOSBIOSVersion"]).Trim();
                 }
                 searcher.Dispose();

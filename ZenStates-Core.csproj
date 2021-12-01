@@ -43,10 +43,16 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="GroupAffinity.cs" />
     <Compile Include="InteropMethods.cs" />
+    <Compile Include="IOControlCode.cs" />
+    <Compile Include="KernelDriver.cs" />
     <Compile Include="Mailbox.cs" />
+    <Compile Include="Opcode.cs" />
+    <Compile Include="OperatingSystem.cs" />
+    <Compile Include="Ring0.cs" />
+    <Compile Include="ThreadAffinity.cs" />
     <Compile Include="Utils.cs" />
-    <Compile Include="Ols.cs" />
     <Compile Include="Cpu.cs" />
     <Compile Include="PowerTable.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -55,6 +61,10 @@
   </ItemGroup>
   <ItemGroup>
     <Service Include="{508349B6-6B84-4DF5-91F0-309BEEBAD82D}" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="WinRing0.sys" />
+    <EmbeddedResource Include="WinRing0x64.sys" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

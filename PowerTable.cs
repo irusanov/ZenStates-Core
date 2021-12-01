@@ -7,7 +7,7 @@ namespace ZenStates.Core
     public class PowerTable : INotifyPropertyChanged
     {
         private readonly PTDef tableDef;
-        private uint[] table;
+        private float[] table;
         public readonly uint DramBaseAddress;
         public readonly int TableSize;
 
@@ -105,7 +105,7 @@ namespace ZenStates.Core
 
             // Zen3 APU (Cezanne)
             { 0x400001, 0x8D0, 0x624, 0x628, 0x62C, 0x19C, 0x89C, -1, -1, -1 },
-            { 0x400002, 0x8D0, 0x63C, 0x640, 0x644, 0x19C, 0x8B4, -1, -1, -1 },            
+            { 0x400002, 0x8D0, 0x63C, 0x640, 0x644, 0x19C, 0x8B4, -1, -1, -1 },
             { 0x400003, 0x944, 0x660, 0x664, 0x668, 0x19C, 0x8D0, -1, -1, -1 },
             { 0x400004, 0x948, 0x664, 0x668, 0x66C, 0x19C, 0x8D4, -1, -1, -1 },
             { 0x400005, 0x948, 0x664, 0x668, 0x66C, 0x19C, 0x8D4, -1, -1, -1 },
@@ -201,101 +201,35 @@ namespace ZenStates.Core
             TableVersion = version;
             tableDef = GetPowerTableDef(version, smutype);
             TableSize = tableDef.tableSize;
-            table = new uint[TableSize / 4];
+            table = new float[TableSize / 4];
             DramBaseAddress = dramAddress;
         }
 
-        private uint GetDiscreteValue(uint[] pt, int index)
+        private float GetDiscreteValue(float[] pt, int index)
         {
             if (index > 0 && index < TableSize)
                 return pt[index / 4];
             return 0;
         }
 
-        private void ParseTable(uint[] pt)
+        private void ParseTable(float[] pt)
         {
             if (pt == null)
                 return;
 
             float bclkCorrection = 1.00f;
-            byte[] bytes;
 
             // Compensate for lack of BCLK detection, based on configuredClockSpeed
             if (ConfiguredClockSpeed > 0 && MemRatio > 0)
                 bclkCorrection = ConfiguredClockSpeed / (MemRatio * 200);
 
-            try
-            {
-                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetMclk));
-                float mclkFreq = BitConverter.ToSingle(bytes, 0);
-                MCLK = mclkFreq * bclkCorrection;
-            }
-            catch
-            {
-                // ignored
-            }
-
-            try
-            {
-                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetFclk));
-                float fclkFreq = BitConverter.ToSingle(bytes, 0);
-                FCLK = fclkFreq * bclkCorrection;
-            }
-            catch
-            {
-                // ignored
-            }
-
-            try
-            {
-                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetUclk));
-                float uclkFreq = BitConverter.ToSingle(bytes, 0);
-                UCLK = uclkFreq * bclkCorrection;
-            }
-            catch
-            {
-                // ignored
-            }
-
-            try
-            {
-                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetVddcrSoc));
-                VDDCR_SOC = BitConverter.ToSingle(bytes, 0);
-            }
-            catch
-            {
-                // ignored
-            }
-
-            try
-            {
-                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetCldoVddp));
-                CLDO_VDDP = BitConverter.ToSingle(bytes, 0);
-            }
-            catch
-            {
-                // ignored
-            }
-
-            try
-            {
-                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetCldoVddgIod));
-                CLDO_VDDG_IOD = BitConverter.ToSingle(bytes, 0);
-            }
-            catch
-            {
-                // ignored
-            }
-
-            try
-            {
-                bytes = BitConverter.GetBytes(GetDiscreteValue(pt, tableDef.offsetCldoVddgCcd));
-                CLDO_VDDG_CCD = BitConverter.ToSingle(bytes, 0);
-            }
-            catch
-            {
-                // ignored
-            }
+            MCLK = GetDiscreteValue(pt, tableDef.offsetMclk) * bclkCorrection;
+            FCLK = GetDiscreteValue(pt, tableDef.offsetFclk) * bclkCorrection;
+            UCLK = GetDiscreteValue(pt, tableDef.offsetUclk) * bclkCorrection;
+            VDDCR_SOC = GetDiscreteValue(pt, tableDef.offsetVddcrSoc);
+            CLDO_VDDP = GetDiscreteValue(pt, tableDef.offsetCldoVddp);
+            CLDO_VDDG_IOD = GetDiscreteValue(pt, tableDef.offsetCldoVddgIod);
+            CLDO_VDDG_CCD = GetDiscreteValue(pt, tableDef.offsetCldoVddgCcd);
 
             // Test
             /*if (tableDef.offsetCoresPower > 0)
@@ -318,7 +252,7 @@ namespace ZenStates.Core
         public float MemRatio { get; set; } = 0;
 
         // Dynamic properties
-        public uint[] Table
+        public float[] Table
         {
             get => table;
             set

@@ -1,14 +1,11 @@
-using OpenLibSys;
+using OpenHardwareMonitor.Hardware;
 using System;
-using System.Security.AccessControl;
-using System.Threading;
 
 namespace ZenStates.Core
 {
     public class Cpu : IDisposable
     {
         private bool disposedValue;
-        private static Mutex amdSmuMutex;
         private const ushort SMU_TIMEOUT = 8192;
         private const string InitializationExceptionText = "CPU module initialization failed.";
 
@@ -105,7 +102,7 @@ namespace ZenStates.Core
         public readonly Utils utils = new Utils();
         public readonly CPUInfo info;
         public readonly SystemInfo systemInfo;
-        public readonly Ols Ols = new Ols();
+        //public readonly Ols Ols = new Ols();
         public readonly SMU smu;
         public readonly PowerTable powerTable;
 
@@ -114,35 +111,19 @@ namespace ZenStates.Core
 
         public Cpu()
         {
-            // Based on OpenHardwareMonitor 
-            // https://github.com/openhardwaremonitor/openhardwaremonitor/commit/0751abb5c5ae3fff18eee35be498941e32eb2c9b
-            string pciMutexName = "Global\\Access_PCI";
-            try
-            {
-                amdSmuMutex = new Mutex(false, pciMutexName);
-            }
-            catch (UnauthorizedAccessException)
-            {
-                try
-                {
-                    amdSmuMutex = Mutex.OpenExisting(pciMutexName, MutexRights.Synchronize);
-                }
-                catch
-                {
-                    // ignored
-                }
-            }
+            Ring0.Open();
+            Opcode.Open();
 
-            CheckOlsStatus();
+            if (!Ring0.IsOpen)
+                throw new ApplicationException("Error opening WinRing kernel driver");
 
-            uint eax = 0, ebx = 0, ecx = 0, edx = 0;
             uint ccdsPresent = 0, ccdsDown = 0, coreFuse = 0;
             uint fuse1 = 0x5D218;
             uint fuse2 = 0x5D21C;
             uint offset = 0x238;
             uint ccxPerCcd = 2;
 
-            if (Ols.Cpuid(0x00000001, ref eax, ref ebx, ref ecx, ref edx) == 1)
+            if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
             {
                 info.cpuid = eax;
                 info.family = (Family)(((eax & 0xf00) >> 8) + ((eax & 0xff00000) >> 20));
@@ -157,7 +138,7 @@ namespace ZenStates.Core
             }
 
             // Package type
-            if (Ols.Cpuid(0x80000001, ref eax, ref ebx, ref ecx, ref edx) == 1)
+            if (Opcode.Cpuid(0x80000001, 0, out eax, out ebx, out ecx, out edx))
             {
                 info.packageType = (PackageType)(ebx >> 28);
                 info.codeName = GetCodeName(info);
@@ -172,7 +153,7 @@ namespace ZenStates.Core
 
             info.cpuName = GetCpuName();
 
-            if (Ols.Cpuid(0x8000001E, ref eax, ref ebx, ref ecx, ref edx) == 1)
+            if (Opcode.Cpuid(0x8000001E, 0, out eax, out ebx, out ecx, out edx))
             {
                 info.threadsPerCore = utils.GetBits(ebx, 8, 4) + 1;
                 if (info.threadsPerCore == 0)
@@ -247,58 +228,21 @@ namespace ZenStates.Core
             {
                 LastError = ex;
                 Status = Utils.LibStatus.PARTIALLY_OK;
-            } 
-        }
-
-        private void CheckOlsStatus()
-        {
-            // Check support library status
-            switch (Ols.GetStatus())
-            {
-                case (uint)Ols.Status.NO_ERROR:
-                    break;
-                case (uint)Ols.Status.DLL_NOT_FOUND:
-                    throw new ApplicationException("WinRing DLL_NOT_FOUND");
-                case (uint)Ols.Status.DLL_INCORRECT_VERSION:
-                    throw new ApplicationException("WinRing DLL_INCORRECT_VERSION");
-                case (uint)Ols.Status.DLL_INITIALIZE_ERROR:
-                    throw new ApplicationException("WinRing DLL_INITIALIZE_ERROR");
-            }
-
-            // Check WinRing0 status
-            switch (Ols.GetDllStatus())
-            {
-                case (uint)Ols.OlsDllStatus.OLS_DLL_NO_ERROR:
-                    break;
-                case (uint)Ols.OlsDllStatus.OLS_DLL_DRIVER_NOT_LOADED:
-                    throw new ApplicationException("WinRing OLS_DRIVER_NOT_LOADED");
-                case (uint)Ols.OlsDllStatus.OLS_DLL_UNSUPPORTED_PLATFORM:
-                    throw new ApplicationException("WinRing OLS_UNSUPPORTED_PLATFORM");
-                case (uint)Ols.OlsDllStatus.OLS_DLL_DRIVER_NOT_FOUND:
-                    throw new ApplicationException("WinRing OLS_DLL_DRIVER_NOT_FOUND");
-                case (uint)Ols.OlsDllStatus.OLS_DLL_DRIVER_UNLOADED:
-                    throw new ApplicationException("WinRing OLS_DLL_DRIVER_UNLOADED");
-                case (uint)Ols.OlsDllStatus.OLS_DLL_DRIVER_NOT_LOADED_ON_NETWORK:
-                    throw new ApplicationException("WinRing DRIVER_NOT_LOADED_ON_NETWORK");
-                case (uint)Ols.OlsDllStatus.OLS_DLL_UNKNOWN_ERROR:
-                    throw new ApplicationException("WinRing OLS_DLL_UNKNOWN_ERROR");
             }
         }
 
         private bool SmuWriteReg(uint addr, uint data)
         {
-            bool res = false;
-            if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr) == 1)
-                res = (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, data) == 1);
-            return res;
+            if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr))
+                return Ring0.WritePciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, data);
+            return false;
         }
 
         private bool SmuReadReg(uint addr, ref uint data)
         {
-            bool res = false;
-            if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr) == 1)
-                res = (Ols.ReadPciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, ref data) == 1);
-            return res;
+            if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr))
+                return Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, out data);
+            return false;
         }
 
         private bool SmuWaitDone(Mailbox mailbox)
@@ -326,7 +270,7 @@ namespace ZenStates.Core
                 || msg == 0 || args.Length == 0)
                 return SMU.Status.FAILED;
 
-            if (WaitPciBusMutex(10))
+            if (Ring0.WaitPciBusMutex(10))
             {
                 ushort timeout = SMU_TIMEOUT;
                 uint[] cmdArgs = new uint[6];
@@ -347,7 +291,7 @@ namespace ZenStates.Core
                 if (timeout == 0)
                 {
                     SmuReadReg(mailbox.SMU_ADDR_RSP, ref status);
-                    ReleasePciBusMutex();
+                    Ring0.ReleasePciBusMutex();
                     return (SMU.Status)status;
                 }
 
@@ -362,7 +306,7 @@ namespace ZenStates.Core
                 if (!SmuWaitDone(mailbox))
                 {
                     SmuReadReg(mailbox.SMU_ADDR_RSP, ref status);
-                    ReleasePciBusMutex();
+                    Ring0.ReleasePciBusMutex();
                     return (SMU.Status)status;
                 }
 
@@ -371,7 +315,7 @@ namespace ZenStates.Core
                     SmuReadReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]);
 
                 SmuReadReg(mailbox.SMU_ADDR_RSP, ref status);
-                ReleasePciBusMutex();
+                Ring0.ReleasePciBusMutex();
             }
 
             return (SMU.Status)status;
@@ -387,49 +331,59 @@ namespace ZenStates.Core
         public bool ReadDwordEx(uint addr, ref uint data)
         {
             bool res = false;
-            if (WaitPciBusMutex(10))
+            if (Ring0.WaitPciBusMutex(10))
             {
-                if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr) == 1)
-                    res = (Ols.ReadPciConfigDwordEx(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, ref data) == 1);
-                ReleasePciBusMutex();
+                if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr))
+                    res = Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, out data);
+                Ring0.ReleasePciBusMutex();
             }
             return res;
         }
 
         public uint ReadDword(uint addr)
         {
-            uint res = 0;
-            if (WaitPciBusMutex(10))
+            uint data = 0;
+
+            if (Ring0.WaitPciBusMutex(10))
             {
-                Ols.WritePciConfigDword(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr);
-                res = Ols.ReadPciConfigDword(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA);
-                ReleasePciBusMutex();
+                Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr);
+                Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, out data);
+                Ring0.ReleasePciBusMutex();
             }
 
-            return res;
+            return data;
         }
+
         public bool WriteDwordEx(uint addr, uint data)
         {
             bool res = false;
-            if (WaitPciBusMutex(10))
+            if (Ring0.WaitPciBusMutex(10))
             {
-                if (Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) == 1)
-                    res = Ols.WritePciConfigDwordEx(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, data) == 1;
-                ReleasePciBusMutex();
+                if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr))
+                    res = Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, data);
+                Ring0.ReleasePciBusMutex();
             }
 
             return res;
         }
 
-
         public double GetCoreMulti(int index = 0)
         {
-            uint eax = 0, edx = 0;
-            if (Ols.RdmsrTx(0xC0010293, ref eax, ref edx, (UIntPtr)(1 << index)) != 1)
+            if (!Ring0.RdmsrTx(0xC0010293, out uint eax, out uint edx, GroupAffinity.Single(0, index)))
                 return 0;
 
             double multi = 25 * (eax & 0xFF) / (12.5 * (eax >> 8 & 0x3F));
             return Math.Round(multi * 4, MidpointRounding.ToEven) / 4;
+        }
+
+        public bool Cpuid(uint index, ref uint eax, ref uint ebx, ref uint ecx, ref uint edx)
+        {
+            return Opcode.Cpuid(index, 0, out eax, out ebx, out ecx, out edx);
+        }
+
+        public bool ReadMsr(uint index, ref uint eax, ref uint edx)
+        {
+            return Ring0.Rdmsr(index, out eax, out edx);
         }
 
         public bool WriteMsr(uint msr, uint eax, uint edx)
@@ -438,7 +392,7 @@ namespace ZenStates.Core
 
             for (var i = 0; i < info.logicalCores; i++)
             {
-                res &= Ols.WrmsrTx(msr, eax, edx, (UIntPtr)(1 << i)) == 1;
+                res = Ring0.WrmsrTx(msr, eax, edx, GroupAffinity.Single(0, i));
             }
 
             return res;
@@ -540,7 +494,7 @@ namespace ZenStates.Core
         public SVI2 GetSVI2Info(CodeName codeName)
         {
             var svi = new SVI2();
- 
+
             switch (codeName)
             {
                 //Zen, Zen+
@@ -617,15 +571,14 @@ namespace ZenStates.Core
         public string GetCpuName()
         {
             string model = "";
-            uint eax = 0, ebx = 0, ecx = 0, edx = 0;
 
-            if (Ols.Cpuid(0x80000002, ref eax, ref ebx, ref ecx, ref edx) == 1)
+            if (Opcode.Cpuid(0x80000002, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
                 model = model + utils.IntToStr(eax) + utils.IntToStr(ebx) + utils.IntToStr(ecx) + utils.IntToStr(edx);
 
-            if (Ols.Cpuid(0x80000003, ref eax, ref ebx, ref ecx, ref edx) == 1)
+            if (Opcode.Cpuid(0x80000003, 0, out eax, out ebx, out ecx, out edx))
                 model = model + utils.IntToStr(eax) + utils.IntToStr(ebx) + utils.IntToStr(ecx) + utils.IntToStr(edx);
 
-            if (Ols.Cpuid(0x80000004, ref eax, ref ebx, ref ecx, ref edx) == 1)
+            if (Opcode.Cpuid(0x80000004, 0, out eax, out ebx, out ecx, out edx))
                 model = model + utils.IntToStr(eax) + utils.IntToStr(ebx) + utils.IntToStr(ecx) + utils.IntToStr(edx);
 
             return model.Trim();
@@ -633,8 +586,7 @@ namespace ZenStates.Core
 
         public int GetCpuNodes()
         {
-            uint eax = 0, ebx = 0, ecx = 0, edx = 0;
-            if (Ols.Cpuid(0x8000001E, ref eax, ref ebx, ref ecx, ref edx) == 1)
+            if (Opcode.Cpuid(0x8000001E, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
             {
                 return Convert.ToInt32(ecx >> 8 & 0x7) + 1;
             }
@@ -652,21 +604,17 @@ namespace ZenStates.Core
 
         public uint GetPatchLevel()
         {
-            uint eax = 0, edx = 0;
-            if (Ols.Rdmsr(0x8b, ref eax, ref edx) != 1)
-                return 0;
+            if (Ring0.Rdmsr(0x8b, out uint eax, out uint edx))
+                return eax;
 
-            return eax;
+            return 0;
         }
 
         public bool GetOcMode()
         {
             if (info.codeName == CodeName.SummitRidge)
             {
-                uint eax = 0;
-                uint edx = 0;
-
-                if (Ols.Rdmsr(0xC0010063, ref eax, ref edx) == 1)
+                if (Ring0.Rdmsr(0xC0010063, out uint eax, out uint edx))
                 {
                     // Summit Ridge, Raven Ridge
                     return Convert.ToBoolean((eax >> 1) & 1);
@@ -845,13 +793,11 @@ namespace ZenStates.Core
                     if (status != SMU.Status.OK)
                         return status;
 
-                    uint[] table = new uint[powerTable.TableSize / 4];
+                    float[] table = new float[powerTable.TableSize / 4];
 
-                    for (int i = 0; i < table.Length; ++i)
-                    {
-                        utils.GetPhysLong((UIntPtr)(powerTable.DramBaseAddress + i * 4), out uint data);
-                        table[i] = data;
-                    }
+                    byte[] bytes = utils.ReadMemory(new IntPtr(powerTable.DramBaseAddress), powerTable.TableSize);
+                    if (bytes != null)
+                        Buffer.BlockCopy(bytes, 0, table, 0, bytes.Length);
 
                     if (utils.AllZero(table))
                         status = SMU.Status.FAILED;
@@ -881,42 +827,17 @@ namespace ZenStates.Core
             return (data & 1) == 1;
         }
 
-        // Based on OpenHardwareMonitor 
-        // https://github.com/openhardwaremonitor/openhardwaremonitor/commit/0751abb5c5ae3fff18eee35be498941e32eb2c9b
-        private static bool WaitPciBusMutex(int millisecondsTimeout)
-        {
-            if (amdSmuMutex == null)
-                return true;
-            try
-            {
-                return amdSmuMutex.WaitOne(millisecondsTimeout, false);
-            }
-            catch (AbandonedMutexException) { return true; }
-            catch (InvalidOperationException) { return false; }
-        }
-
-        private static void ReleasePciBusMutex()
-        {
-            if (amdSmuMutex == null)
-                return;
-            amdSmuMutex.ReleaseMutex();
-        }
-
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)
             {
                 if (disposing)
                 {
-                    if (amdSmuMutex != null)
-                    {
-                        amdSmuMutex.Close();
-                        amdSmuMutex = null;
-                    }
-
                     utils.Dispose();
-                    Ols.DeinitializeOls();
-                    Ols.Dispose();
+                    //Ols.DeinitializeOls();
+                    //Ols.Dispose();
+                    Ring0.Close();
+                    Opcode.Close();
                 }
 
                 disposedValue = true;

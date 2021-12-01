@@ -28,15 +28,7 @@ namespace ZenStates.Core
 
         public Utils()
         {
-            string fileName;
-            if (is64bit)
-            {
-                fileName = "inpoutx64.dll";
-            }
-            else
-            {
-                fileName = "WinIo.dll";
-            }
+            string fileName = is64bit ?  "inpoutx64.dll" : "WinIo.dll";
 
             ioModule = LoadLibrary(fileName);
 
@@ -45,6 +37,8 @@ namespace ZenStates.Core
 
             // Common
             GetPhysLong = (_GetPhysLong)GetDelegate(ioModule, "GetPhysLong", typeof(_GetPhysLong));
+            MapPhysToLin = (_MapPhysToLin)GetDelegate(ioModule, "MapPhysToLin", typeof(_MapPhysToLin));
+            UnmapPhysicalMemory = (_UnmapPhysicalMemory)GetDelegate(ioModule, "UnmapPhysicalMemory", typeof(_UnmapPhysicalMemory));
 
             // 64bit only
             if (is64bit)
@@ -65,6 +59,12 @@ namespace ZenStates.Core
 
         public delegate bool _GetPhysLong(UIntPtr memAddress, out uint data);
         public readonly _GetPhysLong GetPhysLong;
+
+        private delegate IntPtr _MapPhysToLin(IntPtr pbPhysAddr, uint dwPhysSize, out IntPtr pPhysicalMemoryHandle);
+        private readonly _MapPhysToLin MapPhysToLin;
+
+        private delegate bool _UnmapPhysicalMemory(IntPtr PhysicalMemoryHandle, IntPtr pbLinAddr);
+        private readonly _UnmapPhysicalMemory UnmapPhysicalMemory;
 
         // InpOutx64
         private delegate uint _IsInpOutDriverOpen64();
@@ -90,6 +90,24 @@ namespace ZenStates.Core
                 return true;
 
             return InitializeWinIo32();
+        }
+
+        public byte[] ReadMemory(IntPtr baseAddress, int size)
+        {
+            if (MapPhysToLin != null && UnmapPhysicalMemory != null)
+            {
+                IntPtr pdwLinAddr = MapPhysToLin(baseAddress, (uint)size, out IntPtr pPhysicalMemoryHandle);
+                if (pdwLinAddr != IntPtr.Zero)
+                {
+                    byte[] bytes = new byte[size];
+                    Marshal.Copy(pdwLinAddr, bytes, 0, bytes.Length);
+                    UnmapPhysicalMemory(pPhysicalMemoryHandle, pdwLinAddr);
+
+                    return bytes;
+                }
+            }
+
+            return null;
         }
 
         public uint SetBits(uint val, int offset, int n, uint newVal)
@@ -159,6 +177,8 @@ namespace ZenStates.Core
         public bool AllZero(int[] arr) => CheckAllZero(ref arr);
 
         public bool AllZero(uint[] arr) => CheckAllZero(ref arr);
+
+        public bool AllZero(float[] arr) => CheckAllZero(ref arr);
 
         public void Dispose()
         {
