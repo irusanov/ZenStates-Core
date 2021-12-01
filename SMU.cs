@@ -19,6 +19,7 @@ namespace ZenStates.Core
             TYPE_CPU1 = 0x1,
             TYPE_CPU2 = 0x2,
             TYPE_CPU3 = 0x3,
+            TYPE_CPU9 = 0x9,
             TYPE_APU0 = 0x10,
             TYPE_APU1 = 0x11,
             TYPE_UNSUPPORTED = 0xFF
@@ -65,6 +66,21 @@ namespace ZenStates.Core
         public Mailbox Rsmu { get; protected set; }
         public Mailbox Mp1Smu { get; protected set; }
         public Mailbox Hsmp { get; protected set; }
+    }
+
+    public class BristolRidgeSettings: SMU
+    {
+        public BristolRidgeSettings()
+        {
+            SMU_TYPE = SmuType.TYPE_CPU9;
+
+            SMU_OFFSET_ADDR = 0xB8;
+            SMU_OFFSET_DATA = 0xBC;
+
+            Rsmu.SMU_ADDR_MSG = 0xC2100000;
+            Rsmu.SMU_ADDR_RSP = 0xC2100004;
+            Rsmu.SMU_ADDR_ARG = 0xC210003C;
+        }
     }
 
     // Zen (Summit Ridge), ThreadRipper (Whitehaven)
@@ -344,6 +360,8 @@ namespace ZenStates.Core
     {
         private static readonly Dictionary<Cpu.CodeName, SMU> settings = new Dictionary<Cpu.CodeName, SMU>
         {
+            { Cpu.CodeName.BristolRidge, new BristolRidgeSettings() },
+
             // Zen
             { Cpu.CodeName.SummitRidge, new SummitRidgeSettings() },
             { Cpu.CodeName.Naples, new SummitRidgeSettings() },

@@ -1,31 +1,32 @@
 ﻿using System;
 using System.Management;
 using System.ServiceProcess;
+using static ZenStates.Core.Cpu;
 
 namespace ZenStates.Core
 {
     [Serializable]
     public class SystemInfo
     {
-        private void Init(Cpu cpu)
+        public SystemInfo(CPUInfo info, SMU smu)
         {
-            CpuId = cpu.info.cpuid;
-            CpuName = cpu.info.cpuName;
-            NodesPerProcessor = cpu.GetCpuNodes();
-            PackageType = (uint)cpu.info.packageType;
-            PatchLevel = cpu.info.patchLevel;
-            SmuVersion = cpu.smu.Version;
-            SmuTableVersion = cpu.smu.TableVersion;
-            FusedCoreCount = (int)cpu.info.cores;
-            Threads = (int)cpu.info.logicalCores;
-            CCDCount = (int)cpu.info.ccds;
-            CCXCount = (int)cpu.info.ccxs;
-            NumCoresInCCX = (int)cpu.info.coresPerCcx;
-            PhysicalCoreCount = (int)cpu.info.physicalCores;
-            CodeName = $"{cpu.info.codeName}";
-            SMT = (int)cpu.info.threadsPerCore > 1;
-            Model = cpu.info.model;
-            ExtendedModel = cpu.info.extModel;
+            CpuId = info.cpuid;
+            CpuName = info.cpuName != null ? info.cpuName : "N/A";
+            NodesPerProcessor = (int)info.cpuNodes;
+            PackageType = (uint)info.packageType;
+            PatchLevel = info.patchLevel;
+            SmuVersion = smu.Version;
+            SmuTableVersion = smu.TableVersion;
+            FusedCoreCount = (int)info.cores;
+            Threads = (int)info.logicalCores;
+            CCDCount = (int)info.ccds;
+            CCXCount = (int)info.ccxs;
+            NumCoresInCCX = (int)info.coresPerCcx;
+            PhysicalCoreCount = (int)info.physicalCores;
+            CodeName = $"{info.codeName}";
+            SMT = (int)info.threadsPerCore > 1;
+            Model = info.model;
+            ExtendedModel = info.extModel;
 
             try
             {
@@ -60,19 +61,6 @@ namespace ZenStates.Core
             {
                 Console.WriteLine("WMI: {0}", ex.Message);
             }
-        }
-
-        public SystemInfo()
-        {
-            Init(new Cpu());
-        }
-
-        public SystemInfo(Cpu cpu)
-        {
-            if (cpu == null)
-                throw new ArgumentNullException(nameof(cpu), "CPU module is not initialized.");
-
-            Init(cpu);
         }
 
         public string CpuName { get; private set; }

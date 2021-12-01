@@ -25,6 +25,7 @@ namespace ZenStates.Core
         public enum Family
         {
             UNSUPPORTED = 0x0,
+            FAMILY_15H = 0x15,
             FAMILY_17H = 0x17,
             FAMILY_18H = 0x18,
             FAMILY_19H = 0x19,
@@ -34,6 +35,7 @@ namespace ZenStates.Core
         {
             Unsupported = 0,
             DEBUG,
+            BristolRidge,
             SummitRidge,
             Whitehaven,
             Naples,
@@ -94,6 +96,7 @@ namespace ZenStates.Core
             public uint logicalCores;
             public uint physicalCores;
             public uint threadsPerCore;
+            public uint cpuNodes;
             public uint patchLevel;
             public uint coreDisableMap;
             public SVI2 svi2;
@@ -156,6 +159,8 @@ namespace ZenStates.Core
             if (Opcode.Cpuid(0x8000001E, 0, out eax, out ebx, out ecx, out edx))
             {
                 info.threadsPerCore = utils.GetBits(ebx, 8, 4) + 1;
+                info.cpuNodes = ecx >> 8 & 0x7 + 1;
+
                 if (info.threadsPerCore == 0)
                     info.cores = info.logicalCores;
                 else
@@ -215,9 +220,8 @@ namespace ZenStates.Core
             {
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
-
+                systemInfo = new SystemInfo(info, smu);
                 powerTable = new PowerTable(smu.TableVersion, smu.SMU_TYPE, (uint)(GetDramBaseAddress() & 0xFFFFFFFF));
-                systemInfo = new SystemInfo(this);
 
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
@@ -403,7 +407,16 @@ namespace ZenStates.Core
         {
             CodeName codeName = CodeName.Unsupported;
 
-            if (cpuInfo.family == Family.FAMILY_17H)
+            if (cpuInfo.family == Family.FAMILY_15H)
+            {
+                switch (cpuInfo.model)
+                {
+                    case 0x65:
+                        codeName = CodeName.BristolRidge;
+                        break;
+                }
+            }
+            else if (cpuInfo.family == Family.FAMILY_17H)
             {
                 switch (cpuInfo.model)
                 {
@@ -497,6 +510,9 @@ namespace ZenStates.Core
 
             switch (codeName)
             {
+                case CodeName.BristolRidge:
+                    break;
+
                 //Zen, Zen+
                 case CodeName.SummitRidge:
                 case CodeName.PinnacleRidge:
@@ -582,15 +598,6 @@ namespace ZenStates.Core
                 model = model + utils.IntToStr(eax) + utils.IntToStr(ebx) + utils.IntToStr(ecx) + utils.IntToStr(edx);
 
             return model.Trim();
-        }
-
-        public int GetCpuNodes()
-        {
-            if (Opcode.Cpuid(0x8000001E, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
-            {
-                return Convert.ToInt32(ecx >> 8 & 0x7) + 1;
-            }
-            return 1;
         }
 
         public uint GetSmuVersion()
@@ -784,7 +791,7 @@ namespace ZenStates.Core
 
         public SMU.Status RefreshPowerTable()
         {
-            if (powerTable.DramBaseAddress > 0)
+            if (powerTable != null && powerTable.DramBaseAddress > 0)
             {
                 try
                 {
