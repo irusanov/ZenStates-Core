@@ -390,6 +390,13 @@ namespace ZenStates.Core
             return Ring0.Rdmsr(index, out eax, out edx);
         }
 
+        public bool ReadMsrTx(uint index, ref uint eax, ref uint edx)
+        {
+            GroupAffinity affinity = GroupAffinity.Single(0, (int)index);
+
+            return Ring0.RdmsrTx(index, out eax, out edx, affinity);
+        }
+
         public bool WriteMsr(uint msr, uint eax, uint edx)
         {
             bool res = true;
@@ -400,6 +407,16 @@ namespace ZenStates.Core
             }
 
             return res;
+        }
+
+        public bool ReadPciConfig(uint pciAddress, uint regAddress, ref uint value)
+        {
+            return Ring0.ReadPciConfig(pciAddress, regAddress, out value);
+        }
+
+        public uint GetPciAddress(byte bus, byte device, byte function)
+        {
+            return Ring0.GetPciAddress(bus, device, function);
         }
 
         // https://en.wikichip.org/wiki/amd/cpuid
@@ -629,6 +646,11 @@ namespace ZenStates.Core
                 return false;
             }
 
+            if (info.family == Family.FAMILY_15H)
+            {
+                return false;
+            }
+
             return Equals(GetPBOScalar(), 0.0f);
         }
 
@@ -802,9 +824,34 @@ namespace ZenStates.Core
 
                     float[] table = new float[powerTable.TableSize / 4];
 
-                    byte[] bytes = utils.ReadMemory(new IntPtr(powerTable.DramBaseAddress), powerTable.TableSize);
-                    if (bytes != null)
-                        Buffer.BlockCopy(bytes, 0, table, 0, bytes.Length);
+                    if (utils.Is64Bit)
+                    {
+                        byte[] bytes = utils.ReadMemory(new IntPtr(powerTable.DramBaseAddress), powerTable.TableSize);
+                        if (bytes != null && bytes.Length > 0)
+                            Buffer.BlockCopy(bytes, 0, table, 0, bytes.Length);
+                        else
+                            return SMU.Status.FAILED;
+                    }
+                    else
+                    {
+                        /*uint data = 0;
+
+                        for (int i = 0; i < table.Length; ++i)
+                        {
+                            Ring0.ReadMemory((ulong)(powerTable.DramBaseAddress), ref data);
+                            byte[] bytes = BitConverter.GetBytes(data);
+                            table[i] = BitConverter.ToSingle(bytes, 0);
+                            //table[i] = data;
+                        }*/
+
+                        for (int i = 0; i < table.Length; ++i)
+                        {
+                            int offset = i * 4;
+                            utils.GetPhysLong((UIntPtr)(powerTable.DramBaseAddress + offset), out uint data);
+                            byte[] bytes = BitConverter.GetBytes(data);
+                            Buffer.BlockCopy(bytes, 0, table, offset, bytes.Length);
+                        }
+                    }
 
                     if (utils.AllZero(table))
                         status = SMU.Status.FAILED;
@@ -813,11 +860,7 @@ namespace ZenStates.Core
 
                     return status;
                 }
-                catch
-                {
-                    return SMU.Status.FAILED;
-                    //throw new Exception("Could not refresh power table");
-                }
+                catch { }
             }
             return SMU.Status.FAILED;
         }

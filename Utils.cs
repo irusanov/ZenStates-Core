@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 
 namespace ZenStates.Core
@@ -24,16 +25,22 @@ namespace ZenStates.Core
             PARTIALLY_OK = 2
         }
 
-        public LibStatus WinIoStatus { get; } = LibStatus.INITIALIZE_ERROR;
+        public LibStatus WinIoStatus { get; private set; } = LibStatus.INITIALIZE_ERROR;
 
         public Utils()
         {
-            string fileName = is64bit ?  "inpoutx64.dll" : "WinIo.dll";
+            string fileName = is64bit ? "inpoutx64.dll" : "WinIo32.dll";
 
             ioModule = LoadLibrary(fileName);
 
             if (ioModule == IntPtr.Zero)
-                throw new DllNotFoundException($"{fileName} not found!");
+            {
+                var lasterror = Marshal.GetLastWin32Error();
+                var innerEx = new Win32Exception(lasterror);
+                innerEx.Data.Add("LastWin32Error", lasterror);
+
+                throw new Exception("Can't load DLL " + fileName, innerEx);
+            }
 
             // Common
             GetPhysLong = (_GetPhysLong)GetDelegate(ioModule, "GetPhysLong", typeof(_GetPhysLong));
@@ -76,9 +83,11 @@ namespace ZenStates.Core
         private readonly _InitializeWinIo32 InitializeWinIo32;
         private readonly _ShutdownWinIo32 ShutdownWinIo32;
 
+        public bool Is64Bit => is64bit;
+
         public bool IsInpOutDriverOpen()
         {
-            if (is64bit)
+            if (Is64Bit)
                 return IsInpOutDriverOpen64() != 0;
 
             return true;
@@ -86,7 +95,7 @@ namespace ZenStates.Core
 
         public bool InitializeWinIo()
         {
-            if (is64bit)
+            if (Is64Bit)
                 return true;
 
             return InitializeWinIo32();
@@ -157,19 +166,16 @@ namespace ZenStates.Core
 
         private static bool CheckAllZero<T>(ref T[] typedArray)
         {
-            T[] arr = typedArray;
-            bool allZero = true;
+            if (typedArray == null)
+                return true;
 
-            foreach (var value in arr)
+            foreach (var value in typedArray)
             {
                 if (Convert.ToUInt32(value) != 0)
-                {
-                    allZero = false;
-                    break;
-                }
+                    return false;
             }
 
-            return allZero;
+            return true;
         }
 
         public bool AllZero(byte[] arr) => CheckAllZero(ref arr);
@@ -183,7 +189,7 @@ namespace ZenStates.Core
         public void Dispose()
         {
             if (ioModule == IntPtr.Zero) return;
-            if (IntPtr.Size == 4)
+            if (!Is64Bit)
             {
                 ShutdownWinIo32();
             }
