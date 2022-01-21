@@ -55,7 +55,7 @@ namespace ZenStates.Core
             Milan,
             Cezanne,
             Rembrandt,
-            Lucienne
+            Lucienne,
         };
 
 
@@ -105,7 +105,6 @@ namespace ZenStates.Core
         public readonly Utils utils = new Utils();
         public readonly CPUInfo info;
         public readonly SystemInfo systemInfo;
-        //public readonly Ols Ols = new Ols();
         public readonly SMU smu;
         public readonly PowerTable powerTable;
 
@@ -115,10 +114,11 @@ namespace ZenStates.Core
         public Cpu()
         {
             Ring0.Open();
-            Opcode.Open();
 
             if (!Ring0.IsOpen)
                 throw new ApplicationException("Error opening WinRing kernel driver");
+
+            Opcode.Open();
 
             uint ccdsPresent = 0, ccdsDown = 0, coreFuse = 0;
             uint fuse1 = 0x5D218;
@@ -271,9 +271,7 @@ namespace ZenStates.Core
                 res = SmuReadReg(mailbox.SMU_ADDR_RSP, ref data);
             while ((!res || data != 1) && --timeout > 0);
 
-            res &= (timeout != 0 && data == 1);
-
-            return res;
+            return timeout != 0 && data == 1;
         }
 
         public SMU.Status SendSmuCommand(Mailbox mailbox, uint msg, ref uint[] args)
@@ -290,13 +288,8 @@ namespace ZenStates.Core
             {
                 ushort timeout = SMU_TIMEOUT;
                 uint[] cmdArgs = new uint[6];
-                int argsLength = args.Length;
 
-                if (argsLength > cmdArgs.Length)
-                    argsLength = cmdArgs.Length;
-
-                for (int i = 0; i < argsLength; ++i)
-                    cmdArgs[i] = args[i];
+                args.CopyTo(cmdArgs, 0);
 
                 // Clear response register
                 bool temp;
@@ -896,8 +889,6 @@ namespace ZenStates.Core
                 if (disposing)
                 {
                     utils.Dispose();
-                    //Ols.DeinitializeOls();
-                    //Ols.Dispose();
                     Ring0.Close();
                     Opcode.Close();
                 }

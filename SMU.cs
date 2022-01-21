@@ -10,7 +10,7 @@ namespace ZenStates.Core
         {
             UNSUPPORTED = 0,
             RSMU,
-            MP1
+            MP1,
         }
 
         public enum SmuType

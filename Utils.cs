@@ -6,8 +6,8 @@ namespace ZenStates.Core
 {
     public class Utils : IDisposable
     {
-        [DllImport("kernel32")]
-        public static extern IntPtr LoadLibrary(string lpFileName);
+        [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Ansi)]
+        private static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPStr)] string lpFileName);
 
         [DllImport("kernel32", SetLastError = true)]
         private static extern bool FreeLibrary(IntPtr hModule);
@@ -16,7 +16,7 @@ namespace ZenStates.Core
         private static extern IntPtr GetProcAddress(IntPtr hModule, [MarshalAs(UnmanagedType.LPStr)] string lpProcName);
 
         private IntPtr ioModule;
-        private readonly bool is64bit = (IntPtr.Size == 8);
+        private readonly bool is64bit = OpenHardwareMonitor.Hardware.OperatingSystem.Is64BitOperatingSystem;
 
         public enum LibStatus
         {
@@ -35,8 +35,8 @@ namespace ZenStates.Core
 
             if (ioModule == IntPtr.Zero)
             {
-                var lasterror = Marshal.GetLastWin32Error();
-                var innerEx = new Win32Exception(lasterror);
+                int lasterror = Marshal.GetLastWin32Error();
+                Win32Exception innerEx = new Win32Exception(lasterror);
                 innerEx.Data.Add("LastWin32Error", lasterror);
 
                 throw new Exception("Can't load DLL " + fileName, innerEx);
