@@ -195,10 +195,23 @@ namespace ZenStates.Core
 
                 uint coreDisableMapAddress = 0x30081800 + offset;
 
-                if (info.family == Family.FAMILY_17H)
-                    coreDisableMapAddress |= (ccdEnableMap & 1) == 0 ? 0x2000000 : 0u;
-                else
-                    coreDisableMapAddress |= ((ccdDisableMap & ccdEnableMap) & 1) == 1 ? 0x2000000 : 0u;
+                // First CCD
+                if ((ccdEnableMap & 1) == 1)
+                {
+                    if (!ReadDwordEx(coreDisableMapAddress, ref coreFuse))
+                        throw new ApplicationException("Could not read core fuse for CCD0!");
+                }
+
+                info.coreDisableMap |= coreFuse;
+
+                // Second CCD
+                if ((ccdEnableMap & 2) == 2)
+                {
+                    if (!ReadDwordEx(coreDisableMapAddress | 0x2000000, ref coreFuse))
+                        throw new ApplicationException("Could not read core fuse for CCD1!");
+                }
+
+                info.coreDisableMap |= (coreFuse << 8);
 
                 if (!ReadDwordEx(coreDisableMapAddress, ref coreFuse))
                     throw new ApplicationException("Could not read core fuse!");
@@ -207,7 +220,6 @@ namespace ZenStates.Core
                 info.ccxs = info.ccds * ccxPerCcd;
                 info.physicalCores = info.ccxs * 8 / ccxPerCcd;
                 info.coresPerCcx = (8 - utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
-                info.coreDisableMap = coreFuse;
             }
             catch (Exception ex)
             {
