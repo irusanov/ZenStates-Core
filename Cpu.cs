@@ -414,6 +414,8 @@ namespace ZenStates.Core
             return res;
         }
 
+        public void WriteIoPort(uint port, byte value) => Ring0.WriteIoPort(port, value);
+
         public bool ReadPciConfig(uint pciAddress, uint regAddress, ref uint value)
         {
             return Ring0.ReadPciConfig(pciAddress, regAddress, out value);
