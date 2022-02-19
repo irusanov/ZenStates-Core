@@ -192,26 +192,7 @@ namespace ZenStates.Core
 
                 uint ccdEnableMap = utils.GetBits(ccdsPresent, 22, 8);
                 uint ccdDisableMap = utils.GetBits(ccdsPresent, 30, 2) | (utils.GetBits(ccdsDown, 0, 6) << 2);
-
                 uint coreDisableMapAddress = 0x30081800 + offset;
-
-                // First CCD
-                if ((ccdEnableMap & 1) == 1)
-                {
-                    if (ReadDwordEx(coreDisableMapAddress, ref coreFuse))
-                        info.coreDisableMap |= coreFuse;
-                    else
-                        throw new ApplicationException("Could not read core fuse for CCD0!");
-                }
-
-                // Second CCD
-                if ((ccdEnableMap & 2) == 2)
-                {
-                    if (ReadDwordEx(coreDisableMapAddress | 0x2000000, ref coreFuse))
-                        info.coreDisableMap |= (coreFuse << 8);
-                    else
-                        throw new ApplicationException("Could not read core fuse for CCD1!");
-                }
 
                 info.ccds = utils.CountSetBits(ccdEnableMap);
                 info.ccxs = info.ccds * ccxPerCcd;
@@ -221,6 +202,21 @@ namespace ZenStates.Core
                     info.coresPerCcx = (8 - utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
                 else
                     throw new ApplicationException("Could not read core fuse!");
+
+                uint ccdOffset = 0;
+
+                for (int i = 0; i < info.ccds; i++)
+                {
+                    if (utils.GetBits(ccdEnableMap, i, 1) == 1)
+                    {
+                        if (ReadDwordEx(coreDisableMapAddress | ccdOffset, ref coreFuse))
+                            info.coreDisableMap |= (coreFuse & 0xff) << i * 8;
+                        else
+                            throw new ApplicationException($"Could not read core fuse for CCD{i}!");
+                    }
+
+                    ccdOffset += 0x2000000;
+                }
             }
             catch (Exception ex)
             {
