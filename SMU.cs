@@ -344,7 +344,7 @@ namespace ZenStates.Core
             // MP1
             Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
             Mp1Smu.SMU_ADDR_RSP = 0x03B10564;
-            Mp1Smu.SMU_ADDR_ARG = 0x03B10598;
+            Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
         }
     }
 
