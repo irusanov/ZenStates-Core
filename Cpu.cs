@@ -284,6 +284,7 @@ namespace ZenStates.Core
             return false;
         }
 
+        // Check until response register is 1 (SMU is ready to take another command)
         private bool SmuWaitDone(Mailbox mailbox)
         {
             bool res;
@@ -309,6 +310,13 @@ namespace ZenStates.Core
 
             if (Ring0.WaitPciBusMutex(10))
             {
+                // Wait done
+                if (!SmuWaitDone(mailbox))
+                {
+                    Ring0.ReleasePciBusMutex();
+                    return SMU.Status.FAILED;
+                }
+
                 ushort timeout = SMU_TIMEOUT;
                 uint[] cmdArgs = MakeCmdArgs(args);
 
