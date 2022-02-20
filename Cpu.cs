@@ -607,7 +607,8 @@ namespace ZenStates.Core
                 case CodeName.Renoir:
                 case CodeName.Lucienne:
                 case CodeName.Cezanne:
-                //case CodeName.VanGogh:
+                case CodeName.VanGogh:
+                case CodeName.Rembrandt:
                     svi.coreAddress = F17H_M60H_SVI_TEL_PLANE0;
                     svi.socAddress = F17H_M60H_SVI_TEL_PLANE1;
                     break;
@@ -760,8 +761,9 @@ namespace ZenStates.Core
                     address = args[0] | ((ulong)args[1] << 32);
                     break;
 
-                // Renoir, Cezanne
+                // Renoir, Cezanne, VanGogh, Rembrandt
                 case SMU.SmuType.TYPE_APU1:
+                case SMU.SmuType.TYPE_APU2:
                     status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;

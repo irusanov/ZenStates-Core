@@ -22,6 +22,7 @@ namespace ZenStates.Core
             TYPE_CPU9 = 0x9,
             TYPE_APU0 = 0x10,
             TYPE_APU1 = 0x11,
+            TYPE_APU2 = 0x12,
             TYPE_UNSUPPORTED = 0xFF
         }
 
@@ -348,6 +349,19 @@ namespace ZenStates.Core
         }
     }
 
+    public class APUSettings2 : APUSettings1
+    {
+        public APUSettings2()
+        {
+            SMU_TYPE = SmuType.TYPE_APU2;
+
+            // MP1
+            Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
+            Mp1Smu.SMU_ADDR_RSP = 0x03B10578;
+            Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
+        }
+    }
+
     public class UnsupportedSettings : SMU
     {
         public UnsupportedSettings()
@@ -392,8 +406,8 @@ namespace ZenStates.Core
             { Cpu.CodeName.Lucienne, new APUSettings1() },
             { Cpu.CodeName.Cezanne, new APUSettings1() },
 
-            { Cpu.CodeName.VanGogh, new UnsupportedSettings() },
-            { Cpu.CodeName.Rembrandt, new UnsupportedSettings() },
+            { Cpu.CodeName.VanGogh, new APUSettings2() },
+            { Cpu.CodeName.Rembrandt, new APUSettings2() },
 
             { Cpu.CodeName.Unsupported, new UnsupportedSettings() },
         };
