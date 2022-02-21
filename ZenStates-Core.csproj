@@ -63,8 +63,8 @@
     <Service Include="{508349B6-6B84-4DF5-91F0-309BEEBAD82D}" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="WinRing0.sys" />
-    <EmbeddedResource Include="WinRing0x64.sys" />
+    <EmbeddedResource Include="External\WinRing0\WinRing0.sys" />
+    <EmbeddedResource Include="External\WinRing0\WinRing0x64.sys" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
