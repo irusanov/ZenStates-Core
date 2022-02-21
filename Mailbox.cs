@@ -37,6 +37,10 @@
         public uint SMU_MSG_GetTjMax { get; set; } = 0x0;
         public uint SMU_MSG_SetTjMax { get; set; } = 0x0;
         public uint SMU_MSG_PBO_EN { get; set; } = 0x0;
+        public uint SMU_MSG_SetDldoPsmMargin { get; set; } = 0x0;
+        public uint SMU_MSG_SetAllDldoPsmMargin { get; set; } = 0x0;
+        public uint SMU_MSG_GetDldoPsmMargin { get; set; } = 0x0;
+
 
 
         // HSMP

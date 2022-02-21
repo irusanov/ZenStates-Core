@@ -267,6 +267,11 @@ namespace ZenStates.Core
             return MakeCmdArgs(new uint[1] { arg });
         }
 
+        private uint MakePsmMarginArg(int margin)
+        {
+            return Convert.ToUInt32((margin < 0 ? 0x100000 - margin : margin) & 0xfffff);
+        }
+
         private bool SmuWriteReg(uint addr, uint data)
         {
             if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr))
@@ -894,6 +899,50 @@ namespace ZenStates.Core
                 catch { }
             }
             return SMU.Status.FAILED;
+        }
+
+        public bool SetPsmMarginAllCores(int margin)
+        {
+            uint m = MakePsmMarginArg(margin);
+            uint[] args = MakeCmdArgs(m);
+            return SendSmuCommand(smu.Mp1Smu, smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin, ref args) == SMU.Status.OK;
+        }
+
+        // Set DLDO Psm margin for a single core
+        public bool SetPsmMarginSingleCore(uint coreMask, int margin)
+        {
+            uint m = MakePsmMarginArg(margin);
+            uint[] args = MakeCmdArgs(coreMask & 0xfff00000 | m);
+
+            return SendSmuCommand(smu.Mp1Smu, smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin, ref args) == SMU.Status.OK;
+        }
+
+        public bool SetPsmMarginSingleCore(uint core, uint ccd, uint ccx, int margin)
+        {
+            uint coreMask = MakeCoreMask(core, ccd, ccx);
+            return SetPsmMarginSingleCore(coreMask, margin);
+        }
+
+        // Get DLDO Psm margin
+        public int GetPsmMarginSingleCore(uint coreMask)
+        {
+            uint[] args = MakeCmdArgs(coreMask & 0xfff00000);
+
+            if (SendSmuCommand(smu.Mp1Smu, smu.Mp1Smu.SMU_MSG_GetDldoPsmMargin, ref args) == SMU.Status.OK)
+            {
+                uint ret = args[0];
+                if (ret >> 32 == 1)
+                    return -Convert.ToInt32(~ret & 0xfffff + 1);
+                else
+                    return Convert.ToInt32(ret & 0xfffff);
+            }
+            return 0;
+        }
+
+        public int GetPsmMarginSingleCore(uint core, uint ccd, uint ccx)
+        {
+            uint coreMask = MakeCoreMask(core, ccd, ccx);
+            return GetPsmMarginSingleCore(coreMask);
         }
 
         public bool SendTestMessage()

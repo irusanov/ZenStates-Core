@@ -248,6 +248,10 @@ namespace ZenStates.Core
         public Zen3Settings()
         {
             SMU_TYPE = SmuType.TYPE_CPU3;
+
+            Mp1Smu.SMU_MSG_SetDldoPsmMargin = 0x35;
+            Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0x36;
+            Mp1Smu.SMU_MSG_GetDldoPsmMargin = 0x48;
         }
     }
 
@@ -356,6 +360,7 @@ namespace ZenStates.Core
             SMU_TYPE = SmuType.TYPE_APU2;
 
             // MP1
+            // https://github.com/FlyGoat/RyzenAdj/blob/master/lib/nb_smu_ops.h#L45
             Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
             Mp1Smu.SMU_ADDR_RSP = 0x03B10578;
             Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
