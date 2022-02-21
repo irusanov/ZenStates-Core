@@ -284,7 +284,7 @@ namespace ZenStates.Core
             return false;
         }
 
-        // Check until response register is 1 (SMU is ready to take another command)
+        // Retry until response register is non-zero and reading RSP register is successful
         private bool SmuWaitDone(Mailbox mailbox)
         {
             bool res;
@@ -293,9 +293,9 @@ namespace ZenStates.Core
 
             do
                 res = SmuReadReg(mailbox.SMU_ADDR_RSP, ref data);
-            while ((!res || data != 1) && --timeout > 0);
+            while ((!res || data == 0) && --timeout > 0);
 
-            return timeout != 0 && data == 1;
+            return timeout != 0 && data > 0;
         }
 
         public SMU.Status SendSmuCommand(Mailbox mailbox, uint msg, ref uint[] args)
@@ -313,6 +313,7 @@ namespace ZenStates.Core
                 // Wait done
                 if (!SmuWaitDone(mailbox))
                 {
+                    // Initial probe failed, some other command is still being processed or the PCI read failed
                     Ring0.ReleasePciBusMutex();
                     return SMU.Status.FAILED;
                 }
@@ -328,9 +329,8 @@ namespace ZenStates.Core
 
                 if (timeout == 0)
                 {
-                    SmuReadReg(mailbox.SMU_ADDR_RSP, ref status);
                     Ring0.ReleasePciBusMutex();
-                    return (SMU.Status)status;
+                    return SMU.Status.FAILED;
                 }
 
                 // Write data
@@ -343,16 +343,21 @@ namespace ZenStates.Core
                 // Wait done
                 if (!SmuWaitDone(mailbox))
                 {
-                    SmuReadReg(mailbox.SMU_ADDR_RSP, ref status);
+                    // Timeout reached or PCI read failed
                     Ring0.ReleasePciBusMutex();
-                    return (SMU.Status)status;
+                    return SMU.Status.FAILED;
                 }
 
-                // Read back args
-                for (int i = 0; i < args.Length; ++i)
-                    SmuReadReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]);
-
+                // If we reach this stage, read final status
                 SmuReadReg(mailbox.SMU_ADDR_RSP, ref status);
+
+                if ((SMU.Status)status == SMU.Status.OK)
+                {
+                    // Read back args
+                    for (int i = 0; i < args.Length; ++i)
+                        SmuReadReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]);
+                }
+
                 Ring0.ReleasePciBusMutex();
             }
 
