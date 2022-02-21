@@ -77,4 +77,6 @@ The module combines `Cpu.info` with additional information about the motherboard
 [zenpower (github)](https://github.com/ocerman/zenpower)  
 [Linux kernel (github)](https://github.com/torvalds/linux)  
 [AMD's public documentation](https://www.amd.com/en/support/tech-docs)  
-[Open Hardware Monitor](https://github.com/openhardwaremonitor/openhardwaremonitor)  
+[Open Hardware Monitor](https://github.com/openhardwaremonitor/openhardwaremonitor)
+
+with the help of patrickschur, leogx9r, PJVol, FlyGoat, sbski, 1usmus

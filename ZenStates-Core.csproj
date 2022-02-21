@@ -68,9 +68,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="External\InpOut\DLPortIO.txt" />
-    <Content Include="External\InpOut\license.txt">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
+    <None Include="External\InpOut\license.txt" />
     <Content Include="External\InpOut\ReadMe.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -100,6 +98,10 @@
   <PropertyGroup>
     <PostBuildEvent>xcopy /s /d /y "$(ProjectDir)External\InpOut\x64\inpoutx64.dll" "$(TargetDir)"
 xcopy /s /d /y "$(ProjectDir)External\WinIo\WinIo32.dll" "$(TargetDir)"
-xcopy /s /d /y "$(ProjectDir)External\WinIo\WinIo32.sys" "$(TargetDir)"</PostBuildEvent>
+xcopy /s /d /y "$(ProjectDir)External\WinIo\WinIo32.sys" "$(TargetDir)"
+copy "$(ProjectDir)External\InpOut\license.txt" "$(TargetDir)\InpOut.LICENSE.txt"
+copy "$(ProjectDir)External\WinIo\LICENSE.txt" "$(TargetDir)WinIo32.LICENSE.txt"
+copy "$(ProjectDir)External\WinRing0\LICENSE.txt" "$(TargetDir)WinRing0.LICENSE.txt"
+</PostBuildEvent>
   </PropertyGroup>
 </Project>
