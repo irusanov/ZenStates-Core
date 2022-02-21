@@ -264,10 +264,7 @@ namespace ZenStates.Core
 
         public uint[] MakeCmdArgs(uint arg = 0)
         {
-            uint[] cmdArgs = new uint[6];
-            cmdArgs[0] = arg;
-
-            return cmdArgs;
+            return MakeCmdArgs(new uint[1] { arg });
         }
 
         private bool SmuWriteReg(uint addr, uint data)
@@ -318,22 +315,11 @@ namespace ZenStates.Core
                     return SMU.Status.FAILED;
                 }
 
-                ushort timeout = SMU_TIMEOUT;
-                uint[] cmdArgs = MakeCmdArgs(args);
-
                 // Clear response register
-                bool temp;
-                do
-                    temp = SmuWriteReg(mailbox.SMU_ADDR_RSP, 0);
-                while ((!temp) && --timeout > 0);
-
-                if (timeout == 0)
-                {
-                    Ring0.ReleasePciBusMutex();
-                    return SMU.Status.FAILED;
-                }
+                SmuWriteReg(mailbox.SMU_ADDR_RSP, 0);
 
                 // Write data
+                uint[] cmdArgs = MakeCmdArgs(args);
                 for (int i = 0; i < cmdArgs.Length; ++i)
                     SmuWriteReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]);
 
