@@ -1,5 +1,6 @@
 using OpenHardwareMonitor.Hardware;
 using System;
+using System.IO;
 
 namespace ZenStates.Core
 {
@@ -116,7 +117,15 @@ namespace ZenStates.Core
             Ring0.Open();
 
             if (!Ring0.IsOpen)
+            {
+                string errorReport = Ring0.GetReport();
+                using (var sw = new StreamWriter("WinRing0.txt", true))
+                {
+                    sw.Write(errorReport);
+                }
+
                 throw new ApplicationException("Error opening WinRing kernel driver");
+            }
 
             Opcode.Open();
 
@@ -269,7 +278,8 @@ namespace ZenStates.Core
 
         private uint MakePsmMarginArg(int margin)
         {
-            return Convert.ToUInt32((margin < 0 ? 0x100000 - margin : margin) & 0xfffff);
+            int offset = margin < 0 ? 0x100000 : 0;
+            return Convert.ToUInt32(offset + margin) & 0xfffff;
         }
 
         private bool SmuWriteReg(uint addr, uint data)
@@ -912,7 +922,7 @@ namespace ZenStates.Core
         public bool SetPsmMarginSingleCore(uint coreMask, int margin)
         {
             uint m = MakePsmMarginArg(margin);
-            uint[] args = MakeCmdArgs(coreMask & 0xfff00000 | m);
+            uint[] args = MakeCmdArgs((coreMask & 0xfff00000) | m);
 
             return SendSmuCommand(smu.Mp1Smu, smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin, ref args) == SMU.Status.OK;
         }
@@ -930,11 +940,12 @@ namespace ZenStates.Core
 
             if (SendSmuCommand(smu.Mp1Smu, smu.Mp1Smu.SMU_MSG_GetDldoPsmMargin, ref args) == SMU.Status.OK)
             {
+                // What is the CO range, should we clamp to -30/30?
                 uint ret = args[0];
-                if (ret >> 32 == 1)
-                    return -Convert.ToInt32(~ret & 0xfffff + 1);
+                if ((ret >> 31 & 1) == 1)
+                    return -(Convert.ToInt32(~ret & 0x7ffff) + 1);
                 else
-                    return Convert.ToInt32(ret & 0xfffff);
+                    return Convert.ToInt32(ret & 0x7ffff);
             }
             return 0;
         }
