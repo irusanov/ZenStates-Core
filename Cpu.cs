@@ -255,7 +255,7 @@ namespace ZenStates.Core
         public uint MakeCoreMask(uint core = 0, uint ccd = 0, uint ccx = 0)
         {
             uint ccxInCcd = info.family == Family.FAMILY_19H ? 1U : 2U;
-            uint coresInCcx = info.coresPerCcx;
+            uint coresInCcx = 8 / ccxInCcd;
 
             return ((ccd << 4 | ccx % ccxInCcd & 0xF) << 4 | core % coresInCcx & 0xF) << 20;
         }
