@@ -852,6 +852,54 @@ namespace ZenStates.Core
             return GetPsmMarginSingleCore(coreMask);
         }
 
+        public bool SetFrequencyAllCore(uint frequency)
+        {
+            uint[] args = Utils.MakeCmdArgs(frequency & 0xfffff);
+            // TODO: Add Manual OC mode
+            return smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetOverclockFrequencyAllCores, ref args) == SMU.Status.OK;
+        }
+
+        public bool SetFrequencySingleCore(uint coreMask, uint frequency)
+        {
+            uint[] args = Utils.MakeCmdArgs(coreMask | frequency & 0xfffff);
+            return smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetOverclockFrequencyPerCore, ref args) == SMU.Status.OK;
+        }
+
+        public bool SetFrequencySingleCore(uint core, uint ccd, uint ccx, uint frequency)
+        {
+            uint coreMask = MakeCoreMask(core, ccd, ccx);
+            return SetFrequencySingleCore(coreMask, frequency);
+        }
+
+        private bool SetFrequencyMultipleCores(uint mask, uint frequency, int count)
+        {
+            // ((i.CCD << 4 | i.CCX % 2 & 0xF) << 4 | i.CORE % 4 & 0xF) << 20;
+            for (uint i = 0; i < count; i++)
+            {
+                mask = Utils.SetBits(mask, 20, 2, i);
+                if (!SetFrequencySingleCore(mask, frequency))
+                    return false;
+            }
+            return true;
+        }
+
+        public bool SetFrequencyCCX(uint mask, uint frequency)
+        {
+            return SetFrequencyMultipleCores(mask, frequency, 8/*SI.NumCoresInCCX*/);
+        }
+
+        public bool SetFrequencyCCD(uint mask, uint frequency)
+        {
+            bool ret = true;
+            for (uint i = 0; i < systemInfo.CCXCount / systemInfo.CCDCount; i++)
+            {
+                mask = Utils.SetBits(mask, 24, 1, i);
+                ret = SetFrequencyCCX(mask, frequency);
+            }
+
+            return ret;
+        }
+
         public bool SendTestMessage()
         {
             uint[] args = Utils.MakeCmdArgs();
