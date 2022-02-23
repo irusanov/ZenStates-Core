@@ -7,7 +7,6 @@ namespace ZenStates.Core
     public class Cpu : IDisposable
     {
         private bool disposedValue;
-        private const ushort SMU_TIMEOUT = 8192;
         private const string InitializationExceptionText = "CPU module initialization failed.";
 
         public const uint F17H_M01H_SVI = 0x0005A000;
@@ -261,96 +260,6 @@ namespace ZenStates.Core
             uint coresInCcx = 8 / ccxInCcd;
 
             return ((ccd << 4 | ccx % ccxInCcd & 0xF) << 4 | core % coresInCcx & 0xF) << 20;
-        }
-
-        private bool SmuWriteReg(uint addr, uint data)
-        {
-            if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr))
-                return Ring0.WritePciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, data);
-            return false;
-        }
-
-        private bool SmuReadReg(uint addr, ref uint data)
-        {
-            if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr))
-                return Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, out data);
-            return false;
-        }
-
-        // Retry until response register is non-zero and reading RSP register is successful
-        private bool SmuWaitDone(Mailbox mailbox)
-        {
-            bool res;
-            ushort timeout = SMU_TIMEOUT;
-            uint data = 0;
-
-            do
-                res = SmuReadReg(mailbox.SMU_ADDR_RSP, ref data);
-            while ((!res || data == 0) && --timeout > 0);
-
-            return timeout != 0 && data > 0;
-        }
-
-        public SMU.Status SendSmuCommand(Mailbox mailbox, uint msg, ref uint[] args)
-        {
-            uint status = 0xFF; // SMU.Status.FAILED;
-
-            // Check all the arguments and don't execute if invalid
-            // If the mailbox addresses are not set, they would have the default value of 0x0
-            if (mailbox == null || mailbox.SMU_ADDR_MSG == 0 || mailbox.SMU_ADDR_ARG == 0 || mailbox.SMU_ADDR_RSP == 0
-                || msg == 0)
-                return SMU.Status.FAILED;
-
-            if (Ring0.WaitPciBusMutex(10))
-            {
-                // Wait done
-                if (!SmuWaitDone(mailbox))
-                {
-                    // Initial probe failed, some other command is still being processed or the PCI read failed
-                    Ring0.ReleasePciBusMutex();
-                    return SMU.Status.FAILED;
-                }
-
-                // Clear response register
-                SmuWriteReg(mailbox.SMU_ADDR_RSP, 0);
-
-                // Write data
-                uint[] cmdArgs = Utils.MakeCmdArgs(args);
-                for (int i = 0; i < cmdArgs.Length; ++i)
-                    SmuWriteReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]);
-
-                // Send message
-                SmuWriteReg(mailbox.SMU_ADDR_MSG, msg);
-
-                // Wait done
-                if (!SmuWaitDone(mailbox))
-                {
-                    // Timeout reached or PCI read failed
-                    Ring0.ReleasePciBusMutex();
-                    return SMU.Status.FAILED;
-                }
-
-                // If we reach this stage, read final status
-                SmuReadReg(mailbox.SMU_ADDR_RSP, ref status);
-
-                if ((SMU.Status)status == SMU.Status.OK)
-                {
-                    // Read back args
-                    for (int i = 0; i < args.Length; ++i)
-                        SmuReadReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]);
-                }
-
-                Ring0.ReleasePciBusMutex();
-            }
-
-            return (SMU.Status)status;
-        }
-
-        // Legacy
-        public bool SendSmuCommand(Mailbox mailbox, uint msg, uint arg)
-        {
-            uint[] args = Utils.MakeCmdArgs(arg);
-            return SendSmuCommand(mailbox, msg, ref args) == SMU.Status.OK;
         }
 
         public bool ReadDwordEx(uint addr, ref uint data)
@@ -644,7 +553,7 @@ namespace ZenStates.Core
         public uint GetSmuVersion()
         {
             uint[] args = Utils.MakeCmdArgs();
-            if (SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetSmuVersion, ref args) == SMU.Status.OK)
+            if (smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetSmuVersion, ref args) == SMU.Status.OK)
                 return args[0];
 
             return 0;
@@ -681,7 +590,7 @@ namespace ZenStates.Core
         public float GetPBOScalar()
         {
             uint[] args = Utils.MakeCmdArgs();
-            if (SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetPBOScalar, ref args) == SMU.Status.OK)
+            if (smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetPBOScalar, ref args) == SMU.Status.OK)
             {
                 byte[] bytes = BitConverter.GetBytes(args[0]);
                 float scalar = BitConverter.ToSingle(bytes, 0);
@@ -702,14 +611,14 @@ namespace ZenStates.Core
                 args[1] = 0;
             }
 
-            return SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_TransferTableToDram, ref args);
+            return smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_TransferTableToDram, ref args);
         }
 
         public uint GetTableVersion()
         {
             uint[] args = Utils.MakeCmdArgs();
 
-            SMU.Status status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetTableVersion, ref args);
+            SMU.Status status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetTableVersion, ref args);
 
             if (status == SMU.Status.OK)
                 return args[0];
@@ -730,19 +639,19 @@ namespace ZenStates.Core
                 case SMU.SmuType.TYPE_CPU0:
                 case SMU.SmuType.TYPE_CPU1:
                     args = Utils.MakeCmdArgs();
-                    status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress - 1, ref args);
+                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress - 1, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
                     args = Utils.MakeCmdArgs();
-                    status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
+                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
                     address = args[0];
 
                     args = Utils.MakeCmdArgs();
-                    status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress + 2, ref args);
+                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress + 2, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
                     break;
@@ -750,7 +659,7 @@ namespace ZenStates.Core
                 // Matisse, CastlePeak, Rome, Vermeer, Chagall?, Milan?
                 case SMU.SmuType.TYPE_CPU2:
                 case SMU.SmuType.TYPE_CPU3:
-                    status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
+                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
                     address = args[0] | ((ulong)args[1] << 32);
@@ -759,7 +668,7 @@ namespace ZenStates.Core
                 // Renoir, Cezanne, VanGogh, Rembrandt
                 case SMU.SmuType.TYPE_APU1:
                 case SMU.SmuType.TYPE_APU2:
-                    status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
+                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
                     address = args[0] | ((ulong)args[1] << 32);
@@ -770,12 +679,12 @@ namespace ZenStates.Core
                     uint[] parts = new uint[2];
 
                     args = Utils.MakeCmdArgs(3);
-                    status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress - 1, ref args);
+                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress - 1, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
                     args = Utils.MakeCmdArgs(3);
-                    status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
+                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
@@ -783,12 +692,12 @@ namespace ZenStates.Core
                     parts[0] = args[0];
 
                     args = Utils.MakeCmdArgs(5);
-                    status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress - 1, ref args);
+                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress - 1, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
                     args = Utils.MakeCmdArgs(5);
-                    status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
+                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
@@ -810,7 +719,7 @@ namespace ZenStates.Core
             if (cmd != 0)
             {
                 uint[] args = Utils.MakeCmdArgs(arg);
-                return SendSmuCommand(smu.Rsmu, cmd, ref args);
+                return smu.SendRsmuCommand(cmd, ref args);
             }
             return SMU.Status.UNKNOWN_CMD;
         }
@@ -818,7 +727,7 @@ namespace ZenStates.Core
         private SMU.Status SetLimit(uint cmd, uint arg = 0U)
         {
             uint[] args = Utils.MakeCmdArgs(arg * 1000);
-            return SendSmuCommand(smu.Rsmu, cmd, ref args);
+            return smu.SendRsmuCommand(cmd, ref args);
         }
 
         public SMU.Status SetPPTLimit(uint arg = 0U) => SetLimit(smu.Rsmu.SMU_MSG_SetPPTLimit, arg);
@@ -835,7 +744,7 @@ namespace ZenStates.Core
         public SMU.Status SetPBOScalar(uint arg = 1)
         {
             uint[] args = Utils.MakeCmdArgs(arg * 100);
-            return SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_SetPBOScalar, ref args);
+            return smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetPBOScalar, ref args);
         }
 
         public SMU.Status RefreshPowerTable()
@@ -896,7 +805,7 @@ namespace ZenStates.Core
         {
             uint m = Utils.MakePsmMarginArg(margin);
             uint[] args = Utils.MakeCmdArgs(m);
-            return SendSmuCommand(smu.Mp1Smu, smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin, ref args) == SMU.Status.OK;
+            return smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin, ref args) == SMU.Status.OK;
         }
 
         // Set DLDO Psm margin for a single core
@@ -912,7 +821,7 @@ namespace ZenStates.Core
             uint m = Utils.MakePsmMarginArg(margin);
             uint[] args = Utils.MakeCmdArgs((coreMask & 0xfff00000) | m);
 
-            return SendSmuCommand(smu.Mp1Smu, smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin, ref args) == SMU.Status.OK;
+            return smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin, ref args) == SMU.Status.OK;
         }
 
         public bool SetPsmMarginSingleCore(uint core, uint ccd, uint ccx, int margin)
@@ -926,7 +835,7 @@ namespace ZenStates.Core
         {
             uint[] args = Utils.MakeCmdArgs(coreMask & 0xfff00000);
 
-            if (SendSmuCommand(smu.Mp1Smu, smu.Mp1Smu.SMU_MSG_GetDldoPsmMargin, ref args) == SMU.Status.OK)
+            if (smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_GetDldoPsmMargin, ref args) == SMU.Status.OK)
             {
                 uint ret = args[0];
                 if ((ret >> 31 & 1) == 1)
@@ -946,7 +855,7 @@ namespace ZenStates.Core
         public bool SendTestMessage()
         {
             uint[] args = Utils.MakeCmdArgs();
-            return SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_TestMessage, ref args) == SMU.Status.OK;
+            return smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_TestMessage, ref args) == SMU.Status.OK;
         }
 
         public bool IsProchotEnabled()
