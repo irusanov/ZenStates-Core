@@ -50,9 +50,9 @@ namespace ZenStates.Core
             SMU_OFFSET_ADDR = 0x60; // 0xC4
             SMU_OFFSET_DATA = 0x64; // 0xC8
 
-            Rsmu = new Mailbox();
-            Mp1Smu = new Mailbox();
-            Hsmp = new Mailbox();
+            Rsmu = new RSMUMailbox();
+            Mp1Smu = new MP1Mailbox();
+            Hsmp = new HSMPMailbox();
         }
 
         public uint Version { get; set; }
@@ -67,9 +67,10 @@ namespace ZenStates.Core
         public uint SMU_OFFSET_DATA { get; protected set; }
 
         // SMU has different mailboxes, each with its own registers and command IDs
-        public Mailbox Rsmu { get; protected set; }
-        public Mailbox Mp1Smu { get; protected set; }
-        public Mailbox Hsmp { get; protected set; }
+        public RSMUMailbox Rsmu { get; protected set; }
+        public MP1Mailbox Mp1Smu { get; protected set; }
+        public HSMPMailbox Hsmp { get; protected set; }
+
         private bool SmuWriteReg(uint addr, uint data)
         {
             if (Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_ADDR, addr))

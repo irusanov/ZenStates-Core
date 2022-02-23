@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -43,12 +43,15 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Mailbox\Mailbox.cs" />
     <Compile Include="IOModule.cs" />
+    <Compile Include="Mailbox\HSMPMailbox.cs" />
+    <Compile Include="Mailbox\MP1Mailbox.cs" />
+    <Compile Include="Mailbox\RSMUMailbox.cs" />
     <Compile Include="OHWM\GroupAffinity.cs" />
     <Compile Include="OHWM\InteropMethods.cs" />
     <Compile Include="OHWM\IOControlCode.cs" />
     <Compile Include="OHWM\KernelDriver.cs" />
-    <Compile Include="Mailbox.cs" />
     <Compile Include="OHWM\Opcode.cs" />
     <Compile Include="OHWM\OperatingSystem.cs" />
     <Compile Include="OHWM\Ring0.cs" />
