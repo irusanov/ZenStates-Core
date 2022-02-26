@@ -103,13 +103,13 @@ namespace ZenStates.Core
             public SVI2 svi2;
         }
 
-        public readonly Utils utils = new Utils();
+        public readonly IOModule io = new IOModule();
         public readonly CPUInfo info;
         public readonly SystemInfo systemInfo;
         public readonly SMU smu;
         public readonly PowerTable powerTable;
 
-        public Utils.LibStatus Status { get; }
+        public IOModule.LibStatus Status { get; }
         public Exception LastError { get; }
 
         public Cpu()
@@ -142,7 +142,7 @@ namespace ZenStates.Core
                 info.baseModel = (eax & 0xf0) >> 4;
                 info.extModel = (eax & 0xf0000) >> 12;
                 info.model = info.baseModel + info.extModel;
-                info.logicalCores = utils.GetBits(ebx, 16, 8);
+                info.logicalCores = Utils.GetBits(ebx, 16, 8);
             }
             else
             {
@@ -167,7 +167,7 @@ namespace ZenStates.Core
 
             if (Opcode.Cpuid(0x8000001E, 0, out eax, out ebx, out ecx, out edx))
             {
-                info.threadsPerCore = utils.GetBits(ebx, 8, 4) + 1;
+                info.threadsPerCore = Utils.GetBits(ebx, 8, 4) + 1;
                 info.cpuNodes = ecx >> 8 & 0x7 + 1;
 
                 if (info.threadsPerCore == 0)
@@ -199,16 +199,16 @@ namespace ZenStates.Core
                 if (!ReadDwordEx(fuse1, ref ccdsPresent) || !ReadDwordEx(fuse2, ref ccdsDown))
                     throw new ApplicationException("Could not read CCD fuse!");
 
-                uint ccdEnableMap = utils.GetBits(ccdsPresent, 22, 8);
-                uint ccdDisableMap = utils.GetBits(ccdsPresent, 30, 2) | (utils.GetBits(ccdsDown, 0, 6) << 2);
+                uint ccdEnableMap = Utils.GetBits(ccdsPresent, 22, 8);
+                uint ccdDisableMap = Utils.GetBits(ccdsPresent, 30, 2) | (Utils.GetBits(ccdsDown, 0, 6) << 2);
                 uint coreDisableMapAddress = 0x30081800 + offset;
 
-                info.ccds = utils.CountSetBits(ccdEnableMap);
+                info.ccds = Utils.CountSetBits(ccdEnableMap);
                 info.ccxs = info.ccds * ccxPerCcd;
                 info.physicalCores = info.ccxs * 8 / ccxPerCcd;
 
                 if (ReadDwordEx(coreDisableMapAddress, ref coreFuse))
-                    info.coresPerCcx = (8 - utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
+                    info.coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
                 else
                     throw new ApplicationException("Could not read core fuse!");
 
@@ -216,7 +216,7 @@ namespace ZenStates.Core
 
                 for (int i = 0; i < info.ccds; i++)
                 {
-                    if (utils.GetBits(ccdEnableMap, i, 1) == 1)
+                    if (Utils.GetBits(ccdEnableMap, i, 1) == 1)
                     {
                         if (ReadDwordEx(coreDisableMapAddress | ccdOffset, ref coreFuse))
                             info.coreDisableMap |= (coreFuse & 0xff) << i * 8;
@@ -230,7 +230,7 @@ namespace ZenStates.Core
             catch (Exception ex)
             {
                 LastError = ex;
-                Status = Utils.LibStatus.PARTIALLY_OK;
+                Status = IOModule.LibStatus.PARTIALLY_OK;
             }
 
             try
@@ -243,12 +243,12 @@ namespace ZenStates.Core
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
 
-                Status = Utils.LibStatus.OK;
+                Status = IOModule.LibStatus.OK;
             }
             catch (Exception ex)
             {
                 LastError = ex;
-                Status = Utils.LibStatus.PARTIALLY_OK;
+                Status = IOModule.LibStatus.PARTIALLY_OK;
             }
         }
 
@@ -261,35 +261,6 @@ namespace ZenStates.Core
             uint coresInCcx = 8 / ccxInCcd;
 
             return ((ccd << 4 | ccx % ccxInCcd & 0xF) << 4 | core % coresInCcx & 0xF) << 20;
-        }
-
-        public uint[] MakeCmdArgs(uint[] args)
-        {
-            uint[] cmdArgs = new uint[6];
-            int length = args.Length > 6 ? 6 : args.Length;
-
-            for (int i = 0; i < length; i++)
-                cmdArgs[i] = args[i];
-
-            return cmdArgs;
-        }
-
-        public uint[] MakeCmdArgs(uint arg = 0)
-        {
-            return MakeCmdArgs(new uint[1] { arg });
-        }
-
-        // CO margin range seems to be from -30 to 30
-        // Margin arg seems to be 16 bits (lowest 16 bits of the command arg)
-        private uint MakePsmMarginArg(int margin)
-        {
-            if (margin > 30)
-                margin = 30;
-            else if (margin < -30)
-                margin = -30;
-
-            int offset = margin < 0 ? 0x100000 : 0;
-            return Convert.ToUInt32(offset + margin) & 0xffff;
         }
 
         private bool SmuWriteReg(uint addr, uint data)
@@ -344,7 +315,7 @@ namespace ZenStates.Core
                 SmuWriteReg(mailbox.SMU_ADDR_RSP, 0);
 
                 // Write data
-                uint[] cmdArgs = MakeCmdArgs(args);
+                uint[] cmdArgs = Utils.MakeCmdArgs(args);
                 for (int i = 0; i < cmdArgs.Length; ++i)
                     SmuWriteReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]);
 
@@ -378,7 +349,7 @@ namespace ZenStates.Core
         // Legacy
         public bool SendSmuCommand(Mailbox mailbox, uint msg, uint arg)
         {
-            uint[] args = MakeCmdArgs(arg);
+            uint[] args = Utils.MakeCmdArgs(arg);
             return SendSmuCommand(mailbox, msg, ref args) == SMU.Status.OK;
         }
 
@@ -659,20 +630,20 @@ namespace ZenStates.Core
             string model = "";
 
             if (Opcode.Cpuid(0x80000002, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
-                model = model + utils.IntToStr(eax) + utils.IntToStr(ebx) + utils.IntToStr(ecx) + utils.IntToStr(edx);
+                model = model + Utils.IntToStr(eax) + Utils.IntToStr(ebx) + Utils.IntToStr(ecx) + Utils.IntToStr(edx);
 
             if (Opcode.Cpuid(0x80000003, 0, out eax, out ebx, out ecx, out edx))
-                model = model + utils.IntToStr(eax) + utils.IntToStr(ebx) + utils.IntToStr(ecx) + utils.IntToStr(edx);
+                model = model + Utils.IntToStr(eax) + Utils.IntToStr(ebx) + Utils.IntToStr(ecx) + Utils.IntToStr(edx);
 
             if (Opcode.Cpuid(0x80000004, 0, out eax, out ebx, out ecx, out edx))
-                model = model + utils.IntToStr(eax) + utils.IntToStr(ebx) + utils.IntToStr(ecx) + utils.IntToStr(edx);
+                model = model + Utils.IntToStr(eax) + Utils.IntToStr(ebx) + Utils.IntToStr(ecx) + Utils.IntToStr(edx);
 
             return model.Trim();
         }
 
         public uint GetSmuVersion()
         {
-            uint[] args = MakeCmdArgs();
+            uint[] args = Utils.MakeCmdArgs();
             if (SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetSmuVersion, ref args) == SMU.Status.OK)
                 return args[0];
 
@@ -709,7 +680,7 @@ namespace ZenStates.Core
 
         public float GetPBOScalar()
         {
-            uint[] args = MakeCmdArgs();
+            uint[] args = Utils.MakeCmdArgs();
             if (SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetPBOScalar, ref args) == SMU.Status.OK)
             {
                 byte[] bytes = BitConverter.GetBytes(args[0]);
@@ -723,7 +694,7 @@ namespace ZenStates.Core
 
         public SMU.Status TransferTableToDram()
         {
-            uint[] args = MakeCmdArgs(new uint[] { 1, 1 });
+            uint[] args = Utils.MakeCmdArgs(new uint[] { 1, 1 });
 
             if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU0)
             {
@@ -736,7 +707,7 @@ namespace ZenStates.Core
 
         public uint GetTableVersion()
         {
-            uint[] args = MakeCmdArgs();
+            uint[] args = Utils.MakeCmdArgs();
 
             SMU.Status status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetTableVersion, ref args);
 
@@ -748,7 +719,7 @@ namespace ZenStates.Core
 
         public ulong GetDramBaseAddress()
         {
-            uint[] args = MakeCmdArgs();
+            uint[] args = Utils.MakeCmdArgs();
             ulong address = 0;
 
             SMU.Status status = SMU.Status.FAILED;
@@ -758,19 +729,19 @@ namespace ZenStates.Core
                 // SummitRidge, PinnacleRidge, Colfax
                 case SMU.SmuType.TYPE_CPU0:
                 case SMU.SmuType.TYPE_CPU1:
-                    args = MakeCmdArgs();
+                    args = Utils.MakeCmdArgs();
                     status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress - 1, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
-                    args = MakeCmdArgs();
+                    args = Utils.MakeCmdArgs();
                     status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
                     address = args[0];
 
-                    args = MakeCmdArgs();
+                    args = Utils.MakeCmdArgs();
                     status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress + 2, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
@@ -798,12 +769,12 @@ namespace ZenStates.Core
                 case SMU.SmuType.TYPE_APU0:
                     uint[] parts = new uint[2];
 
-                    args = MakeCmdArgs(3);
+                    args = Utils.MakeCmdArgs(3);
                     status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress - 1, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
-                    args = MakeCmdArgs(3);
+                    args = Utils.MakeCmdArgs(3);
                     status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
@@ -811,12 +782,12 @@ namespace ZenStates.Core
                     // First base
                     parts[0] = args[0];
 
-                    args = MakeCmdArgs(5);
+                    args = Utils.MakeCmdArgs(5);
                     status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress - 1, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
 
-                    args = MakeCmdArgs(5);
+                    args = Utils.MakeCmdArgs(5);
                     status = SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
                     if (status != SMU.Status.OK)
                         return 0;
@@ -838,7 +809,7 @@ namespace ZenStates.Core
             uint cmd = enabled ? smu.Rsmu.SMU_MSG_EnableOcMode : smu.Rsmu.SMU_MSG_DisableOcMode;
             if (cmd != 0)
             {
-                uint[] args = MakeCmdArgs(arg);
+                uint[] args = Utils.MakeCmdArgs(arg);
                 return SendSmuCommand(smu.Rsmu, cmd, ref args);
             }
             return SMU.Status.UNKNOWN_CMD;
@@ -846,7 +817,7 @@ namespace ZenStates.Core
 
         private SMU.Status SetLimit(uint cmd, uint arg = 0U)
         {
-            uint[] args = MakeCmdArgs(arg * 1000);
+            uint[] args = Utils.MakeCmdArgs(arg * 1000);
             return SendSmuCommand(smu.Rsmu, cmd, ref args);
         }
 
@@ -863,7 +834,7 @@ namespace ZenStates.Core
 
         public SMU.Status SetPBOScalar(uint arg = 1)
         {
-            uint[] args = MakeCmdArgs(arg * 100);
+            uint[] args = Utils.MakeCmdArgs(arg * 100);
             return SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_SetPBOScalar, ref args);
         }
 
@@ -880,9 +851,9 @@ namespace ZenStates.Core
 
                     float[] table = new float[powerTable.TableSize / 4];
 
-                    if (utils.Is64Bit)
+                    if (Utils.Is64Bit)
                     {
-                        byte[] bytes = utils.ReadMemory(new IntPtr(powerTable.DramBaseAddress), powerTable.TableSize);
+                        byte[] bytes = io.ReadMemory(new IntPtr(powerTable.DramBaseAddress), powerTable.TableSize);
                         if (bytes != null && bytes.Length > 0)
                             Buffer.BlockCopy(bytes, 0, table, 0, bytes.Length);
                         else
@@ -903,13 +874,13 @@ namespace ZenStates.Core
                         for (int i = 0; i < table.Length; ++i)
                         {
                             int offset = i * 4;
-                            utils.GetPhysLong((UIntPtr)(powerTable.DramBaseAddress + offset), out uint data);
+                            io.GetPhysLong((UIntPtr)(powerTable.DramBaseAddress + offset), out uint data);
                             byte[] bytes = BitConverter.GetBytes(data);
                             Buffer.BlockCopy(bytes, 0, table, offset, bytes.Length);
                         }
                     }
 
-                    if (utils.AllZero(table))
+                    if (Utils.AllZero(table))
                         status = SMU.Status.FAILED;
                     else
                         powerTable.Table = table;
@@ -923,8 +894,8 @@ namespace ZenStates.Core
 
         public bool SetPsmMarginAllCores(int margin)
         {
-            uint m = MakePsmMarginArg(margin);
-            uint[] args = MakeCmdArgs(m);
+            uint m = Utils.MakePsmMarginArg(margin);
+            uint[] args = Utils.MakeCmdArgs(m);
             return SendSmuCommand(smu.Mp1Smu, smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin, ref args) == SMU.Status.OK;
         }
 
@@ -938,8 +909,8 @@ namespace ZenStates.Core
         // [15-0] CO margin
         public bool SetPsmMarginSingleCore(uint coreMask, int margin)
         {
-            uint m = MakePsmMarginArg(margin);
-            uint[] args = MakeCmdArgs((coreMask & 0xfff00000) | m);
+            uint m = Utils.MakePsmMarginArg(margin);
+            uint[] args = Utils.MakeCmdArgs((coreMask & 0xfff00000) | m);
 
             return SendSmuCommand(smu.Mp1Smu, smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin, ref args) == SMU.Status.OK;
         }
@@ -953,7 +924,7 @@ namespace ZenStates.Core
         // Get DLDO Psm margin
         public int GetPsmMarginSingleCore(uint coreMask)
         {
-            uint[] args = MakeCmdArgs(coreMask & 0xfff00000);
+            uint[] args = Utils.MakeCmdArgs(coreMask & 0xfff00000);
 
             if (SendSmuCommand(smu.Mp1Smu, smu.Mp1Smu.SMU_MSG_GetDldoPsmMargin, ref args) == SMU.Status.OK)
             {
@@ -974,7 +945,7 @@ namespace ZenStates.Core
 
         public bool SendTestMessage()
         {
-            uint[] args = MakeCmdArgs();
+            uint[] args = Utils.MakeCmdArgs();
             return SendSmuCommand(smu.Rsmu, smu.Rsmu.SMU_MSG_TestMessage, ref args) == SMU.Status.OK;
         }
 
@@ -990,7 +961,7 @@ namespace ZenStates.Core
             {
                 if (disposing)
                 {
-                    utils.Dispose();
+                    io.Dispose();
                     Ring0.Close();
                     Opcode.Close();
                 }

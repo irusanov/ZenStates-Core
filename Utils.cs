@@ -4,132 +4,21 @@ using System.Runtime.InteropServices;
 
 namespace ZenStates.Core
 {
-    public class Utils : IDisposable
+    public static class Utils
     {
-        [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Ansi)]
-        private static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPStr)] string lpFileName);
+        public static bool Is64Bit => OpenHardwareMonitor.Hardware.OperatingSystem.Is64BitOperatingSystem;
 
-        [DllImport("kernel32", SetLastError = true)]
-        private static extern bool FreeLibrary(IntPtr hModule);
-
-        [DllImport("kernel32", CharSet = CharSet.Ansi, SetLastError = true, ExactSpelling = false)]
-        private static extern IntPtr GetProcAddress(IntPtr hModule, [MarshalAs(UnmanagedType.LPStr)] string lpProcName);
-
-        private IntPtr ioModule;
-        private readonly bool is64bit = OpenHardwareMonitor.Hardware.OperatingSystem.Is64BitOperatingSystem;
-
-        public enum LibStatus
-        {
-            INITIALIZE_ERROR = 0,
-            OK = 1,
-            PARTIALLY_OK = 2
-        }
-
-        public LibStatus WinIoStatus { get; private set; } = LibStatus.INITIALIZE_ERROR;
-
-        public Utils()
-        {
-            string fileName = is64bit ? "inpoutx64.dll" : "WinIo32.dll";
-
-            ioModule = LoadLibrary(fileName);
-
-            if (ioModule == IntPtr.Zero)
-            {
-                int lasterror = Marshal.GetLastWin32Error();
-                Win32Exception innerEx = new Win32Exception(lasterror);
-                innerEx.Data.Add("LastWin32Error", lasterror);
-
-                throw new Exception("Can't load DLL " + fileName, innerEx);
-            }
-
-            // Common
-            GetPhysLong = (_GetPhysLong)GetDelegate(ioModule, "GetPhysLong", typeof(_GetPhysLong));
-            MapPhysToLin = (_MapPhysToLin)GetDelegate(ioModule, "MapPhysToLin", typeof(_MapPhysToLin));
-            UnmapPhysicalMemory = (_UnmapPhysicalMemory)GetDelegate(ioModule, "UnmapPhysicalMemory", typeof(_UnmapPhysicalMemory));
-
-            // 64bit only
-            if (is64bit)
-            {
-                IsInpOutDriverOpen64 = (_IsInpOutDriverOpen64)GetDelegate(ioModule, "IsInpOutDriverOpen", typeof(_IsInpOutDriverOpen64));
-            }
-            else
-            {
-                InitializeWinIo32 = (_InitializeWinIo32)GetDelegate(ioModule, "InitializeWinIo", typeof(_InitializeWinIo32));
-                ShutdownWinIo32 = (_ShutdownWinIo32)GetDelegate(ioModule, "ShutdownWinIo", typeof(_ShutdownWinIo32));
-            }
-
-            if (InitializeWinIo())
-            {
-                WinIoStatus = LibStatus.OK;
-            }
-        }
-
-        public delegate bool _GetPhysLong(UIntPtr memAddress, out uint data);
-        public readonly _GetPhysLong GetPhysLong;
-
-        private delegate IntPtr _MapPhysToLin(IntPtr pbPhysAddr, uint dwPhysSize, out IntPtr pPhysicalMemoryHandle);
-        private readonly _MapPhysToLin MapPhysToLin;
-
-        private delegate bool _UnmapPhysicalMemory(IntPtr PhysicalMemoryHandle, IntPtr pbLinAddr);
-        private readonly _UnmapPhysicalMemory UnmapPhysicalMemory;
-
-        // InpOutx64
-        private delegate uint _IsInpOutDriverOpen64();
-        private readonly _IsInpOutDriverOpen64 IsInpOutDriverOpen64;
-
-        // WinIo
-        private delegate bool _InitializeWinIo32();
-        private delegate bool _ShutdownWinIo32();
-        private readonly _InitializeWinIo32 InitializeWinIo32;
-        private readonly _ShutdownWinIo32 ShutdownWinIo32;
-
-        public bool Is64Bit => is64bit;
-
-        public bool IsInpOutDriverOpen()
-        {
-            if (Is64Bit)
-                return IsInpOutDriverOpen64() != 0;
-
-            return true;
-        }
-
-        public bool InitializeWinIo()
-        {
-            if (Is64Bit)
-                return true;
-
-            return InitializeWinIo32();
-        }
-
-        public byte[] ReadMemory(IntPtr baseAddress, int size)
-        {
-            if (MapPhysToLin != null && UnmapPhysicalMemory != null)
-            {
-                IntPtr pdwLinAddr = MapPhysToLin(baseAddress, (uint)size, out IntPtr pPhysicalMemoryHandle);
-                if (pdwLinAddr != IntPtr.Zero)
-                {
-                    byte[] bytes = new byte[size];
-                    Marshal.Copy(pdwLinAddr, bytes, 0, bytes.Length);
-                    UnmapPhysicalMemory(pPhysicalMemoryHandle, pdwLinAddr);
-
-                    return bytes;
-                }
-            }
-
-            return null;
-        }
-
-        public uint SetBits(uint val, int offset, int n, uint newVal)
+        public static uint SetBits(uint val, int offset, int n, uint newVal)
         {
             return val & ~(((1U << n) - 1) << offset) | (newVal << offset);
         }
 
-        public uint GetBits(uint val, int offset, int n)
+        public static uint GetBits(uint val, int offset, int n)
         {
             return (val >> offset) & ~(~0U << n);
         }
 
-        public uint CountSetBits(uint v)
+        public static uint CountSetBits(uint v)
         {
             uint result = 0;
 
@@ -144,12 +33,12 @@ namespace ZenStates.Core
             return result;
         }
 
-        public string GetStringPart(uint val)
+        public static string GetStringPart(uint val)
         {
             return val != 0 ? Convert.ToChar(val).ToString() : "";
         }
 
-        public string IntToStr(uint val)
+        public static string IntToStr(uint val)
         {
             uint part1 = val & 0xff;
             uint part2 = val >> 8 & 0xff;
@@ -159,7 +48,7 @@ namespace ZenStates.Core
             return $"{GetStringPart(part1)}{GetStringPart(part2)}{GetStringPart(part3)}{GetStringPart(part4)}";
         }
 
-        public double VidToVoltage(uint vid)
+        public static double VidToVoltage(uint vid)
         {
             return 1.55 - vid * 0.00625;
         }
@@ -178,37 +67,41 @@ namespace ZenStates.Core
             return true;
         }
 
-        public bool AllZero(byte[] arr) => CheckAllZero(ref arr);
+        public static bool AllZero(byte[] arr) => CheckAllZero(ref arr);
 
-        public bool AllZero(int[] arr) => CheckAllZero(ref arr);
+        public static bool AllZero(int[] arr) => CheckAllZero(ref arr);
 
-        public bool AllZero(uint[] arr) => CheckAllZero(ref arr);
+        public static bool AllZero(uint[] arr) => CheckAllZero(ref arr);
 
-        public bool AllZero(float[] arr) => CheckAllZero(ref arr);
+        public static bool AllZero(float[] arr) => CheckAllZero(ref arr);
 
-        public void Dispose()
+        public static uint[] MakeCmdArgs(uint[] args)
         {
-            if (ioModule == IntPtr.Zero) return;
-            if (!Is64Bit)
-            {
-                ShutdownWinIo32();
-            }
+            uint[] cmdArgs = new uint[6];
+            int length = args.Length > 6 ? 6 : args.Length;
 
-            FreeLibrary(ioModule);
-            ioModule = IntPtr.Zero;
+            for (int i = 0; i < length; i++)
+                cmdArgs[i] = args[i];
+
+            return cmdArgs;
         }
 
-        private static Delegate GetDelegate(IntPtr moduleName, string procName, Type delegateType)
+        public static uint[] MakeCmdArgs(uint arg = 0)
         {
-            IntPtr ptr = GetProcAddress(moduleName, procName);
-            if (ptr != IntPtr.Zero)
-            {
-                Delegate d = Marshal.GetDelegateForFunctionPointer(ptr, delegateType);
-                return d;
-            }
+            return MakeCmdArgs(new uint[1] { arg });
+        }
 
-            int result = Marshal.GetHRForLastWin32Error();
-            throw Marshal.GetExceptionForHR(result);
+        // CO margin range seems to be from -30 to 30
+        // Margin arg seems to be 16 bits (lowest 16 bits of the command arg)
+        public static uint MakePsmMarginArg(int margin)
+        {
+            if (margin > 30)
+                margin = 30;
+            else if (margin < -30)
+                margin = -30;
+
+            int offset = margin < 0 ? 0x100000 : 0;
+            return Convert.ToUInt32(offset + margin) & 0xffff;
         }
     }
 }
