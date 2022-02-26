@@ -252,6 +252,9 @@ namespace ZenStates.Core
             }
         }
 
+        // [31-28] ccd index
+        // [27-24] ccx index (always 0 for Zen3 where each ccd has just one ccx)
+        // [23-20] core index
         public uint MakeCoreMask(uint core = 0, uint ccd = 0, uint ccx = 0)
         {
             uint ccxInCcd = info.family == Family.FAMILY_19H ? 1U : 2U;
@@ -276,10 +279,17 @@ namespace ZenStates.Core
             return MakeCmdArgs(new uint[1] { arg });
         }
 
+        // CO margin range seems to be from -30 to 30
+        // Margin arg seems to be 16 bits (lowest 16 bits of the command arg)
         private uint MakePsmMarginArg(int margin)
         {
+            if (margin > 30)
+                margin = 30;
+            else if (margin < -30)
+                margin = -30;
+
             int offset = margin < 0 ? 0x100000 : 0;
-            return Convert.ToUInt32(offset + margin) & 0xfffff;
+            return Convert.ToUInt32(offset + margin) & 0xffff;
         }
 
         private bool SmuWriteReg(uint addr, uint data)
@@ -919,6 +929,13 @@ namespace ZenStates.Core
         }
 
         // Set DLDO Psm margin for a single core
+        // CO margin range seems to be from -30 to 30
+        // Margin arg seems to be 16 bits (lowest 16 bits of the command arg)
+        // [31-28] ccd index
+        // [27-24] ccx index (always 0 for Zen3 where each ccd has just one ccx)
+        // [23-20] core index
+        // [19-16] reserved?
+        // [15-0] CO margin
         public bool SetPsmMarginSingleCore(uint coreMask, int margin)
         {
             uint m = MakePsmMarginArg(margin);
@@ -940,12 +957,11 @@ namespace ZenStates.Core
 
             if (SendSmuCommand(smu.Mp1Smu, smu.Mp1Smu.SMU_MSG_GetDldoPsmMargin, ref args) == SMU.Status.OK)
             {
-                // What is the CO range, should we clamp to -30/30?
                 uint ret = args[0];
                 if ((ret >> 31 & 1) == 1)
-                    return -(Convert.ToInt32(~ret & 0x7ffff) + 1);
+                    return -(Convert.ToInt32(~ret) + 1);
                 else
-                    return Convert.ToInt32(ret & 0x7ffff);
+                    return Convert.ToInt32(ret);
             }
             return 0;
         }
