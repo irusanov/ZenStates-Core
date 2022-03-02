@@ -237,7 +237,7 @@ namespace ZenStates.Core
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
                 systemInfo = new SystemInfo(info, smu);
-                powerTable = new PowerTable(smu.TableVersion, smu.SMU_TYPE, (uint)(GetDramBaseAddress() & 0xFFFFFFFF));
+                powerTable = new PowerTable(smu.TableVersion, smu.SMU_TYPE, GetDramBaseAddress());
 
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
@@ -340,16 +340,8 @@ namespace ZenStates.Core
         }
 
         public void WriteIoPort(uint port, byte value) => Ring0.WriteIoPort(port, value);
-
-        public bool ReadPciConfig(uint pciAddress, uint regAddress, ref uint value)
-        {
-            return Ring0.ReadPciConfig(pciAddress, regAddress, out value);
-        }
-
-        public uint GetPciAddress(byte bus, byte device, byte function)
-        {
-            return Ring0.GetPciAddress(bus, device, function);
-        }
+        public bool ReadPciConfig(uint pciAddress, uint regAddress, ref uint value) => Ring0.ReadPciConfig(pciAddress, regAddress, out value);
+        public uint GetPciAddress(byte bus, byte device, byte function) => Ring0.GetPciAddress(bus, device, function);
 
         // https://en.wikichip.org/wiki/amd/cpuid
         public CodeName GetCodeName(CPUInfo cpuInfo)
@@ -549,16 +541,6 @@ namespace ZenStates.Core
 
             return model.Trim();
         }
-
-        public uint GetSmuVersion()
-        {
-            uint[] args = Utils.MakeCmdArgs();
-            if (smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetSmuVersion, ref args) == SMU.Status.OK)
-                return args[0];
-
-            return 0;
-        }
-
         public uint GetPatchLevel()
         {
             if (Ring0.Rdmsr(0x8b, out uint eax, out uint edx))
@@ -589,163 +571,25 @@ namespace ZenStates.Core
 
         public float GetPBOScalar()
         {
-            uint[] args = Utils.MakeCmdArgs();
-            if (smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetPBOScalar, ref args) == SMU.Status.OK)
-            {
-                byte[] bytes = BitConverter.GetBytes(args[0]);
-                float scalar = BitConverter.ToSingle(bytes, 0);
+            var cmd = new SMUCommands.GetPBOScalar(smu);
+            cmd.Execute();
 
-                if (scalar > 0)
-                    return scalar;
-            }
-            return 0.0f;
+            return cmd.Scalar;
         }
 
-        public SMU.Status TransferTableToDram()
-        {
-            uint[] args = Utils.MakeCmdArgs(new uint[] { 1, 1 });
-
-            if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU0)
-            {
-                args[0] = 3;
-                args[1] = 0;
-            }
-
-            return smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_TransferTableToDram, ref args);
-        }
-
-        public uint GetTableVersion()
-        {
-            uint[] args = Utils.MakeCmdArgs();
-
-            SMU.Status status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetTableVersion, ref args);
-
-            if (status == SMU.Status.OK)
-                return args[0];
-
-            return 0;
-        }
-
-        public ulong GetDramBaseAddress()
-        {
-            uint[] args = Utils.MakeCmdArgs();
-            ulong address = 0;
-
-            SMU.Status status = SMU.Status.FAILED;
-
-            switch (smu.SMU_TYPE)
-            {
-                // SummitRidge, PinnacleRidge, Colfax
-                case SMU.SmuType.TYPE_CPU0:
-                case SMU.SmuType.TYPE_CPU1:
-                    args = Utils.MakeCmdArgs();
-                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress - 1, ref args);
-                    if (status != SMU.Status.OK)
-                        return 0;
-
-                    args = Utils.MakeCmdArgs();
-                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
-                    if (status != SMU.Status.OK)
-                        return 0;
-
-                    address = args[0];
-
-                    args = Utils.MakeCmdArgs();
-                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress + 2, ref args);
-                    if (status != SMU.Status.OK)
-                        return 0;
-                    break;
-
-                // Matisse, CastlePeak, Rome, Vermeer, Chagall?, Milan?
-                case SMU.SmuType.TYPE_CPU2:
-                case SMU.SmuType.TYPE_CPU3:
-                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
-                    if (status != SMU.Status.OK)
-                        return 0;
-                    address = args[0] | ((ulong)args[1] << 32);
-                    break;
-
-                // Renoir, Cezanne, VanGogh, Rembrandt
-                case SMU.SmuType.TYPE_APU1:
-                case SMU.SmuType.TYPE_APU2:
-                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
-                    if (status != SMU.Status.OK)
-                        return 0;
-                    address = args[0] | ((ulong)args[1] << 32);
-                    break;
-
-                // RavenRidge, RavenRidge2, Picasso
-                case SMU.SmuType.TYPE_APU0:
-                    uint[] parts = new uint[2];
-
-                    args = Utils.MakeCmdArgs(3);
-                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress - 1, ref args);
-                    if (status != SMU.Status.OK)
-                        return 0;
-
-                    args = Utils.MakeCmdArgs(3);
-                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
-                    if (status != SMU.Status.OK)
-                        return 0;
-
-                    // First base
-                    parts[0] = args[0];
-
-                    args = Utils.MakeCmdArgs(5);
-                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress - 1, ref args);
-                    if (status != SMU.Status.OK)
-                        return 0;
-
-                    args = Utils.MakeCmdArgs(5);
-                    status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref args);
-                    if (status != SMU.Status.OK)
-                        return 0;
-
-                    // Second base
-                    parts[1] = args[0];
-                    address = (ulong)parts[1] << 32 | parts[0];
-                    break;
-            }
-
-            if (status == SMU.Status.OK)
-                return address;
-
-            return 0;
-        }
-
-        private SMU.Status SetOcMode(bool enabled, uint arg = 0U)
-        {
-            uint cmd = enabled ? smu.Rsmu.SMU_MSG_EnableOcMode : smu.Rsmu.SMU_MSG_DisableOcMode;
-            if (cmd != 0)
-            {
-                uint[] args = Utils.MakeCmdArgs(arg);
-                return smu.SendRsmuCommand(cmd, ref args);
-            }
-            return SMU.Status.UNKNOWN_CMD;
-        }
-
-        private SMU.Status SetLimit(uint cmd, uint arg = 0U)
-        {
-            uint[] args = Utils.MakeCmdArgs(arg * 1000);
-            return smu.SendRsmuCommand(cmd, ref args);
-        }
-
-        public SMU.Status SetPPTLimit(uint arg = 0U) => SetLimit(smu.Rsmu.SMU_MSG_SetPPTLimit, arg);
-        public SMU.Status SetEDCVDDLimit(uint arg = 0U) => SetLimit(smu.Rsmu.SMU_MSG_SetEDCVDDLimit, arg);
-        public SMU.Status SetEDCSOCLimit(uint arg = 0U) => SetLimit(smu.Rsmu.SMU_MSG_SetEDCSOCLimit, arg);
-        public SMU.Status SetTDCVDDLimit(uint arg = 0U) => SetLimit(smu.Rsmu.SMU_MSG_SetTDCVDDLimit, arg);
-        public SMU.Status SetTDCSOCLimit(uint arg = 0U) => SetLimit(smu.Rsmu.SMU_MSG_SetTDCSOCLimit, arg);
-
-        // TODO: Set OC vid based on current PState0 VID
-        public SMU.Status EnableOcMode() => SetOcMode(true);
-
-        public SMU.Status DisableOcMode() => SetOcMode(false);
-
-        public SMU.Status SetPBOScalar(uint arg = 1)
-        {
-            uint[] args = Utils.MakeCmdArgs(arg * 100);
-            return smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetPBOScalar, ref args);
-        }
+        public bool SendTestMessage() => new SMUCommands.SendTestMessage(smu).Execute().Success;
+        public uint GetSmuVersion() => new SMUCommands.GetSmuVersion(smu).Execute().args[0];
+        public SMU.Status TransferTableToDram() => new SMUCommands.TransferTableToDram(smu).Execute().status;
+        public uint GetTableVersion() => new SMUCommands.GetTableVersion(smu).Execute().args[0];
+        public uint GetDramBaseAddress() => new SMUCommands.GetDramAddress(smu).Execute().args[0];
+        public SMU.Status SetPPTLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetPPTLimit, arg).status;
+        public SMU.Status SetEDCVDDLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetEDCVDDLimit, arg).status;
+        public SMU.Status SetEDCSOCLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetEDCSOCLimit, arg).status;
+        public SMU.Status SetTDCVDDLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetTDCVDDLimit, arg).status;
+        public SMU.Status SetTDCSOCLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetTDCSOCLimit, arg).status;
+        public SMU.Status EnableOcMode() => new SMUCommands.SetOcMode(smu).Execute(true).status;
+        public SMU.Status DisableOcMode() => new SMUCommands.SetOcMode(smu).Execute(true).status;
+        public SMU.Status SetPBOScalar(uint scalar) => new SMUCommands.SetPBOScalar(smu).Execute(scalar).status;
 
         public SMU.Status RefreshPowerTable()
         {
@@ -800,77 +644,19 @@ namespace ZenStates.Core
             }
             return SMU.Status.FAILED;
         }
-
-        public bool SetPsmMarginAllCores(int margin)
-        {
-            uint m = Utils.MakePsmMarginArg(margin);
-            uint[] args = Utils.MakeCmdArgs(m);
-            return smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin, ref args) == SMU.Status.OK;
-        }
-
-        // Set DLDO Psm margin for a single core
-        // CO margin range seems to be from -30 to 30
-        // Margin arg seems to be 16 bits (lowest 16 bits of the command arg)
-        // [31-28] ccd index
-        // [27-24] ccx index (always 0 for Zen3 where each ccd has just one ccx)
-        // [23-20] core index
-        // [19-16] reserved?
-        // [15-0] CO margin
-        public bool SetPsmMarginSingleCore(uint coreMask, int margin)
-        {
-            uint m = Utils.MakePsmMarginArg(margin);
-            uint[] args = Utils.MakeCmdArgs((coreMask & 0xfff00000) | m);
-
-            return smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin, ref args) == SMU.Status.OK;
-        }
-
-        public bool SetPsmMarginSingleCore(uint core, uint ccd, uint ccx, int margin)
-        {
-            uint coreMask = MakeCoreMask(core, ccd, ccx);
-            return SetPsmMarginSingleCore(coreMask, margin);
-        }
-
-        // Get DLDO Psm margin
         public int GetPsmMarginSingleCore(uint coreMask)
         {
-            uint[] args = Utils.MakeCmdArgs(coreMask & 0xfff00000);
-
-            if (smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_GetDldoPsmMargin, ref args) == SMU.Status.OK)
-            {
-                uint ret = args[0];
-                if ((ret >> 31 & 1) == 1)
-                    return -(Convert.ToInt32(~ret) + 1);
-                else
-                    return Convert.ToInt32(ret);
-            }
-            return 0;
+            var cmd = new SMUCommands.GetPsmMarginSingleCore(smu);
+            cmd.Execute(coreMask);
+            return cmd.Margin;
         }
-
-        public int GetPsmMarginSingleCore(uint core, uint ccd, uint ccx)
-        {
-            uint coreMask = MakeCoreMask(core, ccd, ccx);
-            return GetPsmMarginSingleCore(coreMask);
-        }
-
-        public bool SetFrequencyAllCore(uint frequency)
-        {
-            uint[] args = Utils.MakeCmdArgs(frequency & 0xfffff);
-            // TODO: Add Manual OC mode
-            return smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetOverclockFrequencyAllCores, ref args) == SMU.Status.OK;
-        }
-
-        public bool SetFrequencySingleCore(uint coreMask, uint frequency)
-        {
-            uint[] args = Utils.MakeCmdArgs(coreMask | frequency & 0xfffff);
-            return smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetOverclockFrequencyPerCore, ref args) == SMU.Status.OK;
-        }
-
-        public bool SetFrequencySingleCore(uint core, uint ccd, uint ccx, uint frequency)
-        {
-            uint coreMask = MakeCoreMask(core, ccd, ccx);
-            return SetFrequencySingleCore(coreMask, frequency);
-        }
-
+        public int GetPsmMarginSingleCore(uint core, uint ccd, uint ccx) => GetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx));
+        public bool SetPsmMarginAllCores(int margin) => new SMUCommands.SetPsmMarginAllCores(smu).Execute(margin).Success;
+        public bool SetPsmMarginSingleCore(uint coreMask, int margin) => new SMUCommands.SetPsmMarginSingleCore(smu).Execute(coreMask, margin).Success;
+        public bool SetPsmMarginSingleCore(uint core, uint ccd, uint ccx, int margin) => SetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx), margin);
+        public bool SetFrequencyAllCore(uint frequency) => new SMUCommands.SetFrequencyAllCore(smu).Execute(frequency).Success;
+        public bool SetFrequencySingleCore(uint coreMask, uint frequency) => new SMUCommands.SetFrequencySingleCore(smu).Execute(coreMask, frequency).Success;
+        public bool SetFrequencySingleCore(uint core, uint ccd, uint ccx, uint frequency) => SetFrequencySingleCore(MakeCoreMask(core, ccd, ccx), frequency);
         private bool SetFrequencyMultipleCores(uint mask, uint frequency, int count)
         {
             // ((i.CCD << 4 | i.CCX % 2 & 0xF) << 4 | i.CORE % 4 & 0xF) << 20;
@@ -882,12 +668,7 @@ namespace ZenStates.Core
             }
             return true;
         }
-
-        public bool SetFrequencyCCX(uint mask, uint frequency)
-        {
-            return SetFrequencyMultipleCores(mask, frequency, 8/*SI.NumCoresInCCX*/);
-        }
-
+        public bool SetFrequencyCCX(uint mask, uint frequency) => SetFrequencyMultipleCores(mask, frequency, 8/*SI.NumCoresInCCX*/);
         public bool SetFrequencyCCD(uint mask, uint frequency)
         {
             bool ret = true;
@@ -899,13 +680,6 @@ namespace ZenStates.Core
 
             return ret;
         }
-
-        public bool SendTestMessage()
-        {
-            uint[] args = Utils.MakeCmdArgs();
-            return smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_TestMessage, ref args) == SMU.Status.OK;
-        }
-
         public bool IsProchotEnabled()
         {
             uint data = ReadDword(0x59804);

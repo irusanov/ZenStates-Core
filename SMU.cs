@@ -1,4 +1,5 @@
 using OpenHardwareMonitor.Hardware;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 
@@ -105,9 +106,13 @@ namespace ZenStates.Core
 
             // Check all the arguments and don't execute if invalid
             // If the mailbox addresses are not set, they would have the default value of 0x0
-            if (mailbox == null || mailbox.SMU_ADDR_MSG == 0 || mailbox.SMU_ADDR_ARG == 0 || mailbox.SMU_ADDR_RSP == 0
-                || msg == 0)
-                return Status.FAILED;
+            // TODO: Add custom status for not implemented command?
+            if (msg == 0
+                || mailbox == null
+                || mailbox.SMU_ADDR_MSG == 0
+                || mailbox.SMU_ADDR_ARG == 0
+                || mailbox.SMU_ADDR_RSP == 0)
+                return Status.UNKNOWN_CMD;
 
             if (Ring0.WaitPciBusMutex(10))
             {
@@ -155,7 +160,7 @@ namespace ZenStates.Core
         }
 
         // Legacy
-        // Does not return back args
+        [Obsolete("SendSmuCommand with one argument is deprecated, please use SendSmuCommand with full 6 args")]
         public bool SendSmuCommand(Mailbox mailbox, uint msg, uint arg)
         {
             uint[] args = Utils.MakeCmdArgs(arg);

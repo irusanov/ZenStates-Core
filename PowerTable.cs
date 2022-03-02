@@ -13,12 +13,12 @@ namespace ZenStates.Core
 
         public event PropertyChangedEventHandler PropertyChanged;
 
-        protected void OnPropertyChanged(PropertyChangedEventArgs eventArgs)
+        private void OnPropertyChanged(PropertyChangedEventArgs eventArgs)
         {
             PropertyChanged?.Invoke(this, eventArgs);
         }
 
-        protected bool SetProperty<T>(ref T storage, T value, PropertyChangedEventArgs args)
+        private bool SetProperty<T>(ref T storage, T value, PropertyChangedEventArgs args)
         {
             // Do not update if value is equal to the cached one
             if (Equals(storage, value))
