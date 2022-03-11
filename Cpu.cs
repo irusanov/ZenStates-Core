@@ -237,7 +237,7 @@ namespace ZenStates.Core
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
                 systemInfo = new SystemInfo(info, smu);
-                powerTable = new PowerTable(smu.TableVersion, smu.SMU_TYPE, GetDramBaseAddress());
+                powerTable = new PowerTable(smu, io);
 
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
@@ -590,60 +590,7 @@ namespace ZenStates.Core
         public SMU.Status EnableOcMode() => new SMUCommands.SetOcMode(smu).Execute(true).status;
         public SMU.Status DisableOcMode() => new SMUCommands.SetOcMode(smu).Execute(true).status;
         public SMU.Status SetPBOScalar(uint scalar) => new SMUCommands.SetPBOScalar(smu).Execute(scalar).status;
-
-        public SMU.Status RefreshPowerTable()
-        {
-            if (powerTable != null && powerTable.DramBaseAddress > 0)
-            {
-                try
-                {
-                    SMU.Status status = TransferTableToDram();
-
-                    if (status != SMU.Status.OK)
-                        return status;
-
-                    float[] table = new float[powerTable.TableSize / 4];
-
-                    if (Utils.Is64Bit)
-                    {
-                        byte[] bytes = io.ReadMemory(new IntPtr(powerTable.DramBaseAddress), powerTable.TableSize);
-                        if (bytes != null && bytes.Length > 0)
-                            Buffer.BlockCopy(bytes, 0, table, 0, bytes.Length);
-                        else
-                            return SMU.Status.FAILED;
-                    }
-                    else
-                    {
-                        /*uint data = 0;
-
-                        for (int i = 0; i < table.Length; ++i)
-                        {
-                            Ring0.ReadMemory((ulong)(powerTable.DramBaseAddress), ref data);
-                            byte[] bytes = BitConverter.GetBytes(data);
-                            table[i] = BitConverter.ToSingle(bytes, 0);
-                            //table[i] = data;
-                        }*/
-
-                        for (int i = 0; i < table.Length; ++i)
-                        {
-                            int offset = i * 4;
-                            io.GetPhysLong((UIntPtr)(powerTable.DramBaseAddress + offset), out uint data);
-                            byte[] bytes = BitConverter.GetBytes(data);
-                            Buffer.BlockCopy(bytes, 0, table, offset, bytes.Length);
-                        }
-                    }
-
-                    if (Utils.AllZero(table))
-                        status = SMU.Status.FAILED;
-                    else
-                        powerTable.Table = table;
-
-                    return status;
-                }
-                catch { }
-            }
-            return SMU.Status.FAILED;
-        }
+        public SMU.Status RefreshPowerTable() => powerTable.Refresh();
         public int GetPsmMarginSingleCore(uint coreMask)
         {
             var cmd = new SMUCommands.GetPsmMarginSingleCore(smu);

@@ -6,8 +6,9 @@ namespace ZenStates.Core
 {
     public class PowerTable : INotifyPropertyChanged
     {
+        private readonly IOModule io;
+        private readonly SMU smu;
         private readonly PTDef tableDef;
-        private float[] table;
         public readonly uint DramBaseAddress;
         public readonly int TableSize;
 
@@ -194,17 +195,18 @@ namespace ZenStates.Core
             return GetDefaultTableDef(tableVersion, smutype);
         }
 
-        public PowerTable(uint version, SMU.SmuType smutype, uint dramAddress)
+        public PowerTable(SMU smuInstance, IOModule ioInstance)
         {
-            if (dramAddress == 0)
+            smu = smuInstance;
+            io = ioInstance;
+            DramBaseAddress = new SMUCommands.GetDramAddress(smu).Execute().args[0];
+
+            if (DramBaseAddress == 0)
                 throw new ApplicationException("Could not get DRAM base address.");
 
-            SmuType = smutype;
-            TableVersion = version;
-            tableDef = GetPowerTableDef(version, smutype);
+            tableDef = GetPowerTableDef(smu.TableVersion, smu.SMU_TYPE);
             TableSize = tableDef.tableSize;
-            table = new float[TableSize / 4];
-            DramBaseAddress = dramAddress;
+            Table = new float[TableSize / 4];
         }
 
         private float GetDiscreteValue(float[] pt, int index)
@@ -247,25 +249,64 @@ namespace ZenStates.Core
             }*/
         }
 
+        public SMU.Status Refresh()
+        {
+            if (DramBaseAddress > 0)
+            {
+                try
+                {
+                    SMU.Status status = new SMUCommands.TransferTableToDram(smu).Execute().status;
+
+                    if (status != SMU.Status.OK)
+                        return status;
+
+                    if (Utils.Is64Bit)
+                    {
+                        byte[] bytes = io.ReadMemory(new IntPtr(DramBaseAddress), TableSize);
+                        if (bytes != null && bytes.Length > 0)
+                            Buffer.BlockCopy(bytes, 0, Table, 0, bytes.Length);
+                        else
+                            return SMU.Status.FAILED;
+                    }
+                    else
+                    {
+                        /*uint data = 0;
+
+                        for (int i = 0; i < table.Length; ++i)
+                        {
+                            Ring0.ReadMemory((ulong)(powerTable.DramBaseAddress), ref data);
+                            byte[] bytes = BitConverter.GetBytes(data);
+                            table[i] = BitConverter.ToSingle(bytes, 0);
+                            //table[i] = data;
+                        }*/
+
+                        for (int i = 0; i < Table.Length; ++i)
+                        {
+                            int offset = i * 4;
+                            io.GetPhysLong((UIntPtr)(DramBaseAddress + offset), out uint data);
+                            byte[] bytes = BitConverter.GetBytes(data);
+                            Buffer.BlockCopy(bytes, 0, Table, offset, bytes.Length);
+                        }
+                    }
+
+                    if (Utils.AllZero(Table))
+                        status = SMU.Status.FAILED;
+                    else
+                        ParseTable(Table);
+
+                    return status;
+                }
+                catch { }
+            }
+            return SMU.Status.FAILED;
+        }
+
         // Static one-time properties
-        public static SMU.SmuType SmuType { get; protected set; } = SMU.SmuType.TYPE_UNSUPPORTED;
-        public static uint TableVersion { get; protected set; }
         public float ConfiguredClockSpeed { get; set; } = 0;
         public float MemRatio { get; set; } = 0;
 
         // Dynamic properties
-        public float[] Table
-        {
-            get => table;
-            set
-            {
-                if (value != null)
-                {
-                    table = value;
-                    ParseTable(value);
-                }
-            }
-        }
+        public float[] Table { get; private set; }
 
         float fclk;
         public float FCLK
