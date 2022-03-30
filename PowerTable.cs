@@ -6,19 +6,20 @@ namespace ZenStates.Core
 {
     public class PowerTable : INotifyPropertyChanged
     {
+        private readonly IOModule io;
+        private readonly SMU smu;
         private readonly PTDef tableDef;
-        private float[] table;
         public readonly uint DramBaseAddress;
         public readonly int TableSize;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
-        protected void OnPropertyChanged(PropertyChangedEventArgs eventArgs)
+        private void OnPropertyChanged(PropertyChangedEventArgs eventArgs)
         {
             PropertyChanged?.Invoke(this, eventArgs);
         }
 
-        protected bool SetProperty<T>(ref T storage, T value, PropertyChangedEventArgs args)
+        private bool SetProperty<T>(ref T storage, T value, PropertyChangedEventArgs args)
         {
             // Do not update if value is equal to the cached one
             if (Equals(storage, value))
@@ -110,9 +111,9 @@ namespace ZenStates.Core
             { 0x400002, 0x8D0, 0x63C, 0x640, 0x644, 0x19C, 0x8B4, -1, -1, -1 },
             { 0x400003, 0x944, 0x660, 0x664, 0x668, 0x19C, 0x8D0, -1, -1, -1 },
             { 0x400004, 0x948, 0x664, 0x668, 0x66C, 0x19C, 0x8D4, -1, -1, -1 },
-            { 0x400005, 0x948, 0x664, 0x668, 0x66C, 0x19C, 0x8D4, -1, -1, -1 },
+            { 0x400005, 0x948, 0x664, 0x668, 0x66C, 0x19C, 0x944, -1, -1, -1 },
             // Generic Zen3 APU
-            { 0x000012, 0x948, 0x664, 0x668, 0x66C, 0x19C, 0x8D4, -1, -1, -1 },
+            { 0x000012, 0x948, 0x664, 0x668, 0x66C, 0x19C, 0x944, -1, -1, -1 },
 
             // Zen CPU
             { 0x000100, 0x7E4, 0x84, 0x84, 0x84, 0x68, 0x44, -1, -1, -1 },
@@ -194,17 +195,18 @@ namespace ZenStates.Core
             return GetDefaultTableDef(tableVersion, smutype);
         }
 
-        public PowerTable(uint version, SMU.SmuType smutype, uint dramAddress)
+        public PowerTable(SMU smuInstance, IOModule ioInstance)
         {
-            if (dramAddress == 0)
+            smu = smuInstance;
+            io = ioInstance;
+            DramBaseAddress = new SMUCommands.GetDramAddress(smu).Execute().args[0];
+
+            if (DramBaseAddress == 0)
                 throw new ApplicationException("Could not get DRAM base address.");
 
-            SmuType = smutype;
-            TableVersion = version;
-            tableDef = GetPowerTableDef(version, smutype);
+            tableDef = GetPowerTableDef(smu.TableVersion, smu.SMU_TYPE);
             TableSize = tableDef.tableSize;
-            table = new float[TableSize / 4];
-            DramBaseAddress = dramAddress;
+            Table = new float[TableSize / 4];
         }
 
         private float GetDiscreteValue(float[] pt, int index)
@@ -247,25 +249,64 @@ namespace ZenStates.Core
             }*/
         }
 
+        public SMU.Status Refresh()
+        {
+            if (DramBaseAddress > 0)
+            {
+                try
+                {
+                    SMU.Status status = new SMUCommands.TransferTableToDram(smu).Execute().status;
+
+                    if (status != SMU.Status.OK)
+                        return status;
+
+                    if (Utils.Is64Bit)
+                    {
+                        byte[] bytes = io.ReadMemory(new IntPtr(DramBaseAddress), TableSize);
+                        if (bytes != null && bytes.Length > 0)
+                            Buffer.BlockCopy(bytes, 0, Table, 0, bytes.Length);
+                        else
+                            return SMU.Status.FAILED;
+                    }
+                    else
+                    {
+                        /*uint data = 0;
+
+                        for (int i = 0; i < table.Length; ++i)
+                        {
+                            Ring0.ReadMemory((ulong)(powerTable.DramBaseAddress), ref data);
+                            byte[] bytes = BitConverter.GetBytes(data);
+                            table[i] = BitConverter.ToSingle(bytes, 0);
+                            //table[i] = data;
+                        }*/
+
+                        for (int i = 0; i < Table.Length; ++i)
+                        {
+                            int offset = i * 4;
+                            io.GetPhysLong((UIntPtr)(DramBaseAddress + offset), out uint data);
+                            byte[] bytes = BitConverter.GetBytes(data);
+                            Buffer.BlockCopy(bytes, 0, Table, offset, bytes.Length);
+                        }
+                    }
+
+                    if (Utils.AllZero(Table))
+                        status = SMU.Status.FAILED;
+                    else
+                        ParseTable(Table);
+
+                    return status;
+                }
+                catch { }
+            }
+            return SMU.Status.FAILED;
+        }
+
         // Static one-time properties
-        public static SMU.SmuType SmuType { get; protected set; } = SMU.SmuType.TYPE_UNSUPPORTED;
-        public static uint TableVersion { get; protected set; }
         public float ConfiguredClockSpeed { get; set; } = 0;
         public float MemRatio { get; set; } = 0;
 
         // Dynamic properties
-        public float[] Table
-        {
-            get => table;
-            set
-            {
-                if (value != null)
-                {
-                    table = value;
-                    ParseTable(value);
-                }
-            }
-        }
+        public float[] Table { get; private set; }
 
         float fclk;
         public float FCLK

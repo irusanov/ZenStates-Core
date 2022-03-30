@@ -1,3 +1,5 @@
+using OpenHardwareMonitor.Hardware;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 
@@ -6,11 +8,13 @@ namespace ZenStates.Core
     [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "<Pending>")]
     public abstract class SMU
     {
+        private const ushort SMU_TIMEOUT = 8192;
         public enum MailboxType
         {
             UNSUPPORTED = 0,
             RSMU,
             MP1,
+            HSMP
         }
 
         public enum SmuType
@@ -47,9 +51,9 @@ namespace ZenStates.Core
             SMU_OFFSET_ADDR = 0x60; // 0xC4
             SMU_OFFSET_DATA = 0x64; // 0xC8
 
-            Rsmu = new Mailbox();
-            Mp1Smu = new Mailbox();
-            Hsmp = new Mailbox();
+            Rsmu = new RSMUMailbox();
+            Mp1Smu = new MP1Mailbox();
+            Hsmp = new HSMPMailbox();
         }
 
         public uint Version { get; set; }
@@ -64,9 +68,108 @@ namespace ZenStates.Core
         public uint SMU_OFFSET_DATA { get; protected set; }
 
         // SMU has different mailboxes, each with its own registers and command IDs
-        public Mailbox Rsmu { get; protected set; }
-        public Mailbox Mp1Smu { get; protected set; }
-        public Mailbox Hsmp { get; protected set; }
+        public RSMUMailbox Rsmu { get; protected set; }
+        public MP1Mailbox Mp1Smu { get; protected set; }
+        public HSMPMailbox Hsmp { get; protected set; }
+
+        private bool SmuWriteReg(uint addr, uint data)
+        {
+            if (Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_ADDR, addr))
+                return Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_DATA, data);
+            return false;
+        }
+
+        private bool SmuReadReg(uint addr, ref uint data)
+        {
+            if (Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_ADDR, addr))
+                return Ring0.ReadPciConfig(SMU_PCI_ADDR, SMU_OFFSET_DATA, out data);
+            return false;
+        }
+
+        private bool SmuWaitDone(Mailbox mailbox)
+        {
+            bool res;
+            ushort timeout = SMU_TIMEOUT;
+            uint data = 0;
+
+            // Retry until response register is non-zero and reading RSP register is successful
+            do
+                res = SmuReadReg(mailbox.SMU_ADDR_RSP, ref data);
+            while ((!res || data == 0) && --timeout > 0);
+
+            return timeout != 0 && data > 0;
+        }
+
+        public Status SendSmuCommand(Mailbox mailbox, uint msg, ref uint[] args)
+        {
+            uint status = 0xFF; // SMU.Status.FAILED;
+
+            // Check all the arguments and don't execute if invalid
+            // If the mailbox addresses are not set, they would have the default value of 0x0
+            // TODO: Add custom status for not implemented command?
+            if (msg == 0
+                || mailbox == null
+                || mailbox.SMU_ADDR_MSG == 0
+                || mailbox.SMU_ADDR_ARG == 0
+                || mailbox.SMU_ADDR_RSP == 0)
+                return Status.UNKNOWN_CMD;
+
+            if (Ring0.WaitPciBusMutex(10))
+            {
+                // Wait done
+                if (!SmuWaitDone(mailbox))
+                {
+                    // Initial probe failed, some other command is still being processed or the PCI read failed
+                    Ring0.ReleasePciBusMutex();
+                    return Status.FAILED;
+                }
+
+                // Clear response register
+                SmuWriteReg(mailbox.SMU_ADDR_RSP, 0);
+
+                // Write data
+                uint[] cmdArgs = Utils.MakeCmdArgs(args);
+                for (int i = 0; i < cmdArgs.Length; ++i)
+                    SmuWriteReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]);
+
+                // Send message
+                SmuWriteReg(mailbox.SMU_ADDR_MSG, msg);
+
+                // Wait done
+                if (!SmuWaitDone(mailbox))
+                {
+                    // Timeout reached or PCI read failed
+                    Ring0.ReleasePciBusMutex();
+                    return Status.FAILED;
+                }
+
+                // If we reach this stage, read final status
+                SmuReadReg(mailbox.SMU_ADDR_RSP, ref status);
+
+                if ((Status)status == Status.OK)
+                {
+                    // Read back args
+                    for (int i = 0; i < args.Length; ++i)
+                        SmuReadReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]);
+                }
+
+                Ring0.ReleasePciBusMutex();
+            }
+
+            return (Status)status;
+        }
+
+        // Legacy
+        [Obsolete("SendSmuCommand with one argument is deprecated, please use SendSmuCommand with full 6 args")]
+        public bool SendSmuCommand(Mailbox mailbox, uint msg, uint arg)
+        {
+            uint[] args = Utils.MakeCmdArgs(arg);
+            return SendSmuCommand(mailbox, msg, ref args) == Status.OK;
+        }
+
+        public Status SendMp1Command(uint msg, ref uint[] args) => SendSmuCommand(Mp1Smu, msg, ref args);
+        public Status SendRsmuCommand(uint msg, ref uint[] args) => SendSmuCommand(Rsmu, msg, ref args);
+        public Status SendHsmpCommand(uint msg, ref uint[] args) => SendSmuCommand(Hsmp, msg, ref args);
     }
 
     public class BristolRidgeSettings: SMU
