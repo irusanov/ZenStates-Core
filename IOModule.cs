@@ -52,40 +52,53 @@ namespace ZenStates.Core
             return null;
         }
 
-        public IOModule()
+        public static IntPtr LoadDll(string filename)
         {
-            string fileName = Utils.Is64Bit ? "inpoutx64.dll" : "WinIo32.dll";
+            IntPtr dll = LoadLibrary(filename);
 
-            ioModule = LoadLibrary(fileName);
-
-            if (ioModule == IntPtr.Zero)
+            if (dll == IntPtr.Zero)
             {
                 int lasterror = Marshal.GetLastWin32Error();
                 Win32Exception innerEx = new Win32Exception(lasterror);
                 innerEx.Data.Add("LastWin32Error", lasterror);
 
-                throw new Exception("Can't load DLL " + fileName, innerEx);
+                throw new Exception("Can't load DLL " + filename, innerEx);
             }
 
-            // Common
-            GetPhysLong = (_GetPhysLong)GetDelegate(ioModule, "GetPhysLong", typeof(_GetPhysLong));
-            MapPhysToLin = (_MapPhysToLin)GetDelegate(ioModule, "MapPhysToLin", typeof(_MapPhysToLin));
-            UnmapPhysicalMemory = (_UnmapPhysicalMemory)GetDelegate(ioModule, "UnmapPhysicalMemory", typeof(_UnmapPhysicalMemory));
+            return dll;
+        }
 
-            // 64bit only
-            if (Utils.Is64Bit)
+        public IOModule()
+        {
+            try
             {
-                IsInpOutDriverOpen64 = (_IsInpOutDriverOpen64)GetDelegate(ioModule, "IsInpOutDriverOpen", typeof(_IsInpOutDriverOpen64));
-            }
-            else
-            {
-                InitializeWinIo32 = (_InitializeWinIo32)GetDelegate(ioModule, "InitializeWinIo", typeof(_InitializeWinIo32));
-                ShutdownWinIo32 = (_ShutdownWinIo32)GetDelegate(ioModule, "ShutdownWinIo", typeof(_ShutdownWinIo32));
+                string fileName = Utils.Is64Bit ? "inpoutx64.dll" : "WinIo32.dll";
+                ioModule = LoadDll(fileName);
 
-                if (InitializeWinIo32())
+                // Common
+                GetPhysLong = (_GetPhysLong)GetDelegate(ioModule, "GetPhysLong", typeof(_GetPhysLong));
+                MapPhysToLin = (_MapPhysToLin)GetDelegate(ioModule, "MapPhysToLin", typeof(_MapPhysToLin));
+                UnmapPhysicalMemory = (_UnmapPhysicalMemory)GetDelegate(ioModule, "UnmapPhysicalMemory", typeof(_UnmapPhysicalMemory));
+
+                // 64bit only
+                if (Utils.Is64Bit)
                 {
-                    WinIoStatus = LibStatus.OK;
+                    IsInpOutDriverOpen64 = (_IsInpOutDriverOpen64)GetDelegate(ioModule, "IsInpOutDriverOpen", typeof(_IsInpOutDriverOpen64));
                 }
+                else
+                {
+                    InitializeWinIo32 = (_InitializeWinIo32)GetDelegate(ioModule, "InitializeWinIo", typeof(_InitializeWinIo32));
+                    ShutdownWinIo32 = (_ShutdownWinIo32)GetDelegate(ioModule, "ShutdownWinIo", typeof(_ShutdownWinIo32));
+
+                    if (InitializeWinIo32())
+                    {
+                        WinIoStatus = LibStatus.OK;
+                    }
+                }
+            } 
+            catch (Exception ex)
+            {
+                throw ex;
             }
         }
 
@@ -121,7 +134,7 @@ namespace ZenStates.Core
             ioModule = IntPtr.Zero;
         }
 
-        private static Delegate GetDelegate(IntPtr moduleName, string procName, Type delegateType)
+        public static Delegate GetDelegate(IntPtr moduleName, string procName, Type delegateType)
         {
             IntPtr ptr = GetProcAddress(moduleName, procName);
             if (ptr != IntPtr.Zero)
