@@ -1,86 +1,29 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{D2D449E1-8701-442F-B440-37188F8D2380}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>ZenStates.Core</RootNamespace>
-    <AssemblyName>ZenStates-Core</AssemblyName>
-    <TargetFrameworkVersion>v2.0</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <Deterministic>true</Deterministic>
-    <TargetFrameworkProfile />
+    <TargetFrameworks>net20</TargetFrameworks>
+    <AssemblyTitle>ZenStates.Core</AssemblyTitle>
+    <Company>irusanov</Company>
+    <Product>ZenStates.Core</Product>
+    <Copyright>Copyright ©  2022</Copyright>
+    <AssemblyVersion>1.6.3.0</AssemblyVersion>
+    <FileVersion>1.6.3.0</FileVersion>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup>
-    <ApplicationIcon>
-    </ApplicationIcon>
+    <ApplicationIcon />
   </PropertyGroup>
+  <PropertyGroup />
   <ItemGroup>
-    <Reference Include="System" />
-    <Reference Include="System.Drawing" />
     <Reference Include="System.Management" />
     <Reference Include="System.ServiceProcess" />
-    <Reference Include="System.Xml" />
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Include="Mailbox\Mailbox.cs" />
-    <Compile Include="IOModule.cs" />
-    <Compile Include="Mailbox\HSMPMailbox.cs" />
-    <Compile Include="Mailbox\MP1Mailbox.cs" />
-    <Compile Include="Mailbox\RSMUMailbox.cs" />
-    <Compile Include="OHWM\GroupAffinity.cs" />
-    <Compile Include="OHWM\InteropMethods.cs" />
-    <Compile Include="OHWM\IOControlCode.cs" />
-    <Compile Include="OHWM\KernelDriver.cs" />
-    <Compile Include="OHWM\Opcode.cs" />
-    <Compile Include="OHWM\OperatingSystem.cs" />
-    <Compile Include="OHWM\Ring0.cs" />
-    <Compile Include="OHWM\ThreadAffinity.cs" />
-    <Compile Include="SMUCommands\BaseSMUCommand.cs" />
-    <Compile Include="SMUCommands\CmdResult.cs" />
-    <Compile Include="SMUCommands\GetDramAddress.cs" />
-    <Compile Include="SMUCommands\GetSmuVersion.cs" />
-    <Compile Include="SMUCommands\GetTableVersion.cs" />
-    <Compile Include="SMUCommands\SendTestMessage.cs" />
-    <Compile Include="SMUCommands\SetPsmMarginAllCores.cs" />
-    <Compile Include="SMUCommands\GetPsmMarginSingleCore.cs" />
-    <Compile Include="SMUCommands\SetPsmMarginSingleCore.cs" />
-    <Compile Include="SMUCommands\SetFrequencySingleCore.cs" />
-    <Compile Include="SMUCommands\SetFrequencyAllCore.cs" />
-    <Compile Include="SMUCommands\SetOcMode.cs" />
-    <Compile Include="SMUCommands\GetPBOScalar.cs" />
-    <Compile Include="SMUCommands\SetPBOScalar.cs" />
-    <Compile Include="SMUCommands\SetSmuLimit.cs" />
-    <Compile Include="SMUCommands\TransferTableToDram.cs" />
-    <Compile Include="Utils.cs" />
-    <Compile Include="Cpu.cs" />
-    <Compile Include="PowerTable.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="SMU.cs" />
-    <Compile Include="SystemInfo.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Service Include="{508349B6-6B84-4DF5-91F0-309BEEBAD82D}" />
   </ItemGroup>
   <ItemGroup>
     <None Include="External\InpOut\DLPortIO.txt" />
@@ -108,14 +51,7 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>xcopy /s /d /y "$(ProjectDir)External\InpOut\x64\inpoutx64.dll" "$(TargetDir)"
-xcopy /s /d /y "$(ProjectDir)External\WinIo\WinIo32.dll" "$(TargetDir)"
-xcopy /s /d /y "$(ProjectDir)External\WinIo\WinIo32.sys" "$(TargetDir)"
-copy "$(ProjectDir)External\InpOut\license.txt" "$(TargetDir)\InpOut.LICENSE.txt"
-copy "$(ProjectDir)External\WinIo\LICENSE.txt" "$(TargetDir)WinIo32.LICENSE.txt"
-copy "$(ProjectDir)External\WinRing0\LICENSE.txt" "$(TargetDir)WinRing0.LICENSE.txt"
-</PostBuildEvent>
-  </PropertyGroup>
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy /s /d /y &quot;$(ProjectDir)External\InpOut\x64\inpoutx64.dll&quot; &quot;$(OutDir)&quot;&#xD;&#xA;xcopy /s /d /y &quot;$(ProjectDir)External\WinIo\WinIo32.dll&quot; &quot;$(OutDir)&quot;&#xD;&#xA;xcopy /s /d /y &quot;$(ProjectDir)External\WinIo\WinIo32.sys&quot; &quot;$(OutDir)&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\InpOut\license.txt&quot; &quot;$(OutDir)\InpOut.LICENSE.txt&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\WinIo\LICENSE.txt&quot; &quot;$(OutDir)WinIo32.LICENSE.txt&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\WinRing0\LICENSE.txt&quot; &quot;$(OutDir)WinRing0.LICENSE.txt&quot;" />
+  </Target>
 </Project>
