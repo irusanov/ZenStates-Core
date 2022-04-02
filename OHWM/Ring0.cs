@@ -245,7 +245,11 @@ namespace OpenHardwareMonitor.Hardware
             {
                 try
                 {
+#if NETCOREAPP || NETSTANDARD
+                    isaBusMutex = MutexAcl.OpenExisting(isaMutexName, MutexRights.Synchronize);
+#else
                     isaBusMutex = Mutex.OpenExisting(isaMutexName, MutexRights.Synchronize);
+#endif
                 }
                 catch { }
             }
@@ -259,7 +263,11 @@ namespace OpenHardwareMonitor.Hardware
             {
                 try
                 {
+#if NETCOREAPP || NETSTANDARD
+                    pciBusMutex = MutexAcl.OpenExisting(pciMutexName, MutexRights.Synchronize);
+#else
                     pciBusMutex = Mutex.OpenExisting(pciMutexName, MutexRights.Synchronize);
+#endif
                 }
                 catch { }
             }
