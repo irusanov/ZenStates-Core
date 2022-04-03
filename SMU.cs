@@ -172,7 +172,7 @@ namespace ZenStates.Core
         public Status SendHsmpCommand(uint msg, ref uint[] args) => SendSmuCommand(Hsmp, msg, ref args);
     }
 
-    public class BristolRidgeSettings: SMU
+    public class BristolRidgeSettings : SMU
     {
         public BristolRidgeSettings()
         {

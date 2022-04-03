@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace ZenStates.Core.SMUCommands
+﻿namespace ZenStates.Core.SMUCommands
 {
     internal class SetPBOScalar : BaseSMUCommand
     {

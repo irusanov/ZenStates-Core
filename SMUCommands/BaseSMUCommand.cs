@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace ZenStates.Core.SMUCommands
 {
@@ -20,7 +18,8 @@ namespace ZenStates.Core.SMUCommands
         }
 
         public virtual bool CanExecute() => smu != null;
-        public virtual CmdResult Execute() {
+        public virtual CmdResult Execute()
+        {
             Dispose();
             return result;
         }

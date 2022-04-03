@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace ZenStates.Core.SMUCommands
+﻿namespace ZenStates.Core.SMUCommands
 {
     internal class GetTableVersion : BaseSMUCommand
     {
-        public GetTableVersion(SMU smu) : base(smu) {}
+        public GetTableVersion(SMU smu) : base(smu) { }
         public override CmdResult Execute()
         {
             if (CanExecute())

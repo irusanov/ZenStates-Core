@@ -1,13 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace ZenStates.Core.SMUCommands
 {
     internal class GetPsmMarginSingleCore : BaseSMUCommand
     {
         public int Margin { get; internal set; } = 0;
-        public GetPsmMarginSingleCore(SMU smu) : base(smu) {}
+        public GetPsmMarginSingleCore(SMU smu) : base(smu) { }
         public CmdResult Execute(uint coreMask)
         {
             if (CanExecute())

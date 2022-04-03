@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace ZenStates.Core.SMUCommands
+﻿namespace ZenStates.Core.SMUCommands
 {
     internal class SetFrequencyAllCore : BaseSMUCommand
     {
-        public SetFrequencyAllCore(SMU smu) : base(smu) {}
+        public SetFrequencyAllCore(SMU smu) : base(smu) { }
         public CmdResult Execute(uint frequency)
         {
             if (CanExecute())

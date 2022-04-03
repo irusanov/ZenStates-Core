@@ -1,13 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace ZenStates.Core.SMUCommands
+﻿namespace ZenStates.Core.SMUCommands
 {
     internal class GetDramAddress : BaseSMUCommand
     {
-        public GetDramAddress(SMU smu) : base(smu) {}
-        
+        public GetDramAddress(SMU smu) : base(smu) { }
+
         public override CmdResult Execute()
         {
             if (CanExecute())

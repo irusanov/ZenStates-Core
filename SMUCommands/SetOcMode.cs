@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace ZenStates.Core.SMUCommands
+﻿namespace ZenStates.Core.SMUCommands
 {
     internal class SetOcMode : BaseSMUCommand
     {
-        public SetOcMode(SMU smu) : base(smu) {}
+        public SetOcMode(SMU smu) : base(smu) { }
 
         // TODO: Set OC vid based on current PState0 VID
         public CmdResult Execute(bool enabled, uint arg = 0U)

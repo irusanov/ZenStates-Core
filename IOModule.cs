@@ -95,7 +95,7 @@ namespace ZenStates.Core
                         WinIoStatus = LibStatus.OK;
                     }
                 }
-            } 
+            }
             catch (Exception ex)
             {
                 throw ex;

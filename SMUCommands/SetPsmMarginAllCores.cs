@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace ZenStates.Core.SMUCommands
+﻿namespace ZenStates.Core.SMUCommands
 {
     // Set DLDO Psm margin for all cores
     // CO margin range seems to be from -30 to 30
@@ -10,7 +6,7 @@ namespace ZenStates.Core.SMUCommands
     // [15-0] CO margin
     internal class SetPsmMarginAllCores : BaseSMUCommand
     {
-        public SetPsmMarginAllCores(SMU smu) : base(smu) {}
+        public SetPsmMarginAllCores(SMU smu) : base(smu) { }
         public CmdResult Execute(int margin)
         {
             if (CanExecute())
