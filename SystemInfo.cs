@@ -70,7 +70,6 @@ namespace ZenStates.Core
         public uint SmuVersion { get; private set; }
         public uint SmuTableVersion { get; private set; }
         public uint PatchLevel => cpuInfo.patchLevel;
-
         public string GetSmuVersionString() => SmuVersionToString(SmuVersion);
 
         public string GetCpuIdString() => CpuId.ToString("X8").TrimStart('0');

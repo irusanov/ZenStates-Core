@@ -21,6 +21,9 @@ namespace ZenStates.Core
         public const uint F17H_M70H_SVI_TEL_PLANE1 = (F17H_M01H_SVI + 0xC);
         public const uint F19H_M21H_SVI_TEL_PLANE0 = (F17H_M01H_SVI + 0x10);
         public const uint F19H_M21H_SVI_TEL_PLANE1 = (F17H_M01H_SVI + 0xC);
+        public const uint F17H_M70H_CCD_TEMP = 0x00059954;
+        public const uint THM_CUR_TEMP = 0x00059800;
+        public const uint THM_CUR_TEMP_RANGE_SEL_MASK = 0x80000;
 
         public enum Family
         {
@@ -631,6 +634,52 @@ namespace ZenStates.Core
         {
             uint data = ReadDword(0x59804);
             return (data & 1) == 1;
+        }
+
+        public float? GetCpuTemperature()
+        {
+            uint thmData = 0;
+
+            if (ReadDwordEx(THM_CUR_TEMP, ref thmData))
+            {
+                float offset = 0.0f;
+
+                // Get tctl temperature offset
+                // Offset table: https://github.com/torvalds/linux/blob/master/drivers/hwmon/k10temp.c#L78
+                if (info.cpuName.Contains("2700X"))
+                    offset = -10.0f;
+                else if (info.cpuName.Contains("1600X") || info.cpuName.Contains("1700X") || info.cpuName.Contains("1800X"))
+                    offset = -20.0f;
+                else if (info.cpuName.Contains("Threadripper 19") || info.cpuName.Contains("Threadripper 29"))
+                    offset = -27.0f;
+
+                // THMx000[31:21] = CUR_TEMP, THMx000[19] = CUR_TEMP_RANGE_SEL
+                // Range sel = 0 to 255C (Temp = Tctl - offset)
+                float temperature = (thmData >> 21) * 0.125f + offset;
+
+                // Range sel = -49 to 206C (Temp = Tctl - offset - 49)
+                if ((thmData & THM_CUR_TEMP_RANGE_SEL_MASK) != 0)
+                    temperature -= 49.0f;
+
+                return temperature;
+            }
+
+            return null;
+        }
+
+        public float? GetSingleCcdTemperature(uint ccd)
+        {
+            uint thmData = 0;
+
+            if (ReadDwordEx(F17H_M70H_CCD_TEMP + (ccd * 0x4), ref thmData))
+            {
+                float ccdTemp = (thmData & 0xfff) * 0.125f - 305.0f;
+                if (ccdTemp > 0 && ccdTemp < 125) // Zen 2 reports 95 degrees C max, but it might exceed that.
+                    return ccdTemp;
+                return 0;
+            }
+
+            return null;
         }
 
         protected virtual void Dispose(bool disposing)
