@@ -594,13 +594,14 @@ namespace ZenStates.Core
         public SMU.Status DisableOcMode() => new SMUCommands.SetOcMode(smu).Execute(true).status;
         public SMU.Status SetPBOScalar(uint scalar) => new SMUCommands.SetPBOScalar(smu).Execute(scalar).status;
         public SMU.Status RefreshPowerTable() => powerTable.Refresh();
-        public int GetPsmMarginSingleCore(uint coreMask)
+        public int? GetPsmMarginSingleCore(uint coreMask)
         {
-            var cmd = new SMUCommands.GetPsmMarginSingleCore(smu);
-            cmd.Execute(coreMask);
-            return cmd.Margin;
+            SMUCommands.CmdResult result = new SMUCommands.GetPsmMarginSingleCore(smu).Execute(coreMask);
+            if (result.Success)
+                return (int)result.args[0];
+            return null;
         }
-        public int GetPsmMarginSingleCore(uint core, uint ccd, uint ccx) => GetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx));
+        public int? GetPsmMarginSingleCore(uint core, uint ccd, uint ccx) => GetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx));
         public bool SetPsmMarginAllCores(int margin) => new SMUCommands.SetPsmMarginAllCores(smu).Execute(margin).Success;
         public bool SetPsmMarginSingleCore(uint coreMask, int margin) => new SMUCommands.SetPsmMarginSingleCore(smu).Execute(coreMask, margin).Success;
         public bool SetPsmMarginSingleCore(uint core, uint ccd, uint ccx, int margin) => SetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx), margin);

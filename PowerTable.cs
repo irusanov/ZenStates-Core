@@ -181,6 +181,7 @@ namespace ZenStates.Core
                     break;
 
                 case SMU.SmuType.TYPE_APU1:
+                case SMU.SmuType.TYPE_APU2:
                     if ((tableVersion >> 16) == 0x37)
                         version = 0x11;
                     else

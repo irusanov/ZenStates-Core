@@ -13,7 +13,6 @@
                     // SummitRidge, PinnacleRidge, Colfax
                     case SMU.SmuType.TYPE_CPU0:
                     case SMU.SmuType.TYPE_CPU1:
-                        result.args = Utils.MakeCmdArgs();
                         result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress - 1, ref result.args);
                         if (!result.Success)
                             break;

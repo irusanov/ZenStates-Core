@@ -352,6 +352,10 @@ namespace ZenStates.Core
         {
             SMU_TYPE = SmuType.TYPE_CPU3;
 
+            Rsmu.SMU_MSG_SetDldoPsmMargin = 0xA;
+            Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0xB;
+            Rsmu.SMU_MSG_GetDldoPsmMargin = 0x7C;
+
             Mp1Smu.SMU_MSG_SetDldoPsmMargin = 0x35;
             Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0x36;
             Mp1Smu.SMU_MSG_GetDldoPsmMargin = 0x48;
@@ -431,7 +435,6 @@ namespace ZenStates.Core
             Rsmu.SMU_ADDR_RSP = 0x03B10A80;
             Rsmu.SMU_ADDR_ARG = 0x03B10A88;
 
-            //SMU_MSG_GetPBOScalar = 0xF;
             Rsmu.SMU_MSG_GetTableVersion = 0x6;
             Rsmu.SMU_MSG_TransferTableToDram = 0x65;
             Rsmu.SMU_MSG_GetDramBaseAddress = 0x66;
@@ -447,7 +450,7 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetEDCVDDLimit = 0x3A;
             Rsmu.SMU_MSG_SetEDCSOCLimit = 0x3B;
             Rsmu.SMU_MSG_SetPBOScalar = 0x3F;
-            Rsmu.SMU_MSG_GetPBOScalar = 0x0F;
+            Rsmu.SMU_MSG_GetPBOScalar = 0xF;
 
             // MP1
             Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
@@ -456,11 +459,29 @@ namespace ZenStates.Core
         }
     }
 
+    public class APUSettings1_Cezanne : APUSettings1
+    {
+        public APUSettings1_Cezanne()
+        {
+            Rsmu.SMU_MSG_SetDldoPsmMargin = 0x52;
+            Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0xB1;
+            Rsmu.SMU_MSG_GetDldoPsmMargin = 0xC3;
+            Rsmu.SMU_MSG_SetGpuPsmMargin = 0x53;
+            Rsmu.SMU_MSG_GetGpuPsmMargin = 0xC6;
+        }
+    }
+
     public class APUSettings2 : APUSettings1
     {
         public APUSettings2()
         {
             SMU_TYPE = SmuType.TYPE_APU2;
+
+            Rsmu.SMU_MSG_SetDldoPsmMargin = 0x53;
+            Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0x5D;
+            Rsmu.SMU_MSG_GetDldoPsmMargin = 0x2F;
+            Rsmu.SMU_MSG_SetGpuPsmMargin = 0xB7;
+            Rsmu.SMU_MSG_GetGpuPsmMargin = 0x30;
 
             // MP1
             // https://github.com/FlyGoat/RyzenAdj/blob/master/lib/nb_smu_ops.h#L45

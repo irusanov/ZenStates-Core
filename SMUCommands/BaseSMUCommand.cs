@@ -20,6 +20,10 @@ namespace ZenStates.Core.SMUCommands
         public virtual bool CanExecute() => smu != null;
         public virtual CmdResult Execute()
         {
+            // reset args to 0, to avoid getting the incoming parameter as a result in case of an error
+            if (!result.Success)
+                result.args = Utils.MakeCmdArgs();
+
             Dispose();
             return result;
         }
