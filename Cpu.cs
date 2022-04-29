@@ -9,6 +9,8 @@ namespace ZenStates.Core
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
 
+        public const string VENDOR_AMD = "AuthenticAMD";
+        public const string VENDOR_HYGON = "HygonGenuine";
         public const uint F17H_M01H_SVI = 0x0005A000;
         public const uint F17H_M60H_SVI = 0x0006F000; // Renoir only?
         public const uint F17H_M01H_SVI_TEL_PLANE0 = (F17H_M01H_SVI + 0xC);
@@ -88,6 +90,7 @@ namespace ZenStates.Core
             public Family family;
             public CodeName codeName;
             public string cpuName;
+            public string vendor;
             public PackageType packageType;
             public uint baseModel;
             public uint extModel;
@@ -131,11 +134,9 @@ namespace ZenStates.Core
 
             Opcode.Open();
 
-            uint ccdsPresent = 0, ccdsDown = 0, coreFuse = 0;
-            uint fuse1 = 0x5D218;
-            uint fuse2 = 0x5D21C;
-            uint offset = 0x238;
-            uint ccxPerCcd = 2;
+            info.vendor = GetVendor();
+            if (info.vendor != VENDOR_AMD && info.vendor != VENDOR_HYGON)
+                throw new Exception("Not an AMD CPU");
 
             if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
             {
@@ -185,6 +186,12 @@ namespace ZenStates.Core
             // Non-critical block
             try
             {
+                uint ccdsPresent = 0, ccdsDown = 0, coreFuse = 0;
+                uint fuse1 = 0x5D218;
+                uint fuse2 = 0x5D21C;
+                uint offset = 0x238;
+                uint ccxPerCcd = 2;
+
                 // Get CCD and CCX configuration
                 // https://gitlab.com/leogx9r/ryzen_smu/-/blob/master/userspace/monitor_cpu.c
                 if (info.family == Family.FAMILY_19H)
@@ -529,6 +536,13 @@ namespace ZenStates.Core
             return svi;
         }
 
+        public string GetVendor()
+        {
+            if (Opcode.Cpuid(0, 0, out uint _eax, out uint ebx, out uint ecx, out uint edx))
+                return Utils.IntToStr(ebx) + Utils.IntToStr(edx) + Utils.IntToStr(ecx);
+            return "";
+        }
+
         public string GetCpuName()
         {
             string model = "";
@@ -544,6 +558,7 @@ namespace ZenStates.Core
 
             return model.Trim();
         }
+
         public uint GetPatchLevel()
         {
             if (Ring0.Rdmsr(0x8b, out uint eax, out uint edx))
