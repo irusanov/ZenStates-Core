@@ -319,6 +319,16 @@ namespace ZenStates.Core
             Mp1Smu.SMU_ADDR_RSP = 0x3B1057C;
             Mp1Smu.SMU_ADDR_ARG = 0x3B109C4;
 
+            Mp1Smu.SMU_MSG_EnableOcMode = 0x24;
+            Mp1Smu.SMU_MSG_DisableOcMode = 0x25;
+            Mp1Smu.SMU_MSG_SetOverclockFrequencyPerCore = 0x27;
+            Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x28;
+            Mp1Smu.SMU_MSG_SetPBOScalar = 0x2F;
+            Mp1Smu.SMU_MSG_SetEDCVDDLimit = 0x3C;
+            Mp1Smu.SMU_MSG_SetTDCVDDLimit = 0x3B;
+            Mp1Smu.SMU_MSG_SetPPTLimit = 0x3D;
+            Mp1Smu.SMU_MSG_SetHTCLimit = 0x3E;
+
             // HSMP
             Hsmp.SMU_ADDR_MSG = 0x3B10534;
             Hsmp.SMU_ADDR_RSP = 0x3B10980;
@@ -413,6 +423,7 @@ namespace ZenStates.Core
             Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
             Mp1Smu.SMU_ADDR_RSP = 0x03B10564;
             Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
+
         }
     }
 
@@ -456,6 +467,13 @@ namespace ZenStates.Core
             Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
             Mp1Smu.SMU_ADDR_RSP = 0x03B10564;
             Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
+
+            Mp1Smu.SMU_MSG_EnableOcMode = 0x2F;
+            Mp1Smu.SMU_MSG_DisableOcMode = 0x30;
+            Mp1Smu.SMU_MSG_SetOverclockFrequencyPerCore = 0x32;
+            Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x33;
+            Mp1Smu.SMU_MSG_SetHTCLimit = 0x3E;
+            Mp1Smu.SMU_MSG_SetPBOScalar = 0x49;
         }
     }
 
