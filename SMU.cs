@@ -310,9 +310,10 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetTDCVDDLimit = 0x54;
             Rsmu.SMU_MSG_SetEDCVDDLimit = 0x55;
             Rsmu.SMU_MSG_SetHTCLimit = 0x56;
+            Rsmu.SMU_MSG_GetFastestCoreofSocket = 0x59;
             Rsmu.SMU_MSG_SetPBOScalar = 0x58;
             Rsmu.SMU_MSG_GetPBOScalar = 0x6C;
-            //Rsmu.ReadBoostLimit = 0x6E;
+            Rsmu.SMU_MSG_ReadBoostLimit = 0x6E;
 
             // MP1
             Mp1Smu.SMU_ADDR_MSG = 0x3B10530;
@@ -424,7 +425,7 @@ namespace ZenStates.Core
         }
     }
 
-    // Renoir, Cezanne
+    // Renoir, Cezanne, Rembrandt
     public class APUSettings1 : SMU
     {
         public APUSettings1()
@@ -471,11 +472,13 @@ namespace ZenStates.Core
         }
     }
 
-    public class APUSettings2 : APUSettings1
+    public class APUSettings1_Rembrandt : APUSettings1
     {
-        public APUSettings2()
+        public APUSettings1_Rembrandt()
         {
             SMU_TYPE = SmuType.TYPE_APU2;
+
+            Rsmu.SMU_MSG_SetPBOScalar = 0x3E;
 
             Rsmu.SMU_MSG_SetDldoPsmMargin = 0x53;
             Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0x5D;
@@ -521,8 +524,7 @@ namespace ZenStates.Core
 
             // Zen3
             { Cpu.CodeName.Vermeer, new Zen3Settings() },
-            // Chagall is unknown for now
-            { Cpu.CodeName.Chagall, new UnsupportedSettings() },
+            { Cpu.CodeName.Chagall, new Zen3Settings() },
             { Cpu.CodeName.Milan, new Zen3Settings() },
 
             // APU
@@ -533,10 +535,10 @@ namespace ZenStates.Core
 
             { Cpu.CodeName.Renoir, new APUSettings1() },
             { Cpu.CodeName.Lucienne, new APUSettings1() },
-            { Cpu.CodeName.Cezanne, new APUSettings1() },
+            { Cpu.CodeName.Cezanne, new APUSettings1_Cezanne() },
 
-            { Cpu.CodeName.VanGogh, new APUSettings2() },
-            { Cpu.CodeName.Rembrandt, new APUSettings2() },
+            { Cpu.CodeName.VanGogh, new APUSettings1() }, // experimental
+            { Cpu.CodeName.Rembrandt, new APUSettings1_Rembrandt() },
 
             { Cpu.CodeName.Unsupported, new UnsupportedSettings() },
         };
