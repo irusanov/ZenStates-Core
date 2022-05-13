@@ -84,6 +84,19 @@ namespace ZenStates.Core
             public uint socAddress;
         }
 
+        public struct CpuTopology
+        {
+            public uint ccds;
+            public uint ccxs;
+            public uint coresPerCcx;
+            public uint cores;
+            public uint logicalCores;
+            public uint physicalCores;
+            public uint threadsPerCore;
+            public uint cpuNodes;
+            public uint? coreDisableMap;
+        }
+
         public struct CPUInfo
         {
             public uint cpuid;
@@ -95,16 +108,8 @@ namespace ZenStates.Core
             public uint baseModel;
             public uint extModel;
             public uint model;
-            public uint ccds;
-            public uint ccxs;
-            public uint coresPerCcx;
-            public uint cores;
-            public uint logicalCores;
-            public uint physicalCores;
-            public uint threadsPerCore;
-            public uint cpuNodes;
             public uint patchLevel;
-            public uint coreDisableMap;
+            public CpuTopology topology;
             public SVI2 svi2;
         }
 
@@ -116,6 +121,83 @@ namespace ZenStates.Core
 
         public IOModule.LibStatus Status { get; }
         public Exception LastError { get; }
+
+        private CpuTopology GetCpuTopology(Family family, CodeName codeName, uint model)
+        {
+            CpuTopology topology = new CpuTopology();
+
+            if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
+                topology.logicalCores = Utils.GetBits(ebx, 16, 8);
+            else
+                throw new ApplicationException(InitializationExceptionText);
+
+            if (Opcode.Cpuid(0x8000001E, 0, out eax, out ebx, out ecx, out edx))
+            {
+                topology.threadsPerCore = Utils.GetBits(ebx, 8, 4) + 1;
+                topology.cpuNodes = (ecx >> 8 & 0x7) + 1;
+
+                if (topology.threadsPerCore == 0)
+                    topology.cores = topology.logicalCores;
+                else
+                    topology.cores = topology.logicalCores / topology.threadsPerCore;
+            }
+            else
+            {
+                throw new ApplicationException(InitializationExceptionText);
+            }
+
+            uint ccdsPresent = 0, ccdsDown = 0, coreFuse = 0;
+            uint fuse1 = 0x5D218;
+            uint fuse2 = 0x5D21C;
+            uint offset = 0x238;
+            uint ccxPerCcd = 2;
+
+            // Get CCD and CCX configuration
+            // https://gitlab.com/leogx9r/ryzen_smu/-/blob/master/userspace/monitor_cpu.c
+            if (family == Family.FAMILY_19H)
+            {
+                offset = 0x598;
+                ccxPerCcd = 1;
+            }
+            else if (family == Family.FAMILY_17H && model != 0x71 && model != 0x31)
+            {
+                fuse1 += 0x40;
+                fuse2 += 0x40;
+            }
+
+            if (!ReadDwordEx(fuse1, ref ccdsPresent) || !ReadDwordEx(fuse2, ref ccdsDown))
+                throw new ApplicationException("Could not read CCD fuse!");
+
+            uint ccdEnableMap = Utils.GetBits(ccdsPresent, 22, 8);
+            uint ccdDisableMap = Utils.GetBits(ccdsPresent, 30, 2) | (Utils.GetBits(ccdsDown, 0, 6) << 2);
+            uint coreDisableMapAddress = 0x30081800 + offset;
+
+            topology.ccds = Utils.CountSetBits(ccdEnableMap);
+            topology.ccxs = topology.ccds * ccxPerCcd;
+            topology.physicalCores = topology.ccxs * 8 / ccxPerCcd;
+
+            if (ReadDwordEx(coreDisableMapAddress, ref coreFuse))
+                topology.coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
+            else
+                throw new ApplicationException("Could not read core fuse!");
+
+            uint ccdOffset = 0;
+
+            for (int i = 0; i < topology.ccds; i++)
+            {
+                if (Utils.GetBits(ccdEnableMap, i, 1) == 1)
+                {
+                    if (ReadDwordEx(coreDisableMapAddress | ccdOffset, ref coreFuse))
+                        topology.coreDisableMap |= (coreFuse & 0xff) << i * 8;
+                    else
+                        throw new ApplicationException($"Could not read core fuse for CCD{i}!");
+                }
+
+                ccdOffset += 0x2000000;
+            }
+
+            return topology;
+        }
 
         public Cpu()
         {
@@ -145,7 +227,7 @@ namespace ZenStates.Core
                 info.baseModel = (eax & 0xf0) >> 4;
                 info.extModel = (eax & 0xf0000) >> 12;
                 info.model = info.baseModel + info.extModel;
-                info.logicalCores = Utils.GetBits(ebx, 16, 8);
+                // info.logicalCores = Utils.GetBits(ebx, 16, 8);
             }
             else
             {
@@ -168,73 +250,10 @@ namespace ZenStates.Core
 
             info.cpuName = GetCpuName();
 
-            if (Opcode.Cpuid(0x8000001E, 0, out eax, out ebx, out ecx, out edx))
-            {
-                info.threadsPerCore = Utils.GetBits(ebx, 8, 4) + 1;
-                info.cpuNodes = ecx >> 8 & 0x7 + 1;
-
-                if (info.threadsPerCore == 0)
-                    info.cores = info.logicalCores;
-                else
-                    info.cores = info.logicalCores / info.threadsPerCore;
-            }
-            else
-            {
-                throw new ApplicationException(InitializationExceptionText);
-            }
-
             // Non-critical block
             try
             {
-                uint ccdsPresent = 0, ccdsDown = 0, coreFuse = 0;
-                uint fuse1 = 0x5D218;
-                uint fuse2 = 0x5D21C;
-                uint offset = 0x238;
-                uint ccxPerCcd = 2;
-
-                // Get CCD and CCX configuration
-                // https://gitlab.com/leogx9r/ryzen_smu/-/blob/master/userspace/monitor_cpu.c
-                if (info.family == Family.FAMILY_19H)
-                {
-                    offset = 0x598;
-                    ccxPerCcd = 1;
-                }
-                else if (info.family == Family.FAMILY_17H && info.model != 0x71 && info.model != 0x31)
-                {
-                    fuse1 += 0x40;
-                    fuse2 += 0x40;
-                }
-
-                if (!ReadDwordEx(fuse1, ref ccdsPresent) || !ReadDwordEx(fuse2, ref ccdsDown))
-                    throw new ApplicationException("Could not read CCD fuse!");
-
-                uint ccdEnableMap = Utils.GetBits(ccdsPresent, 22, 8);
-                uint ccdDisableMap = Utils.GetBits(ccdsPresent, 30, 2) | (Utils.GetBits(ccdsDown, 0, 6) << 2);
-                uint coreDisableMapAddress = 0x30081800 + offset;
-
-                info.ccds = Utils.CountSetBits(ccdEnableMap);
-                info.ccxs = info.ccds * ccxPerCcd;
-                info.physicalCores = info.ccxs * 8 / ccxPerCcd;
-
-                if (ReadDwordEx(coreDisableMapAddress, ref coreFuse))
-                    info.coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
-                else
-                    throw new ApplicationException("Could not read core fuse!");
-
-                uint ccdOffset = 0;
-
-                for (int i = 0; i < info.ccds; i++)
-                {
-                    if (Utils.GetBits(ccdEnableMap, i, 1) == 1)
-                    {
-                        if (ReadDwordEx(coreDisableMapAddress | ccdOffset, ref coreFuse))
-                            info.coreDisableMap |= (coreFuse & 0xff) << i * 8;
-                        else
-                            throw new ApplicationException($"Could not read core fuse for CCD{i}!");
-                    }
-
-                    ccdOffset += 0x2000000;
-                }
+                info.topology = GetCpuTopology(info.family, info.codeName, info.model);
             }
             catch (Exception ex)
             {
@@ -341,7 +360,7 @@ namespace ZenStates.Core
         {
             bool res = true;
 
-            for (var i = 0; i < info.logicalCores; i++)
+            for (var i = 0; i < info.topology.logicalCores; i++)
             {
                 res = Ring0.WrmsrTx(msr, eax, edx, GroupAffinity.Single(0, i));
             }

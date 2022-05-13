@@ -56,14 +56,14 @@ namespace ZenStates.Core
         public uint Model => cpuInfo.model;
         public uint ExtendedModel => cpuInfo.extModel;
         public string PackageType => $"{cpuInfo.packageType} ({(int)cpuInfo.packageType})";
-        public int FusedCoreCount => (int)cpuInfo.cores;
-        public int PhysicalCoreCount => (int)cpuInfo.physicalCores;
-        public int NodesPerProcessor => (int)cpuInfo.cpuNodes;
-        public int Threads => (int)cpuInfo.logicalCores;
-        public bool SMT => (int)cpuInfo.threadsPerCore > 1;
-        public int CCDCount => (int)cpuInfo.ccds;
-        public int CCXCount => (int)cpuInfo.ccxs;
-        public int NumCoresInCCX => (int)cpuInfo.coresPerCcx;
+        public int FusedCoreCount => (int)cpuInfo.topology.cores;
+        public int PhysicalCoreCount => (int)cpuInfo.topology.physicalCores;
+        public int NodesPerProcessor => (int)cpuInfo.topology.cpuNodes;
+        public int Threads => (int)cpuInfo.topology.logicalCores;
+        public bool SMT => (int)cpuInfo.topology.threadsPerCore > 1;
+        public int CCDCount => (int)cpuInfo.topology.ccds;
+        public int CCXCount => (int)cpuInfo.topology.ccxs;
+        public int NumCoresInCCX => (int)cpuInfo.topology.coresPerCcx;
         public string MbVendor { get; private set; }
         public string MbName { get; private set; }
         public string BiosVersion { get; private set; }
