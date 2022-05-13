@@ -438,7 +438,7 @@ namespace ZenStates.Core
                     case 0x21:
                         codeName = CodeName.Vermeer;
                         break;
-                    case 0x40:
+                    case 0x44:
                         codeName = CodeName.Rembrandt;
                         break;
                     case 0x50:
