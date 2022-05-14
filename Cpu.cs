@@ -1,5 +1,6 @@
 using OpenHardwareMonitor.Hardware;
 using System;
+using System.Diagnostics;
 using System.IO;
 
 namespace ZenStates.Core
@@ -8,6 +9,23 @@ namespace ZenStates.Core
     {
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
+
+        private static ushort group0 = 0x0;
+        private static ulong bitmask0 = (1 << 0);
+        private GroupAffinity cpu0Affinity = new GroupAffinity(group0, bitmask0);
+        private double _estimatedTimeStampCounterFrequency;
+        private double _estimatedTimeStampCounterFrequencyError;
+        public bool HasTimeStampCounter;
+        public double TimeStampCounterFrequency;
+
+        public float ccd1Temp { get; private set; }
+        public float ccd2Temp { get; private set; }
+        public bool ccd1TempSupported { get; private set; }
+        public bool ccd2TempSupported { get; private set; }
+        public float cpuTemp { get; private set; }
+        public float cpuVcore { get; private set; }
+        public float cpuVsoc { get; private set; }
+        public float cpuBusClock { get; private set; }
 
         public const string VENDOR_AMD = "AuthenticAMD";
         public const string VENDOR_HYGON = "HygonGenuine";
@@ -26,6 +44,13 @@ namespace ZenStates.Core
         public const uint F17H_M70H_CCD_TEMP = 0x00059954;
         public const uint THM_CUR_TEMP = 0x00059800;
         public const uint THM_CUR_TEMP_RANGE_SEL_MASK = 0x80000;
+        public const uint F17H_PCI_CONTROL_REGISTER = 0x60;
+        public const uint MSR_PSTATE_0 = 0xC0010064;
+        public const uint MSR_PSTATE_CTL = 0xC0010062;
+        public const uint MSR_HWCR = 0xC0010015;
+        public const uint MSR_MPERF = 0x000000E7;
+        public const uint MSR_APERF = 0x000000E8;
+
 
         public enum Family
         {
@@ -234,6 +259,12 @@ namespace ZenStates.Core
                 throw new ApplicationException(InitializationExceptionText);
             }
 
+
+            if (Opcode.Cpuid(0x00000001, 0, out eax, out ebx, out ecx, out edx))
+            {
+                HasTimeStampCounter = (edx & 0x10) != 0;
+            }
+
             // Package type
             if (Opcode.Cpuid(0x80000001, 0, out eax, out ebx, out ecx, out edx))
             {
@@ -278,6 +309,40 @@ namespace ZenStates.Core
                 LastError = ex;
                 Status = IOModule.LibStatus.PARTIALLY_OK;
             }
+
+            try
+            {
+                if (HasTimeStampCounter)
+                {
+                    GroupAffinity previousAffinity = ThreadAffinity.Set(cpu0Affinity);
+                    EstimateTimeStampCounterFrequency(out _estimatedTimeStampCounterFrequency, out _estimatedTimeStampCounterFrequencyError);
+                    ThreadAffinity.Set(previousAffinity);
+                }
+                else
+                {
+                    _estimatedTimeStampCounterFrequency = 0;
+                }
+
+                TimeStampCounterFrequency = _estimatedTimeStampCounterFrequency;
+
+            }
+            catch (Exception ex)
+            {
+                LastError = ex;
+                Status = IOModule.LibStatus.PARTIALLY_OK;
+            }
+
+            ccd1Temp = 0;
+            ccd2Temp = 0;
+            ccd1TempSupported = false;
+            ccd2TempSupported = false;
+            cpuTemp = 0;
+            cpuVcore = 0;
+            cpuVsoc = 0;
+            cpuBusClock = 0;
+
+            RefreshSensors();
+
         }
 
         // [31-28] ccd index
@@ -671,51 +736,6 @@ namespace ZenStates.Core
             return (data & 1) == 1;
         }
 
-        public float? GetCpuTemperature()
-        {
-            uint thmData = 0;
-
-            if (ReadDwordEx(THM_CUR_TEMP, ref thmData))
-            {
-                float offset = 0.0f;
-
-                // Get tctl temperature offset
-                // Offset table: https://github.com/torvalds/linux/blob/master/drivers/hwmon/k10temp.c#L78
-                if (info.cpuName.Contains("2700X"))
-                    offset = -10.0f;
-                else if (info.cpuName.Contains("1600X") || info.cpuName.Contains("1700X") || info.cpuName.Contains("1800X"))
-                    offset = -20.0f;
-                else if (info.cpuName.Contains("Threadripper 19") || info.cpuName.Contains("Threadripper 29"))
-                    offset = -27.0f;
-
-                // THMx000[31:21] = CUR_TEMP, THMx000[19] = CUR_TEMP_RANGE_SEL
-                // Range sel = 0 to 255C (Temp = Tctl - offset)
-                float temperature = (thmData >> 21) * 0.125f + offset;
-
-                // Range sel = -49 to 206C (Temp = Tctl - offset - 49)
-                if ((thmData & THM_CUR_TEMP_RANGE_SEL_MASK) != 0)
-                    temperature -= 49.0f;
-
-                return temperature;
-            }
-
-            return null;
-        }
-
-        public float? GetSingleCcdTemperature(uint ccd)
-        {
-            uint thmData = 0;
-
-            if (ReadDwordEx(F17H_M70H_CCD_TEMP + (ccd * 0x4), ref thmData))
-            {
-                float ccdTemp = (thmData & 0xfff) * 0.125f - 305.0f;
-                if (ccdTemp > 0 && ccdTemp < 125) // Zen 2 reports 95 degrees C max, but it might exceed that.
-                    return ccdTemp;
-                return 0;
-            }
-
-            return null;
-        }
 
         protected virtual void Dispose(bool disposing)
         {
@@ -730,6 +750,195 @@ namespace ZenStates.Core
 
                 disposedValue = true;
             }
+        }
+        public bool RefreshSensors()
+        {
+
+            if (info.family != Family.FAMILY_17H && info.family != Family.FAMILY_19H) return false;
+
+            if (Ring0.WaitPciBusMutex(10))
+            {
+                GroupAffinity previousAffinity = ThreadAffinity.Set(cpu0Affinity);
+
+                Ring0.WritePciConfig(0x00, F17H_PCI_CONTROL_REGISTER, THM_CUR_TEMP);
+                Ring0.ReadPciConfig(0x00, F17H_PCI_CONTROL_REGISTER + 4, out uint temperature);
+
+                uint smuSvi0Tfn = 0;
+                uint smuSvi0TelPlane0 = 0;
+                uint smuSvi0TelPlane1 = 0;
+
+                Ring0.WritePciConfig(0x00, F17H_PCI_CONTROL_REGISTER, F17H_M01H_SVI + 0x8);
+                Ring0.ReadPciConfig(0x00, F17H_PCI_CONTROL_REGISTER + 4, out smuSvi0Tfn);
+
+                Ring0.WritePciConfig(0x00, F17H_PCI_CONTROL_REGISTER, info.svi2.coreAddress);
+                Ring0.ReadPciConfig(0x00, F17H_PCI_CONTROL_REGISTER + 4, out smuSvi0TelPlane0);
+
+                Ring0.WritePciConfig(0x00, F17H_PCI_CONTROL_REGISTER, info.svi2.socAddress);
+                Ring0.ReadPciConfig(0x00, F17H_PCI_CONTROL_REGISTER + 4, out smuSvi0TelPlane1);
+
+                for (int ccd = 0; ccd < 2; ccd++)
+                {
+                    Ring0.WritePciConfig(0x00, F17H_PCI_CONTROL_REGISTER, F17H_M70H_CCD_TEMP + ((uint)ccd * 0x4));
+                    Ring0.ReadPciConfig(0x00, F17H_PCI_CONTROL_REGISTER + 4, out uint ccdRawTemp);
+
+                    ccdRawTemp &= 0xFFF;
+                    float ccdTemp = ((ccdRawTemp * 125) - 305000) * 0.001f;
+                    if (ccd == 0)
+                    {
+                        if (ccdRawTemp > 0 && ccdTemp < 125) // Zen 2 reports 95 degrees C max, but it might exceed that.
+                        {
+                            ccd1Temp = ccdTemp;
+                            ccd1TempSupported = true;
+                        }
+                        else
+                        {
+                            ccd1Temp = 0;
+                            ccd1TempSupported = false;
+                        }
+                    }
+                    if (ccd == 1)
+                    {
+                        if (ccdRawTemp > 0 && ccdTemp < 125) // Zen 2 reports 95 degrees C max, but it might exceed that.
+                        {
+                            ccd2Temp = ccdTemp;
+                            ccd2TempSupported = true;
+                        }
+                        else
+                        {
+                            ccd2Temp = 0;
+                            ccd2TempSupported = false;
+                        }
+                    }
+                }
+
+                double timeStampCounterMultiplier = GetTimeStampCounterMultiplier();
+                if (timeStampCounterMultiplier > 0)
+                {
+                    cpuBusClock = (float)(TimeStampCounterFrequency / timeStampCounterMultiplier);
+                }
+                else
+                {
+                    cpuBusClock = 0;
+                }
+
+                Ring0.ReleasePciBusMutex();
+
+                ThreadAffinity.Set(previousAffinity);
+
+                // current temp Bit [31:21]
+                // If bit 19 of the Temperature Control register is set, there is an additional offset of 49 degrees C.
+                bool tempOffsetFlag = (temperature & THM_CUR_TEMP_RANGE_SEL_MASK) != 0;
+                temperature = (temperature >> 21) * 125;
+
+                float offset = 0.0f;
+
+                // Offset table: https://github.com/torvalds/linux/blob/master/drivers/hwmon/k10temp.c#L78
+
+                if (info.cpuName.Contains("2700X"))
+                    offset = -10.0f;
+                else if (info.cpuName.Contains("1600X") || info.cpuName.Contains("1700X") || info.cpuName.Contains("1800X"))
+                    offset = -20.0f;
+                else if (info.cpuName.Contains("Threadripper 19") || info.cpuName.Contains("Threadripper 29"))
+                    offset = -27.0f;
+
+                float t = temperature * 0.001f;
+                if (tempOffsetFlag)
+                    t += -49.0f;
+
+                cpuTemp = offset < 0 ? t + offset : t;
+
+                const double vidStep = 0.00625;
+                double vcc;
+                uint svi0PlaneXVddCor;
+
+                // Core (0x01)
+                if ((smuSvi0Tfn & 0x01) == 0)
+                {
+                    svi0PlaneXVddCor = (smuSvi0TelPlane0 >> 16) & 0xff;
+                    vcc = 1.550 - vidStep * svi0PlaneXVddCor;
+                    cpuVcore = (float)vcc;
+                }
+                else
+                {
+                    cpuVcore = 0;
+                }
+
+                // SoC (0x02)
+                if (info.model == 0x11 || info.model == 0x21 || info.model == 0x71 || info.model == 0x31 || (smuSvi0Tfn & 0x02) == 0)
+                {
+                    svi0PlaneXVddCor = (smuSvi0TelPlane1 >> 16) & 0xff;
+                    vcc = 1.550 - vidStep * svi0PlaneXVddCor;
+                    cpuVsoc = (float)vcc;
+                }
+                else
+                {
+                    cpuVsoc = 0;
+                }
+
+            }
+            return true;
+        }
+        private void EstimateTimeStampCounterFrequency(out double frequency, out double error)
+        {
+            // preload the function
+            EstimateTimeStampCounterFrequency(0, out double f, out double e);
+            EstimateTimeStampCounterFrequency(0, out f, out e);
+
+            // estimate the frequency
+            error = double.MaxValue;
+            frequency = 0;
+            for (int i = 0; i < 5; i++)
+            {
+                EstimateTimeStampCounterFrequency(0.025, out f, out e);
+                if (e < error)
+                {
+                    error = e;
+                    frequency = f;
+                }
+
+                if (error < 1e-4)
+                    break;
+            }
+        }
+        private static void EstimateTimeStampCounterFrequency(double timeWindow, out double frequency, out double error)
+        {
+            long ticks = (long)(timeWindow * Stopwatch.Frequency);
+
+            long timeBegin = Stopwatch.GetTimestamp() + (long)Math.Ceiling(0.001 * ticks);
+            long timeEnd = timeBegin + ticks;
+
+            while (Stopwatch.GetTimestamp() < timeBegin)
+            { }
+
+            ulong countBegin = Opcode.Rdtsc();
+            long afterBegin = Stopwatch.GetTimestamp();
+
+            while (Stopwatch.GetTimestamp() < timeEnd)
+            { }
+
+            ulong countEnd = Opcode.Rdtsc();
+            long afterEnd = Stopwatch.GetTimestamp();
+
+            double delta = timeEnd - timeBegin;
+            frequency = 1e-6 * ((double)(countEnd - countBegin) * Stopwatch.Frequency) / delta;
+
+            double beginError = (afterBegin - timeBegin) / delta;
+            double endError = (afterEnd - timeEnd) / delta;
+            error = beginError + endError;
+        }
+        private double GetTimeStampCounterMultiplier()
+        {
+            if (info.family == Family.FAMILY_17H)
+            {
+                uint ctlEax, ctlEdx;
+                Ring0.Rdmsr(MSR_PSTATE_CTL, out ctlEax, out ctlEdx);
+                Ring0.Wrmsr(MSR_PSTATE_CTL, ctlEax | (0 << 0) | (1 << 0), ctlEdx);
+            }
+
+            Ring0.Rdmsr(MSR_PSTATE_0, out uint eax, out _);
+            uint cpuDfsId = (eax >> 8) & 0x3f;
+            uint cpuFid = eax & 0xff;
+            return 2.0 * cpuFid / cpuDfsId;
         }
 
         public void Dispose()
