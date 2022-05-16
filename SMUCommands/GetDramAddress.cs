@@ -17,6 +17,7 @@
                         if (!result.Success)
                             break;
 
+                        // reset args
                         result.args = Utils.MakeCmdArgs();
                         result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref result.args);
                         if (!result.Success)
@@ -25,6 +26,7 @@
                         // save base address
                         uint address = result.args[0];
 
+                        // reset args
                         result.args = Utils.MakeCmdArgs();
                         result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress + 2, ref result.args);
                         
@@ -40,6 +42,7 @@
                     // Renoir, Cezanne, VanGogh, Rembrandt
                     case SMU.SmuType.TYPE_APU1:
                     case SMU.SmuType.TYPE_APU2:
+                        result.args = Utils.MakeCmdArgs(new uint[2] { 1, 1 });
                         result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress, ref result.args);
                         break;
 
