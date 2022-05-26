@@ -9,24 +9,6 @@ namespace ZenStates.Core
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
 
-        public const string VENDOR_AMD = "AuthenticAMD";
-        public const string VENDOR_HYGON = "HygonGenuine";
-        public const uint F17H_M01H_SVI = 0x0005A000;
-        public const uint F17H_M60H_SVI = 0x0006F000; // Renoir only?
-        public const uint F17H_M01H_SVI_TEL_PLANE0 = (F17H_M01H_SVI + 0xC);
-        public const uint F17H_M01H_SVI_TEL_PLANE1 = (F17H_M01H_SVI + 0x10);
-        public const uint F17H_M30H_SVI_TEL_PLANE0 = (F17H_M01H_SVI + 0x14);
-        public const uint F17H_M30H_SVI_TEL_PLANE1 = (F17H_M01H_SVI + 0x10);
-        public const uint F17H_M60H_SVI_TEL_PLANE0 = (F17H_M60H_SVI + 0x38);
-        public const uint F17H_M60H_SVI_TEL_PLANE1 = (F17H_M60H_SVI + 0x3C);
-        public const uint F17H_M70H_SVI_TEL_PLANE0 = (F17H_M01H_SVI + 0x10);
-        public const uint F17H_M70H_SVI_TEL_PLANE1 = (F17H_M01H_SVI + 0xC);
-        public const uint F19H_M21H_SVI_TEL_PLANE0 = (F17H_M01H_SVI + 0x10);
-        public const uint F19H_M21H_SVI_TEL_PLANE1 = (F17H_M01H_SVI + 0xC);
-        public const uint F17H_M70H_CCD_TEMP = 0x00059954;
-        public const uint THM_CUR_TEMP = 0x00059800;
-        public const uint THM_CUR_TEMP_RANGE_SEL_MASK = 0x80000;
-
         public enum Family
         {
             UNSUPPORTED = 0x0,
@@ -114,6 +96,7 @@ namespace ZenStates.Core
         }
 
         public readonly IOModule io = new IOModule();
+        private readonly ACPI_MMIO mmio;
         public readonly CPUInfo info;
         public readonly SystemInfo systemInfo;
         public readonly SMU smu;
@@ -215,9 +198,10 @@ namespace ZenStates.Core
             }
 
             Opcode.Open();
+            mmio = new ACPI_MMIO(io);
 
             info.vendor = GetVendor();
-            if (info.vendor != VENDOR_AMD && info.vendor != VENDOR_HYGON)
+            if (info.vendor != Constants.VENDOR_AMD && info.vendor != Constants.VENDOR_HYGON)
                 throw new Exception("Not an AMD CPU");
 
             if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
@@ -266,7 +250,7 @@ namespace ZenStates.Core
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
                 systemInfo = new SystemInfo(info, smu);
-                powerTable = new PowerTable(smu, io);
+                powerTable = new PowerTable(smu, io, mmio);
 
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
@@ -489,43 +473,43 @@ namespace ZenStates.Core
                 case CodeName.RavenRidge:
                 case CodeName.FireFlight:
                 case CodeName.Dali:
-                    svi.coreAddress = F17H_M01H_SVI_TEL_PLANE0;
-                    svi.socAddress = F17H_M01H_SVI_TEL_PLANE1;
+                    svi.coreAddress = Constants.F17H_M01H_SVI_TEL_PLANE0;
+                    svi.socAddress = Constants.F17H_M01H_SVI_TEL_PLANE1;
                     break;
 
                 // Zen Threadripper/EPYC
                 case CodeName.Whitehaven:
                 case CodeName.Naples:
                 case CodeName.Colfax:
-                    svi.coreAddress = F17H_M01H_SVI_TEL_PLANE1;
-                    svi.socAddress = F17H_M01H_SVI_TEL_PLANE0;
+                    svi.coreAddress = Constants.F17H_M01H_SVI_TEL_PLANE1;
+                    svi.socAddress = Constants.F17H_M01H_SVI_TEL_PLANE0;
                     break;
 
                 // Zen2 Threadripper/EPYC
                 case CodeName.CastlePeak:
                 case CodeName.Rome:
-                    svi.coreAddress = F17H_M30H_SVI_TEL_PLANE0;
-                    svi.socAddress = F17H_M30H_SVI_TEL_PLANE1;
+                    svi.coreAddress = Constants.F17H_M30H_SVI_TEL_PLANE0;
+                    svi.socAddress = Constants.F17H_M30H_SVI_TEL_PLANE1;
                     break;
 
                 // Picasso
                 case CodeName.Picasso:
                     if ((smu.Version & 0xFF000000) > 0)
                     {
-                        svi.coreAddress = F17H_M01H_SVI_TEL_PLANE0;
-                        svi.socAddress = F17H_M01H_SVI_TEL_PLANE1;
+                        svi.coreAddress = Constants.F17H_M01H_SVI_TEL_PLANE0;
+                        svi.socAddress = Constants.F17H_M01H_SVI_TEL_PLANE1;
                     }
                     else
                     {
-                        svi.coreAddress = F17H_M01H_SVI_TEL_PLANE1;
-                        svi.socAddress = F17H_M01H_SVI_TEL_PLANE0;
+                        svi.coreAddress = Constants.F17H_M01H_SVI_TEL_PLANE1;
+                        svi.socAddress = Constants.F17H_M01H_SVI_TEL_PLANE0;
                     }
                     break;
 
                 // Zen2
                 case CodeName.Matisse:
-                    svi.coreAddress = F17H_M70H_SVI_TEL_PLANE0;
-                    svi.socAddress = F17H_M70H_SVI_TEL_PLANE1;
+                    svi.coreAddress = Constants.F17H_M70H_SVI_TEL_PLANE0;
+                    svi.socAddress = Constants.F17H_M70H_SVI_TEL_PLANE1;
                     break;
 
                 // Zen2 APU, Zen3 APU ?
@@ -534,21 +518,21 @@ namespace ZenStates.Core
                 case CodeName.Cezanne:
                 case CodeName.VanGogh:
                 case CodeName.Rembrandt:
-                    svi.coreAddress = F17H_M60H_SVI_TEL_PLANE0;
-                    svi.socAddress = F17H_M60H_SVI_TEL_PLANE1;
+                    svi.coreAddress = Constants.F17H_M60H_SVI_TEL_PLANE0;
+                    svi.socAddress = Constants.F17H_M60H_SVI_TEL_PLANE1;
                     break;
 
                 // Zen3, Zen3 Threadripper/EPYC ?
                 case CodeName.Vermeer:
                 case CodeName.Chagall:
                 case CodeName.Milan:
-                    svi.coreAddress = F19H_M21H_SVI_TEL_PLANE0;
-                    svi.socAddress = F19H_M21H_SVI_TEL_PLANE1;
+                    svi.coreAddress = Constants.F19H_M21H_SVI_TEL_PLANE0;
+                    svi.socAddress = Constants.F19H_M21H_SVI_TEL_PLANE1;
                     break;
 
                 default:
-                    svi.coreAddress = F17H_M01H_SVI_TEL_PLANE0;
-                    svi.socAddress = F17H_M01H_SVI_TEL_PLANE1;
+                    svi.coreAddress = Constants.F17H_M01H_SVI_TEL_PLANE0;
+                    svi.socAddress = Constants.F17H_M01H_SVI_TEL_PLANE1;
                     break;
             }
 
@@ -616,6 +600,8 @@ namespace ZenStates.Core
 
         public bool SendTestMessage() => new SMUCommands.SendTestMessage(smu).Execute().Success;
         public uint GetSmuVersion() => new SMUCommands.GetSmuVersion(smu).Execute().args[0];
+        public double? GetBclk() => mmio.GetBclk();
+        public bool SetBclk(double blck) => mmio.SetBclk(blck);
         public SMU.Status TransferTableToDram() => new SMUCommands.TransferTableToDram(smu).Execute().status;
         public uint GetTableVersion() => new SMUCommands.GetTableVersion(smu).Execute().args[0];
         public uint GetDramBaseAddress() => new SMUCommands.GetDramAddress(smu).Execute().args[0];
@@ -675,7 +661,7 @@ namespace ZenStates.Core
         {
             uint thmData = 0;
 
-            if (ReadDwordEx(THM_CUR_TEMP, ref thmData))
+            if (ReadDwordEx(Constants.THM_CUR_TEMP, ref thmData))
             {
                 float offset = 0.0f;
 
@@ -693,7 +679,7 @@ namespace ZenStates.Core
                 float temperature = (thmData >> 21) * 0.125f + offset;
 
                 // Range sel = -49 to 206C (Temp = Tctl - offset - 49)
-                if ((thmData & THM_CUR_TEMP_RANGE_SEL_MASK) != 0)
+                if ((thmData & Constants.THM_CUR_TEMP_RANGE_SEL_MASK) != 0)
                     temperature -= 49.0f;
 
                 return temperature;
@@ -706,7 +692,7 @@ namespace ZenStates.Core
         {
             uint thmData = 0;
 
-            if (ReadDwordEx(F17H_M70H_CCD_TEMP + (ccd * 0x4), ref thmData))
+            if (ReadDwordEx(Constants.F17H_M70H_CCD_TEMP + (ccd * 0x4), ref thmData))
             {
                 float ccdTemp = (thmData & 0xfff) * 0.125f - 305.0f;
                 if (ccdTemp > 0 && ccdTemp < 125) // Zen 2 reports 95 degrees C max, but it might exceed that.

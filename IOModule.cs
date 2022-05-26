@@ -77,6 +77,7 @@ namespace ZenStates.Core
 
                 // Common
                 GetPhysLong = (_GetPhysLong)GetDelegate(ioModule, "GetPhysLong", typeof(_GetPhysLong));
+                SetPhysLong = (_SetPhysLong)GetDelegate(ioModule, "SetPhysLong", typeof(_SetPhysLong));
                 MapPhysToLin = (_MapPhysToLin)GetDelegate(ioModule, "MapPhysToLin", typeof(_MapPhysToLin));
                 UnmapPhysicalMemory = (_UnmapPhysicalMemory)GetDelegate(ioModule, "UnmapPhysicalMemory", typeof(_UnmapPhysicalMemory));
 
@@ -104,6 +105,9 @@ namespace ZenStates.Core
 
         public delegate bool _GetPhysLong(UIntPtr memAddress, out uint data);
         public readonly _GetPhysLong GetPhysLong;
+
+        public delegate bool _SetPhysLong(UIntPtr memAddress, uint data);
+        public readonly _SetPhysLong SetPhysLong;
 
         private delegate IntPtr _MapPhysToLin(IntPtr pbPhysAddr, uint dwPhysSize, out IntPtr pPhysicalMemoryHandle);
         private readonly _MapPhysToLin MapPhysToLin;

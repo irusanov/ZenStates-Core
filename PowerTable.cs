@@ -8,6 +8,7 @@ namespace ZenStates.Core
     {
         private readonly IOModule io;
         private readonly SMU smu;
+        private readonly ACPI_MMIO mmio;
         private readonly PTDef tableDef;
         public readonly uint DramBaseAddress;
         public readonly int TableSize;
@@ -204,10 +205,11 @@ namespace ZenStates.Core
             return GetDefaultTableDef(tableVersion, smutype);
         }
 
-        public PowerTable(SMU smuInstance, IOModule ioInstance)
+        public PowerTable(SMU smuInstance, IOModule ioInstance, ACPI_MMIO mmio)
         {
-            smu = smuInstance;
-            io = ioInstance;
+            this.smu = smuInstance;
+            this.io = ioInstance;
+            this.mmio = mmio;
             DramBaseAddress = new SMUCommands.GetDramAddress(smu).Execute().args[0];
 
             if (DramBaseAddress == 0)
@@ -230,11 +232,15 @@ namespace ZenStates.Core
             if (pt == null)
                 return;
 
-            float bclkCorrection = 1.00f;
+            float bclkCorrection = 1.0f;
+            double? bclk = mmio.GetBclk();
+
+            if (bclk != null)
+                bclkCorrection = (float)bclk / 100.0f;
 
             // Compensate for lack of BCLK detection, based on configuredClockSpeed
-            if (ConfiguredClockSpeed > 0 && MemRatio > 0)
-                bclkCorrection = ConfiguredClockSpeed / (MemRatio * 200);
+            /*if (ConfiguredClockSpeed > 0 && MemRatio > 0)
+                bclkCorrection = ConfiguredClockSpeed / (MemRatio * 200);*/
 
             MCLK = GetDiscreteValue(pt, tableDef.offsetMclk) * bclkCorrection;
             FCLK = GetDiscreteValue(pt, tableDef.offsetFclk) * bclkCorrection;
