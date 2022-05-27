@@ -29,7 +29,7 @@
                         // reset args
                         result.args = Utils.MakeCmdArgs();
                         result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetDramBaseAddress + 2, ref result.args);
-                        
+
                         // restore base address
                         if (result.Success)
                             result.args = Utils.MakeCmdArgs(address);

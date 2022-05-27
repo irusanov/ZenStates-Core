@@ -17,7 +17,9 @@ namespace ZenStates.Core
         internal const uint MISC_ClkCntl1 = MISC_BASE + 0x40;
 
         private readonly IOModule io;
-        public ACPI_MMIO(IOModule io) {
+
+        public ACPI_MMIO(IOModule io)
+        {
             this.io = io;
         }
 
@@ -37,8 +39,7 @@ namespace ZenStates.Core
         {
             if (index < 32)
                 return index ^ 100;
-            else
-                return index ^ 164;
+            return index ^ 164;
         }
 
         private bool DisableSpreadSpectrum()
@@ -67,6 +68,7 @@ namespace ZenStates.Core
             {
                 int index = CalculateBclkIndex((int)bclk);
                 uint fraction = (uint)((bclk - (int)bclk) / 0.0625);
+
                 if (fraction > 15)
                     fraction = 15;
 
