@@ -7,8 +7,8 @@
     <Company>irusanov</Company>
     <Product>ZenStates.Core</Product>
     <Copyright>Copyright © 2022</Copyright>
-    <AssemblyVersion>1.6.3.0</AssemblyVersion>
-    <FileVersion>1.6.3.0</FileVersion>
+    <AssemblyVersion>1.6.4.0</AssemblyVersion>
+    <FileVersion>1.6.4.0</FileVersion>
     <OutputPath>bin\$(Configuration)\</OutputPath>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
@@ -62,6 +62,6 @@
     <PackageReference Include="System.Threading.AccessControl" Version="6.0.0" />
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy /s /d /y &quot;$(ProjectDir)External\InpOut\x64\inpoutx64.dll&quot; &quot;$(OutDir)&quot;&#xD;&#xA;xcopy /s /d /y &quot;$(ProjectDir)External\WinIo\WinIo32.dll&quot; &quot;$(OutDir)&quot;&#xD;&#xA;xcopy /s /d /y &quot;$(ProjectDir)External\WinIo\WinIo32.sys&quot; &quot;$(OutDir)&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\InpOut\license.txt&quot; &quot;$(OutDir)\InpOut.LICENSE.txt&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\WinIo\LICENSE.txt&quot; &quot;$(OutDir)WinIo32.LICENSE.txt&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\WinRing0\LICENSE.txt&quot; &quot;$(OutDir)WinRing0.LICENSE.txt&quot;" />
+    <Exec Command="xcopy /s /d /y &quot;$(ProjectDir)External\InpOut\x64\inpoutx64.dll&quot; &quot;$(OutDir)..\&quot;&#xD;&#xA;xcopy /s /d /y &quot;$(ProjectDir)External\WinIo\WinIo32.dll&quot; &quot;$(OutDir)..\&quot;&#xD;&#xA;xcopy /s /d /y &quot;$(ProjectDir)External\WinIo\WinIo32.sys&quot; &quot;$(OutDir)..\&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\InpOut\license.txt&quot; &quot;$(OutDir)..\InpOut.LICENSE.txt&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\WinIo\LICENSE.txt&quot; &quot;$(OutDir)..\WinIo32.LICENSE.txt&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\WinRing0\LICENSE.txt&quot; &quot;$(OutDir)..\WinRing0.LICENSE.txt&quot;" />
   </Target>
 </Project>
