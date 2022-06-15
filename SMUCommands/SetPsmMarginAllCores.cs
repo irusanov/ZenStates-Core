@@ -7,12 +7,21 @@
     internal class SetPsmMarginAllCores : BaseSMUCommand
     {
         public SetPsmMarginAllCores(SMU smu) : base(smu) { }
+
+        public override bool CanExecute()
+        {
+            return smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin > 0 || smu.Rsmu.SMU_MSG_SetAllDldoPsmMargin > 0;
+        }
+
         public CmdResult Execute(int margin)
         {
             if (CanExecute())
             {
                 result.args[0] = Utils.MakePsmMarginArg(margin);
-                result.status = smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin, ref result.args);
+                if (smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin > 0)
+                    result.status = smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin, ref result.args);
+                else
+                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetAllDldoPsmMargin, ref result.args);
             }
 
             return base.Execute();

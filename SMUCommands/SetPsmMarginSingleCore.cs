@@ -11,13 +11,22 @@
     internal class SetPsmMarginSingleCore : BaseSMUCommand
     {
         public SetPsmMarginSingleCore(SMU smu) : base(smu) { }
+
+        public override bool CanExecute()
+        {
+            return smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin > 0 || smu.Rsmu.SMU_MSG_SetDldoPsmMargin > 0;
+        }
+
         public CmdResult Execute(uint coreMask, int margin)
         {
             if (CanExecute())
             {
                 uint m = Utils.MakePsmMarginArg(margin);
                 result.args[0] = (coreMask & 0xfff00000) | m;
-                result.status = smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin, ref result.args);
+                if (smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin > 0)
+                    result.status = smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin, ref result.args);
+                else
+                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetDldoPsmMargin, ref result.args);
             }
 
             return base.Execute();
