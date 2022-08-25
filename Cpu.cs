@@ -435,12 +435,11 @@ namespace ZenStates.Core
             {
                 switch (cpuInfo.model)
                 {
-                    // Does Chagall (Zen3 TR) has different model number than Milan?
                     case 0x1:
-                        if (cpuInfo.packageType == PackageType.TRX)
-                            codeName = CodeName.Chagall;
-                        else
-                            codeName = CodeName.Milan;
+                        codeName = CodeName.Milan;
+                        break;
+                    case 0x8:
+                        codeName = CodeName.Chagall;
                         break;
                     case 0x21:
                         codeName = CodeName.Vermeer;
