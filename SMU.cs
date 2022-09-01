@@ -23,6 +23,7 @@ namespace ZenStates.Core
             TYPE_CPU1 = 0x1,
             TYPE_CPU2 = 0x2,
             TYPE_CPU3 = 0x3,
+            TYPE_CPU4 = 0x4,
             TYPE_CPU9 = 0x9,
             TYPE_APU0 = 0x10,
             TYPE_APU1 = 0x11,
@@ -511,6 +512,14 @@ namespace ZenStates.Core
         }
     }
 
+    public class Zen4Settings: SMU
+    {
+        public Zen4Settings()
+        {
+            SMU_TYPE = SmuType.TYPE_CPU3;
+        }
+    }
+
     public class UnsupportedSettings : SMU
     {
         public UnsupportedSettings()
@@ -543,6 +552,9 @@ namespace ZenStates.Core
             { Cpu.CodeName.Vermeer, new Zen3Settings() },
             { Cpu.CodeName.Chagall, new Zen3Settings() },
             { Cpu.CodeName.Milan, new Zen3Settings() },
+
+            // Zen4
+            { Cpu.CodeName.Raphael, new Zen4Settings() },
 
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },

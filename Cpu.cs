@@ -43,6 +43,7 @@ namespace ZenStates.Core
             Cezanne,
             Rembrandt,
             Lucienne,
+            Raphael,
         };
 
 
@@ -450,6 +451,9 @@ namespace ZenStates.Core
                     case 0x50:
                         codeName = CodeName.Cezanne;
                         break;
+                    case 0x61:
+                        codeName = CodeName.Raphael;
+                        break;
 
                     default:
                         codeName = CodeName.Unsupported;
@@ -529,6 +533,7 @@ namespace ZenStates.Core
                 case CodeName.Vermeer:
                 case CodeName.Chagall:
                 case CodeName.Milan:
+                case CodeName.Raphael: // Unknown
                     svi.coreAddress = Constants.F19H_M21H_SVI_TEL_PLANE0;
                     svi.socAddress = Constants.F19H_M21H_SVI_TEL_PLANE1;
                     break;
