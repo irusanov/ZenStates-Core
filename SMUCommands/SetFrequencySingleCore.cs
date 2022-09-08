@@ -9,7 +9,11 @@
             {
                 result.args[0] = coreMask | frequency & 0xfffff;
                 // TODO: Add Manual OC mode
-                result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetOverclockFrequencyPerCore, ref result.args);
+                uint cmd = smu.Rsmu.SMU_MSG_SetOverclockFrequencyPerCore;
+                if (cmd != 0)
+                    result.status = smu.SendRsmuCommand(cmd, ref result.args);
+                else
+                    result.status = smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetOverclockFrequencyPerCore, ref result.args);
             }
 
             return base.Execute();
