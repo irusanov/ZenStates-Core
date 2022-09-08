@@ -118,7 +118,7 @@ namespace ZenStates.Core
             if (Opcode.Cpuid(0x8000001E, 0, out eax, out ebx, out ecx, out edx))
             {
                 topology.threadsPerCore = Utils.GetBits(ebx, 8, 4) + 1;
-                topology.cpuNodes = (ecx >> 8 & 0x7) + 1;
+                topology.cpuNodes = ((ecx >> 8) & 0x7) + 1;
 
                 if (topology.threadsPerCore == 0)
                     topology.cores = topology.logicalCores;
@@ -154,8 +154,9 @@ namespace ZenStates.Core
                 uint ccdEnableMap = Utils.GetBits(ccdsPresent, 22, 8);
                 uint ccdDisableMap = Utils.GetBits(ccdsPresent, 30, 2) | (Utils.GetBits(ccdsDown, 0, 6) << 2);
                 uint coreDisableMapAddress = 0x30081800 + offset;
+                uint enabledCcd = Utils.CountSetBits(ccdEnableMap);
 
-                topology.ccds = Utils.CountSetBits(ccdEnableMap);
+                topology.ccds = enabledCcd > 0 ? enabledCcd : 1;
                 topology.ccxs = topology.ccds * ccxPerCcd;
                 topology.physicalCores = topology.ccxs * 8 / ccxPerCcd;
 
@@ -178,7 +179,7 @@ namespace ZenStates.Core
 
                     ccdOffset += 0x2000000;
                 }
-            } 
+            }
             else
             {
                 Console.WriteLine("Could not read CCD fuse!");
