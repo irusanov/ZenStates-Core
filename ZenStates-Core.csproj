@@ -7,7 +7,7 @@
     <Company>irusanov</Company>
     <Product>ZenStates.Core</Product>
     <Copyright>Copyright © 2022</Copyright>
-    <AssemblyVersion>1.6.4.0</AssemblyVersion>
+    <AssemblyVersion>1.6.5.0</AssemblyVersion>
     <FileVersion>1.6.4.0</FileVersion>
     <OutputPath>bin\$(Configuration)\</OutputPath>
   </PropertyGroup>

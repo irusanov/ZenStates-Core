@@ -9,6 +9,7 @@
             {
                 result.args[0] = frequency & 0xfffff;
                 // TODO: Add Manual OC mode
+                // TODO: Add lo and hi frequency limits
                 uint cmd = smu.Rsmu.SMU_MSG_SetOverclockFrequencyAllCores;
                 if (cmd != 0)
                     result.status = smu.SendRsmuCommand(cmd, ref result.args);

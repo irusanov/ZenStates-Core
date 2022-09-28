@@ -142,6 +142,8 @@ namespace ZenStates.Core
             {
                 offset = 0x598;
                 ccxPerCcd = 1;
+                fuse1 += 0x1A4;
+                fuse2 += 0x1A4;
             }
             else if (family == Family.FAMILY_17H && model != 0x71 && model != 0x31)
             {
