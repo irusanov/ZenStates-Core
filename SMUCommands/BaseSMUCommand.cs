@@ -4,11 +4,11 @@ namespace ZenStates.Core.SMUCommands
 {
     internal abstract class BaseSMUCommand : IDisposable
     {
-        internal SMU smu = null;
+        internal SMU smu;
         internal CmdResult result;
         private bool disposedValue;
 
-        public BaseSMUCommand(SMU smuInstance)
+        protected BaseSMUCommand(SMU smuInstance)
         {
             if (smuInstance != null)
             {
