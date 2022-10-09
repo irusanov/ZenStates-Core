@@ -75,7 +75,7 @@ namespace ZenStates.Core
 
         public static uint[] MakeCmdArgs(uint[] args)
         {
-            uint[] cmdArgs = new uint[6];
+            uint[] cmdArgs = { 0, 0, 0, 0, 0, 0 };
             int length = args.Length > 6 ? 6 : args.Length;
 
             for (int i = 0; i < length; i++)
@@ -86,7 +86,7 @@ namespace ZenStates.Core
 
         public static uint[] MakeCmdArgs(uint arg = 0)
         {
-            return MakeCmdArgs(new uint[1] { arg });
+            return MakeCmdArgs(new uint[] { arg });
         }
 
         // CO margin range seems to be from -30 to 30

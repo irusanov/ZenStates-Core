@@ -621,6 +621,7 @@ namespace ZenStates.Core
         public SMU.Status SetEDCSOCLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetEDCSOCLimit, arg).status;
         public SMU.Status SetTDCVDDLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetTDCVDDLimit, arg).status;
         public SMU.Status SetTDCSOCLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetTDCSOCLimit, arg).status;
+        public SMU.Status SetOverclockCpuVid(byte arg) => new SMUCommands.SetOverclockCpuVid(smu).Execute(arg).status;
         public SMU.Status EnableOcMode() => new SMUCommands.SetOcMode(smu).Execute(true).status;
         public SMU.Status DisableOcMode() => new SMUCommands.SetOcMode(smu).Execute(false).status;
         public SMU.Status SetPBOScalar(uint scalar) => new SMUCommands.SetPBOScalar(smu).Execute(scalar).status;
@@ -628,9 +629,7 @@ namespace ZenStates.Core
         public int? GetPsmMarginSingleCore(uint coreMask)
         {
             SMUCommands.CmdResult result = new SMUCommands.GetPsmMarginSingleCore(smu).Execute(coreMask);
-            if (result.Success)
-                return (int)result.args[0];
-            return null;
+            return result.Success ? (int)result.args[0] : (int?)null;
         }
         public int? GetPsmMarginSingleCore(uint core, uint ccd, uint ccx) => GetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx));
         public bool SetPsmMarginAllCores(int margin) => new SMUCommands.SetPsmMarginAllCores(smu).Execute(margin).Success;
