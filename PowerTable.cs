@@ -207,9 +207,9 @@ namespace ZenStates.Core
 
         public PowerTable(SMU smuInstance, IOModule ioInstance, ACPI_MMIO mmio)
         {
-            this.smu = smuInstance;
-            this.io = ioInstance;
-            this.mmio = mmio;
+            this.smu = smuInstance ?? throw new ArgumentNullException(nameof(smuInstance));
+            this.io = ioInstance ?? throw new ArgumentNullException(nameof(ioInstance));
+            this.mmio = mmio ?? throw new ArgumentNullException(nameof(mmio));
             DramBaseAddress = new SMUCommands.GetDramAddress(smu).Execute().args[0];
 
             if (DramBaseAddress == 0)

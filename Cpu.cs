@@ -625,7 +625,7 @@ namespace ZenStates.Core
         public SMU.Status EnableOcMode() => new SMUCommands.SetOcMode(smu).Execute(true).status;
         public SMU.Status DisableOcMode() => new SMUCommands.SetOcMode(smu).Execute(false).status;
         public SMU.Status SetPBOScalar(uint scalar) => new SMUCommands.SetPBOScalar(smu).Execute(scalar).status;
-        public SMU.Status RefreshPowerTable() => powerTable.Refresh();
+        public SMU.Status RefreshPowerTable() => powerTable != null ? powerTable.Refresh() : SMU.Status.FAILED;
         public int? GetPsmMarginSingleCore(uint coreMask)
         {
             SMUCommands.CmdResult result = new SMUCommands.GetPsmMarginSingleCore(smu).Execute(coreMask);
