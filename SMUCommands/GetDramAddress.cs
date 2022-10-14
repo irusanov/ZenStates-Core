@@ -39,6 +39,7 @@
                     // Matisse, CastlePeak, Rome, Vermeer, Chagall?, Milan?
                     case SMU.SmuType.TYPE_CPU2:
                     case SMU.SmuType.TYPE_CPU3:
+                    case SMU.SmuType.TYPE_CPU4:
                     // Renoir, Cezanne, VanGogh, Rembrandt
                     case SMU.SmuType.TYPE_APU1:
                     case SMU.SmuType.TYPE_APU2:

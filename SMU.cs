@@ -380,7 +380,7 @@ namespace ZenStates.Core
     {
         public Zen4Settings()
         {
-            SMU_TYPE = SmuType.TYPE_CPU3;
+            SMU_TYPE = SmuType.TYPE_CPU4;
 
             // RSMU
             Rsmu.SMU_ADDR_MSG = 0x03B10524;

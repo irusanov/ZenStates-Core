@@ -146,6 +146,11 @@ namespace ZenStates.Core
             { 0x380905, 0x5D0, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, 0x2B0 },
             // Generic Zen 3 CPU (latest known)
             { 0x000300, 0x948, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, -1 },
+
+            // Zen4
+            { 0x540104, 0x6A8, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, 0x5B4 },
+            // Generic Zen4
+            { 0x000400, 0x948, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, 0x5B4 },
         };
 
         private PTDef GetDefByVersion(uint version)
@@ -179,6 +184,10 @@ namespace ZenStates.Core
 
                 case SMU.SmuType.TYPE_CPU3:
                     version = 0x300;
+                    break;
+
+                case SMU.SmuType.TYPE_CPU4:
+                    version = 0x400;
                     break;
 
                 case SMU.SmuType.TYPE_APU0:

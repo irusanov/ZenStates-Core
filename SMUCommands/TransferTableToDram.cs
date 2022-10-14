@@ -13,6 +13,7 @@
                     result.args[0] = 3;
                 }
 */
+
                 result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_TransferTableToDram, ref result.args);
             }
 
