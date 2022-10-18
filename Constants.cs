@@ -14,6 +14,8 @@
         internal const uint F17H_M60H_SVI_TEL_PLANE1 = (F17H_M60H_SVI + 0x3C);
         internal const uint F17H_M70H_SVI_TEL_PLANE0 = (F17H_M01H_SVI + 0x10);
         internal const uint F17H_M70H_SVI_TEL_PLANE1 = (F17H_M01H_SVI + 0xC);
+        internal const uint F19H_M01H_SVI_TEL_PLANE0 = (F17H_M01H_SVI + 0x10);
+        internal const uint F19H_M01H_SVI_TEL_PLANE1 = (F17H_M01H_SVI + 0x14);
         internal const uint F19H_M21H_SVI_TEL_PLANE0 = (F17H_M01H_SVI + 0x10);
         internal const uint F19H_M21H_SVI_TEL_PLANE1 = (F17H_M01H_SVI + 0xC);
         internal const uint F17H_M70H_CCD_TEMP = 0x00059954;

@@ -537,11 +537,14 @@ namespace ZenStates.Core
 
                 // Zen3, Zen3 Threadripper/EPYC ?
                 case CodeName.Vermeer:
-                case CodeName.Chagall:
-                case CodeName.Milan:
                 case CodeName.Raphael: // Unknown
                     svi.coreAddress = Constants.F19H_M21H_SVI_TEL_PLANE0;
                     svi.socAddress = Constants.F19H_M21H_SVI_TEL_PLANE1;
+                    break;
+                case CodeName.Chagall:
+                case CodeName.Milan:
+                    svi.coreAddress = Constants.F19H_M01H_SVI_TEL_PLANE0;
+                    svi.socAddress = Constants.F19H_M01H_SVI_TEL_PLANE1;
                     break;
 
                 default:
