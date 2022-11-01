@@ -144,6 +144,7 @@ namespace ZenStates.Core
                 ccxPerCcd = 1;
                 if (codeName == CodeName.Raphael)
                 {
+                    offset = 0x4D0;
                     fuse1 += 0x1A4;
                     fuse2 += 0x1A4;
                 }
