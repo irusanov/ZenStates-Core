@@ -91,12 +91,13 @@ namespace ZenStates.Core
 
         // CO margin range seems to be from -30 to 30
         // Margin arg seems to be 16 bits (lowest 16 bits of the command arg)
+        // Update 01 Nov 2022 - the range is different on Raphael, -40 is successfully set
         public static uint MakePsmMarginArg(int margin)
         {
-            if (margin > 30)
-                margin = 30;
-            else if (margin < -30)
-                margin = -30;
+            // if (margin > 30)
+            //     margin = 30;
+            // else if (margin < -30)
+            //     margin = -30;
 
             int offset = margin < 0 ? 0x100000 : 0;
             return Convert.ToUInt32(offset + margin) & 0xffff;
