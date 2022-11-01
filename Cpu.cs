@@ -1,6 +1,7 @@
 using OpenHardwareMonitor.Hardware;
 using System;
 using System.IO;
+using ZenStates.Core.DRAM;
 
 namespace ZenStates.Core
 {
@@ -102,9 +103,29 @@ namespace ZenStates.Core
         public readonly SystemInfo systemInfo;
         public readonly SMU smu;
         public readonly PowerTable powerTable;
+        public readonly MemoryConfig memoryConfig;
 
         public IOModule.LibStatus Status { get; }
         public Exception LastError { get; }
+
+        /**
+         * Core fuse
+         * CastlePeak: 0x30081A38
+         * Cezanne: 0x5D449
+         * Chagall: 0x30081D98
+         * Colfax: 0x5D25C
+         * Matisse: 0x30081A38
+         * Picasso: 0x5D254
+         * Pinnacle: 0x5D25C
+         * Raphael: 0x30081CD0
+         * Raven2: 0x5D254
+         * Raven:  0x5D254
+         * Rembrandt: 0x5D4DC
+         * Renoir: 0x5D3E8
+         * Summit: 0x5D25C
+         * Threadripper: 0x5D25C
+         * Vermeer: 0x30081D98
+         */
 
         private CpuTopology GetCpuTopology(Family family, CodeName codeName, uint model)
         {
@@ -274,6 +295,8 @@ namespace ZenStates.Core
                 LastError = ex;
                 Status = IOModule.LibStatus.PARTIALLY_OK;
             }
+
+            memoryConfig = new MemoryConfig(this);
         }
 
         // [31-28] ccd index
@@ -433,10 +456,6 @@ namespace ZenStates.Core
                     case 0x90:
                         codeName = CodeName.VanGogh;
                         break;
-
-                    default:
-                        codeName = CodeName.Unsupported;
-                        break;
                 }
             }
             else if (cpuInfo.family == Family.FAMILY_19H)
@@ -460,10 +479,6 @@ namespace ZenStates.Core
                         break;
                     case 0x61:
                         codeName = CodeName.Raphael;
-                        break;
-
-                    default:
-                        codeName = CodeName.Unsupported;
                         break;
                 }
             }
@@ -719,6 +734,8 @@ namespace ZenStates.Core
 
             return null;
         }
+
+        public MemoryConfig GetMemoryConfig() => memoryConfig;
 
         protected virtual void Dispose(bool disposing)
         {

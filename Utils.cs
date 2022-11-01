@@ -16,6 +16,12 @@ namespace ZenStates.Core
             return (val >> offset) & ~(~0U << n);
         }
 
+        public static uint BitSlice(uint val, int hi, int lo)
+        {
+            uint mask = (2U << hi - lo) - 1U;
+            return val >> lo & mask;
+        }
+
         public static uint CountSetBits(uint v)
         {
             uint result = 0;
@@ -29,6 +35,12 @@ namespace ZenStates.Core
             }
 
             return result;
+        }
+
+        // https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/blob/master/LibreHardwareMonitorLib/Hardware/SMBios.cs#L918
+        public static bool IsBitSet(byte b, int pos)
+        {
+            return (b & (1 << pos)) != 0;
         }
 
         public static string GetStringPart(uint val)
