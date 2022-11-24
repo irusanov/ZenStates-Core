@@ -623,6 +623,11 @@ namespace ZenStates.Core
         public SMU.Status TransferTableToDram() => new SMUCommands.TransferTableToDram(smu).Execute().status;
         public uint GetTableVersion() => new SMUCommands.GetTableVersion(smu).Execute().args[0];
         public uint GetDramBaseAddress() => new SMUCommands.GetDramAddress(smu).Execute().args[0];
+        public long GetDramBaseAddress64()
+        {
+            SMUCommands.CmdResult result = new SMUCommands.GetDramAddress(smu).Execute();
+            return (long)result.args[1] << 32 | result.args[0];
+        }
         public SMU.Status SetPPTLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetPPTLimit, arg).status;
         public SMU.Status SetEDCVDDLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetEDCVDDLimit, arg).status;
         public SMU.Status SetEDCSOCLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetEDCSOCLimit, arg).status;
