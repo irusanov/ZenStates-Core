@@ -51,6 +51,11 @@ namespace ZenStates.Core
             return 1.55 - vid * 0.00625;
         }
 
+        public static double VidToVoltageSVI3(uint vid)
+        {
+            return 0.245 + vid * 0.005;
+        }
+
         private static bool CheckAllZero<T>(ref T[] typedArray)
         {
             if (typedArray == null)

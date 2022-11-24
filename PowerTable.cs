@@ -10,7 +10,8 @@ namespace ZenStates.Core
         private readonly SMU smu;
         private readonly ACPI_MMIO mmio;
         private readonly PTDef tableDef;
-        public readonly long DramBaseAddress64;
+        private readonly uint DramBaseAddressLo;
+        private readonly uint DramBaseAddressHi;
         public readonly uint DramBaseAddress;
         public readonly int TableSize;
 
@@ -221,14 +222,13 @@ namespace ZenStates.Core
             this.io = ioInstance ?? throw new ArgumentNullException(nameof(ioInstance));
             this.mmio = mmio ?? throw new ArgumentNullException(nameof(mmio));
             SMUCommands.CmdResult result = new SMUCommands.GetDramAddress(smu).Execute();
-            DramBaseAddress = result.args[0];
+            DramBaseAddressLo = DramBaseAddress = result.args[0];
+            DramBaseAddressHi = result.args[1];
 
             if (DramBaseAddress == 0)
                 throw new ApplicationException("Could not get DRAM base address.");
 
-            if (Utils.Is64Bit)
-                DramBaseAddress64 = (long)result.args[0] << 32 | result.args[1];
-            else
+            if (!Utils.Is64Bit)
                 new SMUCommands.SetToolsDramAddress(smu).Execute(DramBaseAddress);
 
             tableDef = GetPowerTableDef(smu.TableVersion, smu.SMU_TYPE);
@@ -293,7 +293,7 @@ namespace ZenStates.Core
 
                     if (Utils.Is64Bit)
                     {
-                        byte[] bytes = io.ReadMemory(new IntPtr(DramBaseAddress64), TableSize);
+                        byte[] bytes = io.ReadMemory(new IntPtr((long)DramBaseAddressHi << 32 | DramBaseAddressLo), TableSize);
                         if (bytes != null && bytes.Length > 0)
                             Buffer.BlockCopy(bytes, 0, Table, 0, bytes.Length);
                         else
