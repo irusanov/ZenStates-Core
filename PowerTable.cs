@@ -10,8 +10,8 @@ namespace ZenStates.Core
         private readonly SMU smu;
         private readonly ACPI_MMIO mmio;
         private readonly PTDef tableDef;
-        private readonly uint DramBaseAddressLo;
-        private readonly uint DramBaseAddressHi;
+        public readonly uint DramBaseAddressLo;
+        public readonly uint DramBaseAddressHi;
         public readonly uint DramBaseAddress;
         public readonly int TableSize;
 

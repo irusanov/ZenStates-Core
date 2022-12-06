@@ -94,6 +94,7 @@ namespace ZenStates.Core
             public uint patchLevel;
             public CpuTopology topology;
             public SVI2 svi2;
+            public AOD aod;
         }
 
         public readonly IOModule io = new IOModule();
@@ -263,6 +264,7 @@ namespace ZenStates.Core
                 info.svi2 = GetSVI2Info(info.codeName);
                 systemInfo = new SystemInfo(info, smu);
                 powerTable = new PowerTable(smu, io, mmio);
+                info.aod = new AOD(io);
 
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
@@ -365,6 +367,7 @@ namespace ZenStates.Core
         }
 
         public void WriteIoPort(uint port, byte value) => Ring0.WriteIoPort(port, value);
+        public byte ReadIoPort(uint port) => Ring0.ReadIoPort(port);
         public bool ReadPciConfig(uint pciAddress, uint regAddress, ref uint value) => Ring0.ReadPciConfig(pciAddress, regAddress, out value);
         public uint GetPciAddress(byte bus, byte device, byte function) => Ring0.GetPciAddress(bus, device, function);
 
