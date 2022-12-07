@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices;
 
 namespace ZenStates.Core
 {
@@ -51,6 +52,11 @@ namespace ZenStates.Core
             return 1.55 - vid * 0.00625;
         }
 
+        public static double VidToVoltageSVI3(uint vid)
+        {
+            return 0.245 + vid * 0.005;
+        }
+
         private static bool CheckAllZero<T>(ref T[] typedArray)
         {
             if (typedArray == null)
@@ -101,6 +107,83 @@ namespace ZenStates.Core
 
             int offset = margin < 0 ? 0x100000 : 0;
             return Convert.ToUInt32(offset + margin) & 0xffff;
+        }
+
+        public static T ByteArrayToStructure<T>(byte[] byteArray) where T : new()
+        {
+            T structure;
+            GCHandle handle = GCHandle.Alloc(byteArray, GCHandleType.Pinned);
+            try
+            {
+                structure = (T)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(T));
+            }
+            finally
+            {
+                handle.Free();
+            }
+            return structure;
+        }
+
+        public static uint ReverseBytes(uint value)
+        {
+            return (value & 0x000000FFU) << 24 | (value & 0x0000FF00U) << 8 |
+                (value & 0x00FF0000U) >> 8 | (value & 0xFF000000U) >> 24;
+        }
+
+        public static string GetStringFromBytes(uint value)
+        {
+            byte[] bytes = BitConverter.GetBytes(value);
+            // Array.Reverse(bytes);
+            return System.Text.Encoding.ASCII.GetString(bytes).Replace("\0", " ");
+        }
+
+        public static string GetStringFromBytes(ulong value)
+        {
+            byte[] bytes = BitConverter.GetBytes(value);
+            // Array.Reverse(bytes);
+            return System.Text.Encoding.ASCII.GetString(bytes).Replace("\0", " ");
+        }
+
+        public static string GetStringFromBytes(byte[] value)
+        {
+            return System.Text.Encoding.ASCII.GetString(value).Replace("\0", " ");
+        }
+
+        /// <summary>Looks for the next occurrence of a sequence in a byte array</summary>
+        /// <param name="array">Array that will be scanned</param>
+        /// <param name="start">Index in the array at which scanning will begin</param>
+        /// <param name="sequence">Sequence the array will be scanned for</param>
+        /// <returns>
+        ///   The index of the next occurrence of the sequence of -1 if not found
+        /// </returns>
+        public static int FindSequence(byte[] array, int start, byte[] sequence)
+        {
+            int end = array.Length - sequence.Length; // past here no match is possible
+            byte firstByte = sequence[0]; // cached to tell compiler there's no aliasing
+
+            while (start <= end)
+            {
+                // scan for first byte only. compiler-friendly.
+                if (array[start] == firstByte)
+                {
+                    // scan for rest of sequence
+                    for (int offset = 1; ; ++offset)
+                    {
+                        if (offset == sequence.Length)
+                        { // full sequence matched?
+                            return start;
+                        }
+                        else if (array[start + offset] != sequence[offset])
+                        {
+                            break;
+                        }
+                    }
+                }
+                ++start;
+            }
+
+            // end of array reached without match
+            return -1;
         }
     }
 }

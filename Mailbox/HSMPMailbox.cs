@@ -21,6 +21,20 @@
         public uint ReadCclkFrequencyLimit { get; set; } = 0x0;
         public uint ReadSocketC0Residency { get; set; } = 0x0;
         public uint SetLclkDpmLevelRange { get; set; } = 0x0;
+        public uint GetLclkDpmLevelRange { get; set; } = 0x0;
         public uint GetMaxDDRBandwidthAndUtilization { get; set; } = 0x0;
+        public uint GetDIMMTempRangeAndRefreshRate { get; set; } = 0x0;
+        public uint GetDIMMPowerConsumption { get; set; } = 0x0;
+        public uint GetDIMMThermalSensor { get; set; } = 0x0;
+        public uint PwrCurrentActiveFreqLimitSocket { get; set; } = 0x0;
+        public uint PwrCurrentActiveFreqLimitCore { get; set; } = 0x0;
+        public uint PwrSviTelemetryAllRails { get; set; } = 0x0;
+        public uint GetSocketFreqRange { get; set; } = 0x0;
+        public uint GetCurrentIoBandwidth { get; set; } = 0x0;
+        public uint GetCurrentXgmiBandwidth { get; set; } = 0x0;
+        public uint SetGMI3LinkWidthRange { get; set; } = 0x0;
+        public uint ControlPcieLinkRate { get; set; } = 0x0;
+        public uint PwrEfficiencyModeSelection { get; set; } = 0x0;
+        public uint SetDfPstateRange { get; set; } = 0x0;
     }
 }

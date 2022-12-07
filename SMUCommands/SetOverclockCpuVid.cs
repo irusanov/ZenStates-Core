@@ -3,7 +3,7 @@ namespace ZenStates.Core.SMUCommands
 {
     internal class SetOverclockCpuVid : BaseSMUCommand
     {
-        public SetOverclockCpuVid(SMU smuInstance) : base(smuInstance) {}
+        public SetOverclockCpuVid(SMU smuInstance) : base(smuInstance) { }
 
         public CmdResult Execute(byte vid)
         {
