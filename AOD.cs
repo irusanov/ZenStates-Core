@@ -88,7 +88,7 @@ namespace ZenStates.Core
         }
 
         public static string GetProcODTString(int key) => GetByKey(ProcOdtDict, key);
-        public static string GetProcDataDrvStrenString(int key) => GetByKey(ProcDataDrvStrenDict, key);
+        public static string GetProcDataDrvStrenString(int key) => GetByKey(ProcOdtDict, key);
         public static string GetDramDataDrvStrenString(int key) => GetByKey(DramDataDrvStrenDict, key);
         public static string GetCadBusDrvStrenString(int key) => GetByKey(CadBusDrvStrenDict, key);
         public static string GetRttString(int key) => GetByKey(RttDict, key);
