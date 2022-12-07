@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using static ZenStates.Core.ACPI;
@@ -48,9 +48,9 @@ namespace ZenStates.Core
 
         private static readonly Dictionary<int, string> DramDataDrvStrenDict = new Dictionary<int, string>
         {
-            {0, "240.0 Ω"},
-            {1, "120.0 Ω"},
-            {2, "80.0 Ω"},
+            {0, "34.0 Ω"},
+            {1, "40.0 Ω"},
+            {2, "48.0 Ω"},
         };
 
         private static readonly Dictionary<int, string> CadBusDrvStrenDict = new Dictionary<int, string>
@@ -124,20 +124,31 @@ namespace ZenStates.Core
             [FieldOffset(9016)] public int TwrwrDd;
             [FieldOffset(9020)] public int Twrrd;
             [FieldOffset(9024)] public int Trdwr;
+
+            // DRAM Controller Configuration
             [FieldOffset(9028)] public int CadBusDrvStren; // AddrCmdDrvStren
             [FieldOffset(9032)] public int ProcDataDrvStren;
             [FieldOffset(9036)] public int ProcODT;
-            [FieldOffset(9040)] public int RttWr;
+            [FieldOffset(9040)] public int DramDataDrvStren;
             [FieldOffset(9044)] public int RttNomWr;
             [FieldOffset(9048)] public int RttNomRd;
-            [FieldOffset(9052)] public int RttPark;
-            [FieldOffset(9056)] public int RttParkDqs;
 
+            // Data Bus Configuration
+            [FieldOffset(9052)] public int RttWr;
+            [FieldOffset(9056)] public int RttPark;
+            [FieldOffset(9060)] public int RttParkDqs;
+            
+            
+
+            // Cad Bus Drive Strength
+
+            // DRAM Voltages
             [FieldOffset(9096)] public int MemVddio;
             [FieldOffset(9100)] public int MemVddq;
-            [FieldOffset(9104)] public int SomeVoltage;
+            [FieldOffset(9104)] public int MemVpp;
         }
 
+        [Serializable]
         public class AodTable
         {
             public readonly uint Signature;
