@@ -137,10 +137,6 @@ namespace ZenStates.Core
             [FieldOffset(9052)] public int RttWr;
             [FieldOffset(9056)] public int RttPark;
             [FieldOffset(9060)] public int RttParkDqs;
-            
-            
-
-            // Cad Bus Drive Strength
 
             // DRAM Voltages
             [FieldOffset(9096)] public int MemVddio;
@@ -152,8 +148,8 @@ namespace ZenStates.Core
         public class AodTable
         {
             public readonly uint Signature;
-            public readonly ulong OemTableId;
-            public readonly byte[] RegionSignature;
+            public ulong OemTableId;
+            // public readonly byte[] RegionSignature;
             public uint BaseAddress;
             public int Length;
             public ACPITable? acpiTable;
@@ -163,7 +159,7 @@ namespace ZenStates.Core
             {
                 this.Signature = Signature(TableSignature.SSDT);
                 this.OemTableId = SignatureUL(TableSignature.AOD_);
-                this.RegionSignature = ByteSignature(TableSignature.AODE);
+                //this.RegionSignature = ByteSignature(TableSignature.AODE);
             }
         }
 
@@ -185,9 +181,17 @@ namespace ZenStates.Core
                 {
                     if (addr != 0)
                     {
-                        SDTHeader hdr = acpi.GetHeader<SDTHeader>(addr);
-                        if (hdr.Signature == this.Table.Signature && hdr.OEMTableID == this.Table.OemTableId)
-                            return ParseSdtTable(io.ReadMemory(new IntPtr(addr), (int)hdr.Length));
+                        try
+                        {
+                            SDTHeader hdr = acpi.GetHeader<SDTHeader>(addr);
+                            if (
+                                hdr.Signature == this.Table.Signature
+                                && (hdr.OEMTableID == this.Table.OemTableId || hdr.OEMTableID == SignatureUL(TableSignature.AAOD))
+                            ) {
+                                return ParseSdtTable(io.ReadMemory(new IntPtr(addr), (int)hdr.Length));
+                            }
+                        }
+                        catch { }
                     }
                 }
             }
@@ -201,7 +205,11 @@ namespace ZenStates.Core
 
             if (this.Table.acpiTable != null)
             {
-                int regionIndex = Utils.FindSequence(this.Table.acpiTable?.Data, 0, this.Table.RegionSignature);
+                int regionIndex = Utils.FindSequence(this.Table.acpiTable?.Data, 0, ByteSignature(TableSignature.AODE));
+                if (regionIndex == -1)
+                    regionIndex = Utils.FindSequence(this.Table.acpiTable?.Data, 0, ByteSignature(TableSignature.AODT));
+                if (regionIndex == -1)
+                    return;
                 byte[] region = new byte[16];
                 Buffer.BlockCopy(this.Table.acpiTable?.Data, regionIndex, region, 0, 16);
                 // OperationRegion(AODE, SystemMemory, Offset, Length)
@@ -219,6 +227,7 @@ namespace ZenStates.Core
             {
                 byte[] rawTable = this.io.ReadMemory(new IntPtr(this.Table.BaseAddress), this.Table.Length);
                 this.Table.Data = Utils.ByteArrayToStructure<AodData>(rawTable);
+                // int test = Utils.FindSequence(rawTable, 0, BitConverter.GetBytes(0x3ae));
                 return true;
             }
             catch { }

@@ -293,7 +293,12 @@ namespace ZenStates.Core
 
                     if (Utils.Is64Bit)
                     {
-                        byte[] bytes = io.ReadMemory(new IntPtr((long)DramBaseAddressHi << 32 | DramBaseAddressLo), TableSize);
+                        byte[] bytes;
+                        if (smu.SMU_TYPE >= SMU.SmuType.TYPE_CPU4 && smu.SMU_TYPE < SMU.SmuType.TYPE_CPU9)
+                            bytes = io.ReadMemory(new IntPtr((long)DramBaseAddressHi << 32 | DramBaseAddressLo), TableSize);
+                        else
+                            bytes = io.ReadMemory(new IntPtr(DramBaseAddressLo), TableSize);
+
                         if (bytes != null && bytes.Length > 0)
                             Buffer.BlockCopy(bytes, 0, Table, 0, bytes.Length);
                         else
