@@ -11,8 +11,12 @@ namespace ZenStates.Core
             public const string RSDT = "RSDT";
             public const string XSDT = "XSDT";
             public const string SSDT = "SSDT";
-            public const string AODE = "AODE";
+            // Table OemId signatures
             public const string AOD_ = "AOD     ";
+            public const string AAOD = "AMD AOD";
+            // Region signatures
+            public const string AODE = "AODE";
+            public const string AODT = "AODT";
         }
 
         internal const uint RSDP_REGION_BASE_ADDRESS = 0x0E0000;
@@ -213,7 +217,8 @@ namespace ZenStates.Core
 
         public T GetHeader<T>(uint address, int length = 36) where T : new()
         {
-            return Utils.ByteArrayToStructure<T>(io.ReadMemory(new IntPtr(address), length));
+            byte[] bytes = io.ReadMemory(new IntPtr(address), length);
+            return Utils.ByteArrayToStructure<T>(bytes);
         }
 
         public RSDP GetRsdp()
