@@ -412,23 +412,24 @@ namespace ZenStates.Core
             Hsmp.SMU_ADDR_MSG = 0x3B10534;
             Hsmp.SMU_ADDR_RSP = 0x3B10980;
             Hsmp.SMU_ADDR_ARG = 0x3B109E0;
-
-            /*            Hsmp.GetInterfaceVersion = 0x3;
-                        Hsmp.ReadSocketPower = 0x4;
-                        Hsmp.WriteSocketPowerLimit = 0x5;
-                        Hsmp.ReadSocketPowerLimit = 0x6;
-                        Hsmp.ReadMaxSocketPowerLimit = 0x7;
-                        Hsmp.WriteBoostLimit = 0x8;
-                        Hsmp.WriteBoostLimitAllCores = 0x9;
-                        Hsmp.ReadBoostLimit = 0xA;
-                        Hsmp.ReadProchotStatus = 0xB;
-                        Hsmp.SetXgmiLinkWidthRange = 0xC;
-                        Hsmp.APBDisable = 0xD;
-                        Hsmp.APBEnable = 0xE;
-                        Hsmp.ReadCurrentFclkMemclk = 0xF;
-                        Hsmp.ReadCclkFrequencyLimit = 0x10;
-                        Hsmp.ReadSocketC0Residency = 0x11;
-                        Hsmp.SetLclkDpmLevelRange = 0x12;*/
+            /*
+            Hsmp.GetInterfaceVersion = 0x3;
+            Hsmp.ReadSocketPower = 0x4;
+            Hsmp.WriteSocketPowerLimit = 0x5;
+            Hsmp.ReadSocketPowerLimit = 0x6;
+            Hsmp.ReadMaxSocketPowerLimit = 0x7;
+            Hsmp.WriteBoostLimit = 0x8;
+            Hsmp.WriteBoostLimitAllCores = 0x9;
+            Hsmp.ReadBoostLimit = 0xA;
+            Hsmp.ReadProchotStatus = 0xB;
+            Hsmp.SetXgmiLinkWidthRange = 0xC;
+            Hsmp.APBDisable = 0xD;
+            Hsmp.APBEnable = 0xE;
+            Hsmp.ReadCurrentFclkMemclk = 0xF;
+            Hsmp.ReadCclkFrequencyLimit = 0x10;
+            Hsmp.ReadSocketC0Residency = 0x11;
+            Hsmp.SetLclkDpmLevelRange = 0x12;
+            */
             Hsmp.GetLclkDpmLevelRange = 0x13;
             Hsmp.GetMaxDDRBandwidthAndUtilization = 0x14;
             // Hsmp.Reserved = 0x15;
