@@ -154,6 +154,7 @@ namespace ZenStates.Core
             public int Length;
             public ACPITable? acpiTable;
             public AodData Data;
+            public byte[] rawAodTable;
 
             public AodTable()
             {
@@ -225,8 +226,8 @@ namespace ZenStates.Core
         {
             try
             {
-                byte[] rawTable = this.io.ReadMemory(new IntPtr(this.Table.BaseAddress), this.Table.Length);
-                this.Table.Data = Utils.ByteArrayToStructure<AodData>(rawTable);
+                this.Table.rawAodTable = this.io.ReadMemory(new IntPtr(this.Table.BaseAddress), this.Table.Length);
+                this.Table.Data = Utils.ByteArrayToStructure<AodData>(this.Table.rawAodTable);
                 // int test = Utils.FindSequence(rawTable, 0, BitConverter.GetBytes(0x3ae));
                 return true;
             }
