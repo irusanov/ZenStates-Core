@@ -36,7 +36,7 @@
 
                         break;
 
-                    // Matisse, CastlePeak, Rome, Vermeer, Chagall?, Milan?
+                    // Matisse, CastlePeak, Rome, Vermeer, Raphael, Chagall?, Milan?
                     case SMU.SmuType.TYPE_CPU2:
                     case SMU.SmuType.TYPE_CPU3:
                     case SMU.SmuType.TYPE_CPU4:

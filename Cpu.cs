@@ -79,6 +79,7 @@ namespace ZenStates.Core
             public uint threadsPerCore;
             public uint cpuNodes;
             public uint coreDisableMap;
+            public uint[] performanceOfCore;
         }
 
         public struct CPUInfo
@@ -95,6 +96,7 @@ namespace ZenStates.Core
             public uint patchLevel;
             public CpuTopology topology;
             public SVI2 svi2;
+            public AOD aod;
         }
 
         public readonly IOModule io = new IOModule();
@@ -150,6 +152,20 @@ namespace ZenStates.Core
             {
                 throw new ApplicationException(InitializationExceptionText);
             }
+
+            try
+            {
+                topology.performanceOfCore = new uint[topology.cores];
+
+                for (int i = 0; i < topology.logicalCores; i += (int)topology.threadsPerCore)
+                {
+                    if (Ring0.RdmsrTx(0xC00102B3, out eax, out edx, GroupAffinity.Single(0, i)))
+                        topology.performanceOfCore[i / topology.threadsPerCore] = eax & 0xff;
+                    else
+                        topology.performanceOfCore[i / topology.threadsPerCore] = 0;
+                }
+            }
+            catch { }
 
             uint ccdsPresent = 0, ccdsDown = 0, coreFuse = 0;
             uint fuse1 = 0x5D218;
@@ -284,6 +300,7 @@ namespace ZenStates.Core
                 info.svi2 = GetSVI2Info(info.codeName);
                 systemInfo = new SystemInfo(info, smu);
                 powerTable = new PowerTable(smu, io, mmio);
+                info.aod = new AOD(io);
 
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
@@ -368,9 +385,9 @@ namespace ZenStates.Core
             return Ring0.Rdmsr(index, out eax, out edx);
         }
 
-        public bool ReadMsrTx(uint index, ref uint eax, ref uint edx)
+        public bool ReadMsrTx(uint index, ref uint eax, ref uint edx, int i)
         {
-            GroupAffinity affinity = GroupAffinity.Single(0, (int)index);
+            GroupAffinity affinity = GroupAffinity.Single(0, i);
 
             return Ring0.RdmsrTx(index, out eax, out edx, affinity);
         }
@@ -388,6 +405,7 @@ namespace ZenStates.Core
         }
 
         public void WriteIoPort(uint port, byte value) => Ring0.WriteIoPort(port, value);
+        public byte ReadIoPort(uint port) => Ring0.ReadIoPort(port);
         public bool ReadPciConfig(uint pciAddress, uint regAddress, ref uint value) => Ring0.ReadPciConfig(pciAddress, regAddress, out value);
         public uint GetPciAddress(byte bus, byte device, byte function) => Ring0.GetPciAddress(bus, device, function);
 
@@ -638,6 +656,12 @@ namespace ZenStates.Core
         public SMU.Status TransferTableToDram() => new SMUCommands.TransferTableToDram(smu).Execute().status;
         public uint GetTableVersion() => new SMUCommands.GetTableVersion(smu).Execute().args[0];
         public uint GetDramBaseAddress() => new SMUCommands.GetDramAddress(smu).Execute().args[0];
+        public long GetDramBaseAddress64()
+        {
+            SMUCommands.CmdResult result = new SMUCommands.GetDramAddress(smu).Execute();
+            return (long)result.args[1] << 32 | result.args[0];
+        }
+        public bool GetLN2Mode() => new SMUCommands.GetLN2Mode(smu).Execute().args[0] == 1;
         public SMU.Status SetPPTLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetPPTLimit, arg).status;
         public SMU.Status SetEDCVDDLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetEDCVDDLimit, arg).status;
         public SMU.Status SetEDCSOCLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetEDCSOCLimit, arg).status;

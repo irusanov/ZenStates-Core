@@ -10,6 +10,8 @@ namespace ZenStates.Core
         private readonly SMU smu;
         private readonly ACPI_MMIO mmio;
         private readonly PTDef tableDef;
+        public readonly uint DramBaseAddressLo;
+        public readonly uint DramBaseAddressHi;
         public readonly uint DramBaseAddress;
         public readonly int TableSize;
 
@@ -46,12 +48,26 @@ namespace ZenStates.Core
             public int offsetCldoVddgIod;
             public int offsetCldoVddgCcd;
             public int offsetCoresPower;
+            public int offsetVddMisc;
         }
 
+        // @TODO: Rework to use struct or Dictionaries, this is not flexible at all
         private class PowerTableDef : List<PTDef>
         {
-            public void Add(int tableVersion, int tableSize, int offsetFclk, int offsetUclk, int offsetMclk,
-                int offsetVddcrSoc, int offsetCldoVddp, int offsetCldoVddgIod, int offsetCldoVddgCcd, int offsetCoresPower)
+            public void Add
+            (
+                int tableVersion,
+                int tableSize,
+                int offsetFclk,
+                int offsetUclk,
+                int offsetMclk,
+                int offsetVddcrSoc,
+                int offsetCldoVddp,
+                int offsetCldoVddgIod,
+                int offsetCldoVddgCcd,
+                int offsetCoresPower,
+                int offsetVddMisc
+            )
             {
                 Add(new PTDef
                 {
@@ -64,7 +80,8 @@ namespace ZenStates.Core
                     offsetCldoVddp = offsetCldoVddp,
                     offsetCldoVddgIod = offsetCldoVddgIod,
                     offsetCldoVddgCcd = offsetCldoVddgCcd,
-                    offsetCoresPower = offsetCoresPower
+                    offsetCoresPower = offsetCoresPower,
+                    offsetVddMisc = offsetVddMisc
                 });
             }
         }
@@ -87,70 +104,70 @@ namespace ZenStates.Core
         private static readonly PowerTableDef PowerTables = new PowerTableDef
         {
             // Zen and Zen+ APU
-            { 0x1E0001, 0x570, 0x460, 0x464, 0x468, 0x10C, 0xF8, -1, -1, -1 },
-            { 0x1E0002, 0x570, 0x474, 0x478, 0x47C, 0x10C, 0xF8, -1, -1, -1 },
-            { 0x1E0003, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1, -1 },
-            { 0x1E0004, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1, -1 },
+            { 0x1E0001, 0x570, 0x460, 0x464, 0x468, 0x10C, 0xF8, -1, -1, -1, -1 },
+            { 0x1E0002, 0x570, 0x474, 0x478, 0x47C, 0x10C, 0xF8, -1, -1, -1, -1 },
+            { 0x1E0003, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1, -1, -1 },
+            { 0x1E0004, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1, -1, -1 },
             // Generic (latest known)
-            { 0x000010, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1, -1 },
+            { 0x000010, 0x610, 0x298, 0x29C, 0x2A0, 0x104, 0xF0, -1, -1, -1, -1 },
 
             // FireFlight
-            { 0x260001, 0x610, 0x28, 0x2C, 0x30, 0x10, -1, -1, -1, -1 },
+            { 0x260001, 0x610, 0x28, 0x2C, 0x30, 0x10, -1, -1, -1, -1, -1 },
 
             // Zen2 APU (Renoir)
-            { 0x370000, 0x79C, 0x4B4, 0x4B8, 0x4BC, 0x190, 0x72C, -1, -1, -1 },
-            { 0x370001, 0x88C, 0x5A4, 0x5A8, 0x5AC, 0x190, 0x81C, -1, -1, -1 },
-            { 0x370002, 0x894, 0x5AC, 0x5B0, 0x5B4, 0x198, 0x824, -1, -1, -1 },
-            { 0x370003, 0x8B4, 0x5CC, 0x5D0, 0x5D4, 0x198, 0x844, -1, -1, -1 },
+            { 0x370000, 0x79C, 0x4B4, 0x4B8, 0x4BC, 0x190, 0x72C, -1, -1, -1, -1 },
+            { 0x370001, 0x88C, 0x5A4, 0x5A8, 0x5AC, 0x190, 0x81C, -1, -1, -1, -1 },
+            { 0x370002, 0x894, 0x5AC, 0x5B0, 0x5B4, 0x198, 0x824, -1, -1, -1, -1 },
+            { 0x370003, 0x8B4, 0x5CC, 0x5D0, 0x5D4, 0x198, 0x844, -1, -1, -1, -1 },
             // 0x370004 missing
-            { 0x370005, 0x8D0, 0x5E8, 0x5EC, 0x5F0, 0x198, 0x86C, -1, -1, -1 },
+            { 0x370005, 0x8D0, 0x5E8, 0x5EC, 0x5F0, 0x198, 0x86C, -1, -1, -1, -1 },
             // Generic Zen2 APU (latest known)
-            { 0x000011, 0x8D0, 0x5E8, 0x5EC, 0x5F0, 0x198, 0x86C, -1, -1, -1 },
+            { 0x000011, 0x8D0, 0x5E8, 0x5EC, 0x5F0, 0x198, 0x86C, -1, -1, -1, -1 },
 
             // Zen3 APU (Cezanne)
-            { 0x400001, 0x8D0, 0x624, 0x628, 0x62C, 0x19C, 0x89C, -1, -1, -1 },
-            { 0x400002, 0x8D0, 0x63C, 0x640, 0x644, 0x19C, 0x8B4, -1, -1, -1 },
-            { 0x400003, 0x944, 0x660, 0x664, 0x668, 0x19C, 0x8D0, -1, -1, -1 },
-            { 0x400004, 0x944, 0x664, 0x668, 0x66C, 0x19C, 0x8D4, -1, -1, -1 },
-            { 0x400005, 0x944, 0x664, 0x668, 0x66C, 0x19C, 0x8D4, -1, -1, -1 },
+            { 0x400001, 0x8D0, 0x624, 0x628, 0x62C, 0x19C, 0x89C, -1, -1, -1, -1 },
+            { 0x400002, 0x8D0, 0x63C, 0x640, 0x644, 0x19C, 0x8B4, -1, -1, -1, -1 },
+            { 0x400003, 0x944, 0x660, 0x664, 0x668, 0x19C, 0x8D0, -1, -1, -1, -1 },
+            { 0x400004, 0x944, 0x664, 0x668, 0x66C, 0x19C, 0x8D4, -1, -1, -1, -1 },
+            { 0x400005, 0x944, 0x664, 0x668, 0x66C, 0x19C, 0x8D4, -1, -1, -1, -1 },
             // Rembrandt (experimental)
-            { 0x450004, 0xAA4, 0x664, 0x668, 0x66C, 0x19C, 0x8D4, -1, -1, -1 },
+            { 0x450004, 0xAA4, 0x664, 0x668, 0x66C, 0x19C, 0x8D4, -1, -1, -1, -1 },
             // Generic Zen3 APU
-            { 0x000012, 0x948, 0x664, 0x668, 0x66C, 0x19C, 0x8D4, -1, -1, -1 },
+            { 0x000012, 0x948, 0x664, 0x668, 0x66C, 0x19C, 0x8D4, -1, -1, -1, -1 },
 
             // Zen CPU
-            { 0x000100, 0x7E4, 0x84, 0x84, 0x84, 0x68, 0x44, -1, -1, -1 },
+            { 0x000100, 0x7E4, 0x84, 0x84, 0x84, 0x68, 0x44, -1, -1, -1, -1 },
 
             // Zen+ CPU
-            { 0x000101, 0x7E4, 0x84, 0x84, 0x84, 0x60, 0x3C, -1, -1, -1 },
+            { 0x000101, 0x7E4, 0x84, 0x84, 0x84, 0x60, 0x3C, -1, -1, -1, -1 },
 
             // Zen2 CPU combined versions
             // version from 0x240000 to 0x240900 ?
-            { 0x000200, 0x7E4, 0xB0, 0xB8, 0xBC, 0xA4, 0x1E4, 0x1E8, -1, -1 },
+            { 0x000200, 0x7E4, 0xB0, 0xB8, 0xBC, 0xA4, 0x1E4, 0x1E8, -1, -1, -1 },
             // version from 0x240001 to 0x240901 ?
             // version from 0x240002 to 0x240902 ?
             // version from 0x240004 to 0x240904 ?
-            { 0x000202, 0x7E4, 0xBC, 0xC4, 0xC8, 0xB0, 0x1F0, 0x1F4, -1, -1 },
+            { 0x000202, 0x7E4, 0xBC, 0xC4, 0xC8, 0xB0, 0x1F0, 0x1F4, -1, -1, -1 },
             // version from 0x240003 to 0x240903 ?
             // Generic Zen2 CPU (latest known)
-            { 0x000203, 0x7E4, 0xC0, 0xC8, 0xCC, 0xB4, 0x1F4, 0x1F8, -1, 0x24C },
+            { 0x000203, 0x7E4, 0xC0, 0xC8, 0xCC, 0xB4, 0x1F4, 0x1F8, -1, 0x24C, -1 },
 
             // Zen3 CPU
             // This table is found in some early beta bioses for Vermeer (SMU version 56.27.00)
-            { 0x2D0903, 0x7E4, 0xBC, 0xC4, 0xC8, 0xB0, 0x220, 0x224, -1, -1 },
-            { 0x380005, 0x1BB0, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, -1 },
-            { 0x380505, 0xF30, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, -1 },
-            { 0x380804, 0x8A4, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, 0x24C },
-            { 0x380805, 0x8F0, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, 0x2B0 },
-            { 0x380904, 0x5A4, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, 0x2A4 },
-            { 0x380905, 0x5D0, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, 0x2B0 },
+            { 0x2D0903, 0x7E4, 0xBC, 0xC4, 0xC8, 0xB0, 0x220, 0x224, -1, -1, -1 },
+            { 0x380005, 0x1BB0, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, -1, -1 },
+            { 0x380505, 0xF30, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, -1, -1 },
+            { 0x380804, 0x8A4, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, 0x24C, -1 },
+            { 0x380805, 0x8F0, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, 0x2B0, -1 },
+            { 0x380904, 0x5A4, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, 0x2A4, -1 },
+            { 0x380905, 0x5D0, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, 0x2B0, -1 },
             // Generic Zen 3 CPU (latest known)
-            { 0x000300, 0x948, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, -1 },
+            { 0x000300, 0x948, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, -1, -1 },
 
             // Zen4
-            { 0x540104, 0x6A8, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, 0x5B4 },
+            { 0x540104, 0x6A8, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             // Generic Zen4
-            { 0x000400, 0x948, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, 0x5B4 },
+            { 0x000400, 0x948, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
         };
 
         private PTDef GetDefByVersion(uint version)
@@ -219,10 +236,15 @@ namespace ZenStates.Core
             this.smu = smuInstance ?? throw new ArgumentNullException(nameof(smuInstance));
             this.io = ioInstance ?? throw new ArgumentNullException(nameof(ioInstance));
             this.mmio = mmio ?? throw new ArgumentNullException(nameof(mmio));
-            DramBaseAddress = new SMUCommands.GetDramAddress(smu).Execute().args[0];
+            SMUCommands.CmdResult result = new SMUCommands.GetDramAddress(smu).Execute();
+            DramBaseAddressLo = DramBaseAddress = result.args[0];
+            DramBaseAddressHi = result.args[1];
 
             if (DramBaseAddress == 0)
                 throw new ApplicationException("Could not get DRAM base address.");
+
+            if (!Utils.Is64Bit)
+                new SMUCommands.SetToolsDramAddress(smu).Execute(DramBaseAddress);
 
             tableDef = GetPowerTableDef(smu.TableVersion, smu.SMU_TYPE);
             TableSize = tableDef.tableSize;
@@ -258,6 +280,7 @@ namespace ZenStates.Core
             CLDO_VDDP = GetDiscreteValue(pt, tableDef.offsetCldoVddp);
             CLDO_VDDG_IOD = GetDiscreteValue(pt, tableDef.offsetCldoVddgIod);
             CLDO_VDDG_CCD = GetDiscreteValue(pt, tableDef.offsetCldoVddgCcd);
+            VDD_MISC = GetDiscreteValue(pt, tableDef.offsetVddMisc);
 
             // Test
             /*if (tableDef.offsetCoresPower > 0)
@@ -286,7 +309,12 @@ namespace ZenStates.Core
 
                     if (Utils.Is64Bit)
                     {
-                        byte[] bytes = io.ReadMemory(new IntPtr(DramBaseAddress), TableSize);
+                        byte[] bytes;
+                        if ((smu.SMU_TYPE >= SMU.SmuType.TYPE_CPU4 && smu.SMU_TYPE < SMU.SmuType.TYPE_CPU9) || smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
+                            bytes = io.ReadMemory(new IntPtr((long)DramBaseAddressHi << 32 | DramBaseAddressLo), TableSize);
+                        else
+                            bytes = io.ReadMemory(new IntPtr(DramBaseAddressLo), TableSize);
+
                         if (bytes != null && bytes.Length > 0)
                             Buffer.BlockCopy(bytes, 0, Table, 0, bytes.Length);
                         else
@@ -381,6 +409,14 @@ namespace ZenStates.Core
             get => cldo_vddg_ccd;
             set => SetProperty(ref cldo_vddg_ccd, value, InternalEventArgsCache.CLDO_VDDG_CCD);
         }
+
+        float vdd_misc;
+
+        public float VDD_MISC
+        {
+            get => vdd_misc;
+            set => SetProperty(ref vdd_misc, value, InternalEventArgsCache.VDD_MISC);
+        }
     }
 
     internal static class InternalEventArgsCache
@@ -393,5 +429,6 @@ namespace ZenStates.Core
         internal static PropertyChangedEventArgs CLDO_VDDP = new PropertyChangedEventArgs("CLDO_VDDP");
         internal static PropertyChangedEventArgs CLDO_VDDG_IOD = new PropertyChangedEventArgs("CLDO_VDDG_IOD");
         internal static PropertyChangedEventArgs CLDO_VDDG_CCD = new PropertyChangedEventArgs("CLDO_VDDG_CCD");
+        internal static PropertyChangedEventArgs VDD_MISC = new PropertyChangedEventArgs("VDD_MISC");
     }
 }

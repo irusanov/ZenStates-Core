@@ -34,5 +34,6 @@
         public uint SMU_MSG_GetGpuPsmMargin { get; set; } = 0x0;
         public uint SMU_MSG_ReadBoostLimit { get; set; } = 0x0;
         public uint SMU_MSG_GetFastestCoreofSocket { get; set; } = 0x0;
+        public uint SMU_MSG_GetLN2Mode { get; set; } = 0x0;
     }
 }

@@ -7,12 +7,11 @@
         {
             if (CanExecute())
             {
-                // TODO: Is this correct?
-/*                if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU0 || smu.SMU_TYPE == SMU.SmuType.TYPE_APU1)
+                if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU0 || smu.SMU_TYPE == SMU.SmuType.TYPE_APU1)
                 {
                     result.args[0] = 3;
                 }
-*/
+
 
                 result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_TransferTableToDram, ref result.args);
             }
