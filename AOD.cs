@@ -188,7 +188,8 @@ namespace ZenStates.Core
                             if (
                                 hdr.Signature == this.Table.Signature
                                 && (hdr.OEMTableID == this.Table.OemTableId || hdr.OEMTableID == SignatureUL(TableSignature.AAOD))
-                            ) {
+                            )
+                            {
                                 return ParseSdtTable(io.ReadMemory(new IntPtr(addr), (int)hdr.Length));
                             }
                         }

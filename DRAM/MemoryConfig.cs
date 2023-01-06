@@ -150,7 +150,8 @@ namespace ZenStates.Core.DRAM
                     bool dimm2 = Utils.GetBits(cpu.ReadDword(offset | 0x50008), 0, 1) == 1;
                     bool enabled = channel && (dimm1 || dimm2);
 
-                    Channels.Add(new Channel() {
+                    Channels.Add(new Channel()
+                    {
                         Enabled = enabled,
                         Offset = offset,
                     });

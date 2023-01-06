@@ -28,7 +28,8 @@ namespace ZenStates.Core.DRAM
                     }
                     return null;
                 }
-                catch {
+                catch
+                {
                     return null;
                 }
             }
@@ -69,7 +70,8 @@ namespace ZenStates.Core.DRAM
 
             foreach (KeyValuePair<uint, TimingDef[]> entry in Dict)
             {
-                foreach (TimingDef def in entry.Value) {
+                foreach (TimingDef def in entry.Value)
+                {
                     if (this[def.Name] != null)
                     {
                         uint data = cpu.ReadDword(offset | entry.Key);
@@ -82,7 +84,8 @@ namespace ZenStates.Core.DRAM
         public MemType Type { get; internal set; }
         public float Frequency { get; private set; }
         private float ratio;
-        public float Ratio {
+        public float Ratio
+        {
             get => ratio;
             internal set
             {
