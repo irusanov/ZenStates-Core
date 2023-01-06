@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Security.Cryptography;
 using static ZenStates.Core.DRAM.MemoryConfig;
 
 namespace ZenStates.Core.DRAM
@@ -7,11 +8,14 @@ namespace ZenStates.Core.DRAM
     {
         private static readonly Dictionary<uint, TimingDef[]> defs = new Dictionary<uint, TimingDef[]>
         {
+            /*
+            // BGS0
             { 0x50050, new[] {
-                new TimingDef { Name = "",   HiBit = 0, LoBit = 0 },
+                new TimingDef { Name = "BGS0",   HiBit = 31, LoBit = 0 },
             }},
+            // BGS1
             { 0x50058, new[] {
-                new TimingDef { Name = "",   HiBit = 0, LoBit = 0 },
+                new TimingDef { Name = "BGS1",   HiBit = 31, LoBit = 0 },
             }},
             { 0x500D0, new[] {
                 new TimingDef { Name = "BGSAlt0",   HiBit = 10  ,   LoBit = 4   },
@@ -19,13 +23,14 @@ namespace ZenStates.Core.DRAM
             { 0x500D4, new[] {
                 new TimingDef { Name = "BGSAlt1",   HiBit = 10  ,   LoBit = 4   },
             }},
+            */
             { 0x5012C, new[] {
                 new TimingDef { Name = "PowerDown", HiBit = 28  ,   LoBit = 28  },
             }},
             { 0x50200, new[] {
                 new TimingDef { Name = "Cmd2T",     HiBit = 10  ,   LoBit = 10  },
                 new TimingDef { Name = "GDM",       HiBit = 11  ,   LoBit = 11  },
-                new TimingDef { Name = "Ratio",     HiBit = 6   ,   LoBit = 0   },
+                // new TimingDef { Name = "Ratio",     HiBit = 6   ,   LoBit = 0   },
             }},
             { 0x50204, new[] {
                 new TimingDef { Name = "RCDWR",     HiBit = 29  ,   LoBit = 24  },
@@ -93,18 +98,15 @@ namespace ZenStates.Core.DRAM
                 new TimingDef { Name = "PHYRDL",    HiBit = 23  ,   LoBit = 16  },
                 new TimingDef { Name = "PHYWRL",    HiBit = 15  ,   LoBit = 8   },
             }},
+            // TRFC registers
+            /*
             { 0x50260, new[] {
                 new TimingDef { Name = "",   HiBit = 0, LoBit = 0 },
             }},
             { 0x50264, new[] {
                 new TimingDef { Name = "",   HiBit = 0, LoBit = 0 },
             }},
-            { 0x50268, new[] {
-                new TimingDef { Name = "",   HiBit = 0, LoBit = 0 },
-            }},
-            { 0x5026C, new[] {
-                new TimingDef { Name = "",   HiBit = 0, LoBit = 0 },
-            }},
+            */
         };
 
         public Ddr4Timings(Cpu cpu) : base(cpu)
@@ -113,6 +115,20 @@ namespace ZenStates.Core.DRAM
             this.Dict = defs;
         }
 
+        // Specific DDR4 timings
         public uint RFC4 { get; set; }
+
+        public override void ReadUniqueTimings(uint offset = 0)
+        {
+            Ratio = Utils.GetBits(cpu.ReadDword(offset | 0x50200), 0, 7) / 3.0f;
+
+            uint trfcTimings0 = this.cpu.ReadDword(offset | 0x50260);
+            uint trfcTimings1 = this.cpu.ReadDword(offset | 0x50264);
+            uint trfcRegValue = trfcTimings0 != trfcTimings1 ? (trfcTimings0 != 0x21060138 ? trfcTimings0 : trfcTimings1) : trfcTimings0;
+
+            RFC = Utils.BitSlice(trfcRegValue, 10, 0);
+            RFC2 = Utils.BitSlice(trfcRegValue, 21, 11);
+            RFC4 = Utils.GetBits(trfcRegValue, 31, 22);
+        }
     }
 }
