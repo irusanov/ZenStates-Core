@@ -577,8 +577,8 @@ namespace ZenStates.Core
                     break;
                 case CodeName.Chagall:
                 case CodeName.Milan:
-                    svi.coreAddress = Constants.F19H_M01H_SVI_TEL_PLANE0;
-                    svi.socAddress = Constants.F19H_M01H_SVI_TEL_PLANE1;
+                    svi.coreAddress = Constants.F19H_M01H_SVI_TEL_PLANE1;
+                    svi.socAddress = Constants.F19H_M01H_SVI_TEL_PLANE0;
                     break;
 
                 default:
