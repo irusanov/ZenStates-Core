@@ -634,7 +634,11 @@ namespace ZenStates.Core
             return cmd.Scalar;
         }
 
-        public bool SendTestMessage() => new SMUCommands.SendTestMessage(smu).Execute().Success;
+        public bool SendTestMessage(uint arg = 1) {
+            var cmd = new SMUCommands.SendTestMessage(smu);
+            SMUCommands.CmdResult result = cmd.Execute(arg);
+            return result.Success && cmd.IsSumCorrect;
+        }
         public uint GetSmuVersion() => new SMUCommands.GetSmuVersion(smu).Execute().args[0];
         public double? GetBclk() => mmio.GetBclk();
         public bool SetBclk(double blck) => mmio.SetBclk(blck);
