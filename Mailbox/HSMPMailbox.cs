@@ -2,6 +2,7 @@
 {
     public sealed class HSMPMailbox : Mailbox
     {
+        public HSMPMailbox(int maxArgs = Constants.HSMP_MAILBOX_ARGS) : base(maxArgs) { }
         // HSMP
         // Processor Programming Reference (PPR) for Family 19h Model 01h, Revision B1 Processors, vol 2
         // https://www.amd.com/system/files/TechDocs/55898_pub.zip

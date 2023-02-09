@@ -129,7 +129,7 @@ namespace ZenStates.Core
                 SmuWriteReg(mailbox.SMU_ADDR_RSP, 0);
 
                 // Write data
-                uint[] cmdArgs = Utils.MakeCmdArgs(args);
+                uint[] cmdArgs = Utils.MakeCmdArgs(args, mailbox.MAX_ARGS);
                 for (int i = 0; i < cmdArgs.Length; ++i)
                     SmuWriteReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]);
 
@@ -164,7 +164,7 @@ namespace ZenStates.Core
         [Obsolete("SendSmuCommand with one argument is deprecated, please use SendSmuCommand with full 6 args")]
         public bool SendSmuCommand(Mailbox mailbox, uint msg, uint arg)
         {
-            uint[] args = Utils.MakeCmdArgs(arg);
+            uint[] args = Utils.MakeCmdArgs(arg, mailbox.MAX_ARGS);
             return SendSmuCommand(mailbox, msg, ref args) == Status.OK;
         }
 

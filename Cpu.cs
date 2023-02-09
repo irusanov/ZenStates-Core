@@ -189,19 +189,15 @@ namespace ZenStates.Core
                 else
                     Console.WriteLine("Could not read core fuse!");
 
-                uint ccdOffset = 0;
-
                 for (int i = 0; i < topology.ccds; i++)
                 {
                     if (Utils.GetBits(ccdEnableMap, i, 1) == 1)
                     {
-                        if (ReadDwordEx(coreDisableMapAddress | ccdOffset, ref coreFuse))
+                        if (ReadDwordEx(((uint)i << 25) + coreDisableMapAddress, ref coreFuse))
                             topology.coreDisableMap |= (coreFuse & 0xff) << i * 8;
                         else
                             Console.WriteLine($"Could not read core fuse for CCD{i}!");
                     }
-
-                    ccdOffset += 0x2000000;
                 }
             }
             else
