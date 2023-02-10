@@ -2,7 +2,8 @@
 {
     public class Mailbox
     {
-        protected Mailbox(int maxArgs = Constants.DEFAULT_MAILBOX_ARGS) {
+        public Mailbox(int maxArgs = Constants.DEFAULT_MAILBOX_ARGS)
+        {
             this.MAX_ARGS = maxArgs;
         }
         public int MAX_ARGS { get; protected set; }

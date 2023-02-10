@@ -54,7 +54,7 @@ namespace ZenStates.Core
 
             Rsmu = new RSMUMailbox();
             Mp1Smu = new MP1Mailbox();
-            Hsmp = new HSMPMailbox();
+            Hsmp = new HSMPMailbox(this);
         }
 
         public uint Version { get; set; }
@@ -170,7 +170,12 @@ namespace ZenStates.Core
 
         public Status SendMp1Command(uint msg, ref uint[] args) => SendSmuCommand(Mp1Smu, msg, ref args);
         public Status SendRsmuCommand(uint msg, ref uint[] args) => SendSmuCommand(Rsmu, msg, ref args);
-        public Status SendHsmpCommand(uint msg, ref uint[] args) => SendSmuCommand(Hsmp, msg, ref args);
+        public Status SendHsmpCommand(uint msg, ref uint[] args)
+        {
+            if (Hsmp.IsSupported && msg <= Hsmp.HighestSupportedFunction)
+                return SendSmuCommand(Hsmp, msg, ref args);
+            return Status.UNKNOWN_CMD;
+        }
     }
 
     public class BristolRidgeSettings : SMU
@@ -336,25 +341,6 @@ namespace ZenStates.Core
             Hsmp.SMU_ADDR_MSG = 0x3B10534;
             Hsmp.SMU_ADDR_RSP = 0x3B10980;
             Hsmp.SMU_ADDR_ARG = 0x3B109E0;
-
-            Hsmp.GetInterfaceVersion = 0x3;
-            Hsmp.ReadSocketPower = 0x4;
-            Hsmp.WriteSocketPowerLimit = 0x5;
-            Hsmp.ReadSocketPowerLimit = 0x6;
-            Hsmp.ReadMaxSocketPowerLimit = 0x7;
-            Hsmp.WriteBoostLimit = 0x8;
-            Hsmp.WriteBoostLimitAllCores = 0x9;
-            Hsmp.ReadBoostLimit = 0xA;
-            Hsmp.ReadProchotStatus = 0xB;
-            Hsmp.SetXgmiLinkWidthRange = 0xC;
-            Hsmp.APBDisable = 0xD;
-            Hsmp.APBEnable = 0xE;
-            Hsmp.ReadCurrentFclkMemclk = 0xF;
-            Hsmp.ReadCclkFrequencyLimit = 0x10;
-            Hsmp.ReadSocketC0Residency = 0x11;
-            Hsmp.SetLclkDpmLevelRange = 0x12;
-            //Hsmp.Reserved = 0x13;
-            Hsmp.GetMaxDDRBandwidthAndUtilization = 0x14;
         }
     }
 
@@ -412,40 +398,6 @@ namespace ZenStates.Core
             Hsmp.SMU_ADDR_MSG = 0x3B10534;
             Hsmp.SMU_ADDR_RSP = 0x3B10980;
             Hsmp.SMU_ADDR_ARG = 0x3B109E0;
-            /*
-            Hsmp.GetInterfaceVersion = 0x3;
-            Hsmp.ReadSocketPower = 0x4;
-            Hsmp.WriteSocketPowerLimit = 0x5;
-            Hsmp.ReadSocketPowerLimit = 0x6;
-            Hsmp.ReadMaxSocketPowerLimit = 0x7;
-            Hsmp.WriteBoostLimit = 0x8;
-            Hsmp.WriteBoostLimitAllCores = 0x9;
-            Hsmp.ReadBoostLimit = 0xA;
-            Hsmp.ReadProchotStatus = 0xB;
-            Hsmp.SetXgmiLinkWidthRange = 0xC;
-            Hsmp.APBDisable = 0xD;
-            Hsmp.APBEnable = 0xE;
-            Hsmp.ReadCurrentFclkMemclk = 0xF;
-            Hsmp.ReadCclkFrequencyLimit = 0x10;
-            Hsmp.ReadSocketC0Residency = 0x11;
-            Hsmp.SetLclkDpmLevelRange = 0x12;
-            */
-            Hsmp.GetLclkDpmLevelRange = 0x13;
-            Hsmp.GetMaxDDRBandwidthAndUtilization = 0x14;
-            // Hsmp.Reserved = 0x15;
-            Hsmp.GetDIMMTempRangeAndRefreshRate = 0x16;
-            Hsmp.GetDIMMPowerConsumption = 0x17;
-            Hsmp.GetDIMMThermalSensor = 0x18;
-            Hsmp.PwrCurrentActiveFreqLimitSocket = 0x19;
-            Hsmp.PwrCurrentActiveFreqLimitCore = 0x1A;
-            Hsmp.PwrSviTelemetryAllRails = 0x1B;
-            Hsmp.GetSocketFreqRange = 0x1C;
-            Hsmp.GetCurrentIoBandwidth = 0x1D;
-            Hsmp.GetCurrentIoBandwidth = 0x1E;
-            Hsmp.SetGMI3LinkWidthRange = 0x1F;
-            Hsmp.ControlPcieLinkRate = 0x20;
-            Hsmp.PwrEfficiencyModeSelection = 0x21;
-            Hsmp.SetDfPstateRange = 0x22;
         }
     }
 

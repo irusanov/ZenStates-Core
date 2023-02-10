@@ -641,7 +641,8 @@ namespace ZenStates.Core
             return cmd.Scalar;
         }
 
-        public bool SendTestMessage(uint arg = 1, Mailbox mbox = null) {
+        public bool SendTestMessage(uint arg = 1, Mailbox mbox = null)
+        {
             var cmd = new SMUCommands.SendTestMessage(smu, mbox);
             SMUCommands.CmdResult result = cmd.Execute(arg);
             return result.Success && cmd.IsSumCorrect;

@@ -5,7 +5,8 @@
         private readonly Mailbox mbox;
 
         public bool IsSumCorrect = false;
-        public SendTestMessage(SMU smu, Mailbox mbox = null) : base(smu) {
+        public SendTestMessage(SMU smu, Mailbox mbox = null) : base(smu)
+        {
             this.mbox = mbox ?? smu.Rsmu;
         }
         public CmdResult Execute(uint testArg = 1)
