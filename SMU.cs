@@ -369,6 +369,12 @@ namespace ZenStates.Core
         {
             SMU_TYPE = SmuType.TYPE_CPU4;
 
+            // MP1
+            Mp1Smu.SMU_MSG_SetTDCVDDLimit = 0x3C;
+            Mp1Smu.SMU_MSG_SetEDCVDDLimit = 0x3D;
+            Mp1Smu.SMU_MSG_SetPPTLimit = 0x3E;
+            Mp1Smu.SMU_MSG_SetHTCLimit = 0x3F;
+
             // RSMU
             Rsmu.SMU_ADDR_MSG = 0x03B10524;
             Rsmu.SMU_ADDR_RSP = 0x03B10570;
