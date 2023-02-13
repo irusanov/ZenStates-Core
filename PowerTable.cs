@@ -265,7 +265,7 @@ namespace ZenStates.Core
 
         private float GetDiscreteValue(float[] pt, int index)
         {
-            if (index > 0 && index < TableSize)
+            if (index > -1 && index < TableSize)
                 return pt[index / 4];
             return 0;
         }
