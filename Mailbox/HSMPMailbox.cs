@@ -11,18 +11,9 @@
     // 0005h 01h through 22h
     public sealed class HSMPMailbox : Mailbox
     {
-        public readonly uint InterfaceVersion;
-        public readonly uint HighestSupportedFunction;
-        public HSMPMailbox(SMU smu, int maxArgs = Constants.HSMP_MAILBOX_ARGS) : base(maxArgs)
-        {
-            uint[] args = Utils.MakeCmdArgs(0, this.MAX_ARGS);
-            // SendSmuCommand would not execute if mailbox addresses are not defined
-            if (smu.SendSmuCommand(this, this.GetInterfaceVersion, ref args) == SMU.Status.OK)
-            {
-                InterfaceVersion = args[0];
-                HighestSupportedFunction = GetHighestSupportedId();
-            }
-        }
+        public uint InterfaceVersion;
+        public uint HighestSupportedFunction;
+        public HSMPMailbox(SMU smu, int maxArgs = Constants.HSMP_MAILBOX_ARGS) : base(maxArgs) {}
 
         private uint GetHighestSupportedId()
         {
@@ -40,6 +31,20 @@
                     return 0x22;
                 default:
                     return 0x22;
+            }
+        }
+
+        public void Init(Cpu cpu)
+        {
+            if (cpu.smu != null)
+            {
+                uint[] args = Utils.MakeCmdArgs(0, this.MAX_ARGS);
+                // SendSmuCommand would not execute if mailbox addresses are not defined
+                if (cpu.smu.SendSmuCommand(this, this.GetInterfaceVersion, ref args) == SMU.Status.OK)
+                {
+                    this.InterfaceVersion = args[0];
+                    this.HighestSupportedFunction = GetHighestSupportedId();
+                }
             }
         }
 

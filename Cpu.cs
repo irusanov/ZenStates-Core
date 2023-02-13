@@ -250,6 +250,7 @@ namespace ZenStates.Core
                 info.packageType = (PackageType)(ebx >> 28);
                 info.codeName = GetCodeName(info);
                 smu = GetMaintainedSettings.GetByType(info.codeName);
+                smu.Hsmp.Init(this);
                 smu.Version = GetSmuVersion();
                 smu.TableVersion = GetTableVersion();
             }
