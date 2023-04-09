@@ -6,9 +6,9 @@
         public uint[] args;
         public bool Success => status == SMU.Status.OK;
 
-        public CmdResult()
+        public CmdResult(int maxArgs)
         {
-            args = Utils.MakeCmdArgs();
+            args = Utils.MakeCmdArgs(maxArgs: maxArgs);
             status = SMU.Status.FAILED;
         }
     }
