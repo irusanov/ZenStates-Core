@@ -5,7 +5,6 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace ZenStates.Core
 {
-    [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "<Pending>")]
     public abstract class SMU
     {
         private const ushort SMU_TIMEOUT = 8192;
@@ -54,7 +53,7 @@ namespace ZenStates.Core
 
             Rsmu = new RSMUMailbox();
             Mp1Smu = new MP1Mailbox();
-            Hsmp = new HSMPMailbox(this);
+            Hsmp = new HSMPMailbox();
         }
 
         public uint Version { get; set; }
