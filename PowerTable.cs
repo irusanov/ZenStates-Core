@@ -14,6 +14,7 @@ namespace ZenStates.Core
         public readonly uint DramBaseAddressHi;
         public readonly uint DramBaseAddress;
         public readonly int TableSize;
+        private const int NUM_ELEMENTS_TO_COMPARE = 6;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -309,61 +310,76 @@ namespace ZenStates.Core
             }*/
         }
 
+        private float[] ReadTableFromMemory(int tableSize)
+        {
+            float[] table = new float[tableSize];
+
+            if (Utils.Is64Bit)
+            {
+                byte[] bytes;
+                if ((smu.SMU_TYPE >= SMU.SmuType.TYPE_CPU4 && smu.SMU_TYPE < SMU.SmuType.TYPE_CPU9) || smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
+                    bytes = io.ReadMemory(new IntPtr((long)DramBaseAddressHi << 32 | DramBaseAddressLo), tableSize * sizeof(float));
+                else
+                    bytes = io.ReadMemory(new IntPtr(DramBaseAddressLo), tableSize * sizeof(float));
+
+                if (bytes != null && bytes.Length > 0)
+                    Buffer.BlockCopy(bytes, 0, table, 0, bytes.Length);
+            }
+            else
+            {
+                try
+                {
+                    for (int i = 0; i < table.Length; ++i)
+                    {
+                        int offset = i * sizeof(float);
+                        io.GetPhysLong((UIntPtr)(DramBaseAddress + offset), out uint data);
+                        byte[] bytes = BitConverter.GetBytes(data);
+                        Buffer.BlockCopy(bytes, 0, table, offset, bytes.Length);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error occurred while reading table: " + ex.Message);
+                }
+            }
+
+            return table;
+        }
+
+
         public SMU.Status Refresh()
         {
+            SMU.Status status = SMU.Status.FAILED;
+
             if (DramBaseAddress > 0)
             {
                 try
                 {
-                    SMU.Status status = new SMUCommands.TransferTableToDram(smu).Execute().status;
+                    float[] tempTable = ReadTableFromMemory(NUM_ELEMENTS_TO_COMPARE);
 
-                    if (status != SMU.Status.OK)
-                        return status;
-
-                    if (Utils.Is64Bit)
+                    // check if the first 6 elements of the table are equal and issue a refresh command,
+                    // otherwise skip as some other app already refreshed the data
+                    if (Utils.AllZero(tempTable) || Utils.CompareFirstElements(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
                     {
-                        byte[] bytes;
-                        if ((smu.SMU_TYPE >= SMU.SmuType.TYPE_CPU4 && smu.SMU_TYPE < SMU.SmuType.TYPE_CPU9) || smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
-                            bytes = io.ReadMemory(new IntPtr((long)DramBaseAddressHi << 32 | DramBaseAddressLo), TableSize);
-                        else
-                            bytes = io.ReadMemory(new IntPtr(DramBaseAddressLo), TableSize);
-
-                        if (bytes != null && bytes.Length > 0)
-                            Buffer.BlockCopy(bytes, 0, Table, 0, bytes.Length);
-                        else
-                            return SMU.Status.FAILED;
-                    }
-                    else
-                    {
-                        /*uint data = 0;
-
-                        for (int i = 0; i < table.Length; ++i)
-                        {
-                            Ring0.ReadMemory((ulong)(powerTable.DramBaseAddress), ref data);
-                            byte[] bytes = BitConverter.GetBytes(data);
-                            table[i] = BitConverter.ToSingle(bytes, 0);
-                            //table[i] = data;
-                        }*/
-
-                        for (int i = 0; i < Table.Length; ++i)
-                        {
-                            int offset = i * 4;
-                            io.GetPhysLong((UIntPtr)(DramBaseAddress + offset), out uint data);
-                            byte[] bytes = BitConverter.GetBytes(data);
-                            Buffer.BlockCopy(bytes, 0, Table, offset, bytes.Length);
-                        }
+                        status = new SMUCommands.TransferTableToDram(smu).Execute().status;
+                        if (status != SMU.Status.OK)
+                            return status;
                     }
 
-                    if (Utils.AllZero(Table))
-                        status = SMU.Status.FAILED;
-                    else
+                    Table = ReadTableFromMemory(TableSize);
+
+                    if (!Utils.AllZero(Table))
                         ParseTable(Table);
-
-                    return status;
+                        
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error occurred while reading table: " + ex.Message);
+                    return SMU.Status.FAILED;
+                }
             }
-            return SMU.Status.FAILED;
+
+            return status;
         }
 
         // Static one-time properties
