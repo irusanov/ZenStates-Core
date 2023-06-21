@@ -369,7 +369,10 @@ namespace ZenStates.Core
                     Table = ReadTableFromMemory(TableSize);
 
                     if (!Utils.AllZero(Table))
+                    {
                         ParseTable(Table);
+                        return SMU.Status.OK;
+                    }
                         
                 }
                 catch (Exception ex)
