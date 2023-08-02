@@ -185,5 +185,23 @@ namespace ZenStates.Core
             // end of array reached without match
             return -1;
         }
+
+        public static bool CompareFirstElements(float[] array1, float[] array2, int numElements)
+        {
+            if (array1.Length < numElements || array2.Length < numElements)
+            {
+                throw new ArgumentException("Arrays are not long enough to compare the specified number of elements.");
+            }
+
+            for (int i = 0; i < numElements; i++)
+            {
+                if (array1[i] != array2[i])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
     }
 }

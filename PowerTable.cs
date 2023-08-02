@@ -14,6 +14,7 @@ namespace ZenStates.Core
         public readonly uint DramBaseAddressHi;
         public readonly uint DramBaseAddress;
         public readonly int TableSize;
+        private const int NUM_ELEMENTS_TO_COMPARE = 6;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -168,19 +169,19 @@ namespace ZenStates.Core
             // Zen4
             { 0x540104, 0x6A8, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, -1 },
             // Zen4 (unverified): size should be correct, offsets are not verified yet
-            { 0x540100, 0x618, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, -1 },
-            { 0x540101, 0x61C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, -1 },
-            { 0x540102, 0x66C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, -1 },
-            { 0x540103, 0x68C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, -1 },
+            { 0x540100, 0x618, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
+            { 0x540101, 0x61C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
+            { 0x540102, 0x66C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
+            { 0x540103, 0x68C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             // { 0x540104, 0x6A8, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
-            { 0x540000, 0x828, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, -1 },
-            { 0x540001, 0x82C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, -1 },
-            { 0x540002, 0x87C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, -1 },
-            { 0x540003, 0x89C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, -1 },
-            { 0x540004, 0x8BC, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, -1 },
+            { 0x540000, 0x828, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
+            { 0x540001, 0x82C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
+            { 0x540002, 0x87C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
+            { 0x540003, 0x89C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
+            { 0x540004, 0x8BC, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
 
             // Generic Zen4
-            { 0x000400, 0x948, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, -1 },
+            { 0x000400, 0x948, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
         };
 
         private PTDef GetDefByVersion(uint version)
@@ -309,61 +310,79 @@ namespace ZenStates.Core
             }*/
         }
 
+        private float[] ReadTableFromMemory(int tableSize)
+        {
+            float[] table = new float[tableSize];
+
+            if (Utils.Is64Bit)
+            {
+                byte[] bytes;
+                if ((smu.SMU_TYPE >= SMU.SmuType.TYPE_CPU4 && smu.SMU_TYPE < SMU.SmuType.TYPE_CPU9) || smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
+                    bytes = io.ReadMemory(new IntPtr((long)DramBaseAddressHi << 32 | DramBaseAddressLo), tableSize * sizeof(float));
+                else
+                    bytes = io.ReadMemory(new IntPtr(DramBaseAddressLo), tableSize * sizeof(float));
+
+                if (bytes != null && bytes.Length > 0)
+                    Buffer.BlockCopy(bytes, 0, table, 0, bytes.Length);
+            }
+            else
+            {
+                try
+                {
+                    for (int i = 0; i < table.Length; ++i)
+                    {
+                        int offset = i * sizeof(float);
+                        io.GetPhysLong((UIntPtr)(DramBaseAddress + offset), out uint data);
+                        byte[] bytes = BitConverter.GetBytes(data);
+                        Buffer.BlockCopy(bytes, 0, table, offset, bytes.Length);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error occurred while reading table: " + ex.Message);
+                }
+            }
+
+            return table;
+        }
+
+
         public SMU.Status Refresh()
         {
+            SMU.Status status = SMU.Status.FAILED;
+
             if (DramBaseAddress > 0)
             {
                 try
                 {
-                    SMU.Status status = new SMUCommands.TransferTableToDram(smu).Execute().status;
+                    float[] tempTable = ReadTableFromMemory(NUM_ELEMENTS_TO_COMPARE);
 
-                    if (status != SMU.Status.OK)
-                        return status;
-
-                    if (Utils.Is64Bit)
+                    // check if the first 6 elements of the table are equal and issue a refresh command,
+                    // otherwise skip as some other app already refreshed the data
+                    if (Utils.AllZero(tempTable) || Utils.CompareFirstElements(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
                     {
-                        byte[] bytes;
-                        if ((smu.SMU_TYPE >= SMU.SmuType.TYPE_CPU4 && smu.SMU_TYPE < SMU.SmuType.TYPE_CPU9) || smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
-                            bytes = io.ReadMemory(new IntPtr((long)DramBaseAddressHi << 32 | DramBaseAddressLo), TableSize);
-                        else
-                            bytes = io.ReadMemory(new IntPtr(DramBaseAddressLo), TableSize);
-
-                        if (bytes != null && bytes.Length > 0)
-                            Buffer.BlockCopy(bytes, 0, Table, 0, bytes.Length);
-                        else
-                            return SMU.Status.FAILED;
-                    }
-                    else
-                    {
-                        /*uint data = 0;
-
-                        for (int i = 0; i < table.Length; ++i)
-                        {
-                            Ring0.ReadMemory((ulong)(powerTable.DramBaseAddress), ref data);
-                            byte[] bytes = BitConverter.GetBytes(data);
-                            table[i] = BitConverter.ToSingle(bytes, 0);
-                            //table[i] = data;
-                        }*/
-
-                        for (int i = 0; i < Table.Length; ++i)
-                        {
-                            int offset = i * 4;
-                            io.GetPhysLong((UIntPtr)(DramBaseAddress + offset), out uint data);
-                            byte[] bytes = BitConverter.GetBytes(data);
-                            Buffer.BlockCopy(bytes, 0, Table, offset, bytes.Length);
-                        }
+                        status = new SMUCommands.TransferTableToDram(smu).Execute().status;
+                        if (status != SMU.Status.OK)
+                            return status;
                     }
 
-                    if (Utils.AllZero(Table))
-                        status = SMU.Status.FAILED;
-                    else
+                    Table = ReadTableFromMemory(TableSize);
+
+                    if (!Utils.AllZero(Table))
+                    {
                         ParseTable(Table);
-
-                    return status;
+                        return SMU.Status.OK;
+                    }
+                        
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Error occurred while reading table: " + ex.Message);
+                    return SMU.Status.FAILED;
+                }
             }
-            return SMU.Status.FAILED;
+
+            return status;
         }
 
         // Static one-time properties
