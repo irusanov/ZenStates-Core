@@ -186,7 +186,7 @@ namespace ZenStates.Core
             return -1;
         }
 
-        public static bool CompareFirstElements(float[] array1, float[] array2, int numElements)
+        public static bool ArrayMembersEqual(float[] array1, float[] array2, int numElements)
         {
             if (array1.Length < numElements || array2.Length < numElements)
             {

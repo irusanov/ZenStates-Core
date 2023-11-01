@@ -357,9 +357,9 @@ namespace ZenStates.Core
                 {
                     float[] tempTable = ReadTableFromMemory(NUM_ELEMENTS_TO_COMPARE);
 
-                    // check if the first 6 elements of the table are equal and issue a refresh command,
+                    // issue a refresh command if the table is empty or the first {NUM_ELEMENTS_TO_COMPARE} elements of both tables are equal,
                     // otherwise skip as some other app already refreshed the data
-                    if (Utils.AllZero(tempTable) || Utils.CompareFirstElements(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
+                    if (Utils.AllZero(tempTable) || Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
                     {
                         status = new SMUCommands.TransferTableToDram(smu).Execute().status;
                         if (status != SMU.Status.OK)
