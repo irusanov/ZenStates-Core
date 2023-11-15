@@ -46,6 +46,8 @@ namespace ZenStates.Core
             Raphael,
             Phoenix,
             Mendocino,
+            Genoa,
+            StormPeak,
         };
 
 
@@ -465,6 +467,12 @@ namespace ZenStates.Core
                         break;
                     case 0x8:
                         codeName = CodeName.Chagall;
+                        break;
+                    case 0x11:
+                        codeName = CodeName.Genoa;
+                        break;
+                    case 0x18:
+                        codeName = CodeName.StormPeak;
                         break;
                     case 0x21:
                         codeName = CodeName.Vermeer;
