@@ -45,6 +45,10 @@ namespace ZenStates.Core
             Rembrandt,
             Lucienne,
             Raphael,
+            Phoenix,
+            Mendocino,
+            Genoa,
+            StormPeak,
         };
 
 
@@ -208,19 +212,15 @@ namespace ZenStates.Core
                 else
                     Console.WriteLine("Could not read core fuse!");
 
-                uint ccdOffset = 0;
-
                 for (int i = 0; i < topology.ccds; i++)
                 {
                     if (Utils.GetBits(ccdEnableMap, i, 1) == 1)
                     {
-                        if (ReadDwordEx(coreDisableMapAddress | ccdOffset, ref coreFuse))
+                        if (ReadDwordEx(((uint)i << 25) + coreDisableMapAddress, ref coreFuse))
                             topology.coreDisableMap |= (coreFuse & 0xff) << i * 8;
                         else
                             Console.WriteLine($"Could not read core fuse for CCD{i}!");
                     }
-
-                    ccdOffset += 0x2000000;
                 }
             }
             else
@@ -273,6 +273,7 @@ namespace ZenStates.Core
                 info.packageType = (PackageType)(ebx >> 28);
                 info.codeName = GetCodeName(info);
                 smu = GetMaintainedSettings.GetByType(info.codeName);
+                smu.Hsmp.Init(this);
                 smu.Version = GetSmuVersion();
                 smu.TableVersion = GetTableVersion();
             }
@@ -486,6 +487,12 @@ namespace ZenStates.Core
                     case 0x8:
                         codeName = CodeName.Chagall;
                         break;
+                    case 0x11:
+                        codeName = CodeName.Genoa;
+                        break;
+                    case 0x18:
+                        codeName = CodeName.StormPeak;
+                        break;
                     case 0x21:
                         codeName = CodeName.Vermeer;
                         break;
@@ -497,6 +504,17 @@ namespace ZenStates.Core
                         break;
                     case 0x61:
                         codeName = CodeName.Raphael;
+                        break;
+                    case 0x74:
+                    case 0x78:
+                        codeName = CodeName.Phoenix;
+                        break;
+                    case 0xa0:
+                        codeName = CodeName.Mendocino;
+                        break;
+
+                    default:
+                        codeName = CodeName.Unsupported;
                         break;
                 }
             }
@@ -562,9 +580,11 @@ namespace ZenStates.Core
                 // Zen2 APU, Zen3 APU ?
                 case CodeName.Renoir:
                 case CodeName.Lucienne:
+                case CodeName.Mendocino:
                 case CodeName.Cezanne:
                 case CodeName.VanGogh:
                 case CodeName.Rembrandt:
+                case CodeName.Phoenix:
                     svi.coreAddress = Constants.F17H_M60H_SVI_TEL_PLANE0;
                     svi.socAddress = Constants.F17H_M60H_SVI_TEL_PLANE1;
                     break;
@@ -649,7 +669,12 @@ namespace ZenStates.Core
             return cmd.Scalar;
         }
 
-        public bool SendTestMessage() => new SMUCommands.SendTestMessage(smu).Execute().Success;
+        public bool SendTestMessage(uint arg = 1, Mailbox mbox = null)
+        {
+            var cmd = new SMUCommands.SendTestMessage(smu, mbox);
+            SMUCommands.CmdResult result = cmd.Execute(arg);
+            return result.Success && cmd.IsSumCorrect;
+        }
         public uint GetSmuVersion() => new SMUCommands.GetSmuVersion(smu).Execute().args[0];
         public double? GetBclk() => mmio.GetBclk();
         public bool SetBclk(double blck) => mmio.SetBclk(blck);

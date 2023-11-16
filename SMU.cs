@@ -5,7 +5,6 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace ZenStates.Core
 {
-    [SuppressMessage("Naming", "CA1707:Identifiers should not contain underscores", Justification = "<Pending>")]
     public abstract class SMU
     {
         private const ushort SMU_TIMEOUT = 8192;
@@ -129,7 +128,7 @@ namespace ZenStates.Core
                 SmuWriteReg(mailbox.SMU_ADDR_RSP, 0);
 
                 // Write data
-                uint[] cmdArgs = Utils.MakeCmdArgs(args);
+                uint[] cmdArgs = Utils.MakeCmdArgs(args, mailbox.MAX_ARGS);
                 for (int i = 0; i < cmdArgs.Length; ++i)
                     SmuWriteReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]);
 
@@ -164,13 +163,18 @@ namespace ZenStates.Core
         [Obsolete("SendSmuCommand with one argument is deprecated, please use SendSmuCommand with full 6 args")]
         public bool SendSmuCommand(Mailbox mailbox, uint msg, uint arg)
         {
-            uint[] args = Utils.MakeCmdArgs(arg);
+            uint[] args = Utils.MakeCmdArgs(arg, mailbox.MAX_ARGS);
             return SendSmuCommand(mailbox, msg, ref args) == Status.OK;
         }
 
         public Status SendMp1Command(uint msg, ref uint[] args) => SendSmuCommand(Mp1Smu, msg, ref args);
         public Status SendRsmuCommand(uint msg, ref uint[] args) => SendSmuCommand(Rsmu, msg, ref args);
-        public Status SendHsmpCommand(uint msg, ref uint[] args) => SendSmuCommand(Hsmp, msg, ref args);
+        public Status SendHsmpCommand(uint msg, ref uint[] args)
+        {
+            if (Hsmp.IsSupported && msg <= Hsmp.HighestSupportedFunction)
+                return SendSmuCommand(Hsmp, msg, ref args);
+            return Status.UNKNOWN_CMD;
+        }
     }
 
     public class BristolRidgeSettings : SMU
@@ -336,25 +340,6 @@ namespace ZenStates.Core
             Hsmp.SMU_ADDR_MSG = 0x3B10534;
             Hsmp.SMU_ADDR_RSP = 0x3B10980;
             Hsmp.SMU_ADDR_ARG = 0x3B109E0;
-
-            Hsmp.GetInterfaceVersion = 0x3;
-            Hsmp.ReadSocketPower = 0x4;
-            Hsmp.WriteSocketPowerLimit = 0x5;
-            Hsmp.ReadSocketPowerLimit = 0x6;
-            Hsmp.ReadMaxSocketPowerLimit = 0x7;
-            Hsmp.WriteBoostLimit = 0x8;
-            Hsmp.WriteBoostLimitAllCores = 0x9;
-            Hsmp.ReadBoostLimit = 0xA;
-            Hsmp.ReadProchotStatus = 0xB;
-            Hsmp.SetXgmiLinkWidthRange = 0xC;
-            Hsmp.APBDisable = 0xD;
-            Hsmp.APBEnable = 0xE;
-            Hsmp.ReadCurrentFclkMemclk = 0xF;
-            Hsmp.ReadCclkFrequencyLimit = 0x10;
-            Hsmp.ReadSocketC0Residency = 0x11;
-            Hsmp.SetLclkDpmLevelRange = 0x12;
-            //Hsmp.Reserved = 0x13;
-            Hsmp.GetMaxDDRBandwidthAndUtilization = 0x14;
         }
     }
 
@@ -382,6 +367,12 @@ namespace ZenStates.Core
         public Zen4Settings()
         {
             SMU_TYPE = SmuType.TYPE_CPU4;
+
+            // MP1
+            Mp1Smu.SMU_MSG_SetTDCVDDLimit = 0x3C;
+            Mp1Smu.SMU_MSG_SetEDCVDDLimit = 0x3D;
+            Mp1Smu.SMU_MSG_SetPPTLimit = 0x3E;
+            Mp1Smu.SMU_MSG_SetHTCLimit = 0x3F;
 
             // RSMU
             Rsmu.SMU_ADDR_MSG = 0x03B10524;
@@ -412,40 +403,6 @@ namespace ZenStates.Core
             Hsmp.SMU_ADDR_MSG = 0x3B10534;
             Hsmp.SMU_ADDR_RSP = 0x3B10980;
             Hsmp.SMU_ADDR_ARG = 0x3B109E0;
-            /*
-            Hsmp.GetInterfaceVersion = 0x3;
-            Hsmp.ReadSocketPower = 0x4;
-            Hsmp.WriteSocketPowerLimit = 0x5;
-            Hsmp.ReadSocketPowerLimit = 0x6;
-            Hsmp.ReadMaxSocketPowerLimit = 0x7;
-            Hsmp.WriteBoostLimit = 0x8;
-            Hsmp.WriteBoostLimitAllCores = 0x9;
-            Hsmp.ReadBoostLimit = 0xA;
-            Hsmp.ReadProchotStatus = 0xB;
-            Hsmp.SetXgmiLinkWidthRange = 0xC;
-            Hsmp.APBDisable = 0xD;
-            Hsmp.APBEnable = 0xE;
-            Hsmp.ReadCurrentFclkMemclk = 0xF;
-            Hsmp.ReadCclkFrequencyLimit = 0x10;
-            Hsmp.ReadSocketC0Residency = 0x11;
-            Hsmp.SetLclkDpmLevelRange = 0x12;
-            */
-            Hsmp.GetLclkDpmLevelRange = 0x13;
-            Hsmp.GetMaxDDRBandwidthAndUtilization = 0x14;
-            // Hsmp.Reserved = 0x15;
-            Hsmp.GetDIMMTempRangeAndRefreshRate = 0x16;
-            Hsmp.GetDIMMPowerConsumption = 0x17;
-            Hsmp.GetDIMMThermalSensor = 0x18;
-            Hsmp.PwrCurrentActiveFreqLimitSocket = 0x19;
-            Hsmp.PwrCurrentActiveFreqLimitCore = 0x1A;
-            Hsmp.PwrSviTelemetryAllRails = 0x1B;
-            Hsmp.GetSocketFreqRange = 0x1C;
-            Hsmp.GetCurrentIoBandwidth = 0x1D;
-            Hsmp.GetCurrentIoBandwidth = 0x1E;
-            Hsmp.SetGMI3LinkWidthRange = 0x1F;
-            Hsmp.ControlPcieLinkRate = 0x20;
-            Hsmp.PwrEfficiencyModeSelection = 0x21;
-            Hsmp.SetDfPstateRange = 0x22;
         }
     }
 
@@ -622,6 +579,8 @@ namespace ZenStates.Core
 
             // Zen4
             { Cpu.CodeName.Raphael, new Zen4Settings() },
+            { Cpu.CodeName.Genoa, new Zen4Settings() },
+            { Cpu.CodeName.StormPeak, new Zen4Settings() },
 
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },
@@ -635,6 +594,11 @@ namespace ZenStates.Core
 
             { Cpu.CodeName.VanGogh, new APUSettings1() }, // experimental
             { Cpu.CodeName.Rembrandt, new APUSettings1_Rembrandt() },
+            // Still unknown. The MP1 addresses are the same as on Rembrand according to coreboot
+            // https://github.com/coreboot/coreboot/blob/master/src/soc/amd/mendocino/include/soc/smu.h
+            // https://github.com/coreboot/coreboot/blob/master/src/soc/amd/phoenix/include/soc/smu.h
+            { Cpu.CodeName.Phoenix, new APUSettings1_Rembrandt() },
+            { Cpu.CodeName.Mendocino, new APUSettings1_Rembrandt() },
 
             { Cpu.CodeName.Unsupported, new UnsupportedSettings() },
         };

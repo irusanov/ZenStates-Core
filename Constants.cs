@@ -21,5 +21,7 @@
         internal const uint F17H_M70H_CCD_TEMP = 0x00059954;
         internal const uint THM_CUR_TEMP = 0x00059800;
         internal const uint THM_CUR_TEMP_RANGE_SEL_MASK = 0x80000;
+        internal const int DEFAULT_MAILBOX_ARGS = 6;
+        internal const int HSMP_MAILBOX_ARGS = 8;
     }
 }

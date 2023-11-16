@@ -7,6 +7,7 @@ namespace ZenStates.Core
         // https://www.amd.com/system/files/TechDocs/52740_16h_Models_30h-3Fh_BKDG.pdf (page 859)
         internal const uint ACPI_MMIO_BASE_ADDRESS = 0xFED80000;
         internal const uint MISC_BASE = ACPI_MMIO_BASE_ADDRESS + 0xE00;
+        // internal const uint IOMUX_BASE = ACPI_MMIO_BASE_ADDRESS + 0xD00;
         internal const uint MISC_GPPClkCntrl = MISC_BASE + 0;
         internal const uint MISC_ClkOutputCntrl = MISC_BASE + 0x04;
         internal const uint MISC_CGPLLConfig1 = MISC_BASE + 0x08;
@@ -15,6 +16,8 @@ namespace ZenStates.Core
         internal const uint MISC_CGPLLConfig4 = MISC_BASE + 0x14;
         internal const uint MISC_CGPLLConfig5 = MISC_BASE + 0x18;
         internal const uint MISC_ClkCntl1 = MISC_BASE + 0x40;
+        internal const uint MISC_StrapStatus = MISC_BASE + 0x80;
+        // internal const uint IOMUX_LPCCLK1 = IOMUX_BASE + 0x1F;
 
         private readonly IOModule io;
 
@@ -23,7 +26,7 @@ namespace ZenStates.Core
             this.io = io;
         }
 
-        private int CalculateBclkIndex(int bclk)
+        private static int CalculateBclkIndex(int bclk)
         {
             if (bclk > 151)
                 bclk = 151;
@@ -35,11 +38,25 @@ namespace ZenStates.Core
             return bclk ^ 100;
         }
 
-        private int CalculateBclkFromIndex(int index)
+        private static int CalculateBclkFromIndex(int index)
         {
             if (index < 32)
                 return index ^ 100;
             return index ^ 164;
+        }
+
+        /**
+         * [17] ClkGenStrap
+         *  1=Internal clocking mode; Use 48MHz crystal 
+         *  clock as the reference clock. 0=External clocking mode; Use 100MHz differential spread clock as the 
+         *  reference clock
+         * [12] CPUClkSelStrap
+         */
+        public int GetStrapStatus()
+        {
+            if (io.GetPhysLong((UIntPtr)MISC_StrapStatus, out uint value))
+                return (int)Utils.GetBits(value, 17, 1);
+            return -1;
         }
 
         private bool DisableSpreadSpectrum()
@@ -56,11 +73,27 @@ namespace ZenStates.Core
             return false;
         }
 
+        /**
+         * [11] GPP_CLK3_ClockOutputOverride. Read-write. Reset: 0. GPP_CLK3 clock output override control. GPP_CLK3 is a bi-directional pin depending on LPCCLK1 strap value. If Strap 
+         * (LPCCLK1)==1, GPP_CLK3 provides clock for external device and output buffer will be on. If Strap 
+         * (LPCCLK1)==0, GPP_CLK3 receives clock from external clock chip and output buffer will be off. 
+         * This override bit allows to invert the strap that controls GPP_CLK3 clock output buffer. 0=Use the 
+         * strap value (LPCCLK1) to determine whether GPP_CLK3 clock output buffer is on or off. 1=Invert 
+         * the strap that controls GPP_CLK3 clock output buffer
+         * 
+         * [10] CPU_CLK_ClockSourceOverride. Read-write. Reset: 0. CPU_CLK clock source override control. 
+         * CPU_CLK clock source is controlled by strap (LPCCLK1). If Strap (LPCCLK1)==1, CPU_CLK 
+         * clock source is from CG_PLL. If Strap (LPCCLK1)==0, CPU_CLK clock source is from external 
+         * clock chip through GPP_CLK3_P/N pins. This override bit allows to invert the strap that controls 
+         * CPU_CLK clock source. 0=Use the strap value (LPCCLK1) to determine whether CPU_CLK clock 
+         * source from either CG_PLL or external clock chip. 1=Invert the strap that controls CPU_CLK clock 
+         * source.
+         */
         public bool SetBclk(double bclk)
         {
             DisableSpreadSpectrum();
 
-            // CCG1PLL_FBDIV_Enable
+            // CCG1PLL_FBDIV_Enable, bit 25
             bool res = io.GetPhysLong((UIntPtr)MISC_ClkCntl1, out uint value);
             res = io.SetPhysLong((UIntPtr)MISC_ClkCntl1, Utils.SetBits(value, 25, 1, 1));
 
