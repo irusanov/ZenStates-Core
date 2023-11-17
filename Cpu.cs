@@ -97,6 +97,7 @@ namespace ZenStates.Core
             public uint extModel;
             public uint model;
             public uint patchLevel;
+            public uint stepping;
             public CpuTopology topology;
             public SVI2 svi2;
             public AOD aod;
@@ -239,6 +240,7 @@ namespace ZenStates.Core
                 info.baseModel = (eax & 0xf0) >> 4;
                 info.extModel = (eax & 0xf0000) >> 12;
                 info.model = info.baseModel + info.extModel;
+                info.stepping = eax & 0xf;
                 // info.logicalCores = Utils.GetBits(ebx, 16, 8);
             }
             else
@@ -418,6 +420,7 @@ namespace ZenStates.Core
                         codeName = CodeName.RavenRidge;
                         break;
                     case 0x20:
+                        // Dali seems to be a newer stepping (B1) of RavenRidge (B0), otherwise identical
                         codeName = CodeName.Dali;
                         break;
                     // Zen+
@@ -428,6 +431,8 @@ namespace ZenStates.Core
                             codeName = CodeName.PinnacleRidge;
                         break;
                     case 0x18:
+                        // 3000G is an exception and has incorrect CPUID of Picasso
+                        // In fact it is RavenRidge/Dali based
                         if (info.cpuName.Contains("3000G"))
                             codeName = CodeName.Dali;
                         else
