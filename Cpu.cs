@@ -246,6 +246,8 @@ namespace ZenStates.Core
                 throw new ApplicationException(InitializationExceptionText);
             }
 
+            info.cpuName = GetCpuName();
+
             // Package type
             if (Opcode.Cpuid(0x80000001, 0, out eax, out ebx, out ecx, out edx))
             {
@@ -260,8 +262,6 @@ namespace ZenStates.Core
             {
                 throw new ApplicationException(InitializationExceptionText);
             }
-
-            info.cpuName = GetCpuName();
 
             // Non-critical block
             try
@@ -428,7 +428,10 @@ namespace ZenStates.Core
                             codeName = CodeName.PinnacleRidge;
                         break;
                     case 0x18:
-                        codeName = CodeName.Picasso;
+                        if (info.cpuName.Contains("3000G"))
+                            codeName = CodeName.Dali;
+                        else
+                            codeName = CodeName.Picasso;
                         break;
                     case 0x50: // Subor Z+, CPUID 0x00850F00
                         codeName = CodeName.FireFlight;
