@@ -51,8 +51,10 @@ namespace ZenStates.Core
         public string CpuName => cpuInfo.cpuName ?? "N/A";
         public string CodeName => cpuInfo.codeName.ToString();
         public uint CpuId => cpuInfo.cpuid;
-        public uint Model => cpuInfo.model;
+        public uint BaseModel => cpuInfo.baseModel;
         public uint ExtendedModel => cpuInfo.extModel;
+        public uint Model => cpuInfo.model;
+        public uint Stepping => cpuInfo.stepping;
         public string PackageType => $"{cpuInfo.packageType} ({(int)cpuInfo.packageType})";
         public int FusedCoreCount => (int)cpuInfo.topology.cores;
         public int PhysicalCoreCount => (int)cpuInfo.topology.physicalCores;
