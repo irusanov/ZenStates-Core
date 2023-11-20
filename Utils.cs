@@ -203,5 +203,15 @@ namespace ZenStates.Core
 
             return true;
         }
+
+        public static bool PartialStringMatch(string str, string[] arr)
+        {
+            bool match = false;
+            for (int i = 0; i < arr.Length; i++)
+            {
+                if (str.Contains(arr[i])) { match = true; break; }
+            }
+            return match;
+        }
     }
 }

@@ -431,9 +431,8 @@ namespace ZenStates.Core
                             codeName = CodeName.PinnacleRidge;
                         break;
                     case 0x18:
-                        // 3000G is an exception and has incorrect CPUID of Picasso
-                        // In fact it is RavenRidge/Dali based
-                        if (info.cpuName.Contains("3000G"))
+                        // Some APUs that have the CPUID of Picasso are in fact Dali
+                        if (Utils.PartialStringMatch(info.cpuName, Constants.MISIDENTIFIED_DALI_APU))
                             codeName = CodeName.Dali;
                         else
                             codeName = CodeName.Picasso;
