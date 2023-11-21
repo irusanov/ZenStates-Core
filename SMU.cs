@@ -584,8 +584,8 @@ namespace ZenStates.Core
 
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },
-            { Cpu.CodeName.Dali, new APUSettings0() },
             { Cpu.CodeName.FireFlight, new APUSettings0() },
+            { Cpu.CodeName.Dali, new APUSettings0_Picasso() },
             { Cpu.CodeName.Picasso, new APUSettings0_Picasso() },
 
             { Cpu.CodeName.Renoir, new APUSettings1() },
