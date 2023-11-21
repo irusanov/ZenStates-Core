@@ -46,6 +46,8 @@ namespace ZenStates.Core
             Raphael,
             Phoenix,
             Mendocino,
+            Genoa,
+            StormPeak,
         };
 
 
@@ -95,6 +97,7 @@ namespace ZenStates.Core
             public uint extModel;
             public uint model;
             public uint patchLevel;
+            public uint stepping;
             public CpuTopology topology;
             public SVI2 svi2;
             public AOD aod;
@@ -237,12 +240,15 @@ namespace ZenStates.Core
                 info.baseModel = (eax & 0xf0) >> 4;
                 info.extModel = (eax & 0xf0000) >> 12;
                 info.model = info.baseModel + info.extModel;
+                info.stepping = eax & 0xf;
                 // info.logicalCores = Utils.GetBits(ebx, 16, 8);
             }
             else
             {
                 throw new ApplicationException(InitializationExceptionText);
             }
+
+            info.cpuName = GetCpuName();
 
             // Package type
             if (Opcode.Cpuid(0x80000001, 0, out eax, out ebx, out ecx, out edx))
@@ -259,8 +265,6 @@ namespace ZenStates.Core
                 throw new ApplicationException(InitializationExceptionText);
             }
 
-            info.cpuName = GetCpuName();
-
             // Non-critical block
             try
             {
@@ -276,9 +280,9 @@ namespace ZenStates.Core
             {
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
+                info.aod = new AOD(io, info.codeName);
                 systemInfo = new SystemInfo(info, smu);
                 powerTable = new PowerTable(smu, io, mmio);
-                info.aod = new AOD(io);
 
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
@@ -416,6 +420,7 @@ namespace ZenStates.Core
                         codeName = CodeName.RavenRidge;
                         break;
                     case 0x20:
+                        // Dali seems to be a newer stepping (B1) of RavenRidge (B0), otherwise identical
                         codeName = CodeName.Dali;
                         break;
                     // Zen+
@@ -426,7 +431,11 @@ namespace ZenStates.Core
                             codeName = CodeName.PinnacleRidge;
                         break;
                     case 0x18:
-                        codeName = CodeName.Picasso;
+                        // Some APUs that have the CPUID of Picasso are in fact Dali
+                        if (Utils.PartialStringMatch(info.cpuName, Constants.MISIDENTIFIED_DALI_APU))
+                            codeName = CodeName.Dali;
+                        else
+                            codeName = CodeName.Picasso;
                         break;
                     case 0x50: // Subor Z+, CPUID 0x00850F00
                         codeName = CodeName.FireFlight;
@@ -465,6 +474,12 @@ namespace ZenStates.Core
                         break;
                     case 0x8:
                         codeName = CodeName.Chagall;
+                        break;
+                    case 0x11:
+                        codeName = CodeName.Genoa;
+                        break;
+                    case 0x18:
+                        codeName = CodeName.StormPeak;
                         break;
                     case 0x21:
                         codeName = CodeName.Vermeer;

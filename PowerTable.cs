@@ -179,6 +179,11 @@ namespace ZenStates.Core
             { 0x540002, 0x87C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540003, 0x89C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540004, 0x8BC, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
+            // Storm Peak, cpuid 00A10F81
+            { 0x5C0302, 0xD9C, 0x194, 0x1A8, 0x1BC, 0x134, -1, -1, -1, -1, -1 },
+            { 0x5C0303, 0xD9C, 0x19C, 0x1B0, 0x1C4, 0x13C, -1, -1, -1, -1, -1 },
+            // Generic Zen4 Thradripper
+            { 0x0005C0, 0xD9C, 0x19C, 0x1B0, 0x1C4, 0x13C, -1, -1, -1, -1, -1 },
 
             // Generic Zen4
             { 0x000400, 0x948, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
@@ -218,7 +223,10 @@ namespace ZenStates.Core
                     break;
 
                 case SMU.SmuType.TYPE_CPU4:
-                    version = 0x400;
+                    if ((tableVersion >> 16) == 0x5c)
+                        version = 0x5c0;
+                    else
+                        version = 0x400;
                     break;
 
                 case SMU.SmuType.TYPE_APU0:

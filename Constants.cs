@@ -1,4 +1,6 @@
-﻿namespace ZenStates.Core
+﻿using System.Collections.Generic;
+
+namespace ZenStates.Core
 {
     internal static class Constants
     {
@@ -23,5 +25,19 @@
         internal const uint THM_CUR_TEMP_RANGE_SEL_MASK = 0x80000;
         internal const int DEFAULT_MAILBOX_ARGS = 6;
         internal const int HSMP_MAILBOX_ARGS = 8;
+        internal static readonly string[] MISIDENTIFIED_DALI_APU = {
+            "Athlon Silver 3050GE",
+            "Athlon Silver 3050U",
+            "3015e",
+            "3020e",
+            "Athlon Gold 3150U",
+            "Athlon Silver 3050e",
+            "Ryzen 3 3250U",
+            "Athlon 3000G",
+            "Athlon 300GE",
+            "Athlon 300U",
+            "Athlon 320GE",
+            "Ryzen 3 3200U",
+        };
     }
 }
