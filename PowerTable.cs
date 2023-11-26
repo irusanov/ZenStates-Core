@@ -14,7 +14,7 @@ namespace ZenStates.Core
         public readonly uint DramBaseAddressHi;
         public readonly uint DramBaseAddress;
         public readonly int TableSize;
-        private const int NUM_ELEMENTS_TO_COMPARE = 6;
+        private const int NUM_ELEMENTS_TO_COMPARE = 20;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -272,6 +272,7 @@ namespace ZenStates.Core
             tableDef = GetPowerTableDef(smu.TableVersion, smu.SMU_TYPE);
             TableSize = tableDef.tableSize;
             Table = new float[TableSize / 4];
+            this.Refresh();
         }
 
         private float GetDiscreteValue(float[] pt, int index)
