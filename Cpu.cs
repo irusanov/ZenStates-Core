@@ -307,43 +307,70 @@ namespace ZenStates.Core
             return ((ccd << 4 | ccx % ccxInCcd & 0xF) << 4 | core % coresInCcx & 0xF) << 20;
         }
 
-        public bool ReadDwordEx(uint addr, ref uint data)
+        public bool ReadDwordEx(uint addr, ref uint data, int maxRetries = 10)
         {
-            bool res = false;
-            if (Ring0.WaitPciBusMutex(10))
+            for (int retry = 0; retry < maxRetries; retry++)
             {
-                if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr))
-                    res = Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, out data);
-                Ring0.ReleasePciBusMutex();
+                if (Ring0.WaitPciBusMutex(10))
+                {
+                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr)
+                        && Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, out data))
+                    {
+                        Ring0.ReleasePciBusMutex();
+                        return true;
+                    }
+
+                }
             }
-            return res;
+
+            return false;
         }
 
-        public uint ReadDword(uint addr)
+        public bool ReadDword(uint addr, ref uint data, int maxRetries = 10)
         {
-            uint data = 0;
-
-            if (Ring0.WaitPciBusMutex(10))
+            for (int retry = 0; retry < maxRetries; retry++)
             {
-                Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr);
-                Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, out data);
-                Ring0.ReleasePciBusMutex();
+                if (Ring0.WaitPciBusMutex(10))
+                {
+                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) &&
+                        Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, out data))
+                    {
+                        Ring0.ReleasePciBusMutex();
+                        return true;
+                    }
+
+                    Ring0.ReleasePciBusMutex();
+                }
             }
 
+            return false;
+        }
+
+        public uint ReadDword(uint addr, int maxRetries = 10)
+        {
+            uint data = 0;
+            ReadDword(addr, ref data, maxRetries);
             return data;
         }
 
-        public bool WriteDwordEx(uint addr, uint data)
+        public bool WriteDwordEx(uint addr, uint data, int maxRetries = 10)
         {
-            bool res = false;
-            if (Ring0.WaitPciBusMutex(10))
+            for (int retry = 0; retry < maxRetries; retry++)
             {
-                if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr))
-                    res = Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, data);
-                Ring0.ReleasePciBusMutex();
+                if (Ring0.WaitPciBusMutex(10))
+                {
+                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) && 
+                        Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, data))
+                    {
+                        Ring0.ReleasePciBusMutex();
+                        return true;
+                    }
+
+                    Ring0.ReleasePciBusMutex();
+                }
             }
 
-            return res;
+            return false;
         }
 
         public double GetCoreMulti(int index = 0)
