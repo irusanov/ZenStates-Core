@@ -267,7 +267,11 @@ namespace ZenStates.Core
                 throw new ApplicationException("Could not get DRAM base address.");
 
             if (!Utils.Is64Bit)
-                new SMUCommands.SetToolsDramAddress(smu).Execute(DramBaseAddress);
+            {
+                var status = new SMUCommands.SetToolsDramAddress(smu).Execute(DramBaseAddress);
+                if (!status.Success)
+                    throw new ApplicationException("Could not set DRAM base address.");
+            }
 
             tableDef = GetPowerTableDef(smu.TableVersion, smu.SMU_TYPE);
             TableSize = tableDef.tableSize;
@@ -278,7 +282,7 @@ namespace ZenStates.Core
         private float GetDiscreteValue(float[] pt, int index)
         {
             if (index > -1 && index < TableSize)
-                return pt[index / 4];
+                return pt[index / sizeof(float)];
             return 0;
         }
 
@@ -328,9 +332,9 @@ namespace ZenStates.Core
             {
                 byte[] bytes;
                 if ((smu.SMU_TYPE >= SMU.SmuType.TYPE_CPU4 && smu.SMU_TYPE < SMU.SmuType.TYPE_CPU9) || smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
-                    bytes = io.ReadMemory(new IntPtr((long)DramBaseAddressHi << 32 | DramBaseAddressLo), tableSize * sizeof(float));
+                    bytes = io.ReadMemory(new IntPtr((long)DramBaseAddressHi << 32 | DramBaseAddressLo), tableSize);
                 else
-                    bytes = io.ReadMemory(new IntPtr(DramBaseAddressLo), tableSize * sizeof(float));
+                    bytes = io.ReadMemory(new IntPtr(DramBaseAddressLo), tableSize);
 
                 if (bytes != null && bytes.Length > 0)
                     Buffer.BlockCopy(bytes, 0, table, 0, bytes.Length);
@@ -356,7 +360,6 @@ namespace ZenStates.Core
             return table;
         }
 
-
         public SMU.Status Refresh()
         {
             SMU.Status status = SMU.Status.FAILED;
@@ -365,7 +368,7 @@ namespace ZenStates.Core
             {
                 try
                 {
-                    float[] tempTable = ReadTableFromMemory(NUM_ELEMENTS_TO_COMPARE);
+                    float[] tempTable = ReadTableFromMemory(NUM_ELEMENTS_TO_COMPARE * 4);
 
                     // issue a refresh command if the table is empty or the first {NUM_ELEMENTS_TO_COMPARE} elements of both tables are equal,
                     // otherwise skip as some other app already refreshed the data
@@ -376,7 +379,7 @@ namespace ZenStates.Core
                             return status;
                     }
 
-                    Table = ReadTableFromMemory(TableSize);
+                    Buffer.BlockCopy(ReadTableFromMemory(TableSize), 0, Table, 0, TableSize);
 
                     if (!Utils.AllZero(Table))
                     {
