@@ -48,6 +48,7 @@ namespace ZenStates.Core
             Mendocino,
             Genoa,
             StormPeak,
+            DragonRange,
         };
 
 
@@ -163,7 +164,7 @@ namespace ZenStates.Core
             {
                 offset = 0x598;
                 ccxPerCcd = 1;
-                if (codeName == CodeName.Raphael)
+                if (codeName == CodeName.Raphael || codeName == CodeName.DragonRange)
                 {
                     offset = 0x4D0;
                     fuse1 += 0x1A4;
@@ -518,7 +519,10 @@ namespace ZenStates.Core
                         codeName = CodeName.Cezanne;
                         break;
                     case 0x61:
-                        codeName = CodeName.Raphael;
+                        if ((int)cpuInfo.packageType == 1)
+                            codeName = CodeName.DragonRange;
+                        else
+                            codeName = CodeName.Raphael;
                         break;
                     case 0x74:
                     case 0x78:

@@ -116,7 +116,7 @@ namespace ZenStates.Core
             {
                 case Cpu.CodeName.StormPeak:
                 case Cpu.CodeName.Genoa:
-                    return AodDictionaries.AodDataStormPeakDictionary;
+                    return AodDictionaries.AodDataNewDictionary;
                 default:
                     return AodDictionaries.AodDataDefaultDictionary;
             }

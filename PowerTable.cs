@@ -101,7 +101,7 @@ namespace ZenStates.Core
         /// Zen2: 0x200
         /// Zen3: 0x300
         /// </summary>
-        // version, size, FCLK, UCLK, MCLK, VDDCR_SOC, CLDO_VDDP, CLDO_VDDG_IOD, CLDO_VDDG_CCD, Cores Power Offset
+        // version, size, FCLK, UCLK, MCLK, VDDCR_SOC, CLDO_VDDP, CLDO_VDDG_IOD, CLDO_VDDG_CCD, Cores Power Offset, MISC
         private static readonly PowerTableDef PowerTables = new PowerTableDef
         {
             // Zen and Zen+ APU
@@ -173,14 +173,14 @@ namespace ZenStates.Core
             { 0x540101, 0x61C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540102, 0x66C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540103, 0x68C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
-            // { 0x540104, 0x6A8, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
+            { 0x540104, 0x6A4, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540000, 0x828, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540001, 0x82C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540002, 0x87C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540003, 0x89C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540004, 0x8BC, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
+            { 0x540005, 0x8C4, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             // Storm Peak, cpuid 00A10F81
-            // version, size,  FCLK,  UCLK,  MCLK,  SOC,  VDDP,  VDDG_IOD,  VDDG_CCD, Cores Power Offset, MISC
             { 0x5C0302, 0xD9C, 0x194, 0x1A8, 0x1BC, 0x11C, -1, -1, -1, -1, 0x130 },
             { 0x5C0303, 0xD9C, 0x19C, 0x1B0, 0x1C4, 0x124, -1, -1, -1, -1, 0x138 },
             // Generic Zen4 Threadripper
@@ -372,7 +372,7 @@ namespace ZenStates.Core
 
                     // issue a refresh command if the table is empty or the first {NUM_ELEMENTS_TO_COMPARE} elements of both tables are equal,
                     // otherwise skip as some other app already refreshed the data
-                    if (Utils.AllZero(tempTable) || Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
+                    if (tempTable == null || Table == null || Utils.AllZero(tempTable) || Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
                     {
                         status = new SMUCommands.TransferTableToDram(smu).Execute().status;
                         if (status != SMU.Status.OK)
