@@ -19,6 +19,8 @@ namespace ZenStates.Core.SMUCommands
                 {
                     byte[] bytes = BitConverter.GetBytes(result.args[0]);
                     Scalar = BitConverter.ToSingle(bytes, 0);
+                    if (Scalar < Constants.PBO_SCALAR_MIN || Scalar > Constants.PBO_SCALAR_MAX)
+                        Scalar = Constants.PBO_SCALAR_DEFAULT;
                 }
             }
 

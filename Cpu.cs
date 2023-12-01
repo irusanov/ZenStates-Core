@@ -49,6 +49,7 @@ namespace ZenStates.Core
             Mendocino,
             Genoa,
             StormPeak,
+            DragonRange,
         };
 
 
@@ -184,7 +185,7 @@ namespace ZenStates.Core
             {
                 offset = 0x598;
                 ccxPerCcd = 1;
-                if (codeName == CodeName.Raphael)
+                if (codeName == CodeName.Raphael || codeName == CodeName.DragonRange)
                 {
                     offset = 0x4D0;
                     fuse1 += 0x1A4;
@@ -301,9 +302,9 @@ namespace ZenStates.Core
             {
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
+                info.aod = new AOD(io, info.codeName);
                 systemInfo = new SystemInfo(info, smu);
                 powerTable = new PowerTable(smu, io, mmio);
-                info.aod = new AOD(io);
 
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
@@ -330,43 +331,70 @@ namespace ZenStates.Core
             return ((ccd << 4 | ccx % ccxInCcd & 0xF) << 4 | core % coresInCcx & 0xF) << 20;
         }
 
-        public bool ReadDwordEx(uint addr, ref uint data)
+        public bool ReadDwordEx(uint addr, ref uint data, int maxRetries = 10)
         {
-            bool res = false;
-            if (Ring0.WaitPciBusMutex(10))
+            for (int retry = 0; retry < maxRetries; retry++)
             {
-                if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr))
-                    res = Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, out data);
-                Ring0.ReleasePciBusMutex();
+                if (Ring0.WaitPciBusMutex(10))
+                {
+                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr)
+                        && Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, out data))
+                    {
+                        Ring0.ReleasePciBusMutex();
+                        return true;
+                    }
+
+                }
             }
-            return res;
+
+            return false;
         }
 
-        public uint ReadDword(uint addr)
+        public bool ReadDword(uint addr, ref uint data, int maxRetries = 10)
         {
-            uint data = 0;
-
-            if (Ring0.WaitPciBusMutex(10))
+            for (int retry = 0; retry < maxRetries; retry++)
             {
-                Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr);
-                Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, out data);
-                Ring0.ReleasePciBusMutex();
+                if (Ring0.WaitPciBusMutex(10))
+                {
+                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) &&
+                        Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, out data))
+                    {
+                        Ring0.ReleasePciBusMutex();
+                        return true;
+                    }
+
+                    Ring0.ReleasePciBusMutex();
+                }
             }
 
+            return false;
+        }
+
+        public uint ReadDword(uint addr, int maxRetries = 10)
+        {
+            uint data = 0;
+            ReadDword(addr, ref data, maxRetries);
             return data;
         }
 
-        public bool WriteDwordEx(uint addr, uint data)
+        public bool WriteDwordEx(uint addr, uint data, int maxRetries = 10)
         {
-            bool res = false;
-            if (Ring0.WaitPciBusMutex(10))
+            for (int retry = 0; retry < maxRetries; retry++)
             {
-                if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr))
-                    res = Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, data);
-                Ring0.ReleasePciBusMutex();
+                if (Ring0.WaitPciBusMutex(10))
+                {
+                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) && 
+                        Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, data))
+                    {
+                        Ring0.ReleasePciBusMutex();
+                        return true;
+                    }
+
+                    Ring0.ReleasePciBusMutex();
+                }
             }
 
-            return res;
+            return false;
         }
 
         public double GetCoreMulti(int index = 0)
@@ -454,9 +482,8 @@ namespace ZenStates.Core
                             codeName = CodeName.PinnacleRidge;
                         break;
                     case 0x18:
-                        // 3000G is an exception and has incorrect CPUID of Picasso
-                        // In fact it is RavenRidge/Dali based
-                        if (info.cpuName.Contains("3000G"))
+                        // Some APUs that have the CPUID of Picasso are in fact Dali
+                        if (Utils.PartialStringMatch(info.cpuName, Constants.MISIDENTIFIED_DALI_APU))
                             codeName = CodeName.Dali;
                         else
                             codeName = CodeName.Picasso;
@@ -511,7 +538,10 @@ namespace ZenStates.Core
                         codeName = CodeName.Cezanne;
                         break;
                     case 0x61:
-                        codeName = CodeName.Raphael;
+                        if ((int)cpuInfo.packageType == 1)
+                            codeName = CodeName.DragonRange;
+                        else
+                            codeName = CodeName.Raphael;
                         break;
                     case 0x74:
                     case 0x78:

@@ -14,7 +14,7 @@ namespace ZenStates.Core
         public readonly uint DramBaseAddressHi;
         public readonly uint DramBaseAddress;
         public readonly int TableSize;
-        private const int NUM_ELEMENTS_TO_COMPARE = 6;
+        private const int NUM_ELEMENTS_TO_COMPARE = 20;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -101,7 +101,7 @@ namespace ZenStates.Core
         /// Zen2: 0x200
         /// Zen3: 0x300
         /// </summary>
-        // version, size, FCLK, UCLK, MCLK, VDDCR_SOC, CLDO_VDDP, CLDO_VDDG_IOD, CLDO_VDDG_CCD, Cores Power Offset
+        // version, size, FCLK, UCLK, MCLK, VDDCR_SOC, CLDO_VDDP, CLDO_VDDG_IOD, CLDO_VDDG_CCD, Cores Power Offset, MISC
         private static readonly PowerTableDef PowerTables = new PowerTableDef
         {
             // Zen and Zen+ APU
@@ -173,17 +173,18 @@ namespace ZenStates.Core
             { 0x540101, 0x61C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540102, 0x66C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540103, 0x68C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
-            // { 0x540104, 0x6A8, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
+            { 0x540104, 0x6A4, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540000, 0x828, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540001, 0x82C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540002, 0x87C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540003, 0x89C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540004, 0x8BC, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
+            { 0x540005, 0x8C4, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             // Storm Peak, cpuid 00A10F81
-            { 0x5C0302, 0xD9C, 0x194, 0x1A8, 0x1BC, 0x134, -1, -1, -1, -1, -1 },
-            { 0x5C0303, 0xD9C, 0x19C, 0x1B0, 0x1C4, 0x13C, -1, -1, -1, -1, -1 },
-            // Generic Zen4 Thradripper
-            { 0x0005C0, 0xD9C, 0x19C, 0x1B0, 0x1C4, 0x13C, -1, -1, -1, -1, -1 },
+            { 0x5C0302, 0xD9C, 0x194, 0x1A8, 0x1BC, 0x11C, -1, -1, -1, -1, 0x130 },
+            { 0x5C0303, 0xD9C, 0x19C, 0x1B0, 0x1C4, 0x124, -1, -1, -1, -1, 0x138 },
+            // Generic Zen4 Threadripper
+            { 0x0005C0, 0xD9C, 0x19C, 0x1B0, 0x1C4, 0x124, -1, -1, -1, -1, -1 },
 
             // Generic Zen4
             { 0x000400, 0x948, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
@@ -266,17 +267,22 @@ namespace ZenStates.Core
                 throw new ApplicationException("Could not get DRAM base address.");
 
             if (!Utils.Is64Bit)
-                new SMUCommands.SetToolsDramAddress(smu).Execute(DramBaseAddress);
+            {
+                var status = new SMUCommands.SetToolsDramAddress(smu).Execute(DramBaseAddress);
+                if (!status.Success)
+                    throw new ApplicationException("Could not set DRAM base address.");
+            }
 
             tableDef = GetPowerTableDef(smu.TableVersion, smu.SMU_TYPE);
             TableSize = tableDef.tableSize;
             Table = new float[TableSize / 4];
+            this.Refresh();
         }
 
         private float GetDiscreteValue(float[] pt, int index)
         {
             if (index > -1 && index < TableSize)
-                return pt[index / 4];
+                return pt[index / sizeof(float)];
             return 0;
         }
 
@@ -326,9 +332,9 @@ namespace ZenStates.Core
             {
                 byte[] bytes;
                 if ((smu.SMU_TYPE >= SMU.SmuType.TYPE_CPU4 && smu.SMU_TYPE < SMU.SmuType.TYPE_CPU9) || smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
-                    bytes = io.ReadMemory(new IntPtr((long)DramBaseAddressHi << 32 | DramBaseAddressLo), tableSize * sizeof(float));
+                    bytes = io.ReadMemory(new IntPtr((long)DramBaseAddressHi << 32 | DramBaseAddressLo), tableSize);
                 else
-                    bytes = io.ReadMemory(new IntPtr(DramBaseAddressLo), tableSize * sizeof(float));
+                    bytes = io.ReadMemory(new IntPtr(DramBaseAddressLo), tableSize);
 
                 if (bytes != null && bytes.Length > 0)
                     Buffer.BlockCopy(bytes, 0, table, 0, bytes.Length);
@@ -354,7 +360,6 @@ namespace ZenStates.Core
             return table;
         }
 
-
         public SMU.Status Refresh()
         {
             SMU.Status status = SMU.Status.FAILED;
@@ -363,18 +368,18 @@ namespace ZenStates.Core
             {
                 try
                 {
-                    float[] tempTable = ReadTableFromMemory(NUM_ELEMENTS_TO_COMPARE);
+                    float[] tempTable = ReadTableFromMemory(NUM_ELEMENTS_TO_COMPARE * 4);
 
                     // issue a refresh command if the table is empty or the first {NUM_ELEMENTS_TO_COMPARE} elements of both tables are equal,
                     // otherwise skip as some other app already refreshed the data
-                    if (Utils.AllZero(tempTable) || Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
+                    if (tempTable == null || Table == null || Utils.AllZero(tempTable) || Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
                     {
                         status = new SMUCommands.TransferTableToDram(smu).Execute().status;
                         if (status != SMU.Status.OK)
                             return status;
                     }
 
-                    Table = ReadTableFromMemory(TableSize);
+                    Buffer.BlockCopy(ReadTableFromMemory(TableSize), 0, Table, 0, TableSize);
 
                     if (!Utils.AllZero(Table))
                     {
