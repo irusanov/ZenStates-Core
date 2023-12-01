@@ -116,6 +116,7 @@ namespace ZenStates.Core
             {
                 case Cpu.CodeName.StormPeak:
                 case Cpu.CodeName.Genoa:
+                case Cpu.CodeName.DragonRange:
                     return AodDictionaries.AodDataNewDictionary;
                 default:
                     return AodDictionaries.AodDataDefaultDictionary;
