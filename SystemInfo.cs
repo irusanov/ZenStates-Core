@@ -55,15 +55,17 @@ namespace ZenStates.Core
         public uint ExtendedModel => cpuInfo.extModel;
         public uint Model => cpuInfo.model;
         public uint Stepping => cpuInfo.stepping;
-        public string PackageType => $"{cpuInfo.packageType} ({(int)cpuInfo.packageType})";
+        // This is not working correctly, it needs mappings for each generation
+        // public string PackageType => $"{cpuInfo.packageType} ({(int)cpuInfo.packageType})";
         public int FusedCoreCount => (int)cpuInfo.topology.cores;
         public int PhysicalCoreCount => (int)cpuInfo.topology.physicalCores;
         public int NodesPerProcessor => (int)cpuInfo.topology.cpuNodes;
         public int Threads => (int)cpuInfo.topology.logicalCores;
         public bool SMT => (int)cpuInfo.topology.threadsPerCore > 1;
-        public int CCDCount => (int)cpuInfo.topology.ccds;
-        public int CCXCount => (int)cpuInfo.topology.ccxs;
-        public int NumCoresInCCX => (int)cpuInfo.topology.coresPerCcx;
+        // Disable for now, need revising
+        // public int CCDCount => (int)cpuInfo.topology.ccds;
+        // public int CCXCount => (int)cpuInfo.topology.ccxs;
+        // public int NumCoresInCCX => (int)cpuInfo.topology.coresPerCcx;
         public string MbVendor { get; private set; }
         public string MbName { get; private set; }
         public string BiosVersion { get; private set; }
@@ -76,7 +78,6 @@ namespace ZenStates.Core
 
         private static string SmuVersionToString(uint ver)
         {
-
             if ((ver & 0xFF000000) > 0)
             {
                 return $"{(ver >> 24) & 0xff}.{(ver >> 16) & 0xff}.{(ver >> 8) & 0xff}.{ver & 0xff}";

@@ -112,7 +112,7 @@ namespace ZenStates.Core
             { "MemVpp", 9104 }
         };
 
-        public static readonly Dictionary<string, int> AodDataStormPeakDictionary = new Dictionary<string, int>
+        public static readonly Dictionary<string, int> AodDataNewDictionary = new Dictionary<string, int>
         {
             { "SMTEn", 8916 },
             { "MemClk", 8920 },

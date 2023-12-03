@@ -581,6 +581,7 @@ namespace ZenStates.Core
             { Cpu.CodeName.Raphael, new Zen4Settings() },
             { Cpu.CodeName.Genoa, new Zen4Settings() },
             { Cpu.CodeName.StormPeak, new Zen4Settings() },
+            { Cpu.CodeName.DragonRange, new Zen4Settings() },
 
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },
