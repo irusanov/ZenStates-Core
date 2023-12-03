@@ -1,6 +1,7 @@
 using OpenHardwareMonitor.Hardware;
 using System;
 using System.IO;
+using System.Reflection;
 
 namespace ZenStates.Core
 {
@@ -8,6 +9,9 @@ namespace ZenStates.Core
     {
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
+        public readonly string Version = ((AssemblyFileVersionAttribute)Attribute.GetCustomAttribute(
+                Assembly.GetExecutingAssembly(),
+                typeof(AssemblyFileVersionAttribute), false)).Version;
 
         public enum Family
         {
@@ -743,7 +747,7 @@ namespace ZenStates.Core
         public bool SetFrequencyCCD(uint mask, uint frequency)
         {
             bool ret = true;
-            for (uint i = 0; i < systemInfo.CCXCount / systemInfo.CCDCount; i++)
+            for (uint i = 0; i < info.topology.ccxs / info.topology.ccds; i++)
             {
                 mask = Utils.SetBits(mask, 24, 1, i);
                 ret = SetFrequencyCCX(mask, frequency);
