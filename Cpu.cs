@@ -364,7 +364,7 @@ namespace ZenStates.Core
             {
                 if (Ring0.WaitPciBusMutex(10))
                 {
-                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) && 
+                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) &&
                         Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, data))
                     {
                         Ring0.ReleasePciBusMutex();

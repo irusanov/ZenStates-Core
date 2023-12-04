@@ -40,7 +40,7 @@ namespace ZenStates.Core
         private struct PTDef
         {
             public int tableVersion;
-            public int tableSize;
+            public int tableSize; // in bytes
             public int offsetFclk;
             public int offsetUclk;
             public int offsetMclk;
