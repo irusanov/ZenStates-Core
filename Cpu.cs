@@ -53,6 +53,7 @@ namespace ZenStates.Core
             Genoa,
             StormPeak,
             DragonRange,
+            Mero,
         };
 
 
@@ -489,7 +490,11 @@ namespace ZenStates.Core
                         codeName = CodeName.Matisse;
                         break;
                     case 0x90:
+                    case 0x91: // 0x00890F10 https://github.com/InstLatx64/InstLatx64/commit/2fe88fb370d1d71a96a8e78a523891e83f86fc17
                         codeName = CodeName.VanGogh;
+                        break;
+                    case 0x98:
+                        codeName = CodeName.Mero;
                         break;
 
                     default:
@@ -529,6 +534,7 @@ namespace ZenStates.Core
                             codeName = CodeName.Raphael;
                         break;
                     case 0x74:
+                    case 0x75:
                     case 0x78:
                         codeName = CodeName.Phoenix;
                         break;
@@ -608,6 +614,7 @@ namespace ZenStates.Core
                 case CodeName.VanGogh:
                 case CodeName.Rembrandt:
                 case CodeName.Phoenix:
+                case CodeName.Mero:
                     svi.coreAddress = Constants.F17H_M60H_SVI_TEL_PLANE0;
                     svi.socAddress = Constants.F17H_M60H_SVI_TEL_PLANE1;
                     break;

@@ -592,6 +592,7 @@ namespace ZenStates.Core
             { Cpu.CodeName.Lucienne, new APUSettings1() },
             { Cpu.CodeName.Cezanne, new APUSettings1_Cezanne() },
 
+            { Cpu.CodeName.Mero, new APUSettings1() }, // unknown, presumably based on VanGogh
             { Cpu.CodeName.VanGogh, new APUSettings1() }, // experimental
             { Cpu.CodeName.Rembrandt, new APUSettings1_Rembrandt() },
             // Still unknown. The MP1 addresses are the same as on Rembrand according to coreboot
