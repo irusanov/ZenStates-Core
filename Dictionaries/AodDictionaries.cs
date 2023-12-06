@@ -107,7 +107,8 @@ namespace ZenStates.Core
             { "RttParkDqs", 9060 },
             { "MemVddio", 9096 },
             { "MemVddq", 9100 },
-            { "MemVpp", 9104 }
+            { "MemVpp", 9104 },
+            { "ApuVddio", 9108 }
         };
 
         public static readonly Dictionary<string, int> AodDataNewDictionary = new Dictionary<string, int>
@@ -150,7 +151,8 @@ namespace ZenStates.Core
             { "RttParkDqs", 9056 },
             { "MemVddio", 9092 },
             { "MemVddq", 9096 },
-            { "MemVpp", 9100 }
+            { "MemVpp", 9100 },
+            { "ApuVddio", 9104 }
         };
     }
 }
