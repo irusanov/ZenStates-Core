@@ -49,6 +49,7 @@ namespace ZenStates.Core
             Lucienne,
             Raphael,
             Phoenix,
+            Phoenix2,
             Mendocino,
             Genoa,
             StormPeak,
@@ -535,8 +536,10 @@ namespace ZenStates.Core
                         break;
                     case 0x74:
                     case 0x75:
-                    case 0x78:
                         codeName = CodeName.Phoenix;
+                        break;
+                    case 0x78:
+                        codeName = CodeName.Phoenix2;
                         break;
                     case 0xa0:
                         codeName = CodeName.Mendocino;
@@ -612,9 +615,10 @@ namespace ZenStates.Core
                 case CodeName.Mendocino:
                 case CodeName.Cezanne:
                 case CodeName.VanGogh:
+                case CodeName.Mero:
                 case CodeName.Rembrandt:
                 case CodeName.Phoenix:
-                case CodeName.Mero:
+                case CodeName.Phoenix2:
                     svi.coreAddress = Constants.F17H_M60H_SVI_TEL_PLANE0;
                     svi.socAddress = Constants.F17H_M60H_SVI_TEL_PLANE1;
                     break;
