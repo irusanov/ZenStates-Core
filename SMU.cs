@@ -318,6 +318,7 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetPBOScalar = 0x58;
             Rsmu.SMU_MSG_GetPBOScalar = 0x6C;
             Rsmu.SMU_MSG_ReadBoostLimit = 0x6E;
+            Rsmu.SMU_MSG_IsOverclockable = 0x6F;
 
             // MP1
             Mp1Smu.SMU_ADDR_MSG = 0x3B10530;
@@ -451,6 +452,7 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x7E;
             Rsmu.SMU_MSG_SetOverclockCpuVid = 0x7F;
             Rsmu.SMU_MSG_GetPBOScalar = 0x68;
+            Rsmu.SMU_MSG_IsOverclockable = 0x88;
 
             // MP1
             Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
@@ -464,6 +466,7 @@ namespace ZenStates.Core
         public APUSettings0_Picasso()
         {
             Rsmu.SMU_MSG_GetPBOScalar = 0x62;
+            Rsmu.SMU_MSG_IsOverclockable = 0x87;
         }
     }
 
