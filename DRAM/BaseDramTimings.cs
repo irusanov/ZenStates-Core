@@ -93,7 +93,7 @@ namespace ZenStates.Core.DRAM
                 Frequency = ratio * 200;
             }
         }
-        public string TotalCapacity { get; private set; }
+        // public string TotalCapacity { get; private set; }
         public uint BGS { get; private set; }
         public uint BGSAlt { get; private set; }
         public uint GDM { get; private set; }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Management;
+using System.Reflection;
 
 namespace ZenStates.Core.DRAM
 {
@@ -42,6 +43,8 @@ namespace ZenStates.Core.DRAM
 
         public List<MemoryModule> Modules { get; protected set; }
 
+        public ulong TotalCapacity {  get; protected set; } = 0UL;
+
         // @TODO: either read all offsets or expose DCT offset
         public MemoryConfig(Cpu cpuInstance)
         {
@@ -68,7 +71,7 @@ namespace ZenStates.Core.DRAM
 
         public void ReadTimings(uint offset = 0)
         {
-            Timings?.Read();
+            Timings?.Read(offset);
         }
 
         private void ReadModulesInfo()
@@ -126,13 +129,24 @@ namespace ZenStates.Core.DRAM
                 {
                     throw new ApplicationException(connected ? @"Failed to get installed memory parameters." : $@"{ex.Message}");
                 }
+
+                if (Modules?.Count > 0)
+                {
+                    ulong totalCapacity = 0UL;
+                    foreach (MemoryModule module in Modules)
+                    {
+                        totalCapacity += module.Capacity;
+                    }
+                    TotalCapacity = totalCapacity;
+                }
             }
         }
 
         private void ReadChannels()
         {
             int dimmIndex = 0;
-            int channelsPerDimm = Timings.Type == MemType.DDR5 ? 2 : 1;
+            uint channelsPerDimm = Timings.Type == MemType.DDR5 ? 2u : 1u;
+            uint dimmsPerChannel = 1;
 
             // Get the offset by probing the UMC0 to UMC7
             // It appears that offsets 0x80 and 0x84 are DIMM config registers
@@ -140,11 +154,11 @@ namespace ZenStates.Core.DRAM
             // 0x50000
             // offset 0, bit 0 when set to 1 means DIMM1 is installed
             // offset 8, bit 0 when set to 1 means DIMM2 is installed
-            for (int i = 0; i < MAX_CHANNELS * channelsPerDimm; i += channelsPerDimm)
+            for (uint i = 0; i < MAX_CHANNELS * channelsPerDimm; i += channelsPerDimm)
             {
                 try
                 {
-                    uint offset = (uint)i << 20;
+                    uint offset = i << 20;
                     bool channel = Utils.GetBits(cpu.ReadDword(offset | 0x50DF0), 19, 1) == 0;
                     bool dimm1 = Utils.GetBits(cpu.ReadDword(offset | 0x50000), 0, 1) == 1;
                     bool dimm2 = Utils.GetBits(cpu.ReadDword(offset | 0x50008), 0, 1) == 1;
