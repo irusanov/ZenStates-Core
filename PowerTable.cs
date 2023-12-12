@@ -40,7 +40,7 @@ namespace ZenStates.Core
         private struct PTDef
         {
             public int tableVersion;
-            public int tableSize;
+            public int tableSize; // in bytes
             public int offsetFclk;
             public int offsetUclk;
             public int offsetMclk;
@@ -166,8 +166,6 @@ namespace ZenStates.Core
             // Generic Zen 3 CPU (latest known)
             { 0x000300, 0x948, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, -1, -1 },
 
-            // Zen4
-            { 0x540104, 0x6A8, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, -1 },
             // Zen4 (unverified): size should be correct, offsets are not verified yet
             { 0x540100, 0x618, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             { 0x540101, 0x61C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
@@ -377,8 +375,9 @@ namespace ZenStates.Core
                 float[] tempTable = ReadTableFromMemory(NUM_ELEMENTS_TO_COMPARE * 4);
 
                 // Issue a refresh command if the table is empty or the first {NUM_ELEMENTS_TO_COMPARE} elements of both tables are equal,
-                // otherwise skip as some other app already refreshed the data
-                if (tempTable == null || Table == null || Utils.AllZero(tempTable) || Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
+                // otherwise skip as some other app already refreshed the data.
+                // Checking for empty Table should issue a refresh on first load.
+                if (Utils.AllZero(Table) || Utils.AllZero(tempTable) || Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
                 {
                     SMU.Status status = new SMUCommands.TransferTableToDram(smu).Execute().status;
                     if (status != SMU.Status.OK)

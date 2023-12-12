@@ -1,7 +1,6 @@
 using OpenHardwareMonitor.Hardware;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 
 namespace ZenStates.Core
 {
@@ -319,6 +318,7 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetPBOScalar = 0x58;
             Rsmu.SMU_MSG_GetPBOScalar = 0x6C;
             Rsmu.SMU_MSG_ReadBoostLimit = 0x6E;
+            Rsmu.SMU_MSG_IsOverclockable = 0x6F;
 
             // MP1
             Mp1Smu.SMU_ADDR_MSG = 0x3B10530;
@@ -452,6 +452,7 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x7E;
             Rsmu.SMU_MSG_SetOverclockCpuVid = 0x7F;
             Rsmu.SMU_MSG_GetPBOScalar = 0x68;
+            Rsmu.SMU_MSG_IsOverclockable = 0x88;
 
             // MP1
             Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
@@ -465,6 +466,7 @@ namespace ZenStates.Core
         public APUSettings0_Picasso()
         {
             Rsmu.SMU_MSG_GetPBOScalar = 0x62;
+            Rsmu.SMU_MSG_IsOverclockable = 0x87;
         }
     }
 
@@ -593,12 +595,14 @@ namespace ZenStates.Core
             { Cpu.CodeName.Lucienne, new APUSettings1() },
             { Cpu.CodeName.Cezanne, new APUSettings1_Cezanne() },
 
+            { Cpu.CodeName.Mero, new APUSettings1() }, // unknown, presumably based on VanGogh
             { Cpu.CodeName.VanGogh, new APUSettings1() }, // experimental
             { Cpu.CodeName.Rembrandt, new APUSettings1_Rembrandt() },
             // Still unknown. The MP1 addresses are the same as on Rembrand according to coreboot
             // https://github.com/coreboot/coreboot/blob/master/src/soc/amd/mendocino/include/soc/smu.h
             // https://github.com/coreboot/coreboot/blob/master/src/soc/amd/phoenix/include/soc/smu.h
             { Cpu.CodeName.Phoenix, new APUSettings1_Rembrandt() },
+            { Cpu.CodeName.Phoenix2, new APUSettings1_Rembrandt() },
             { Cpu.CodeName.Mendocino, new APUSettings1_Rembrandt() },
 
             { Cpu.CodeName.Unsupported, new UnsupportedSettings() },

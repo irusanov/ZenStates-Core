@@ -49,10 +49,12 @@ namespace ZenStates.Core
             Lucienne,
             Raphael,
             Phoenix,
+            Phoenix2,
             Mendocino,
             Genoa,
             StormPeak,
             DragonRange,
+            Mero,
         };
 
 
@@ -364,7 +366,7 @@ namespace ZenStates.Core
             {
                 if (Ring0.WaitPciBusMutex(10))
                 {
-                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) && 
+                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) &&
                         Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, data))
                     {
                         Ring0.ReleasePciBusMutex();
@@ -489,7 +491,11 @@ namespace ZenStates.Core
                         codeName = CodeName.Matisse;
                         break;
                     case 0x90:
+                    case 0x91: // 0x00890F10 https://github.com/InstLatx64/InstLatx64/commit/2fe88fb370d1d71a96a8e78a523891e83f86fc17
                         codeName = CodeName.VanGogh;
+                        break;
+                    case 0x98:
+                        codeName = CodeName.Mero;
                         break;
 
                     default:
@@ -529,8 +535,11 @@ namespace ZenStates.Core
                             codeName = CodeName.Raphael;
                         break;
                     case 0x74:
-                    case 0x78:
+                    case 0x75:
                         codeName = CodeName.Phoenix;
+                        break;
+                    case 0x78:
+                        codeName = CodeName.Phoenix2;
                         break;
                     case 0xa0:
                         codeName = CodeName.Mendocino;
@@ -606,8 +615,10 @@ namespace ZenStates.Core
                 case CodeName.Mendocino:
                 case CodeName.Cezanne:
                 case CodeName.VanGogh:
+                case CodeName.Mero:
                 case CodeName.Rembrandt:
                 case CodeName.Phoenix:
+                case CodeName.Phoenix2:
                     svi.coreAddress = Constants.F17H_M60H_SVI_TEL_PLANE0;
                     svi.socAddress = Constants.F17H_M60H_SVI_TEL_PLANE1;
                     break;

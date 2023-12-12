@@ -13,7 +13,7 @@
     {
         public uint InterfaceVersion;
         public uint HighestSupportedFunction;
-        public HSMPMailbox(int maxArgs = Constants.HSMP_MAILBOX_ARGS) : base(maxArgs) {}
+        public HSMPMailbox(int maxArgs = Constants.HSMP_MAILBOX_ARGS) : base(maxArgs) { }
 
         private uint GetHighestSupportedId()
         {
