@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace ZenStates.Core
+﻿namespace ZenStates.Core
 {
     internal static class Constants
     {

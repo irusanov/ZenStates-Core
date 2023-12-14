@@ -200,9 +200,14 @@ namespace ZenStates.Core
 
         public static bool ArrayMembersEqual(float[] array1, float[] array2, int numElements)
         {
+            if (array1 == null || array2 == null)
+                return false;
+
             if (array1.Length < numElements || array2.Length < numElements)
             {
-                throw new ArgumentException("Arrays are not long enough to compare the specified number of elements.");
+                // throw new ArgumentException("Arrays are not long enough to compare the specified number of elements.");
+                Console.WriteLine("Arrays are not long enough to compare the specified number of elements.");
+                return false;
             }
 
             for (int i = 0; i < numElements; i++)

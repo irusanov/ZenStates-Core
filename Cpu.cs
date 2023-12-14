@@ -1,6 +1,7 @@
 using OpenHardwareMonitor.Hardware;
 using System;
 using System.IO;
+using System.Reflection;
 using ZenStates.Core.DRAM;
 
 namespace ZenStates.Core
@@ -9,6 +10,9 @@ namespace ZenStates.Core
     {
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
+        public readonly string Version = ((AssemblyFileVersionAttribute)Attribute.GetCustomAttribute(
+                Assembly.GetExecutingAssembly(),
+                typeof(AssemblyFileVersionAttribute), false)).Version;
 
         public enum Family
         {
@@ -46,10 +50,12 @@ namespace ZenStates.Core
             Lucienne,
             Raphael,
             Phoenix,
+            Phoenix2,
             Mendocino,
             Genoa,
             StormPeak,
             DragonRange,
+            Mero,
         };
 
 
@@ -383,7 +389,7 @@ namespace ZenStates.Core
             {
                 if (Ring0.WaitPciBusMutex(10))
                 {
-                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) && 
+                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) &&
                         Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, data))
                     {
                         Ring0.ReleasePciBusMutex();
@@ -508,7 +514,15 @@ namespace ZenStates.Core
                         codeName = CodeName.Matisse;
                         break;
                     case 0x90:
+                    case 0x91: // 0x00890F10 https://github.com/InstLatx64/InstLatx64/commit/2fe88fb370d1d71a96a8e78a523891e83f86fc17
                         codeName = CodeName.VanGogh;
+                        break;
+                    case 0x98:
+                        codeName = CodeName.Mero;
+                        break;
+
+                    default:
+                        codeName = CodeName.Unsupported;
                         break;
                 }
             }
@@ -544,8 +558,11 @@ namespace ZenStates.Core
                             codeName = CodeName.Raphael;
                         break;
                     case 0x74:
-                    case 0x78:
+                    case 0x75:
                         codeName = CodeName.Phoenix;
+                        break;
+                    case 0x78:
+                        codeName = CodeName.Phoenix2;
                         break;
                     case 0xa0:
                         codeName = CodeName.Mendocino;
@@ -621,8 +638,10 @@ namespace ZenStates.Core
                 case CodeName.Mendocino:
                 case CodeName.Cezanne:
                 case CodeName.VanGogh:
+                case CodeName.Mero:
                 case CodeName.Rembrandt:
                 case CodeName.Phoenix:
+                case CodeName.Phoenix2:
                     svi.coreAddress = Constants.F17H_M60H_SVI_TEL_PLANE0;
                     svi.socAddress = Constants.F17H_M60H_SVI_TEL_PLANE1;
                     break;
@@ -762,7 +781,7 @@ namespace ZenStates.Core
         public bool SetFrequencyCCD(uint mask, uint frequency)
         {
             bool ret = true;
-            for (uint i = 0; i < systemInfo.CCXCount / systemInfo.CCDCount; i++)
+            for (uint i = 0; i < info.topology.ccxs / info.topology.ccds; i++)
             {
                 mask = Utils.SetBits(mask, 24, 1, i);
                 ret = SetFrequencyCCX(mask, frequency);

@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace ZenStates.Core
 {
@@ -47,6 +45,7 @@ namespace ZenStates.Core
         public int MemVddio { get; set; }
         public int MemVddq { get; set; }
         public int MemVpp { get; set; }
+        public int ApuVddio { get; set; }
 
         public static AodData CreateFromByteArray(byte[] byteArray, Dictionary<string, int> fieldDictionary)
         {

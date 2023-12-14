@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using static ZenStates.Core.ACPI;
 
 namespace ZenStates.Core
