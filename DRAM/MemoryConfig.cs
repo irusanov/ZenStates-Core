@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Management;
-using System.Reflection;
 
 namespace ZenStates.Core.DRAM
 {
@@ -43,7 +42,7 @@ namespace ZenStates.Core.DRAM
 
         public List<MemoryModule> Modules { get; protected set; }
 
-        public ulong TotalCapacity {  get; protected set; } = 0UL;
+        public ulong TotalCapacity { get; protected set; } = 0UL;
 
         // @TODO: either read all offsets or expose DCT offset
         public MemoryConfig(Cpu cpuInstance)

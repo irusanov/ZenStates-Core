@@ -25,7 +25,7 @@ namespace ZenStates.Core.SMUCommands
             return base.Execute();
         }
 
-        private void SendCommand ()
+        private void SendCommand()
         {
             if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU0 || smu.SMU_TYPE == SMU.SmuType.TYPE_APU1)
             {
