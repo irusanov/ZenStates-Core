@@ -21,6 +21,13 @@ namespace ZenStates.Core
 
         private readonly IOModule io;
 
+        public enum ClkGen: int
+        {
+            ERROR = -1,
+            EXTERNAL = 0,
+            INTERNAL = 1,
+        } 
+
         public ACPI_MMIO(IOModule io)
         {
             this.io = io;
@@ -52,11 +59,11 @@ namespace ZenStates.Core
          *  reference clock
          * [12] CPUClkSelStrap
          */
-        public int GetStrapStatus()
+        public ClkGen GetStrapStatus()
         {
             if (io.GetPhysLong((UIntPtr)MISC_StrapStatus, out uint value))
-                return (int)Utils.GetBits(value, 17, 1);
-            return -1;
+                return (ClkGen)Utils.GetBits(value, 17, 1);
+            return ClkGen.ERROR;
         }
 
         private bool DisableSpreadSpectrum()
