@@ -20,6 +20,7 @@ namespace ZenStates.Core
             FAMILY_17H = 0x17,
             FAMILY_18H = 0x18,
             FAMILY_19H = 0x19,
+            FAMILY_1AH = 0x1A,
         };
 
         public enum CodeName
@@ -55,6 +56,7 @@ namespace ZenStates.Core
             StormPeak,
             DragonRange,
             Mero,
+            HawkPoint,
         };
 
 
@@ -535,8 +537,10 @@ namespace ZenStates.Core
                             codeName = CodeName.Raphael;
                         break;
                     case 0x74:
-                    case 0x75:
                         codeName = CodeName.Phoenix;
+                        break;
+                    case 0x75:
+                        codeName = CodeName.HawkPoint;
                         break;
                     case 0x78:
                         codeName = CodeName.Phoenix2;
@@ -619,6 +623,7 @@ namespace ZenStates.Core
                 case CodeName.Rembrandt:
                 case CodeName.Phoenix:
                 case CodeName.Phoenix2:
+                case CodeName.HawkPoint:
                     svi.coreAddress = Constants.F17H_M60H_SVI_TEL_PLANE0;
                     svi.socAddress = Constants.F17H_M60H_SVI_TEL_PLANE1;
                     break;
