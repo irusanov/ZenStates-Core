@@ -230,5 +230,17 @@ namespace ZenStates.Core
             }
             return match;
         }
+
+        public static float ToNanoseconds(uint value, float frequency)
+        {
+            if (frequency != 0)
+            {
+                float refiValue = Convert.ToSingle(value);
+                float trefins = refiValue * 2000f / frequency;
+                if (trefins > refiValue) trefins /= 2;
+                return trefins;
+            }
+            return 0;
+        }
     }
 }

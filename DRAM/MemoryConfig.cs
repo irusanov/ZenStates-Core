@@ -12,6 +12,8 @@ namespace ZenStates.Core.DRAM
 
         private const int MAX_CHANNELS = 0x8;
 
+        private readonly uint ChannelsPerDimm;
+
         private readonly Cpu cpu;
 
         public struct Channel
@@ -34,48 +36,71 @@ namespace ZenStates.Core.DRAM
         {
             DDR4 = 0,
             DDR5 = 1,
+            LPDDR5 = 2,
         }
 
-        public BaseDramTimings Timings { get; protected set; }
+        public enum CapacityUnit
+        {
+            B = 0,
+            KB = 1,
+            MB = 2,
+            GB = 3,
+        }
+
+        public MemType Type { get; protected set; }
+
+        public Capacity TotalCapacity { get; protected set; }
+
+        public List<KeyValuePair<uint, BaseDramTimings>> Timings { get; protected set; }
 
         public List<Channel> Channels { get; protected set; }
 
         public List<MemoryModule> Modules { get; protected set; }
 
-        public ulong TotalCapacity { get; protected set; } = 0UL;
-
-        // @TODO: either read all offsets or expose DCT offset
         public MemoryConfig(Cpu cpuInstance)
         {
             cpu = cpuInstance;
+
+            Type = (MemType)(cpu.ReadDword(0 | DRAM_TYPE_REG_ADDR) & DRAM_TYPE_BIT_MASK);
+
+            ChannelsPerDimm = Type == MemType.DDR5 ? 2u : 1u;
 
             Channels = new List<Channel>();
 
             Modules = new List<MemoryModule>();
 
-            MemType type = (MemType)(cpu.ReadDword(0 | DRAM_TYPE_REG_ADDR) & DRAM_TYPE_BIT_MASK);
-            if (type == MemType.DDR4)
-            {
-                Timings = new Ddr4Timings(cpu);
-            }
-            else if (type == MemType.DDR5)
-            {
-                Timings = new Ddr5Timings(cpu);
-            }
-
             ReadModulesInfo();
+
             ReadChannels();
-            ReadTimings();
+
+            Timings = new List<KeyValuePair<uint, BaseDramTimings>>();
+
+            foreach (MemoryModule module in Modules)
+            {
+                if (Type == MemType.DDR4)
+                    Timings.Add(new KeyValuePair<uint, BaseDramTimings>(module.DctOffset, new Ddr4Timings(cpu)));
+                else if (Type == MemType.DDR5)
+                    Timings.Add(new KeyValuePair<uint, BaseDramTimings>(module.DctOffset, new Ddr5Timings(cpu)));
+
+                ReadTimings(module.DctOffset);
+            }
         }
 
         public void ReadTimings(uint offset = 0)
         {
-            Timings?.Read(offset);
+            foreach (var item in Timings)
+            {
+                if (item.Key == offset)
+                {
+                    item.Value.Read(offset);
+                    break;
+                }
+            }
         }
 
         private void ReadModulesInfo()
         {
-            using (var searcher = new ManagementObjectSearcher("select * from Win32_PhysicalMemory"))
+            using (ManagementObjectSearcher searcher = new ManagementObjectSearcher("select * from Win32_PhysicalMemory"))
             {
                 bool connected = false;
 
@@ -134,9 +159,9 @@ namespace ZenStates.Core.DRAM
                     ulong totalCapacity = 0UL;
                     foreach (MemoryModule module in Modules)
                     {
-                        totalCapacity += module.Capacity;
+                        totalCapacity += module.Capacity.SizeInBytes;
                     }
-                    TotalCapacity = totalCapacity;
+                    TotalCapacity = new Capacity(totalCapacity);
                 }
             }
         }
@@ -144,7 +169,6 @@ namespace ZenStates.Core.DRAM
         private void ReadChannels()
         {
             int dimmIndex = 0;
-            uint channelsPerDimm = Timings.Type == MemType.DDR5 ? 2u : 1u;
             uint dimmsPerChannel = 1;
 
             // Get the offset by probing the UMC0 to UMC7
@@ -153,7 +177,7 @@ namespace ZenStates.Core.DRAM
             // 0x50000
             // offset 0, bit 0 when set to 1 means DIMM1 is installed
             // offset 8, bit 0 when set to 1 means DIMM2 is installed
-            for (uint i = 0; i < MAX_CHANNELS * channelsPerDimm; i += channelsPerDimm)
+            for (uint i = 0; i < MAX_CHANNELS * ChannelsPerDimm; i += ChannelsPerDimm)
             {
                 try
                 {
@@ -174,16 +198,16 @@ namespace ZenStates.Core.DRAM
                         if (dimm1)
                         {
                             MemoryModule module = Modules[dimmIndex++];
-                            module.Slot = $"{Convert.ToChar(i / channelsPerDimm + 65)}1";
-                            module.ChannelOffset = offset;
+                            module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}1";
+                            module.DctOffset = offset;
                             module.Rank = (MemRank)Utils.GetBits(cpu.ReadDword(offset | 0x50080), 0, 1);
                         }
 
                         if (dimm2)
                         {
                             MemoryModule module = Modules[dimmIndex++];
-                            module.Slot = $"{Convert.ToChar(i / channelsPerDimm + 65)}2";
-                            module.ChannelOffset = offset;
+                            module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}2";
+                            module.DctOffset = offset;
                             module.Rank = (MemRank)Utils.GetBits(cpu.ReadDword(offset | 0x50084), 0, 1);
                         }
                     }

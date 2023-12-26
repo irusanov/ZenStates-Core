@@ -6,12 +6,16 @@ using static ZenStates.Core.DRAM.MemoryConfig;
 namespace ZenStates.Core.DRAM
 {
     [Serializable]
-    public abstract class BaseDramTimings
+    public abstract class BaseDramTimings : IDramTimings, IDisposable
     {
+        private bool disposedValue;
+
         internal readonly Cpu cpu;
+        internal Dictionary<uint, TimingDef[]> Dict { get; set; }
+
         public BaseDramTimings(Cpu cpuInstance)
         {
-            this.cpu = cpuInstance;
+            cpu = cpuInstance;
         }
 
         public object this[string propertyName]
@@ -20,11 +24,10 @@ namespace ZenStates.Core.DRAM
             {
                 try
                 {
-                    if (propertyName.Length > 0)
+                    if (!string.IsNullOrEmpty(propertyName))
                     {
-                        Type myType = typeof(BaseDramTimings);
-                        PropertyInfo myPropInfo = myType.GetProperty(propertyName);
-                        return myPropInfo?.GetValue(this, null);
+                        PropertyInfo propertyInfo = GetPropertyInfo(propertyName);
+                        return propertyInfo?.GetValue(this, null);
                     }
                     return null;
                 }
@@ -37,18 +40,23 @@ namespace ZenStates.Core.DRAM
             {
                 try
                 {
-                    if (propertyName.Length > 0)
+                    if (!string.IsNullOrEmpty(propertyName))
                     {
-                        Type myType = typeof(BaseDramTimings);
-                        PropertyInfo myPropInfo = myType.GetProperty(propertyName);
-                        if (myPropInfo != null) myPropInfo.SetValue(this, value, null);
+                        PropertyInfo propertyInfo = GetPropertyInfo(propertyName);
+                        propertyInfo?.SetValue(this, value, null);
                     }
                 }
-                catch { }
+                catch
+                {
+                    // do nothing
+                }
             }
         }
 
-        internal Dictionary<uint, TimingDef[]> Dict { get; set; }
+        private PropertyInfo GetPropertyInfo(string propertyName)
+        {
+            return GetType().GetProperty(propertyName);
+        }
 
         public virtual void ReadBankGroupSwap(uint offset = 0)
         {
@@ -61,12 +69,9 @@ namespace ZenStates.Core.DRAM
             BGSAlt = (Utils.GetBits(bgsa0, 4, 7) > 0 || Utils.GetBits(bgsa1, 4, 7) > 0) ? 1U : 0;
         }
 
-        public abstract void ReadUniqueTimings(uint offset = 0);
-
         public virtual void Read(uint offset = 0)
         {
-            this.ReadBankGroupSwap(offset);
-            this.ReadUniqueTimings();
+            ReadBankGroupSwap(offset);
 
             foreach (KeyValuePair<uint, TimingDef[]> entry in Dict)
             {
@@ -81,18 +86,9 @@ namespace ZenStates.Core.DRAM
             }
         }
 
-        public MemType Type { get; internal set; }
-        public float Frequency { get; private set; }
-        private float ratio;
-        public float Ratio
-        {
-            get => ratio;
-            internal set
-            {
-                ratio = value;
-                Frequency = ratio * 200;
-            }
-        }
+        public MemType Type { get; set; }
+        public float Frequency => Ratio * 200;
+        public float Ratio { get; internal set; }
         // public string TotalCapacity { get; private set; }
         public uint BGS { get; private set; }
         public uint BGSAlt { get; private set; }
@@ -130,46 +126,29 @@ namespace ZenStates.Core.DRAM
         public uint MODPDA { get; private set; }
         public uint MRD { get; private set; }
         public uint MRDPDA { get; private set; }
-
-        private uint rfc;
-        public uint RFC
-        {
-            get => rfc;
-            internal set
-            {
-                rfc = value;
-                if (Frequency != 0)
-                {
-                    float rfcValue = Convert.ToSingle(rfc);
-                    float trfcns = rfcValue * 2000.0f / Frequency;
-                    if (trfcns > rfcValue) trfcns /= 2;
-                    RFCns = trfcns;
-                }
-            }
-        }
+        public uint RFC { get; internal set; }
         public uint RFC2 { get; internal set; }
-
-        private uint refi;
-        public uint REFI
-        {
-            get => refi;
-            set
-            {
-                refi = value;
-                if (Frequency != 0)
-                {
-                    float refiValue = Convert.ToSingle(refi);
-                    float trefins = 1000.0f / Frequency * 2 * refiValue;
-                    if (trefins > refiValue) trefins /= 2;
-                    REFIns = trefins;
-                }
-            }
-        }
+        public uint REFI { get; internal set; }
         public uint XP { get; private set; }
         public uint PHYWRD { get; private set; }
         public uint PHYWRL { get; private set; }
         public uint PHYRDL { get; private set; }
-        public float RFCns { get; private set; }
-        public float REFIns { get; private set; }
+        public float RFCns { get => Utils.ToNanoseconds(RFC, Frequency); }
+        public float REFIns { get => Utils.ToNanoseconds(REFI, Frequency); }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                Dict = null;
+                disposedValue = true;
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
     }
 }

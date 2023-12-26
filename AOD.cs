@@ -1,5 +1,9 @@
+using Microsoft.Win32;
+using OpenHardwareMonitor.Hardware;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Runtime.InteropServices;
 using static ZenStates.Core.ACPI;
 
 namespace ZenStates.Core
@@ -11,24 +15,80 @@ namespace ZenStates.Core
         internal readonly Cpu.CodeName codeName;
         public AodTable Table;
 
-        private static string GetByKey(Dictionary<int, string> dict, int key)
+        public class AodEnumBase
         {
-            return dict.TryGetValue(key, out string output) ? output : "N/A";
-        }
+            protected int Value;
 
-        public class TProcODT
-        {
+            public AodEnumBase(int value)
+            {
+                Value = value;
+            }
+
             public override string ToString()
             {
-                return base.ToString();
+                return GetByKey(ValueDictionary, Value);
+            }
+
+            protected virtual Dictionary<int, string> ValueDictionary { get; } = new Dictionary<int, string>();
+
+            protected static string GetByKey(Dictionary<int, string> dictionary, int key)
+            {
+                return dictionary.TryGetValue(key, out string output) ? output : @"N/A";
             }
         }
 
-        public static string GetProcODTString(int key) => GetByKey(AodDictionaries.ProcOdtDict, key);
-        public static string GetProcDataDrvStrenString(int key) => GetByKey(AodDictionaries.ProcOdtDict, key);
-        public static string GetDramDataDrvStrenString(int key) => GetByKey(AodDictionaries.DramDataDrvStrenDict, key);
-        public static string GetCadBusDrvStrenString(int key) => GetByKey(AodDictionaries.CadBusDrvStrenDict, key);
-        public static string GetRttString(int key) => GetByKey(AodDictionaries.RttDict, key);
+        public class ProcODT : AodEnumBase
+        {
+            public ProcODT(int value) : base(value) { }
+            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.ProcOdtDict;
+        }
+
+        public class ProcDataDrvStren : AodEnumBase
+        {
+            public ProcDataDrvStren(int value) : base(value) { }
+            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.ProcOdtDict;
+        }
+
+        public class DramDataDrvStren : AodEnumBase
+        {
+            public DramDataDrvStren(int value) : base(value) { }
+            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.DramDataDrvStrenDict;
+        }
+
+        public class CadBusDrvStren : AodEnumBase
+        {
+            public CadBusDrvStren(int value) : base(value) { }
+            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.CadBusDrvStrenDict;
+        }
+
+        public class Rtt : AodEnumBase
+        {
+            public Rtt(int value) : base(value) { }
+            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.RttDict;
+
+            public override string ToString()
+            {
+                string value = base.ToString();
+
+                if (this.Value > 0)
+                    return $"{value} ({240 / Value})";
+                return $"{value}";
+            }
+        }
+
+        public class Voltage
+        {
+            protected int Value;
+            public Voltage(int value)
+            {
+                Value = value;
+            }
+
+            public override string ToString()
+            {
+                return string.Format(CultureInfo.GetCultureInfo("en-US"), "{0:F4}V", Value / 1000.0);
+            }
+        }
 
         [Serializable]
         public class AodTable
@@ -61,9 +121,18 @@ namespace ZenStates.Core
 
         private ACPITable? GetAcpiTable()
         {
+            // Try to get the table from RSDT first
+            ACPITable? acpiTable = GetAcpiTableFromRsdt();
+            if (acpiTable == null)
+                return GetAcpiTableFromRegistry();
+            return acpiTable;
+        }
+
+        private ACPITable? GetAcpiTableFromRsdt()
+        {
             try
             {
-                RSDT rsdt = acpi.GetRSDT();
+                RSDT rsdt = acpi.GetRsdt();
 
                 foreach (uint addr in rsdt.Data)
                 {
@@ -74,7 +143,9 @@ namespace ZenStates.Core
                             SDTHeader hdr = acpi.GetHeader<SDTHeader>(addr);
                             if (
                                 hdr.Signature == this.Table.Signature
-                                && (hdr.OEMTableID == this.Table.OemTableId || hdr.OEMTableID == SignatureUL(TableSignature.AAOD))
+                                && (hdr.OEMTableID == this.Table.OemTableId ||
+                                hdr.OEMTableID == SignatureUL(TableSignature.AAOD) ||
+                                hdr.OEMTableID == SignatureUL(TableSignature.LENOVO_AOD))
                             )
                             {
                                 return ParseSdtTable(io.ReadMemory(new IntPtr(addr), (int)hdr.Length));
@@ -84,8 +155,106 @@ namespace ZenStates.Core
                     }
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting SSDT ACPI table from RSDT: {ex.Message}");
+            }
+
             return null;
+        }
+
+        private ACPITable? GetAcpiTableFromRegistry()
+        {
+            string acpiRegistryPath = @"HARDWARE\ACPI";
+
+            try
+            {
+                using (RegistryKey acpiKey = Registry.LocalMachine.OpenSubKey(acpiRegistryPath))
+                {
+                    if (acpiKey != null)
+                    {
+                        string[] subkeyNames = acpiKey.GetSubKeyNames();
+                        foreach (string subkeyName in subkeyNames)
+                        {
+                            Console.WriteLine($"Subkey: {subkeyName}");
+
+                            if (subkeyName.StartsWith("SSD"))
+                            {
+                                byte[] acpiTableData = GetRawTableFromSubkeys(acpiKey, subkeyName);
+                                if (acpiTableData != null)
+                                {
+                                    if (GetAodRegionIndex(acpiTableData) == -1)
+                                        continue;
+
+                                    return ParseSdtTable(acpiTableData);
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("ACPI registry key not found.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error accessing ACPI registry: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        private static int GetAodRegionIndex(byte[] rawTable)
+        {
+            if (rawTable == null)
+                return -1;
+
+            int regionIndex = Utils.FindSequence(rawTable, 0, ByteSignature(TableSignature.AODE));
+            if (regionIndex == -1)
+                regionIndex = Utils.FindSequence(rawTable, 0, ByteSignature(TableSignature.AODT));
+            return regionIndex;
+        }
+
+        private static byte[] GetRawTableFromSubkeys(RegistryKey parentKey, string subkeyName)
+        {
+            using (RegistryKey subkey = parentKey.OpenSubKey(subkeyName))
+            {
+                if (subkey != null)
+                {
+                    string[] subkeyNames = subkey.GetSubKeyNames();
+                    if (subkeyNames.Length == 0)
+                    {
+                        // Found a key without further subkeys, retrieve the first REG_BINARY value
+                        foreach (string valueName in subkey.GetValueNames())
+                        {
+                            object value = subkey.GetValue(valueName);
+
+                            if (value is byte[] rawTable)
+                            {
+                                return rawTable;
+                            }
+                        }
+
+                        Console.WriteLine($"No REG_BINARY value found in {subkeyName}.");
+                    }
+                    else
+                    {
+                        // Continue drilling down if there are more subkeys
+                        foreach (string nestedSubkeyName in subkeyNames)
+                        {
+                            Console.WriteLine($"Nested Subkey: {nestedSubkeyName}");
+                            byte[] rawTable = GetRawTableFromSubkeys(subkey, nestedSubkeyName);
+                            if (rawTable != null)
+                            {
+                                return rawTable;
+                            }
+                        }
+                    }
+                }
+
+                return null;
+            }
         }
 
         private void Init()
@@ -94,11 +263,10 @@ namespace ZenStates.Core
 
             if (this.Table.AcpiTable != null)
             {
-                int regionIndex = Utils.FindSequence(this.Table.AcpiTable?.Data, 0, ByteSignature(TableSignature.AODE));
-                if (regionIndex == -1)
-                    regionIndex = Utils.FindSequence(this.Table.AcpiTable?.Data, 0, ByteSignature(TableSignature.AODT));
+                int regionIndex = GetAodRegionIndex(this.Table.AcpiTable?.Data);
                 if (regionIndex == -1)
                     return;
+
                 byte[] region = new byte[16];
                 Buffer.BlockCopy(this.Table.AcpiTable?.Data, regionIndex, region, 0, 16);
                 // OperationRegion(AODE, SystemMemory, Offset, Length)
@@ -110,16 +278,19 @@ namespace ZenStates.Core
             this.Refresh();
         }
 
-        private static Dictionary<string, int> GetAodDataDictionary(Cpu.CodeName codeName)
+        private Dictionary<string, int> GetAodDataDictionary(Cpu.CodeName codeName)
         {
+            if (Table.AcpiTable.Value.Header.OEMTableID == TableSignature.LENOVO_AOD)
+                return AodDictionaries.AodDataDictionaryV3;
+
             switch (codeName)
             {
                 case Cpu.CodeName.StormPeak:
                 case Cpu.CodeName.Genoa:
                 case Cpu.CodeName.DragonRange:
-                    return AodDictionaries.AodDataNewDictionary;
+                    return AodDictionaries.AodDataDictionaryV2;
                 default:
-                    return AodDictionaries.AodDataDefaultDictionary;
+                    return AodDictionaries.AodDataDictionaryV1;
             }
         }
 

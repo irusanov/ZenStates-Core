@@ -15,19 +15,22 @@ namespace ZenStates.Core.DRAM
         public string PartNumber { get; set; }
         public string Manufacturer { get; set; }
         public string DeviceLocator { get; set; }
-        public ulong Capacity { get; set; }
+        public Capacity Capacity { get; set; }
         public uint ClockSpeed { get; set; }
         public MemRank Rank { get; set; }
         public string Slot { get; set; } = "";
-        public uint ChannelOffset { get; set; } = 0;
+        public uint DctOffset { get; set; } = 0;
 
-        public MemoryModule() { }
+        public MemoryModule()
+        {
+            Capacity = new Capacity();
+        }
 
         public MemoryModule(string partNumber, string bankLabel, string manufacturer,
             string deviceLocator, ulong capacity, uint clockSpeed)
         {
             PartNumber = partNumber;
-            Capacity = capacity;
+            Capacity = new Capacity(capacity);
             ClockSpeed = clockSpeed;
             BankLabel = bankLabel;
             Manufacturer = manufacturer;
@@ -37,6 +40,11 @@ namespace ZenStates.Core.DRAM
         public IEnumerator GetEnumerator()
         {
             return ((IEnumerable)PartNumber).GetEnumerator();
+        }
+
+        public override string ToString()
+        {
+            return $"{Slot}: {PartNumber} ({Capacity}, {Rank})";
         }
     }
 }
