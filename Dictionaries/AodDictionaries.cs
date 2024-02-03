@@ -67,7 +67,7 @@ namespace ZenStates.Core
             {7, "RZQ/7"},
         };
 
-        public static readonly Dictionary<string, int> AodDataDefaultDictionary = new Dictionary<string, int>
+        public static readonly Dictionary<string, int> AodDataDictionaryV1 = new Dictionary<string, int>
         {
             { "SMTEn", 8920 },
             { "MemClk", 8924 },
@@ -111,7 +111,7 @@ namespace ZenStates.Core
             { "ApuVddio", 9108 }
         };
 
-        public static readonly Dictionary<string, int> AodDataNewDictionary = new Dictionary<string, int>
+        public static readonly Dictionary<string, int> AodDataDictionaryV2 = new Dictionary<string, int>
         {
             { "SMTEn", 8916 },
             { "MemClk", 8920 },
@@ -153,6 +153,50 @@ namespace ZenStates.Core
             { "MemVddq", 9096 },
             { "MemVpp", 9100 },
             { "ApuVddio", 9104 }
+        };
+
+        public static readonly Dictionary<string, int> AodDataDictionaryV3 = new Dictionary<string, int>
+        {
+            { "SMTEn", 8968 },
+            { "MemClk", 8976 },
+            { "Tcl", 8988 },
+            { "TrcdWr", 8992 },
+            { "TrcdRd", 8996 },
+            { "Trp", 9000 },
+            { "Trfc", 9004 },
+            { "Tras", 9008 },
+            { "Trc", 9012 },
+            { "TrrdS", 9016 },
+            { "TrrdL", 9020 },
+            { "Tfaw", 9024 },
+            { "TwtrL", 9028 },
+            { "TwtrS", 9032 },
+            { "Twr", 9036 },
+            { "TrdrdScL", 9040 },
+            { "TwrwrScL", 9044 },
+            { "Trtp", 9048 },
+            { "Tcke", 9052 },
+            { "TrdrdSc", 9056 },
+            { "TrdrdSd", 9060 },
+            { "TrdrdDd", 9064 },
+            { "TwrwrSc", 9068 },
+            { "TwrwrSd", 9072 },
+            { "TwrwrDd", 9076 },
+            { "Twrrd", 9080 },
+            { "Trdwr", 9084 },
+            { "CadBusDrvStren", 9088 },
+            { "ProcDataDrvStren", 9092 },
+            { "ProcODT", 9096 },
+            { "DramDataDrvStren", 9100 },
+            { "RttNomWr", 9104 },
+            { "RttNomRd", 9108 },
+            { "RttWr", 9112 },
+            { "RttPark", 9116 },
+            { "RttParkDqs", 9120 },
+            { "MemVddio", 9156 },
+            { "MemVddq", 9160 },
+            { "MemVpp", 9164 },
+            { "ApuVddio", 9168 }
         };
     }
 }

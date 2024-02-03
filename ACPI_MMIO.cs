@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace ZenStates.Core
 {
@@ -21,12 +21,12 @@ namespace ZenStates.Core
 
         private readonly IOModule io;
 
-        public enum ClkGen: int
+        public enum ClkGen : int
         {
             ERROR = -1,
             EXTERNAL = 0,
             INTERNAL = 1,
-        } 
+        }
 
         public ACPI_MMIO(IOModule io)
         {
