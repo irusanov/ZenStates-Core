@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 
 namespace ZenStates.Core
 {
@@ -197,6 +198,51 @@ namespace ZenStates.Core
             { "MemVddq", 9160 },
             { "MemVpp", 9164 },
             { "ApuVddio", 9168 }
+        };
+
+        // Phoenix, HawkPoint
+        public static readonly Dictionary<string, int> AodDataDictionaryV4 = new Dictionary<string, int>
+        {
+            { "SMTEn", 8920 },
+            { "MemClk", 8924 },
+            { "Tcl", 8928 },
+            { "Trcd", 8932 },
+            { "Trp", 8936 },
+            { "Tras", 8940 },
+            { "Trc", 8944 },
+            { "Twr", 8948 },
+            { "Trfc", 8952 },
+            { "Trfc2", 8956 },
+            { "Trfcsb", 8960 },
+            { "Trtp", 8964 },
+            { "TrrdL", 8968 },
+            { "TrrdS", 8972 },
+            { "Tfaw", 8976 },
+            { "TwtrL", 8980 },
+            { "TwtrS", 8984 },
+            { "TrdrdScL", 8988 },
+            { "TrdrdSc", 8992 },
+            { "TrdrdSd", 8996 },
+            { "TrdrdDd", 9000 },
+            { "TwrwrScL", 9004 },
+            { "TwrwrSc", 9008 },
+            { "TwrwrSd", 9012 },
+            { "TwrwrDd", 9016 },
+            { "Twrrd", 9020 },
+            { "Trdwr", 9024 },
+            { "CadBusDrvStren", 9028 },
+            { "ProcDataDrvStren", 9032 },
+            { "ProcODT", 9034 },
+            { "DramDataDrvStren", 9036 },
+            { "RttNomWr", 9040 },
+            { "RttNomRd", 9044 },
+            { "RttWr", 9048 },
+            { "RttPark", 9052 },
+            { "RttParkDqs", 9058 },
+            { "MemVddio", 9116 },
+            { "MemVddq", 9120 },
+            { "MemVpp", 9124 },
+            { "ApuVddio", 9128 }
         };
     }
 }

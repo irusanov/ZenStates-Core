@@ -560,11 +560,12 @@ namespace ZenStates.Core
                             codeName = CodeName.Raphael;
                         break;
                     case 0x74:
+                    case 0x75:
                         codeName = CodeName.Phoenix;
                         break;
-                    case 0x75:
-                        codeName = CodeName.HawkPoint;
-                        break;
+                    // case 0x75:
+                    //    codeName = CodeName.HawkPoint;
+                    //    break;
                     case 0x78:
                         codeName = CodeName.Phoenix2;
                         break;

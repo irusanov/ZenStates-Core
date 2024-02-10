@@ -289,6 +289,10 @@ namespace ZenStates.Core
                 case Cpu.CodeName.Genoa:
                 case Cpu.CodeName.DragonRange:
                     return AodDictionaries.AodDataDictionaryV2;
+                case Cpu.CodeName.Phoenix:
+                case Cpu.CodeName.Phoenix2:
+                case Cpu.CodeName.HawkPoint:
+                    return AodDictionaries.AodDataDictionaryV4;
                 default:
                     return AodDictionaries.AodDataDictionaryV1;
             }
