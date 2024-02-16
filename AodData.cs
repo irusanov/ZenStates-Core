@@ -39,7 +39,11 @@ namespace ZenStates.Core
         public int Trdwr { get; set; }
         public CadBusDrvStren CadBusDrvStren { get; set; }
         public ProcDataDrvStren ProcDataDrvStren { get; set; }
-        public ProcODT ProcODT { get; set; }
+        public ProcOdt ProcOdt { get; set; }
+        public ProcOdt ProcCaOdt { get; set; }
+        public ProcOdt ProcCkOdt { get; set; }
+        public ProcOdt ProcDqOdt { get; set; }
+        public ProcOdt ProcDqsOdt { get; set; }
         public DramDataDrvStren DramDataDrvStren { get; set; }
         public Rtt RttNomWr { get; set; }
         public Rtt RttNomRd { get; set; }

@@ -37,9 +37,9 @@ namespace ZenStates.Core
             }
         }
 
-        public class ProcODT : AodEnumBase
+        public class ProcOdt : AodEnumBase
         {
-            public ProcODT(int value) : base(value) { }
+            public ProcOdt(int value) : base(value) { }
             protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.ProcOdtDict;
         }
 
