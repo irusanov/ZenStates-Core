@@ -46,7 +46,7 @@ namespace ZenStates.Core
         public class ProcDataDrvStren : AodEnumBase
         {
             public ProcDataDrvStren(int value) : base(value) { }
-            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.ProcOdtDict;
+            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.ProcDataDrvStrenDict;
         }
 
         public class DramDataDrvStren : AodEnumBase
