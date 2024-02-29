@@ -374,6 +374,11 @@ namespace ZenStates.Core
             Mp1Smu.SMU_MSG_SetPPTLimit = 0x3E;
             Mp1Smu.SMU_MSG_SetHTCLimit = 0x3F;
 
+            // Unknown
+            Mp1Smu.SMU_MSG_SetDldoPsmMargin = 0;
+            Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0;
+            Mp1Smu.SMU_MSG_GetDldoPsmMargin = 0;
+
             // RSMU
             Rsmu.SMU_ADDR_MSG = 0x03B10524;
             Rsmu.SMU_ADDR_RSP = 0x03B10570;
