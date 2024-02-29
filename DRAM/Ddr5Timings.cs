@@ -6,6 +6,25 @@ namespace ZenStates.Core.DRAM
     [Serializable]
     public class Ddr5Timings : BaseDramTimings
     {
+        public readonly struct NitroSettings
+        {
+            public byte RxData { get; }
+            public byte TxData { get; }
+            public byte CtrlLine { get; }
+
+            public NitroSettings(uint registerValue)
+            {
+                CtrlLine = (byte)(registerValue & 0x3);
+                TxData = (byte)((registerValue >> 2) & 0x3);
+                RxData = (byte)((registerValue >> 4) & 0x3);
+            }
+
+            public override string ToString()
+            {
+                return $"{RxData}/{TxData}/{CtrlLine}";
+            }
+        }
+
         public Ddr5Timings(Cpu cpu) : base(cpu)
         {
             this.Type = MemType.DDR5;
@@ -13,6 +32,8 @@ namespace ZenStates.Core.DRAM
         }
 
         public uint RFCsb { get; private set; }
+
+        public NitroSettings Nitro { get; private set; }
 
         public override void Read(uint offset = 0)
         {
@@ -59,6 +80,9 @@ namespace ZenStates.Core.DRAM
                     break;
                 }
             }
+
+            uint nitroSettings = Utils.BitSlice(cpu.ReadDword(offset | 0x50284), 5, 0);
+            Nitro = new NitroSettings(nitroSettings);
         }
     }
 }

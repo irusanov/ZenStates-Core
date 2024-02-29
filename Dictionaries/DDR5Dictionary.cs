@@ -22,11 +22,11 @@ namespace ZenStates.Core
             }},
             */
             { 0x5012C, new[] {
-                new TimingDef { Name = "PowerDown", HiBit = 28, LoBit = 28 },
+                new TimingDef { Name = "PowerDown", HiBit = 28,     LoBit = 28  },
             }},
             { 0x50200, new[] {
-                new TimingDef { Name = "Cmd2T",     HiBit = 17, LoBit = 17 },
-                new TimingDef { Name = "GDM",       HiBit = 18, LoBit = 18 },
+                new TimingDef { Name = "Cmd2T",     HiBit = 17,     LoBit = 17  },
+                new TimingDef { Name = "GDM",       HiBit = 18,     LoBit = 18  },
                 // new TimingDef { Name = "Ratio",     HiBit = 15, LoBit = 0  },
             }},
             { 0x50204, new[] {
@@ -95,8 +95,13 @@ namespace ZenStates.Core
                 new TimingDef { Name = "PHYRDL",    HiBit = 23  ,   LoBit = 16  },
                 new TimingDef { Name = "PHYWRL",    HiBit = 15  ,   LoBit = 8   },
             }},
-            // TRFC and TRFC2 regs, one should be != 0x00C00138
             /*
+            { 0x50284, new[] {
+                new TimingDef { Name = "RxData",    HiBit = 5   ,   LoBit = 4   },
+                new TimingDef { Name = "TxData",    HiBit = 3   ,   LoBit = 2   },
+                new TimingDef { Name = "CtrlLine",  HiBit = 1   ,   LoBit = 0   },
+            }},
+            // TRFC and TRFC2 regs, one should be != 0x00C00138
             { 0x50260, new[] {
                 new TimingDef { Name = "RFC",       HiBit = 15  ,   LoBit = 0   },
                 new TimingDef { Name = "RFC2",      HiBit = 31  ,   LoBit = 16  },
