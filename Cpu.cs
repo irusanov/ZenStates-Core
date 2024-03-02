@@ -352,6 +352,7 @@ namespace ZenStates.Core
                         return true;
                     }
 
+                    Ring0.ReleasePciBusMutex();
                 }
             }
 
