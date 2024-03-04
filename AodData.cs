@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using static ZenStates.Core.AOD;
@@ -67,7 +67,7 @@ namespace ZenStates.Core
                     int fieldOffset = entry.Value;
 
                     PropertyInfo property = typeof(AodData).GetProperty(fieldName);
-                    if (property != null)
+                    if (fieldOffset > -1 && property != null)
                     {
                         Type propertyType = property.PropertyType;
                         object fieldValue;

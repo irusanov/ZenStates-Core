@@ -89,50 +89,50 @@ namespace ZenStates.Core.DRAM
         public MemType Type { get; set; }
         public float Frequency => Ratio * 200;
         public float Ratio { get; internal set; }
-        // public string TotalCapacity { get; private set; }
-        public uint BGS { get; private set; }
-        public uint BGSAlt { get; private set; }
-        public uint GDM { get; private set; }
-        public uint PowerDown { get; private set; }
-        public uint Cmd2T { get; private set; }
-        public uint CL { get; private set; }
-        public uint RCDWR { get; private set; }
-        public uint RCDRD { get; private set; }
-        public uint RP { get; private set; }
-        public uint RAS { get; private set; }
-        public uint RC { get; private set; }
-        public uint RRDS { get; private set; }
-        public uint RRDL { get; private set; }
-        public uint FAW { get; private set; }
-        public uint WTRS { get; private set; }
-        public uint WTRL { get; private set; }
-        public uint WR { get; private set; }
-        public uint RDRDSCL { get; private set; }
-        public uint WRWRSCL { get; private set; }
-        public uint CWL { get; private set; }
-        public uint RTP { get; private set; }
-        public uint RDWR { get; private set; }
-        public uint WRRD { get; private set; }
-        public uint RDRDSC { get; private set; }
-        public uint RDRDSD { get; private set; }
-        public uint RDRDDD { get; private set; }
-        public uint WRWRSC { get; private set; }
-        public uint WRWRSD { get; private set; }
-        public uint WRWRDD { get; private set; }
-        public uint TRCPAGE { get; private set; }
-        public uint CKE { get; private set; }
-        public uint STAG { get; private set; }
-        public uint MOD { get; private set; }
-        public uint MODPDA { get; private set; }
-        public uint MRD { get; private set; }
-        public uint MRDPDA { get; private set; }
+        // public string TotalCapacity { get; internal set; }
+        public uint BGS { get; internal set; }
+        public uint BGSAlt { get; internal set; }
+        public uint GDM { get; internal set; }
+        public uint PowerDown { get; internal set; }
+        public uint Cmd2T { get; internal set; }
+        public uint CL { get; internal set; }
+        public uint RCDWR { get; internal set; }
+        public uint RCDRD { get; internal set; }
+        public uint RP { get; internal set; }
+        public uint RAS { get; internal set; }
+        public uint RC { get; internal set; }
+        public uint RRDS { get; internal set; }
+        public uint RRDL { get; internal set; }
+        public uint FAW { get; internal set; }
+        public uint WTRS { get; internal set; }
+        public uint WTRL { get; internal set; }
+        public uint WR { get; internal set; }
+        public uint RDRDSCL { get; internal set; }
+        public uint WRWRSCL { get; internal set; }
+        public uint CWL { get; internal set; }
+        public uint RTP { get; internal set; }
+        public uint RDWR { get; internal set; }
+        public uint WRRD { get; internal set; }
+        public uint RDRDSC { get; internal set; }
+        public uint RDRDSD { get; internal set; }
+        public uint RDRDDD { get; internal set; }
+        public uint WRWRSC { get; internal set; }
+        public uint WRWRSD { get; internal set; }
+        public uint WRWRDD { get; internal set; }
+        public uint TRCPAGE { get; internal set; }
+        public uint CKE { get; internal set; }
+        public uint STAG { get; internal set; }
+        public uint MOD { get; internal set; }
+        public uint MODPDA { get; internal set; }
+        public uint MRD { get; internal set; }
+        public uint MRDPDA { get; internal set; }
         public uint RFC { get; internal set; }
         public uint RFC2 { get; internal set; }
         public uint REFI { get; internal set; }
-        public uint XP { get; private set; }
-        public uint PHYWRD { get; private set; }
-        public uint PHYWRL { get; private set; }
-        public uint PHYRDL { get; private set; }
+        public uint XP { get; internal set; }
+        public uint PHYWRD { get; internal set; }
+        public uint PHYWRL { get; internal set; }
+        public uint PHYRDL { get; internal set; }
         public float RFCns { get => Utils.ToNanoseconds(RFC, Frequency); }
         public float REFIns { get => Utils.ToNanoseconds(REFI, Frequency); }
 
