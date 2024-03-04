@@ -91,12 +91,13 @@ namespace ZenStates.Core
             public uint physicalCores;
             public uint threadsPerCore;
             public uint cpuNodes;
-            public uint coreDisableMap;
+            public uint[] coreDisableMap;
             public uint ccdEnableMap;
             public uint ccdDisableMap;
             public uint fuse1;
             public uint fuse2;
-            public uint coreFuse;
+            public uint ccdsPresent;
+            public uint ccdsDown;
             public uint[] performanceOfCore;
         }
 
@@ -225,23 +226,26 @@ namespace ZenStates.Core
                 topology.ccdDisableMap = ccdDisableMap;
                 topology.fuse1 = fuse1;
                 topology.fuse2 = fuse2;
+                topology.ccdsPresent = ccdsPresent;
+                topology.ccdsDown = ccdsDown;
 
                 if (ReadDwordEx(coreDisableMapAddress, ref coreFuse))
                 {
                     topology.coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
-                    topology.coreFuse = coreFuse;
                 }
                 else
                 {
                     Console.WriteLine("Could not read core fuse!");
                 }
 
+                topology.coreDisableMap = new uint[topology.ccds];
+
                 for (int i = 0; i < topology.ccds; i++)
                 {
                     if (Utils.GetBits(ccdEnableMap, i, 1) == 1)
                     {
                         if (ReadDwordEx(((uint)i << 25) + coreDisableMapAddress, ref coreFuse))
-                            topology.coreDisableMap |= (coreFuse & 0xff) << i * 8;
+                            topology.coreDisableMap[i] = coreFuse & 0xff;
                         else
                             Console.WriteLine($"Could not read core fuse for CCD{i}!");
                     }
