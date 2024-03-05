@@ -67,7 +67,7 @@ namespace ZenStates.Core
                     int fieldOffset = entry.Value;
 
                     PropertyInfo property = typeof(AodData).GetProperty(fieldName);
-                    if (fieldOffset > -1 && property != null)
+                    if (fieldOffset > -1 && fieldOffset <= byteArray.Length - sizeof(int) && property != null)
                     {
                         Type propertyType = property.PropertyType;
                         object fieldValue;
