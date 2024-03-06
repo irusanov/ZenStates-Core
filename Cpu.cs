@@ -214,8 +214,8 @@ namespace ZenStates.Core
 
             if (ReadDwordEx(fuse1, ref ccdsPresent) && ReadDwordEx(fuse2, ref ccdsDown))
             {
-                uint ccdEnableMap = Utils.GetBits(ccdsPresent, 22, 8);
-                uint ccdDisableMap = Utils.GetBits(ccdsPresent, 30, 2) | (Utils.GetBits(ccdsDown, 0, 6) << 2);
+                uint ccdEnableMap = Utils.GetBits(ccdsPresent, 22, 2);
+                uint ccdDisableMap = Utils.GetBits(ccdsPresent, 30, 2);
                 uint coreDisableMapAddress = 0x30081800 + offset;
                 uint enabledCcd = Utils.CountSetBits(ccdEnableMap);
 
