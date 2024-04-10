@@ -59,6 +59,10 @@ namespace ZenStates.Core
             DragonRange,
             Mero,
             HawkPoint,
+            StrixPoint,
+            GraniteRidge,
+            KrackanPoint,
+            StrixHalo,
         };
 
 
@@ -590,14 +594,35 @@ namespace ZenStates.Core
                     case 0x75:
                         codeName = CodeName.Phoenix;
                         break;
-                    // case 0x75:
-                    //    codeName = CodeName.HawkPoint;
-                    //    break;
                     case 0x78:
                         codeName = CodeName.Phoenix2;
                         break;
+                    // https://github.com/InstLatx64/InstLatx64/commit/d3fd3cddc85b9a32966c54b59477b1c8eb3a60a3
+                    case 0x7C:
+                        codeName = CodeName.HawkPoint;
+                        break;
                     case 0xa0:
                         codeName = CodeName.Mendocino;
+                        break;
+
+                    default:
+                        codeName = CodeName.Unsupported;
+                        break;
+                }
+            } else if (cpuInfo.family == Family.FAMILY_1AH) {
+                switch (cpuInfo.model)
+                {
+                    case 0x20:
+                        codeName = CodeName.StrixPoint;
+                        break;
+                    case 0x40:
+                        codeName = CodeName.GraniteRidge;
+                        break;
+                    case 0x60:
+                        codeName = CodeName.KrackanPoint;
+                        break;
+                    case 0x70:
+                        codeName = CodeName.StrixHalo;
                         break;
 
                     default:
