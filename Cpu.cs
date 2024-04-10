@@ -8,6 +8,7 @@ namespace ZenStates.Core
 {
     public class Cpu : IDisposable
     {
+        private readonly CpuInitSettings _settings;
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
         public readonly string Version = ((AssemblyFileVersionAttribute)Attribute.GetCustomAttribute(
@@ -167,6 +168,8 @@ namespace ZenStates.Core
                     topology.cores = topology.logicalCores;
                 else
                     topology.cores = topology.logicalCores / topology.threadsPerCore;
+
+                topology.coresPerCcx = topology.cores > 8 ? 8 : topology.cores;
             }
             else
             {
@@ -231,7 +234,10 @@ namespace ZenStates.Core
 
                 if (ReadDwordEx(coreDisableMapAddress, ref coreFuse))
                 {
-                    topology.coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
+                    var coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
+                    if (coresPerCcx > 0) {
+                        topology.coresPerCcx = coresPerCcx;
+                    }
                 }
                 else
                 {
@@ -259,8 +265,10 @@ namespace ZenStates.Core
             return topology;
         }
 
-        public Cpu()
+        public Cpu(CpuInitSettings settings = null)
         {
+            _settings = settings ?? CpuInitSettings.defaultSetttings;
+
             Ring0.Open();
 
             if (!Ring0.IsOpen)
