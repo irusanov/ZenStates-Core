@@ -590,6 +590,9 @@ namespace ZenStates.Core
             { Cpu.CodeName.StormPeak, new Zen4Settings() },
             { Cpu.CodeName.DragonRange, new Zen4Settings() },
 
+            // Zen5
+            { Cpu.CodeName.GraniteRidge, new Zen4Settings() },
+
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },
             { Cpu.CodeName.FireFlight, new APUSettings0() },

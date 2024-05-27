@@ -247,5 +247,52 @@ namespace ZenStates.Core
             { "MemVpp", 9124 },
             { "ApuVddio", 9128 }
         };
+
+        // GraniteRidge
+        public static readonly Dictionary<string, int> AodDataDictionaryV5 = new Dictionary<string, int>
+        {
+            { "SMTEn", 8920 },
+            { "MemClk", 8924 },
+            { "Tcl", 8928 },
+            { "Trcd", 8932 },
+            { "Trp", 8936 },
+            { "Tras", 8940 },
+            { "Trc", 8944 },
+            { "Twr", 8948 },
+            { "Trfc", 8952 },
+            { "Trfc2", 8956 },
+            { "Trfcsb", 8960 },
+            { "Trtp", 8964 },
+            { "TrrdL", 8968 },
+            { "TrrdS", 8972 },
+            { "Tfaw", 8976 },
+            { "TwtrL", 8980 },
+            { "TwtrS", 8984 },
+            { "TrdrdScL", 8988 },
+            { "TrdrdSc", 8992 },
+            { "TrdrdSd", 8996 },
+            { "TrdrdDd", 9000 },
+            { "TwrwrScL", 9004 },
+            { "TwrwrSc", 9008 },
+            { "TwrwrSd", 9012 },
+            { "TwrwrDd", 9016 },
+            { "Twrrd", 9020 },
+            { "Trdwr", 9024 },
+
+            { "CadBusDrvStren", 9028 },
+            { "ProcDataDrvStren", 9032 },
+            { "ProcOdt", 9036 },
+            { "DramDataDrvStren", 9040 },
+            { "RttNomWr", 9044 },
+            { "RttNomRd", 9048 },
+            { "RttWr", 9052 },
+            { "RttPark", 9056 },
+            { "RttParkDqs", 9060 },
+
+            { "MemVddio", 9088 },
+            { "MemVddq", 9092 },
+            { "MemVpp", 9096 },
+            { "ApuVddio", 9100 }
+        };
     }
 }

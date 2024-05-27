@@ -616,6 +616,7 @@ namespace ZenStates.Core
                         codeName = CodeName.StrixPoint;
                         break;
                     case 0x40:
+                    case 0x44:
                         codeName = CodeName.GraniteRidge;
                         break;
                     case 0x60:
