@@ -197,6 +197,12 @@ namespace ZenStates.Core
             { 0x000400, 0x948, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             // Generic Zen4 Phoenix
             { 0x0004C0, 0xAFC, 0x164, 0x174, 0x184, 0x194, 0x774, -1, -1, -1, -1 },
+
+            // Zen5
+            // GraniteRidge, table size unknown
+            { 0x620205, 0xAFC, 0x11C, 0x12C, 0x13C, 0x14C, -1, -1, -1, -1, -1 },
+            // Generic Zen5
+            { 0x000620, 0xAFC, 0x11C, 0x12C, 0x13C, 0x14C, -1, -1, -1, -1, -1 },
         };
 
         private PTDef GetDefByVersion(uint version)
@@ -235,6 +241,8 @@ namespace ZenStates.Core
                 case SMU.SmuType.TYPE_CPU4:
                     if ((tableVersion >> 16) == 0x5c)
                         version = 0x5c0;
+                    else if ((tableVersion >> 16) == 0x62)
+                        version = 0x620;
                     else
                         version = 0x400;
                     break;
