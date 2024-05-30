@@ -5,6 +5,7 @@ namespace ZenStates.Core
 {
     internal sealed class AodDictionaries
     {
+        // CPU On-Die Termination
         public static readonly Dictionary<int, string> ProcOdtDict = new Dictionary<int, string>
         {
             {0, "Hi-Z"},
@@ -29,8 +30,10 @@ namespace ZenStates.Core
             {63, "25.3 Ω"},
         };
 
+        // Proc Data Drive Strength
         public static readonly Dictionary<int, string> ProcDataDrvStrenDict = new Dictionary<int, string>
         {
+            {0, "Hi-Z"},
             {2, "240.0 Ω"},
             {4, "120.0 Ω"},
             {6, "80.0 Ω"},
@@ -40,6 +43,7 @@ namespace ZenStates.Core
             {30, "34.3 Ω"},
         };
 
+        // DRAM Data Drive Strength
         public static readonly Dictionary<int, string> DramDataDrvStrenDict = new Dictionary<int, string>
         {
             {0, "34.0 Ω"},
@@ -47,8 +51,23 @@ namespace ZenStates.Core
             {2, "48.0 Ω"},
         };
 
+        // Proc Data Drive Strength
         public static readonly Dictionary<int, string> CadBusDrvStrenDict = new Dictionary<int, string>
         {
+            {0, "Hi-Z" },
+            {30, "30.0 Ω"},
+            {40, "40.0 Ω"},
+            {60, "60.0 Ω"},
+            {120, "120.0 Ω"},
+        };
+
+        // Proc CA ODT impedance
+        // Proc CK ODT impedance
+        // Proc DQ ODT impedance
+        // Proc DQS ODT impedance
+        public static readonly Dictionary<int, string> ProcOdtImpedanceDict = new Dictionary<int, string>
+        {
+            {0, "Off" },
             {30, "30.0 Ω"},
             {40, "40.0 Ω"},
             {60, "60.0 Ω"},
