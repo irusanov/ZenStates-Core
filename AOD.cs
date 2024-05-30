@@ -61,6 +61,12 @@ namespace ZenStates.Core
             protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.CadBusDrvStrenDict;
         }
 
+        public class ProcOdtImpedance : AodEnumBase
+        {
+            public ProcOdtImpedance(int value) : base(value) { }
+            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.ProcOdtImpedanceDict;
+        }
+
         public class Rtt : AodEnumBase
         {
             public Rtt(int value) : base(value) { }
