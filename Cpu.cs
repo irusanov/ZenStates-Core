@@ -63,6 +63,7 @@ namespace ZenStates.Core
             GraniteRidge,
             KrackanPoint,
             StrixHalo,
+            Turin,
         };
 
 
@@ -612,6 +613,9 @@ namespace ZenStates.Core
             } else if (cpuInfo.family == Family.FAMILY_1AH) {
                 switch (cpuInfo.model)
                 {
+                    case 0x10:
+                        codeName = CodeName.Turin;
+                        break;
                     case 0x20:
                         codeName = CodeName.StrixPoint;
                         break;
