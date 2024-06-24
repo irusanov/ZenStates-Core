@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace ZenStates.Core
@@ -300,18 +300,20 @@ namespace ZenStates.Core
 
             { "CadBusDrvStren", 9028 },
             { "ProcDataDrvStren", 9032 },
-            { "ProcOdt", 9036 },
-            { "DramDataDrvStren", 9040 },
-            { "RttNomWr", 9044 },
-            { "RttNomRd", 9048 },
-            { "RttWr", 9052 },
-            { "RttPark", 9056 },
-            { "RttParkDqs", 9060 },
+
+            { "RttNomWr", 9036 },
+            { "RttNomRd", 9040 },
+            { "RttWr", 9044 },
+            { "RttPark", 9048 },
+            { "RttParkDqs", 9052 },
 
             { "MemVddio", 9088 },
             { "MemVddq", 9092 },
             { "MemVpp", 9096 },
-            { "ApuVddio", 9100 }
+            { "ApuVddio", 9100 },
+
+            { "ProcOdt", 9164 },
+            { "DramDataDrvStren", 9172 }
         };
     }
 }
