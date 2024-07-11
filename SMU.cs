@@ -592,6 +592,7 @@ namespace ZenStates.Core
 
             // Zen5
             { Cpu.CodeName.GraniteRidge, new Zen4Settings() },
+            { Cpu.CodeName.Bergamo, new Zen4Settings() },
 
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },

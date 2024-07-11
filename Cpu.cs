@@ -64,6 +64,7 @@ namespace ZenStates.Core
             KrackanPoint,
             StrixHalo,
             Turin,
+            Bergamo,
         };
 
 
@@ -627,6 +628,9 @@ namespace ZenStates.Core
                         break;
                     case 0x70:
                         codeName = CodeName.StrixHalo;
+                        break;
+                    case 0xA0:
+                        codeName = CodeName.Bergamo;
                         break;
 
                     default:

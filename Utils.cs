@@ -170,6 +170,11 @@ namespace ZenStates.Core
         /// </returns>
         public static int FindSequence(byte[] array, int start, byte[] sequence)
         {
+            if (array == null || sequence == null)
+            {
+                return -1;
+            }
+
             int end = array.Length - sequence.Length; // past here no match is possible
             byte firstByte = sequence[0]; // cached to tell compiler there's no aliasing
 

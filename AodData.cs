@@ -59,6 +59,8 @@ namespace ZenStates.Core
         {
             AodData data = new AodData();
 
+            if (byteArray == null) return data;
+
             foreach (var entry in fieldDictionary)
             {
                 try

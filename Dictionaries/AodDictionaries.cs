@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace ZenStates.Core
@@ -314,6 +314,12 @@ namespace ZenStates.Core
 
             { "ProcOdt", 9164 },
             { "DramDataDrvStren", 9172 }
+
+            // Proc ODT 48ohm
+            // Proc CA Drive stren 30ohm
+
+            // Proc Data Drive stren 40ohm
+            // Dram Data drive stren 48ohm
         };
     }
 }
