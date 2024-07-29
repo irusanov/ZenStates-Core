@@ -11,6 +11,7 @@ namespace ZenStates.Core
         private readonly CpuInitSettings _settings;
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
+
         public readonly string Version = ((AssemblyFileVersionAttribute)Attribute.GetCustomAttribute(
                 Assembly.GetExecutingAssembly(),
                 typeof(AssemblyFileVersionAttribute), false)).Version;

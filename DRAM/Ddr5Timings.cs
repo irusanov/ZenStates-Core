@@ -15,8 +15,8 @@ namespace ZenStates.Core.DRAM
             public NitroSettings(uint registerValue)
             {
                 CtrlLine = (byte)(registerValue & 0x3);
-                TxData = (byte)((registerValue >> 2) & 0x3);
-                RxData = (byte)((registerValue >> 4) & 0x3);
+                TxData = (byte)((registerValue >> 4) & 0x3);
+                RxData = (byte)((registerValue >> 8) & 0x3);
             }
 
             public override string ToString()
@@ -81,7 +81,7 @@ namespace ZenStates.Core.DRAM
                 }
             }
 
-            uint nitroSettings = Utils.BitSlice(cpu.ReadDword(offset | 0x50284), 5, 0);
+            uint nitroSettings = Utils.BitSlice(cpu.ReadDword(offset | 0x50284), 11, 0);
             Nitro = new NitroSettings(nitroSettings);
         }
     }
