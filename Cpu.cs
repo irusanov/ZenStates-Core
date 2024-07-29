@@ -128,7 +128,7 @@ namespace ZenStates.Core
         }
 
         public readonly IOModule io = new IOModule();
-        private readonly ACPI_MMIO mmio;
+        private readonly AMD_MMIO mmio;
         public readonly CPUInfo info;
         public readonly SystemInfo systemInfo;
         public readonly SMU smu;
@@ -290,7 +290,7 @@ namespace ZenStates.Core
             }
 
             Opcode.Open();
-            mmio = new ACPI_MMIO(io);
+            mmio = new AMD_MMIO(io);
 
             info.vendor = GetVendor();
             if (info.vendor != Constants.VENDOR_AMD && info.vendor != Constants.VENDOR_HYGON)

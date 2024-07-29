@@ -8,7 +8,7 @@ namespace ZenStates.Core
     {
         private readonly IOModule io;
         private readonly SMU smu;
-        private readonly ACPI_MMIO mmio;
+        private readonly AMD_MMIO mmio;
         private readonly PTDef tableDef;
         public readonly uint DramBaseAddressLo;
         public readonly uint DramBaseAddressHi;
@@ -273,7 +273,7 @@ namespace ZenStates.Core
             return GetDefaultTableDef(tableVersion, smutype);
         }
 
-        public PowerTable(SMU smuInstance, IOModule ioInstance, ACPI_MMIO mmio)
+        public PowerTable(SMU smuInstance, IOModule ioInstance, AMD_MMIO mmio)
         {
             this.smu = smuInstance ?? throw new ArgumentNullException(nameof(smuInstance));
             this.io = ioInstance ?? throw new ArgumentNullException(nameof(ioInstance));
