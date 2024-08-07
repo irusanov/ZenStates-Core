@@ -1,27 +1,37 @@
-﻿using System;
+using System;
 
 namespace ZenStates.Core
 {
-    public class ACPI_MMIO
+    public class AMD_MMIO
     {
         // https://www.amd.com/system/files/TechDocs/52740_16h_Models_30h-3Fh_BKDG.pdf (page 859)
-        internal const uint ACPI_MMIO_BASE_ADDRESS = 0xFED80000;
-        internal const uint MISC_BASE = ACPI_MMIO_BASE_ADDRESS + 0xE00;
-        // internal const uint IOMUX_BASE = ACPI_MMIO_BASE_ADDRESS + 0xD00;
-        internal const uint MISC_GPPClkCntrl = MISC_BASE + 0;
-        internal const uint MISC_ClkOutputCntrl = MISC_BASE + 0x04;
-        internal const uint MISC_CGPLLConfig1 = MISC_BASE + 0x08;
-        internal const uint MISC_CGPLLConfig2 = MISC_BASE + 0x0C;
-        internal const uint MISC_CGPLLConfig3 = MISC_BASE + 0x10;
-        internal const uint MISC_CGPLLConfig4 = MISC_BASE + 0x14;
-        internal const uint MISC_CGPLLConfig5 = MISC_BASE + 0x18;
-        internal const uint MISC_ClkCntl1 = MISC_BASE + 0x40;
-        internal const uint MISC_StrapStatus = MISC_BASE + 0x80;
+        internal const uint AMD_MMIO_BASE_ADDRESS = 0xFED80000;
+        internal const uint MISC_BASE_ADDRESS = AMD_MMIO_BASE_ADDRESS + 0xE00;
+        internal const uint SMBUS_BASE_ADDRESS = AMD_MMIO_BASE_ADDRESS + 0xA00;
+        internal const uint SMUIO_BASE_ADDRESS = 0x0005A000;
+        // internal const uint IOMUX_BASE = AMD_MMIO_BASE_ADDRESS + 0xD00;
+        internal const uint MISC_GPPClkCntrl = MISC_BASE_ADDRESS + 0;
+        internal const uint MISC_ClkOutputCntrl = MISC_BASE_ADDRESS + 0x04;
+        internal const uint MISC_CGPLLConfig1 = MISC_BASE_ADDRESS + 0x08;
+        internal const uint MISC_CGPLLConfig2 = MISC_BASE_ADDRESS + 0x0C;
+        internal const uint MISC_CGPLLConfig3 = MISC_BASE_ADDRESS + 0x10;
+        internal const uint MISC_CGPLLConfig4 = MISC_BASE_ADDRESS + 0x14;
+        internal const uint MISC_CGPLLConfig5 = MISC_BASE_ADDRESS + 0x18;
+        internal const uint MISC_ClkCntl1 = MISC_BASE_ADDRESS + 0x40;
+        internal const uint MISC_StrapStatus = MISC_BASE_ADDRESS + 0x80;
+        internal const uint SMBUS_BASE_ADDRESS_REG = 0x300;
         // internal const uint IOMUX_LPCCLK1 = IOMUX_BASE + 0x1F;
 
         private readonly IOModule io;
 
-        public ACPI_MMIO(IOModule io)
+        public enum ClkGen : int
+        {
+            ERROR = -1,
+            EXTERNAL = 0,
+            INTERNAL = 1,
+        }
+
+        public AMD_MMIO(IOModule io)
         {
             this.io = io;
         }
@@ -38,6 +48,17 @@ namespace ZenStates.Core
             return bclk ^ 100;
         }
 
+        private uint GetSmbusBaseAddress()
+        {
+            io.GetPhysLong(new UIntPtr(SMBUS_BASE_ADDRESS_REG), out uint data);
+            if (data != 0)
+            {
+                uint value = (data >> 8) & 0x7F;
+                return value << 8;
+            }
+            return 0;
+        }
+
         private static int CalculateBclkFromIndex(int index)
         {
             if (index < 32)
@@ -52,11 +73,11 @@ namespace ZenStates.Core
          *  reference clock
          * [12] CPUClkSelStrap
          */
-        public int GetStrapStatus()
+        public ClkGen GetStrapStatus()
         {
             if (io.GetPhysLong((UIntPtr)MISC_StrapStatus, out uint value))
-                return (int)Utils.GetBits(value, 17, 1);
-            return -1;
+                return (ClkGen)Utils.GetBits(value, 17, 1);
+            return ClkGen.ERROR;
         }
 
         private bool DisableSpreadSpectrum()

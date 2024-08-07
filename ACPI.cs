@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections;
 using System.Runtime.InteropServices;
 
 namespace ZenStates.Core
@@ -14,13 +15,17 @@ namespace ZenStates.Core
             // Table OemId signatures
             public const string AOD_ = "AOD     ";
             public const string AAOD = "AMD AOD";
+            public const string LENOVO_AOD = "CB-01   ";
             // Region signatures
             public const string AODE = "AODE";
             public const string AODT = "AODT";
         }
 
-        internal const uint RSDP_REGION_BASE_ADDRESS = 0x0E0000;
-        internal const int RSDP_REGION_LENGTH = 0x01FFFF;
+        internal const ushort EBDA_START_SEGMENT_PTR = 0x40e;
+        internal const uint EBDA_EARLIEST_START = 0x80000;
+        internal const uint EBDA_END = 0x9ffff;
+        internal const uint RSDP_REGION_BASE_ADDRESS = 0x0e0000;
+        internal const int RSDP_REGION_LENGTH = 0x01ffff;
 
         // 5.2.5.3 RSDP Structure
         // https://uefi.org/sites/default/files/resources/ACPI_5_1_Errata_B.PDF p.110
@@ -130,7 +135,7 @@ namespace ZenStates.Core
             public ulong X_DSDT;
         }
 
-        // https://github.com/irusanov/acpi/blob/main/acpi/src/address.rs
+        // https://github.com/rust-osdev/acpi/blob/main/acpi/src/address.rs
         public enum AddressSpace : byte
         {
             SystemMemory,
@@ -221,6 +226,12 @@ namespace ZenStates.Core
             return Utils.ByteArrayToStructure<T>(bytes);
         }
 
+        public T GetHeader<T>(ulong address, int length = 36) where T : new()
+        {
+            byte[] bytes = io.ReadMemory(new IntPtr((long)address), length);
+            return Utils.ByteArrayToStructure<T>(bytes);
+        }
+
         public RSDP GetRsdp()
         {
             byte[] bytes = io.ReadMemory(new IntPtr(RSDP_REGION_BASE_ADDRESS), RSDP_REGION_LENGTH);
@@ -232,12 +243,12 @@ namespace ZenStates.Core
             return Utils.ByteArrayToStructure<RSDP>(io.ReadMemory(new IntPtr(RSDP_REGION_BASE_ADDRESS + rsdpOffset), 36));
         }
 
-        public RSDT GetRSDT()
+        public RSDT GetRsdt()
         {
             RSDT rsdtTable;
             RSDP rsdp = GetRsdp();
-            SDTHeader rsdtHeader = GetHeader<SDTHeader>(rsdp.RsdtAddress);
-            byte[] rawTable = io.ReadMemory(new IntPtr(rsdp.RsdtAddress), (int)rsdtHeader.Length);
+            SDTHeader rsdtHeader = GetHeader<SDTHeader>(rsdp.RsdtAddress > 0 ? rsdp.RsdtAddress : rsdp.XsdtAddress);
+            byte[] rawTable = io.ReadMemory(new IntPtr(rsdp.RsdtAddress > 0 ? rsdp.RsdtAddress : (long)rsdp.XsdtAddress), (int)rsdtHeader.Length);
             GCHandle handle = GCHandle.Alloc(rawTable, GCHandleType.Pinned);
             try
             {
@@ -279,6 +290,13 @@ namespace ZenStates.Core
                 handle.Free();
             }
             return acpiTable;
+        }
+
+        private static T ReadMemory<T>(IntPtr address)
+        {
+            T result = default;
+            Marshal.PtrToStructure(address, result);
+            return result;
         }
     }
 }

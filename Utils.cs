@@ -1,5 +1,10 @@
+using Microsoft.Win32;
 using System;
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace ZenStates.Core
 {
@@ -17,6 +22,12 @@ namespace ZenStates.Core
             return (val >> offset) & ~(~0U << n);
         }
 
+        public static uint BitSlice(uint val, int hi, int lo)
+        {
+            uint mask = (2U << hi - lo) - 1U;
+            return val >> lo & mask;
+        }
+
         public static uint CountSetBits(uint v)
         {
             uint result = 0;
@@ -30,6 +41,12 @@ namespace ZenStates.Core
             }
 
             return result;
+        }
+
+        // https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/blob/master/LibreHardwareMonitorLib/Hardware/SMBios.cs#L918
+        public static bool IsBitSet(byte b, int pos)
+        {
+            return (b & (1 << pos)) != 0;
         }
 
         public static string GetStringPart(uint val)
@@ -158,6 +175,11 @@ namespace ZenStates.Core
         /// </returns>
         public static int FindSequence(byte[] array, int start, byte[] sequence)
         {
+            if (array == null || sequence == null)
+            {
+                return -1;
+            }
+
             int end = array.Length - sequence.Length; // past here no match is possible
             byte firstByte = sequence[0]; // cached to tell compiler there's no aliasing
 
@@ -217,6 +239,179 @@ namespace ZenStates.Core
                 if (str.Contains(arr[i])) { match = true; break; }
             }
             return match;
+        }
+
+        public static float ToNanoseconds(uint value, float frequency)
+        {
+            if (frequency != 0)
+            {
+                float refiValue = Convert.ToSingle(value);
+                float trefins = refiValue * 2000f / frequency;
+                if (trefins > refiValue) trefins /= 2;
+                return trefins;
+            }
+            return 0;
+        }
+
+        public static void RemoveRegistryKey(string keyPath)
+        {
+            try
+            {
+                using (var key = Registry.LocalMachine.OpenSubKey(keyPath, true))
+                {
+                    if (key != null)
+                    {
+                        Registry.LocalMachine.DeleteSubKeyTree(keyPath);
+                        Console.WriteLine($"Deleted registry key: HKEY_LOCAL_MACHINE\\{keyPath}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Registry key not found: HKEY_LOCAL_MACHINE\\{keyPath}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to delete registry key: {ex.Message}");
+            }
+        }
+
+        public class CommandExecutionResult
+        {
+            public bool Success { get; set; }
+            public string StandardOutput { get; set; }
+            public string StandardError { get; set; }
+            public int ExitCode { get; set; }
+            public string State { get; set; }
+        }
+
+        public static CommandExecutionResult ExecuteCommand(string command)
+        {
+            var processInfo = new ProcessStartInfo("cmd.exe", "/c " + command)
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            var result = new CommandExecutionResult();
+            var standardOutput = new StringBuilder();
+            var standardError = new StringBuilder();
+
+            using (var process = Process.Start(processInfo))
+            {
+                if (process == null)
+                {
+                    result.Success = false;
+                    result.StandardError = "Failed to start process.";
+                    return result;
+                }
+
+                process.OutputDataReceived += (sender, e) => { if (e.Data != null) standardOutput.AppendLine(e.Data); };
+                process.BeginOutputReadLine();
+                process.ErrorDataReceived += (sender, e) => { if (e.Data != null) standardError.AppendLine(e.Data); };
+                process.BeginErrorReadLine();
+                process.WaitForExit();
+
+                result.Success = process.ExitCode == 0;
+                result.StandardOutput = standardOutput.ToString();
+                result.StandardError = standardError.ToString();
+                result.ExitCode = process.ExitCode;
+
+                // Parse the state from the standard output
+                var stateMatch = Regex.Match(result.StandardOutput, @"STATE\s+:\s+\d+\s+(\w+)");
+                if (stateMatch.Success)
+                {
+                    result.State = stateMatch.Groups[1].Value;
+                }
+                else
+                {
+                    result.State = "Unknown";
+                }
+            }
+
+            return result;
+        }
+
+        public static bool DeleteFile(string filePath)
+        {
+            try
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                    Console.WriteLine($"Deleted file: {filePath}");
+                }
+                else
+                {
+                    Console.WriteLine($"File not found: {filePath}");
+                }
+                return true;
+            } 
+            catch (Exception ex) {
+                return false;
+            }
+        }
+
+        public static bool HasDependentServices(string serviceName)
+        {
+            CommandExecutionResult result = ExecuteCommand($"sc.exe qc {serviceName}");
+            string output = result.StandardOutput;
+            bool hasDependents = false;
+            foreach (var line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (line.Trim().StartsWith("DEPENDENCIES"))
+                {
+                    string dependencies = line.Split(new[] { ':' }, 2)[1].Trim();
+                    if (!string.IsNullOrEmpty(dependencies))
+                    {
+                        hasDependents = true;
+                        Console.WriteLine($"Dependent services: {dependencies}");
+                    }
+                }
+            }
+            return hasDependents;
+        }
+
+        public static int GetServiceProcessId(string serviceName)
+        {
+            CommandExecutionResult result = ExecuteCommand($"sc.exe queryex {serviceName}");
+            string output = result.StandardOutput;
+
+            foreach (var line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (line.Trim().StartsWith("PID"))
+                {
+                    if (int.TryParse(line.Split(':')[1].Trim(), out int pid))
+                    {
+                        return pid;
+                    }
+                }
+            }
+            return -1;
+        }
+
+        public static void KillProcess(int processId)
+        {
+            try
+            {
+                Process process = Process.GetProcessById(processId);
+                process.Kill();
+                process.WaitForExit();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to kill process {processId}: {ex.Message}");
+            }
+        }
+
+        public static bool ServiceExists(string serviceName)
+        {
+            CommandExecutionResult result = ExecuteCommand($"sc query {serviceName}");
+            string output = result.StandardOutput;
+
+            return !output.Contains("FAILED 1060");
         }
     }
 }

@@ -374,6 +374,11 @@ namespace ZenStates.Core
             Mp1Smu.SMU_MSG_SetPPTLimit = 0x3E;
             Mp1Smu.SMU_MSG_SetHTCLimit = 0x3F;
 
+            // Unknown
+            Mp1Smu.SMU_MSG_SetDldoPsmMargin = 0;
+            Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0;
+            Mp1Smu.SMU_MSG_GetDldoPsmMargin = 0;
+
             // RSMU
             Rsmu.SMU_ADDR_MSG = 0x03B10524;
             Rsmu.SMU_ADDR_RSP = 0x03B10570;
@@ -543,6 +548,9 @@ namespace ZenStates.Core
             Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
             Mp1Smu.SMU_ADDR_RSP = 0x03B10578;
             Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
+
+            Mp1Smu.SMU_MSG_SetDldoPsmMargin = 0x4B;
+            Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0x4C;
         }
     }
 
@@ -585,6 +593,10 @@ namespace ZenStates.Core
             { Cpu.CodeName.StormPeak, new Zen4Settings() },
             { Cpu.CodeName.DragonRange, new Zen4Settings() },
 
+            // Zen5
+            { Cpu.CodeName.GraniteRidge, new Zen4Settings() },
+            { Cpu.CodeName.Bergamo, new Zen4Settings() },
+
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },
             { Cpu.CodeName.FireFlight, new APUSettings0() },
@@ -603,6 +615,7 @@ namespace ZenStates.Core
             // https://github.com/coreboot/coreboot/blob/master/src/soc/amd/phoenix/include/soc/smu.h
             { Cpu.CodeName.Phoenix, new APUSettings1_Rembrandt() },
             { Cpu.CodeName.Phoenix2, new APUSettings1_Rembrandt() },
+            { Cpu.CodeName.HawkPoint, new APUSettings1_Rembrandt() },
             { Cpu.CodeName.Mendocino, new APUSettings1_Rembrandt() },
 
             { Cpu.CodeName.Unsupported, new UnsupportedSettings() },

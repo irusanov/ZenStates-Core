@@ -2,13 +2,16 @@ using OpenHardwareMonitor.Hardware;
 using System;
 using System.IO;
 using System.Reflection;
+using ZenStates.Core.DRAM;
 
 namespace ZenStates.Core
 {
     public class Cpu : IDisposable
     {
+        private readonly CpuInitSettings _settings;
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
+
         public readonly string Version = ((AssemblyFileVersionAttribute)Attribute.GetCustomAttribute(
                 Assembly.GetExecutingAssembly(),
                 typeof(AssemblyFileVersionAttribute), false)).Version;
@@ -20,6 +23,7 @@ namespace ZenStates.Core
             FAMILY_17H = 0x17,
             FAMILY_18H = 0x18,
             FAMILY_19H = 0x19,
+            FAMILY_1AH = 0x1A,
         };
 
         public enum CodeName
@@ -55,6 +59,13 @@ namespace ZenStates.Core
             StormPeak,
             DragonRange,
             Mero,
+            HawkPoint,
+            StrixPoint,
+            GraniteRidge,
+            KrackanPoint,
+            StrixHalo,
+            Turin,
+            Bergamo,
         };
 
 
@@ -88,7 +99,13 @@ namespace ZenStates.Core
             public uint physicalCores;
             public uint threadsPerCore;
             public uint cpuNodes;
-            public uint coreDisableMap;
+            public uint[] coreDisableMap;
+            public uint ccdEnableMap;
+            public uint ccdDisableMap;
+            public uint fuse1;
+            public uint fuse2;
+            public uint ccdsPresent;
+            public uint ccdsDown;
             public uint[] performanceOfCore;
         }
 
@@ -111,14 +128,34 @@ namespace ZenStates.Core
         }
 
         public readonly IOModule io = new IOModule();
-        private readonly ACPI_MMIO mmio;
+        private readonly AMD_MMIO mmio;
         public readonly CPUInfo info;
         public readonly SystemInfo systemInfo;
         public readonly SMU smu;
         public readonly PowerTable powerTable;
+        public readonly MemoryConfig memoryConfig;
 
         public IOModule.LibStatus Status { get; }
         public Exception LastError { get; }
+
+        /**
+         * Core fuse
+         * CastlePeak: 0x30081A38
+         * Cezanne: 0x5D449
+         * Chagall: 0x30081D98
+         * Colfax: 0x5D25C
+         * Matisse: 0x30081A38
+         * Picasso: 0x5D254
+         * Pinnacle: 0x5D25C
+         * Raphael: 0x30081CD0
+         * Raven2: 0x5D254
+         * Raven:  0x5D254
+         * Rembrandt: 0x5D4DC
+         * Renoir: 0x5D3E8
+         * Summit: 0x5D25C
+         * Threadripper: 0x5D25C
+         * Vermeer: 0x30081D98
+         */
 
         private CpuTopology GetCpuTopology(Family family, CodeName codeName, uint model)
         {
@@ -138,6 +175,8 @@ namespace ZenStates.Core
                     topology.cores = topology.logicalCores;
                 else
                     topology.cores = topology.logicalCores / topology.threadsPerCore;
+
+                topology.coresPerCcx = topology.cores > 8 ? 8 : topology.cores;
             }
             else
             {
@@ -185,26 +224,41 @@ namespace ZenStates.Core
 
             if (ReadDwordEx(fuse1, ref ccdsPresent) && ReadDwordEx(fuse2, ref ccdsDown))
             {
-                uint ccdEnableMap = Utils.GetBits(ccdsPresent, 22, 8);
-                uint ccdDisableMap = Utils.GetBits(ccdsPresent, 30, 2) | (Utils.GetBits(ccdsDown, 0, 6) << 2);
+                uint ccdEnableMap = Utils.BitSlice(ccdsPresent, 23, 22);
+                uint ccdDisableMap = Utils.BitSlice(ccdsPresent, 31, 30) | (Utils.BitSlice(ccdsDown, 5, 0) << 2);
                 uint coreDisableMapAddress = 0x30081800 + offset;
                 uint enabledCcd = Utils.CountSetBits(ccdEnableMap);
 
                 topology.ccds = enabledCcd > 0 ? enabledCcd : 1;
                 topology.ccxs = topology.ccds * ccxPerCcd;
                 topology.physicalCores = topology.ccxs * 8 / ccxPerCcd;
+                topology.ccdEnableMap = ccdEnableMap;
+                topology.ccdDisableMap = ccdDisableMap;
+                topology.fuse1 = fuse1;
+                topology.fuse2 = fuse2;
+                topology.ccdsPresent = ccdsPresent;
+                topology.ccdsDown = ccdsDown;
 
                 if (ReadDwordEx(coreDisableMapAddress, ref coreFuse))
-                    topology.coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
+                {
+                    var coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
+                    if (coresPerCcx > 0) {
+                        topology.coresPerCcx = coresPerCcx;
+                    }
+                }
                 else
+                {
                     Console.WriteLine("Could not read core fuse!");
+                }
+
+                topology.coreDisableMap = new uint[topology.ccds];
 
                 for (int i = 0; i < topology.ccds; i++)
                 {
                     if (Utils.GetBits(ccdEnableMap, i, 1) == 1)
                     {
                         if (ReadDwordEx(((uint)i << 25) + coreDisableMapAddress, ref coreFuse))
-                            topology.coreDisableMap |= (coreFuse & 0xff) << i * 8;
+                            topology.coreDisableMap[i] = coreFuse & 0xff;
                         else
                             Console.WriteLine($"Could not read core fuse for CCD{i}!");
                     }
@@ -218,8 +272,10 @@ namespace ZenStates.Core
             return topology;
         }
 
-        public Cpu()
+        public Cpu(CpuInitSettings settings = null)
         {
+            _settings = settings ?? CpuInitSettings.defaultSetttings;
+
             Ring0.Open();
 
             if (!Ring0.IsOpen)
@@ -234,7 +290,7 @@ namespace ZenStates.Core
             }
 
             Opcode.Open();
-            mmio = new ACPI_MMIO(io);
+            mmio = new AMD_MMIO(io);
 
             info.vendor = GetVendor();
             if (info.vendor != Constants.VENDOR_AMD && info.vendor != Constants.VENDOR_HYGON)
@@ -301,6 +357,8 @@ namespace ZenStates.Core
                 LastError = ex;
                 Status = IOModule.LibStatus.PARTIALLY_OK;
             }
+
+            memoryConfig = new MemoryConfig(this);
         }
 
         // [31-28] ccd index
@@ -327,6 +385,7 @@ namespace ZenStates.Core
                         return true;
                     }
 
+                    Ring0.ReleasePciBusMutex();
                 }
             }
 
@@ -541,8 +600,38 @@ namespace ZenStates.Core
                     case 0x78:
                         codeName = CodeName.Phoenix2;
                         break;
+                    // https://github.com/InstLatx64/InstLatx64/commit/d3fd3cddc85b9a32966c54b59477b1c8eb3a60a3
+                    case 0x7C:
+                        codeName = CodeName.HawkPoint;
+                        break;
                     case 0xa0:
                         codeName = CodeName.Mendocino;
+                        break;
+
+                    default:
+                        codeName = CodeName.Unsupported;
+                        break;
+                }
+            } else if (cpuInfo.family == Family.FAMILY_1AH) {
+                switch (cpuInfo.model)
+                {
+                    case 0x10:
+                        codeName = CodeName.Turin;
+                        break;
+                    case 0x20:
+                        codeName = CodeName.StrixPoint;
+                        break;
+                    case 0x44:
+                        codeName = CodeName.GraniteRidge;
+                        break;
+                    case 0x60:
+                        codeName = CodeName.KrackanPoint;
+                        break;
+                    case 0x70:
+                        codeName = CodeName.StrixHalo;
+                        break;
+                    case 0xA0:
+                        codeName = CodeName.Bergamo;
                         break;
 
                     default:
@@ -619,6 +708,7 @@ namespace ZenStates.Core
                 case CodeName.Rembrandt:
                 case CodeName.Phoenix:
                 case CodeName.Phoenix2:
+                case CodeName.HawkPoint:
                     svi.coreAddress = Constants.F17H_M60H_SVI_TEL_PLANE0;
                     svi.socAddress = Constants.F17H_M60H_SVI_TEL_PLANE1;
                     break;
@@ -817,6 +907,8 @@ namespace ZenStates.Core
 
             return null;
         }
+
+        public MemoryConfig GetMemoryConfig() => memoryConfig;
 
         protected virtual void Dispose(bool disposing)
         {

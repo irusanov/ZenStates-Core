@@ -1,5 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.Reflection;
+using static ZenStates.Core.AOD;
 
 namespace ZenStates.Core
 {
@@ -10,6 +12,8 @@ namespace ZenStates.Core
         public int MemClk { get; set; }
         public int Tcl { get; set; }
         public int Trcd { get; set; }
+        public int TrcdWr { get; set; }
+        public int TrcdRd { get; set; }
         public int Trp { get; set; }
         public int Tras { get; set; }
         public int Trc { get; set; }
@@ -33,36 +37,63 @@ namespace ZenStates.Core
         public int TwrwrDd { get; set; }
         public int Twrrd { get; set; }
         public int Trdwr { get; set; }
-        public int CadBusDrvStren { get; set; }
-        public int ProcDataDrvStren { get; set; }
-        public int ProcODT { get; set; }
-        public int DramDataDrvStren { get; set; }
-        public int RttNomWr { get; set; }
-        public int RttNomRd { get; set; }
-        public int RttWr { get; set; }
-        public int RttPark { get; set; }
-        public int RttParkDqs { get; set; }
-        public int MemVddio { get; set; }
-        public int MemVddq { get; set; }
-        public int MemVpp { get; set; }
-        public int ApuVddio { get; set; }
+        public CadBusDrvStren CadBusDrvStren { get; set; }
+        public ProcDataDrvStren ProcDataDrvStren { get; set; }
+        public ProcOdt ProcOdt { get; set; }
+        public ProcOdtImpedance ProcCaOdt { get; set; }
+        public ProcOdtImpedance ProcCkOdt { get; set; }
+        public ProcOdtImpedance ProcDqOdt { get; set; }
+        public ProcOdtImpedance ProcDqsOdt { get; set; }
+        public DramDataDrvStren DramDataDrvStren { get; set; }
+        public Rtt RttNomWr { get; set; }
+        public Rtt RttNomRd { get; set; }
+        public Rtt RttWr { get; set; }
+        public Rtt RttPark { get; set; }
+        public Rtt RttParkDqs { get; set; }
+        public Voltage MemVddio { get; set; }
+        public Voltage MemVddq { get; set; }
+        public Voltage MemVpp { get; set; }
+        public Voltage ApuVddio { get; set; }
 
         public static AodData CreateFromByteArray(byte[] byteArray, Dictionary<string, int> fieldDictionary)
         {
             AodData data = new AodData();
 
+            if (byteArray == null) return data;
+
             foreach (var entry in fieldDictionary)
             {
-                string fieldName = entry.Key;
-                int fieldOffset = entry.Value;
+                try
+                {
+                    string fieldName = entry.Key;
+                    int fieldOffset = entry.Value;
 
-                // Each property corresponds to 4 bytes in the byte array
-                int fieldValue = BitConverter.ToInt32(byteArray, fieldOffset);
+                    PropertyInfo property = typeof(AodData).GetProperty(fieldName);
+                    if (fieldOffset > -1 && fieldOffset <= byteArray.Length - sizeof(int) && property != null)
+                    {
+                        Type propertyType = property.PropertyType;
+                        object fieldValue;
 
-                typeof(AodData).GetProperty(fieldName)?.SetValue(data, fieldValue, null);
+                        if (propertyType.IsClass && propertyType != typeof(string))
+                        {
+                            fieldValue = Activator.CreateInstance(propertyType, BitConverter.ToInt32(byteArray, fieldOffset));
+                        }
+                        else
+                        {
+                            fieldValue = Convert.ChangeType(BitConverter.ToInt32(byteArray, fieldOffset), propertyType);
+                        }
+
+                        property.SetValue(data, fieldValue, null);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.ToString(), e.Message);
+                }
             }
 
             return data;
         }
+
     }
 }
