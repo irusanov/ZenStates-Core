@@ -8,7 +8,7 @@ namespace ZenStates.Core
     {
         private readonly IOModule io;
         private readonly SMU smu;
-        private readonly ACPI_MMIO mmio;
+        private readonly AMD_MMIO mmio;
         private readonly PTDef tableDef;
         public readonly uint DramBaseAddressLo;
         public readonly uint DramBaseAddressHi;
@@ -197,6 +197,12 @@ namespace ZenStates.Core
             { 0x000400, 0x948, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE0 },
             // Generic Zen4 Phoenix
             { 0x0004C0, 0xAFC, 0x164, 0x174, 0x184, 0x194, 0x774, -1, -1, -1, -1 },
+            
+            // Zen5
+            // GraniteRidge, table size unknown
+            { 0x620205, 0x994, 0x11C, 0x12C, 0x13C, 0x14C, 0x434, -1, -1, -1, 0xE8 },
+            // Generic Zen5
+            { 0x000620, 0xAFC, 0x11C, 0x12C, 0x13C, 0x14C, 0x434, -1, -1, -1, 0xE8 },
         };
 
         private PTDef GetDefByVersion(uint version)
@@ -235,6 +241,8 @@ namespace ZenStates.Core
                 case SMU.SmuType.TYPE_CPU4:
                     if ((tableVersion >> 16) == 0x5c)
                         version = 0x5c0;
+                    else if ((tableVersion >> 16) == 0x62)
+                        version = 0x620;
                     else
                         version = 0x400;
                     break;
@@ -265,7 +273,7 @@ namespace ZenStates.Core
             return GetDefaultTableDef(tableVersion, smutype);
         }
 
-        public PowerTable(SMU smuInstance, IOModule ioInstance, ACPI_MMIO mmio)
+        public PowerTable(SMU smuInstance, IOModule ioInstance, AMD_MMIO mmio)
         {
             this.smu = smuInstance ?? throw new ArgumentNullException(nameof(smuInstance));
             this.io = ioInstance ?? throw new ArgumentNullException(nameof(ioInstance));

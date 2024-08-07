@@ -299,6 +299,8 @@ namespace ZenStates.Core
                 case Cpu.CodeName.Phoenix2:
                 case Cpu.CodeName.HawkPoint:
                     return AodDictionaries.AodDataDictionaryV4;
+                case Cpu.CodeName.GraniteRidge:
+                    return AodDictionaries.AodDataDictionaryV5;
                 default:
                     return AodDictionaries.AodDataDictionaryV1;
             }

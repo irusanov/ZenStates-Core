@@ -1,6 +1,12 @@
-﻿using System;
+﻿using Microsoft.Win32;
+using System;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.Management;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.ServiceProcess;
 
 namespace ZenStates.Core
 {
@@ -72,6 +78,18 @@ namespace ZenStates.Core
         {
             try
             {
+                // restrict the driver access to system (SY) and builtin admins (BA)
+                // TODO: replace with a call to IoCreateDeviceSecure in the driver
+                string filePath = @"\\.\inpoutx64";
+                FileInfo fileInfo = new FileInfo(filePath);
+                FileSecurity fileSecurity = fileInfo.GetAccessControl();
+                fileSecurity.SetSecurityDescriptorSddlForm("O:BAG:SYD:(A;;FA;;;SY)(A;;FA;;;BA)");
+                fileInfo.SetAccessControl(fileSecurity);
+            }
+            catch { }
+
+            try
+            {
                 string fileName = Utils.Is64Bit ? "inpoutx64.dll" : "WinIo32.dll";
                 ioModule = LoadDll(fileName);
 
@@ -125,17 +143,93 @@ namespace ZenStates.Core
         private readonly _InitializeWinIo32 InitializeWinIo32;
         private readonly _ShutdownWinIo32 ShutdownWinIo32;
 
+        private void CleanupDriver()
+        {
+            if (IsInpOutDriverOpen())
+                return;
+
+            string serviceName = "inpoutx64";
+            string registryKeyPath = @"SYSTEM\CurrentControlSet\Services\" + serviceName;
+            string driverFilePath = $@"C:\Windows\System32\drivers\{serviceName}.sys";
+
+            try
+            {
+                // Stop the service
+                using (ServiceController serviceController = new ServiceController(serviceName))
+                {
+                    if (serviceController.Status == ServiceControllerStatus.Running)
+                    {
+                        serviceController.Stop();
+                        serviceController.WaitForStatus(ServiceControllerStatus.Stopped, new TimeSpan(10000));
+                        Console.WriteLine("Service stopped successfully.");
+                    }
+
+                    if (serviceController.Status != ServiceControllerStatus.Stopped)
+                    {
+      
+                        Console.WriteLine("Failed to stop the service.");
+                        return;
+                    }
+                }
+
+                // Delete the service
+                using (ManagementObject service = new ManagementObject($"Win32_Service.Name='{serviceName}'"))
+                {
+                    service.Delete();
+                    Console.WriteLine("Service deleted successfully.");
+                }
+
+
+                // Remove the registry key using the regedit command-line tool
+                Process regeditProcess = new Process();
+                regeditProcess.StartInfo.FileName = "regedit";
+                regeditProcess.StartInfo.Arguments = $"/s /f \"{registryKeyPath}\"";
+                regeditProcess.StartInfo.UseShellExecute = false;
+                regeditProcess.Start();
+
+                regeditProcess.WaitForExit();
+
+                if (regeditProcess.ExitCode == 0)
+                {
+                    Console.WriteLine("Registry key removed successfully.");
+                }
+                else
+                {
+                    Console.WriteLine("Failed to remove the registry key.");
+                }
+
+                // Delete the driver file
+                if (File.Exists(driverFilePath))
+                {
+                    File.Delete(driverFilePath);
+                    Console.WriteLine("Driver file deleted successfully.");
+                }
+                else
+                {
+                    Console.WriteLine("Driver file does not exist.");
+                }
+
+                Console.WriteLine("Process completed.");
+                Console.ReadLine();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred:");
+                Console.WriteLine(ex.Message);
+            }
+        }
 
         public void Dispose()
         {
             if (ioModule == IntPtr.Zero) return;
             if (!Utils.Is64Bit)
-            {
                 ShutdownWinIo32();
-            }
 
             FreeLibrary(ioModule);
             ioModule = IntPtr.Zero;
+
+            //if (Utils.Is64Bit)
+            //    CleanupDriver();
         }
 
         public static Delegate GetDelegate(IntPtr moduleName, string procName, Type delegateType)

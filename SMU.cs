@@ -548,6 +548,9 @@ namespace ZenStates.Core
             Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
             Mp1Smu.SMU_ADDR_RSP = 0x03B10578;
             Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
+
+            Mp1Smu.SMU_MSG_SetDldoPsmMargin = 0x4B;
+            Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0x4C;
         }
     }
 
@@ -589,6 +592,10 @@ namespace ZenStates.Core
             { Cpu.CodeName.Genoa, new Zen4Settings() },
             { Cpu.CodeName.StormPeak, new Zen4Settings() },
             { Cpu.CodeName.DragonRange, new Zen4Settings() },
+
+            // Zen5
+            { Cpu.CodeName.GraniteRidge, new Zen4Settings() },
+            { Cpu.CodeName.Bergamo, new Zen4Settings() },
 
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },

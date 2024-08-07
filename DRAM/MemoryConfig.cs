@@ -63,7 +63,7 @@ namespace ZenStates.Core.DRAM
 
             Type = (MemType)(cpu.ReadDword(0 | DRAM_TYPE_REG_ADDR) & DRAM_TYPE_BIT_MASK);
 
-            ChannelsPerDimm = Type == MemType.DDR5 ? 2u : 1u;
+            ChannelsPerDimm = 1; // Type == MemType.DDR5 ? 2u : 1u;
 
             Channels = new List<Channel>();
 

@@ -11,6 +11,7 @@ namespace ZenStates.Core
         private readonly CpuInitSettings _settings;
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
+
         public readonly string Version = ((AssemblyFileVersionAttribute)Attribute.GetCustomAttribute(
                 Assembly.GetExecutingAssembly(),
                 typeof(AssemblyFileVersionAttribute), false)).Version;
@@ -64,6 +65,7 @@ namespace ZenStates.Core
             KrackanPoint,
             StrixHalo,
             Turin,
+            Bergamo,
         };
 
 
@@ -126,7 +128,7 @@ namespace ZenStates.Core
         }
 
         public readonly IOModule io = new IOModule();
-        private readonly ACPI_MMIO mmio;
+        private readonly AMD_MMIO mmio;
         public readonly CPUInfo info;
         public readonly SystemInfo systemInfo;
         public readonly SMU smu;
@@ -288,7 +290,7 @@ namespace ZenStates.Core
             }
 
             Opcode.Open();
-            mmio = new ACPI_MMIO(io);
+            mmio = new AMD_MMIO(io);
 
             info.vendor = GetVendor();
             if (info.vendor != Constants.VENDOR_AMD && info.vendor != Constants.VENDOR_HYGON)
@@ -627,6 +629,9 @@ namespace ZenStates.Core
                         break;
                     case 0x70:
                         codeName = CodeName.StrixHalo;
+                        break;
+                    case 0xA0:
+                        codeName = CodeName.Bergamo;
                         break;
 
                     default:

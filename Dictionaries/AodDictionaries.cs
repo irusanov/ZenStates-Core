@@ -266,5 +266,60 @@ namespace ZenStates.Core
             { "MemVpp", 9124 },
             { "ApuVddio", 9128 }
         };
+
+        // GraniteRidge
+        public static readonly Dictionary<string, int> AodDataDictionaryV5 = new Dictionary<string, int>
+        {
+            { "SMTEn", 8920 },
+            { "MemClk", 8924 },
+            { "Tcl", 8928 },
+            { "Trcd", 8932 },
+            { "Trp", 8936 },
+            { "Tras", 8940 },
+            { "Trc", 8944 },
+            { "Twr", 8948 },
+            { "Trfc", 8952 },
+            { "Trfc2", 8956 },
+            { "Trfcsb", 8960 },
+            { "Trtp", 8964 },
+            { "TrrdL", 8968 },
+            { "TrrdS", 8972 },
+            { "Tfaw", 8976 },
+            { "TwtrL", 8980 },
+            { "TwtrS", 8984 },
+            { "TrdrdScL", 8988 },
+            { "TrdrdSc", 8992 },
+            { "TrdrdSd", 8996 },
+            { "TrdrdDd", 9000 },
+            { "TwrwrScL", 9004 },
+            { "TwrwrSc", 9008 },
+            { "TwrwrSd", 9012 },
+            { "TwrwrDd", 9016 },
+            { "Twrrd", 9020 },
+            { "Trdwr", 9024 },
+
+            { "CadBusDrvStren", 9028 },
+            { "ProcDataDrvStren", 9032 },
+
+            { "RttNomWr", 9036 },
+            { "RttNomRd", 9040 },
+            { "RttWr", 9044 },
+            { "RttPark", 9048 },
+            { "RttParkDqs", 9052 },
+
+            { "MemVddio", 9088 },
+            { "MemVddq", 9092 },
+            { "MemVpp", 9096 },
+            { "ApuVddio", 9100 },
+
+            { "ProcOdt", 9164 },
+            { "DramDataDrvStren", 9172 }
+
+            // Proc ODT 48ohm
+            // Proc CA Drive stren 30ohm
+
+            // Proc Data Drive stren 40ohm
+            // Dram Data drive stren 48ohm
+        };
     }
 }
