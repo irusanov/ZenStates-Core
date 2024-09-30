@@ -1,5 +1,6 @@
 using OpenHardwareMonitor.Hardware;
 using System;
+using System.Globalization;
 using System.IO;
 using System.Reflection;
 using ZenStates.Core.DRAM;
@@ -155,6 +156,8 @@ namespace ZenStates.Core
          * Summit: 0x5D25C
          * Threadripper: 0x5D25C
          * Vermeer: 0x30081D98
+         * Raphael: 0x30081CD0
+         * GraniteRidge: 0x304A03DC
          */
 
         private CpuTopology GetCpuTopology(Family family, CodeName codeName, uint model)
@@ -221,12 +224,18 @@ namespace ZenStates.Core
                 fuse1 += 0x40; // 0x5D258
                 fuse2 += 0x40; // 0x5D25C
             }
+            else if (family == Family.FAMILY_1AH)
+            {
+                ccxPerCcd = 1;
+                fuse1 += 0x1A4;
+                fuse2 += 0x1A4;
+            }
 
             if (ReadDwordEx(fuse1, ref ccdsPresent) && ReadDwordEx(fuse2, ref ccdsDown))
             {
                 uint ccdEnableMap = Utils.BitSlice(ccdsPresent, 23, 22);
                 uint ccdDisableMap = Utils.BitSlice(ccdsPresent, 31, 30) | (Utils.BitSlice(ccdsDown, 5, 0) << 2);
-                uint coreDisableMapAddress = 0x30081800 + offset;
+                uint coreDisableMapAddress = family == Family.FAMILY_1AH ? 0x304A03DC : 0x30081800 + offset;
                 uint enabledCcd = Utils.CountSetBits(ccdEnableMap);
 
                 topology.ccds = enabledCcd > 0 ? enabledCcd : 1;
@@ -275,6 +284,10 @@ namespace ZenStates.Core
         public Cpu(CpuInitSettings settings = null)
         {
             _settings = settings ?? CpuInitSettings.defaultSetttings;
+
+#if !NET20
+            CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+#endif
 
             Ring0.Open();
 
@@ -366,7 +379,7 @@ namespace ZenStates.Core
         // [23-20] core index
         public uint MakeCoreMask(uint core = 0, uint ccd = 0, uint ccx = 0)
         {
-            uint ccxInCcd = info.family == Family.FAMILY_19H ? 1U : 2U;
+            uint ccxInCcd = info.family >= Family.FAMILY_19H ? 1U : 2U;
             uint coresInCcx = 8 / ccxInCcd;
 
             return ((ccd << 4 | ccx % ccxInCcd & 0xF) << 4 | core % coresInCcx & 0xF) << 20;
@@ -821,12 +834,12 @@ namespace ZenStates.Core
         public SMU.Status DisableOcMode() => new SMUCommands.SetOcMode(smu).Execute(false).status;
         public SMU.Status SetPBOScalar(uint scalar) => new SMUCommands.SetPBOScalar(smu).Execute(scalar).status;
         public SMU.Status RefreshPowerTable() => powerTable != null ? powerTable.Refresh() : SMU.Status.FAILED;
-        public int? GetPsmMarginSingleCore(uint coreMask)
+        public uint? GetPsmMarginSingleCore(uint coreMask)
         {
             SMUCommands.CmdResult result = new SMUCommands.GetPsmMarginSingleCore(smu).Execute(coreMask);
-            return result.Success ? (int)result.args[0] : (int?)null;
+            return result.Success ? (uint)result.args[0] : (uint?)null;
         }
-        public int? GetPsmMarginSingleCore(uint core, uint ccd, uint ccx) => GetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx));
+        public uint? GetPsmMarginSingleCore(uint core, uint ccd, uint ccx) => GetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx));
         public bool SetPsmMarginAllCores(int margin) => new SMUCommands.SetPsmMarginAllCores(smu).Execute(margin).Success;
         public bool SetPsmMarginSingleCore(uint coreMask, int margin) => new SMUCommands.SetPsmMarginSingleCore(smu).Execute(coreMask, margin).Success;
         public bool SetPsmMarginSingleCore(uint core, uint ccd, uint ccx, int margin) => SetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx), margin);

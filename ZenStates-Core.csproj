@@ -5,9 +5,9 @@
     <AssemblyTitle>ZenStates.Core</AssemblyTitle>
     <Company>irusanov</Company>
     <Product>ZenStates.Core</Product>
-    <Copyright>Copyright © 2023</Copyright>
-    <AssemblyVersion>1.68.3</AssemblyVersion>
-    <FileVersion>1.70.0</FileVersion>
+    <Copyright>Copyright © 2024</Copyright>
+    <AssemblyVersion>1.71.0</AssemblyVersion>
+    <FileVersion>1.71.0</FileVersion>
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <IsWindows Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true'">true</IsWindows> 
     <IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux> 
@@ -20,8 +20,30 @@
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationIcon />
+    <ErrorReport>none</ErrorReport>
   </PropertyGroup>
-  <PropertyGroup />
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|netstandard2.1|AnyCPU'">
+    <WarningLevel>4</WarningLevel>
+    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netstandard2.1|AnyCPU'">
+    <WarningLevel>4</WarningLevel>
+    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|netcoreapp3.1|AnyCPU'">
+    <WarningLevel>4</WarningLevel>
+    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|netcoreapp3.1|AnyCPU'">
+    <WarningLevel>4</WarningLevel>
+    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net20|AnyCPU'">
+    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net20|AnyCPU'">
+    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+  </PropertyGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net20'">
     <Reference Include="System.Management" />
     <Reference Include="System.ServiceProcess" />
