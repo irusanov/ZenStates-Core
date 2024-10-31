@@ -32,6 +32,7 @@ namespace ZenStates.Core
             Unsupported = 0,
             DEBUG,
             BristolRidge,
+            Vishera,
             SummitRidge,
             Whitehaven,
             Naples,
@@ -251,7 +252,8 @@ namespace ZenStates.Core
                 if (ReadDwordEx(coreDisableMapAddress, ref coreFuse))
                 {
                     var coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
-                    if (coresPerCcx > 0) {
+                    if (coresPerCcx > 0)
+                    {
                         topology.coresPerCcx = coresPerCcx;
                     }
                 }
@@ -493,6 +495,7 @@ namespace ZenStates.Core
         public void WriteIoPort(uint port, byte value) => Ring0.WriteIoPort(port, value);
         public byte ReadIoPort(uint port) => Ring0.ReadIoPort(port);
         public bool ReadPciConfig(uint pciAddress, uint regAddress, ref uint value) => Ring0.ReadPciConfig(pciAddress, regAddress, out value);
+        public bool WritePciConfig(uint pciAddress, uint regAddress, uint value) => Ring0.WritePciConfig(pciAddress, regAddress, value);
         public uint GetPciAddress(byte bus, byte device, byte function) => Ring0.GetPciAddress(bus, device, function);
 
         // https://en.wikichip.org/wiki/amd/cpuid
@@ -506,6 +509,9 @@ namespace ZenStates.Core
                 {
                     case 0x65:
                         codeName = CodeName.BristolRidge;
+                        break;
+                    case 0x2:
+                        codeName = CodeName.Vishera;
                         break;
                 }
             }
@@ -625,7 +631,9 @@ namespace ZenStates.Core
                         codeName = CodeName.Unsupported;
                         break;
                 }
-            } else if (cpuInfo.family == Family.FAMILY_1AH) {
+            }
+            else if (cpuInfo.family == Family.FAMILY_1AH)
+            {
                 switch (cpuInfo.model)
                 {
                     case 0x10:
