@@ -1,5 +1,4 @@
-﻿using Microsoft.Win32;
-using System;
+﻿using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -166,7 +165,7 @@ namespace ZenStates.Core
 
                     if (serviceController.Status != ServiceControllerStatus.Stopped)
                     {
-      
+
                         Console.WriteLine("Failed to stop the service.");
                         return;
                     }

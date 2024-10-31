@@ -1,9 +1,7 @@
 using Microsoft.Win32;
-using OpenHardwareMonitor.Hardware;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Runtime.InteropServices;
 using static ZenStates.Core.ACPI;
 
 namespace ZenStates.Core
