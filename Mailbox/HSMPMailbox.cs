@@ -28,9 +28,11 @@
                 case 4:
                     return 0x15;
                 case 5:
-                    return 0x22;
+                    return 0x2F;
+                case 7:
+                    return 0x3F;
                 default:
-                    return 0x22;
+                    return 0x3F;
             }
         }
 
@@ -81,5 +83,15 @@
         public uint ControlPcieLinkRate { get; set; } = 0x20;
         public uint PwrEfficiencyModeSelection { get; set; } = 0x21;
         public uint SetDfPstateRange { get; set; } = 0x22;
+        // Reserved = 0x23
+        // Reserved = 0x24
+        // Reserved = 0x25
+        public uint XgmiPstateRange { get; set; } = 0x26;
+        public uint CpuRailIsoFreqPolicy { get; set; } = 0x27;
+        public uint DfcEnable { get; set; } = 0x28;
+        // 29h-2Fh Reserved
+        public uint GetRaplUnits { get; set; } = 0x30;
+        public uint GetRaplCoreCounter { get; set; } = 0x31;
+        public uint GetRaplPackageCounter { get; set; } = 0x32;
     }
 }

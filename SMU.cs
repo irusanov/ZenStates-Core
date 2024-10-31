@@ -411,6 +411,17 @@ namespace ZenStates.Core
         }
     }
 
+    public class Zen5Settings: Zen4Settings
+    {
+        public Zen5Settings()
+        {
+            // HSMP
+            Hsmp.SMU_ADDR_MSG = 0x3B10934;
+            Hsmp.SMU_ADDR_RSP = 0x3B10980;
+            Hsmp.SMU_ADDR_ARG = 0x3B109E0;
+        }
+    }
+
     // Epyc 2 (Rome) ES
     public class RomeSettings : SMU
     {
@@ -567,6 +578,7 @@ namespace ZenStates.Core
         private static readonly Dictionary<Cpu.CodeName, SMU> settings = new Dictionary<Cpu.CodeName, SMU>
         {
             { Cpu.CodeName.BristolRidge, new BristolRidgeSettings() },
+            { Cpu.CodeName.Vishera, new UnsupportedSettings() },
 
             // Zen
             { Cpu.CodeName.SummitRidge, new SummitRidgeSettings() },
@@ -594,8 +606,9 @@ namespace ZenStates.Core
             { Cpu.CodeName.DragonRange, new Zen4Settings() },
 
             // Zen5
-            { Cpu.CodeName.GraniteRidge, new Zen4Settings() },
-            { Cpu.CodeName.Bergamo, new Zen4Settings() },
+            { Cpu.CodeName.GraniteRidge, new Zen5Settings() },
+            { Cpu.CodeName.Bergamo, new Zen5Settings() },
+            { Cpu.CodeName.Turin, new Zen5Settings() },
 
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },
