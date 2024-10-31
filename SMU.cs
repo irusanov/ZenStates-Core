@@ -630,6 +630,8 @@ namespace ZenStates.Core
             { Cpu.CodeName.Phoenix2, new APUSettings1_Rembrandt() },
             { Cpu.CodeName.HawkPoint, new APUSettings1_Rembrandt() },
             { Cpu.CodeName.Mendocino, new APUSettings1_Rembrandt() },
+            { Cpu.CodeName.StrixPoint, new APUSettings1_Rembrandt() },
+            { Cpu.CodeName.StrixHalo, new APUSettings1_Rembrandt() },
 
             { Cpu.CodeName.Unsupported, new UnsupportedSettings() },
         };
