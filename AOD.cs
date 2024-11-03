@@ -11,6 +11,7 @@ namespace ZenStates.Core
         internal readonly IOModule io;
         internal readonly ACPI acpi;
         internal readonly Cpu.CodeName codeName;
+        internal readonly uint patchLevel;
         public AodTable Table;
 
         public class AodEnumBase
@@ -114,12 +115,13 @@ namespace ZenStates.Core
             }
         }
 
-        public AOD(IOModule io, Cpu.CodeName codeName)
+        public AOD(IOModule io, Cpu.CodeName codeName, uint patchLevel)
         {
             this.io = io;
             this.codeName = codeName;
             this.acpi = new ACPI(io);
             this.Table = new AodTable();
+            this.patchLevel = patchLevel;
             this.Init();
         }
 
@@ -282,7 +284,7 @@ namespace ZenStates.Core
             this.Refresh();
         }
 
-        private Dictionary<string, int> GetAodDataDictionary(Cpu.CodeName codeName)
+        private Dictionary<string, int> GetAodDataDictionary(Cpu.CodeName codeName, uint patchLevel)
         {
             if (Table.AcpiTable.Value.Header.OEMTableID == TableSignature.LENOVO_AOD)
                 return AodDictionaries.AodDataDictionaryV3;
@@ -298,7 +300,11 @@ namespace ZenStates.Core
                 case Cpu.CodeName.HawkPoint:
                     return AodDictionaries.AodDataDictionaryV4;
                 case Cpu.CodeName.GraniteRidge:
-                    return AodDictionaries.AodDataDictionaryV5;
+                    if (patchLevel > 0xB40422)
+                    {
+                        return AodDictionaries.AodDataDictionary_19h_B40422;
+                    }
+                    return AodDictionaries.AodDataDictionary_19h;
                 default:
                     return AodDictionaries.AodDataDictionaryV1;
             }
@@ -311,7 +317,7 @@ namespace ZenStates.Core
                 this.Table.RawAodTable = this.io.ReadMemory(new IntPtr(this.Table.BaseAddress), this.Table.Length);
                 // this.Table.Data = Utils.ByteArrayToStructure<AodData>(this.Table.rawAodTable);
                 // int test = Utils.FindSequence(rawTable, 0, BitConverter.GetBytes(0x3ae));
-                this.Table.Data = AodData.CreateFromByteArray(this.Table.RawAodTable, GetAodDataDictionary(this.codeName));
+                this.Table.Data = AodData.CreateFromByteArray(this.Table.RawAodTable, GetAodDataDictionary(this.codeName, this.patchLevel));
                 return true;
             }
             catch { }

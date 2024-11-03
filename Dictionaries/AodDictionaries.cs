@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace ZenStates.Core
 {
@@ -267,7 +267,7 @@ namespace ZenStates.Core
         };
 
         // GraniteRidge
-        public static readonly Dictionary<string, int> AodDataDictionaryV5 = new Dictionary<string, int>
+        public static readonly Dictionary<string, int> AodDataDictionary_19h = new Dictionary<string, int>
         {
             { "SMTEn", 8920 },
             { "MemClk", 8924 },
@@ -313,12 +313,103 @@ namespace ZenStates.Core
 
             { "ProcOdt", 9164 },
             { "DramDataDrvStren", 9172 }
+        };
 
-            // Proc ODT 48ohm
-            // Proc CA Drive stren 30ohm
+        public static readonly Dictionary<string, int> AodDataDictionary_19h_B40422 = new Dictionary<string, int>
+        {
+            { "SMTEn", 8920 },
+            { "MemClk", 8924 },
+            { "Tcl", 8928 },
+            { "Trcd", 8932 },
+            { "Trp", 8936 },
+            { "Tras", 8940 },
+            { "Trc", 8944 },
+            { "Twr", 8948 },
+            { "Trfc", 8952 },
+            { "Trfc2", 8956 },
+            { "Trfcsb", 8960 },
+            { "Trtp", 8964 },
+            { "TrrdL", 8968 },
+            { "TrrdS", 8972 },
+            { "Tfaw", 8976 },
+            { "TwtrL", 8980 },
+            { "TwtrS", 8984 },
+            { "TrdrdScL", 8988 },
+            { "TrdrdSc", 8992 },
+            { "TrdrdSd", 8996 },
+            { "TrdrdDd", 9000 },
+            { "TwrwrScL", 9004 },
+            { "TwrwrSc", 9008 },
+            { "TwrwrSd", 9012 },
+            { "TwrwrDd", 9016 },
+            { "Twrrd", 9020 },
+            { "Trdwr", 9024 },
 
-            // Proc Data Drive stren 40ohm
-            // Dram Data drive stren 48ohm
+            { "CadBusDrvStren", 9028 },
+            
+
+            { "RttNomWr", 9032 },
+            { "RttNomRd", 9036 },
+            { "RttWr", 9040 },
+            { "RttPark", 9044 },
+            { "RttParkDqs", 9048 },
+
+            { "MemVddio", 9084 },
+            { "MemVddq", 9088 },
+            { "MemVpp", 9092 },
+            { "ApuVddio", 9096 },
+
+            { "ProcOdt", 9172 },
+            { "DramDataDrvStren", 9180 },
+            { "ProcDataDrvStren", 9188 },
+        };
+
+        public static readonly Dictionary<string, int> AodDataDictionaryV5_DR = new Dictionary<string, int>
+        {
+            { "SMTEn", 8920 },
+            { "MemClk", 8924 },
+            { "Tcl", 8928 },
+            { "Trcd", 8932 },
+            { "Trp", 8936 },
+            { "Tras", 8940 },
+            { "Trc", 8944 },
+            { "Twr", 8948 },
+            { "Trfc", 8952 },
+            { "Trfc2", 8956 },
+            { "Trfcsb", 8960 },
+            { "Trtp", 8964 },
+            { "TrrdL", 8968 },
+            { "TrrdS", 8972 },
+            { "Tfaw", 8976 },
+            { "TwtrL", 8980 },
+            { "TwtrS", 8984 },
+            { "TrdrdScL", 8988 },
+            { "TrdrdSc", 8992 },
+            { "TrdrdSd", 8996 },
+            { "TrdrdDd", 9000 },
+            { "TwrwrScL", 9004 },
+            { "TwrwrSc", 9008 },
+            { "TwrwrSd", 9012 },
+            { "TwrwrDd", 9016 },
+            { "Twrrd", 9020 },
+            { "Trdwr", 9024 },
+
+            { "CadBusDrvStren", 9028 },
+            { "ProcDataDrvStren", 9032 },
+
+            { "RttNomWr", 9036 },
+            { "RttNomRd", 9040 },
+            { "RttWr", 9044 },
+            { "RttPark", 9048 },
+            { "RttParkDqs", 9052 },
+
+            { "MemVddio", 9088 },
+            { "MemVddq", 9092 },
+            { "MemVpp", 9096 },
+            { "ApuVddio", 9100 },
+
+            { "ProcOdt", 9164 },
+            { "DramDataDrvStren", 9172 }
         };
     }
 }

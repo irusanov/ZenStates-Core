@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Management;
 
 namespace ZenStates.Core.DRAM
@@ -124,9 +125,6 @@ namespace ZenStates.Core.DRAM
                         var temp = WMI.TryGetProperty(queryObject, "Capacity");
                         if (temp != null) capacity = (ulong)temp;
 
-                        temp = WMI.TryGetProperty(queryObject, "ConfiguredClockSpeed");
-                        if (temp != null) clockSpeed = (uint)temp;
-
                         temp = WMI.TryGetProperty(queryObject, "partNumber");
                         if (temp != null) partNumber = (string)temp;
 
@@ -138,6 +136,9 @@ namespace ZenStates.Core.DRAM
 
                         temp = WMI.TryGetProperty(queryObject, "DeviceLocator");
                         if (temp != null) deviceLocator = (string)temp;
+
+                        temp = WMI.TryGetProperty(queryObject, "ConfiguredClockSpeed");
+                        if (temp != null) clockSpeed = (uint)temp;
 
                         Modules.Add(new MemoryModule(partNumber.Trim(), bankLabel.Trim(), manufacturer.Trim(),
                             deviceLocator, capacity, clockSpeed));
@@ -151,7 +152,8 @@ namespace ZenStates.Core.DRAM
                 }
                 catch (Exception ex)
                 {
-                    throw new ApplicationException(connected ? @"Failed to get installed memory parameters." : $@"{ex.Message}");
+                    //throw new ApplicationException(connected ? @"Failed to get installed memory parameters." : $@"{ex.Message}");
+                    Debug.WriteLine(connected ? @"Failed to get installed memory parameters." : $@"{ex.Message}");
                 }
 
                 if (Modules?.Count > 0)
@@ -166,6 +168,25 @@ namespace ZenStates.Core.DRAM
             }
         }
 
+        private MemRank GetRank(uint address)
+        {
+            if (Type == MemType.DDR4)
+            {
+                return (MemRank)Utils.GetBits(cpu.ReadDword(address), 0, 1);
+            }
+            else if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
+            {
+                var value = cpu.ReadDword(address);
+                if (value != 0 && value == 0x07FFFBFE) 
+                    return MemRank.DR;
+                value = cpu.ReadDword(address + 4);
+                if (value != 0 && value == 0x07FFFBFE)
+                    return MemRank.DR;
+            }
+
+            return MemRank.SR;
+        }
+
         private void ReadChannels()
         {
             int dimmIndex = 0;
@@ -177,7 +198,7 @@ namespace ZenStates.Core.DRAM
             // 0x50000
             // offset 0, bit 0 when set to 1 means DIMM1 is installed
             // offset 8, bit 0 when set to 1 means DIMM2 is installed
-            for (uint i = 0; i < MAX_CHANNELS * ChannelsPerDimm; i += ChannelsPerDimm)
+            for (uint i = MAX_CHANNELS; i < MAX_CHANNELS * ChannelsPerDimm; i += ChannelsPerDimm)
             {
                 try
                 {
@@ -200,7 +221,7 @@ namespace ZenStates.Core.DRAM
                             MemoryModule module = Modules[dimmIndex++];
                             module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}1";
                             module.DctOffset = offset;
-                            module.Rank = (MemRank)Utils.GetBits(cpu.ReadDword(offset | 0x50080), 0, 1);
+                            module.Rank = (Type == MemType.DDR4) ? GetRank(offset | 0x50080) : GetRank(offset | 0x50020);
                         }
 
                         if (dimm2)
@@ -208,7 +229,7 @@ namespace ZenStates.Core.DRAM
                             MemoryModule module = Modules[dimmIndex++];
                             module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}2";
                             module.DctOffset = offset;
-                            module.Rank = (MemRank)Utils.GetBits(cpu.ReadDword(offset | 0x50084), 0, 1);
+                            module.Rank = (Type == MemType.DDR4) ? GetRank(offset | 0x50084) : GetRank(offset | 0x50028);
                         }
                     }
                 }
@@ -220,3 +241,21 @@ namespace ZenStates.Core.DRAM
         }
     }
 }
+/*
+0x0025060c
+0x25060c    0010 0101 0000 0110 0000 1100
+    numBanks[21:20]  32 banks(2h)
+    numCol[19:16] 10 + 5
+    NumRow[11:8] 10 + 6
+    numRM[6:4] 0
+    bank groups 8 (3h)
+
+> 0x00150508
+0x150508    0001 0101 0000 0101 0000 1000
+    numBanks [21:20]  32 banks (2h)
+    numCol [19:16] 10 + 5
+    NumRow [11:8] 10 + 5
+    numRM [6:4] 0
+    bank groups [3:2] 4 (2h)
+
+*/

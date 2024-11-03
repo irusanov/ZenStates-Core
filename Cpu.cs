@@ -358,7 +358,7 @@ namespace ZenStates.Core
             {
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
-                info.aod = new AOD(io, info.codeName);
+                info.aod = new AOD(io, info.codeName, info.patchLevel);
                 systemInfo = new SystemInfo(info, smu);
                 powerTable = new PowerTable(smu, io, mmio);
 
