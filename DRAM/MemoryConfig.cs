@@ -177,7 +177,7 @@ namespace ZenStates.Core.DRAM
             else if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
             {
                 var value = cpu.ReadDword(address);
-                if (value != 0 && value == 0x07FFFBFE) 
+                if (value != 0 && value == 0x07FFFBFE)
                     return MemRank.DR;
                 value = cpu.ReadDword(address + 4);
                 if (value != 0 && value == 0x07FFFBFE)
@@ -198,7 +198,7 @@ namespace ZenStates.Core.DRAM
             // 0x50000
             // offset 0, bit 0 when set to 1 means DIMM1 is installed
             // offset 8, bit 0 when set to 1 means DIMM2 is installed
-            for (uint i = MAX_CHANNELS; i < MAX_CHANNELS * ChannelsPerDimm; i += ChannelsPerDimm)
+            for (uint i = 0; i < MAX_CHANNELS * ChannelsPerDimm; i += ChannelsPerDimm)
             {
                 try
                 {
