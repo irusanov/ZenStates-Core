@@ -267,7 +267,8 @@ namespace ZenStates.Core
         };
 
         // GraniteRidge
-        public static readonly Dictionary<string, int> AodDataDictionary_19h = new Dictionary<string, int>
+
+        public static readonly Dictionary<string, int> BaseAodDataDictionary_1Ah = new Dictionary<string, int>
         {
             { "SMTEn", 8920 },
             { "MemClk", 8924 },
@@ -296,7 +297,10 @@ namespace ZenStates.Core
             { "TwrwrDd", 9016 },
             { "Twrrd", 9020 },
             { "Trdwr", 9024 },
+        };
 
+        public static readonly Dictionary<string, int> AodDataDictionary_1Ah = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
+        {
             { "CadBusDrvStren", 9028 },
             { "ProcDataDrvStren", 9032 },
 
@@ -315,38 +319,9 @@ namespace ZenStates.Core
             { "DramDataDrvStren", 9172 }
         };
 
-        public static readonly Dictionary<string, int> AodDataDictionary_19h_B40422 = new Dictionary<string, int>
+        public static readonly Dictionary<string, int> AodDataDictionary_1Ah_B40423 = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
         {
-            { "SMTEn", 8920 },
-            { "MemClk", 8924 },
-            { "Tcl", 8928 },
-            { "Trcd", 8932 },
-            { "Trp", 8936 },
-            { "Tras", 8940 },
-            { "Trc", 8944 },
-            { "Twr", 8948 },
-            { "Trfc", 8952 },
-            { "Trfc2", 8956 },
-            { "Trfcsb", 8960 },
-            { "Trtp", 8964 },
-            { "TrrdL", 8968 },
-            { "TrrdS", 8972 },
-            { "Tfaw", 8976 },
-            { "TwtrL", 8980 },
-            { "TwtrS", 8984 },
-            { "TrdrdScL", 8988 },
-            { "TrdrdSc", 8992 },
-            { "TrdrdSd", 8996 },
-            { "TrdrdDd", 9000 },
-            { "TwrwrScL", 9004 },
-            { "TwrwrSc", 9008 },
-            { "TwrwrSd", 9012 },
-            { "TwrwrDd", 9016 },
-            { "Twrrd", 9020 },
-            { "Trdwr", 9024 },
-
             { "CadBusDrvStren", 9028 },
-            
 
             { "RttNomWr", 9032 },
             { "RttNomRd", 9036 },
@@ -364,36 +339,8 @@ namespace ZenStates.Core
             { "ProcDataDrvStren", 9188 },
         };
 
-        public static readonly Dictionary<string, int> AodDataDictionaryV5_DR = new Dictionary<string, int>
+        public static readonly Dictionary<string, int> AodDataDictionary_1Ah_DR = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
         {
-            { "SMTEn", 8920 },
-            { "MemClk", 8924 },
-            { "Tcl", 8928 },
-            { "Trcd", 8932 },
-            { "Trp", 8936 },
-            { "Tras", 8940 },
-            { "Trc", 8944 },
-            { "Twr", 8948 },
-            { "Trfc", 8952 },
-            { "Trfc2", 8956 },
-            { "Trfcsb", 8960 },
-            { "Trtp", 8964 },
-            { "TrrdL", 8968 },
-            { "TrrdS", 8972 },
-            { "Tfaw", 8976 },
-            { "TwtrL", 8980 },
-            { "TwtrS", 8984 },
-            { "TrdrdScL", 8988 },
-            { "TrdrdSc", 8992 },
-            { "TrdrdSd", 8996 },
-            { "TrdrdDd", 9000 },
-            { "TwrwrScL", 9004 },
-            { "TwrwrSc", 9008 },
-            { "TwrwrSd", 9012 },
-            { "TwrwrDd", 9016 },
-            { "Twrrd", 9020 },
-            { "Trdwr", 9024 },
-
             { "CadBusDrvStren", 9028 },
             { "ProcDataDrvStren", 9032 },
 

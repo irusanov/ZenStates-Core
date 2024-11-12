@@ -302,9 +302,9 @@ namespace ZenStates.Core
                 case Cpu.CodeName.GraniteRidge:
                     if (patchLevel > 0xB40422)
                     {
-                        return AodDictionaries.AodDataDictionary_19h_B40422;
+                        return AodDictionaries.AodDataDictionary_1Ah_B40423;
                     }
-                    return AodDictionaries.AodDataDictionary_19h;
+                    return AodDictionaries.AodDataDictionary_1Ah;
                 default:
                     return AodDictionaries.AodDataDictionaryV1;
             }

@@ -411,7 +411,7 @@ namespace ZenStates.Core
         }
     }
 
-    public class Zen5Settings: Zen4Settings
+    public class Zen5Settings : Zen4Settings
     {
         public Zen5Settings()
         {

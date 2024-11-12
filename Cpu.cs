@@ -917,8 +917,9 @@ namespace ZenStates.Core
         public float? GetSingleCcdTemperature(uint ccd)
         {
             uint thmData = 0;
+            uint register = this.info.family >= Family.FAMILY_19H ? Constants.F19H_CCD_TEMP : Constants.F17H_CCD_TEMP;
 
-            if (ReadDwordEx(Constants.F17H_M70H_CCD_TEMP + (ccd * 0x4), ref thmData))
+            if (ReadDwordEx(register + (ccd * 0x4), ref thmData))
             {
                 float ccdTemp = (thmData & 0xfff) * 0.125f - 305.0f;
                 if (ccdTemp > 0 && ccdTemp < 125) // Zen 2 reports 95 degrees C max, but it might exceed that.

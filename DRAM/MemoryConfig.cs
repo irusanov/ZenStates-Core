@@ -11,7 +11,7 @@ namespace ZenStates.Core.DRAM
 
         private const uint DRAM_TYPE_REG_ADDR = 0x50100;
 
-        private const int MAX_CHANNELS = 0x8;
+        private const int MAX_CHANNELS = 12;
 
         private readonly uint ChannelsPerDimm;
 
@@ -187,6 +187,22 @@ namespace ZenStates.Core.DRAM
             return MemRank.SR;
         }
 
+        private DramAddressConfig GetAddressConfig(uint address)
+        {
+            var value = cpu.ReadDword(address);
+            var config = new DramAddressConfig();
+            if (value != 0)
+            {
+                config.NumBanks = Utils.GetBits(value, 20, 2);
+                config.NumCol = 5 + Utils.GetBits(value, 16, 4);
+                config.NumRow = 10 + Utils.GetBits(value, 8, 4);
+                config.NumRM = Utils.GetBits(value, 4, 3);
+                config.NumBankGroups = Utils.GetBits(value, 2, 2);
+                config.Rank = GetRank(address - 0x20);
+            }
+            return config;
+        }
+
         private void ReadChannels()
         {
             int dimmIndex = 0;
@@ -222,6 +238,7 @@ namespace ZenStates.Core.DRAM
                             module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}1";
                             module.DctOffset = offset;
                             module.Rank = (Type == MemType.DDR4) ? GetRank(offset | 0x50080) : GetRank(offset | 0x50020);
+                            module.AddressConfig = GetAddressConfig(offset | 0x50040);
                         }
 
                         if (dimm2)
@@ -230,6 +247,7 @@ namespace ZenStates.Core.DRAM
                             module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}2";
                             module.DctOffset = offset;
                             module.Rank = (Type == MemType.DDR4) ? GetRank(offset | 0x50084) : GetRank(offset | 0x50028);
+                            module.AddressConfig = GetAddressConfig(offset | 0x50048);
                         }
                     }
                 }
