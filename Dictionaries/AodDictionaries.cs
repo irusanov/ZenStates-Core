@@ -319,7 +319,7 @@ namespace ZenStates.Core
             { "DramDataDrvStren", 9172 }
         };
 
-        public static readonly Dictionary<string, int> AodDataDictionary_1Ah_B40423 = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
+        public static readonly Dictionary<string, int> AodDataDictionary_1Ah_B404023 = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
         {
             { "CadBusDrvStren", 9028 },
 

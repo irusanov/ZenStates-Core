@@ -300,9 +300,9 @@ namespace ZenStates.Core
                 case Cpu.CodeName.HawkPoint:
                     return AodDictionaries.AodDataDictionaryV4;
                 case Cpu.CodeName.GraniteRidge:
-                    if (patchLevel > 0xB40422)
+                    if (patchLevel > 0xB404022)
                     {
-                        return AodDictionaries.AodDataDictionary_1Ah_B40423;
+                        return AodDictionaries.AodDataDictionary_1Ah_B404023;
                     }
                     return AodDictionaries.AodDataDictionary_1Ah;
                 default:
