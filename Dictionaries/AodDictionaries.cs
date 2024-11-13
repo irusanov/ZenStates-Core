@@ -316,6 +316,8 @@ namespace ZenStates.Core
             { "ApuVddio", 9100 },
 
             { "ProcOdt", 9164 },
+            { "ProcOdtPullUp", 9164 },
+            { "ProcOdtPullDown", 9168 },
             { "DramDataDrvStren", 9172 }
         };
 
@@ -335,28 +337,33 @@ namespace ZenStates.Core
             { "ApuVddio", 9096 },
 
             { "ProcOdt", 9172 },
+            { "ProcOdtPullUp", 9172 },
+            { "ProcOdtPullDown", 9176 },
             { "DramDataDrvStren", 9180 },
             { "ProcDataDrvStren", 9188 },
         };
 
-        public static readonly Dictionary<string, int> AodDataDictionary_1Ah_DR = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
+        // M-Die 24GB SR sticks
+        public static readonly Dictionary<string, int> AodDataDictionary_1Ah_B404023_M = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
         {
             { "CadBusDrvStren", 9028 },
-            { "ProcDataDrvStren", 9032 },
 
-            { "RttNomWr", 9036 },
-            { "RttNomRd", 9040 },
-            { "RttWr", 9044 },
-            { "RttPark", 9048 },
-            { "RttParkDqs", 9052 },
+            { "RttNomWr", 9032 },
+            { "RttNomRd", 9036 },
+            { "RttWr", 9040 },
+            { "RttPark", 9044 },
+            { "RttParkDqs", 9048 },
 
-            { "MemVddio", 9088 },
-            { "MemVddq", 9092 },
-            { "MemVpp", 9096 },
-            { "ApuVddio", 9100 },
+            { "MemVddio", 9084 },
+            { "MemVddq", 9088 },
+            { "MemVpp", 9092 },
+            { "ApuVddio", 9096 },
 
-            { "ProcOdt", 9164 },
-            { "DramDataDrvStren", 9172 }
+            { "ProcOdt", 9160 },
+            { "ProcOdtPullUp", 9160 },
+            { "ProcOdtPullDown", 9164 },
+            { "DramDataDrvStren", 9168 },
+            { "ProcDataDrvStren", 9176 }
         };
     }
 }

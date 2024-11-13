@@ -356,9 +356,15 @@ namespace ZenStates.Core
 
             try
             {
+                memoryConfig = new MemoryConfig(this);
+            }
+            catch { }
+
+            try
+            {
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
-                info.aod = new AOD(io, info.codeName, info.patchLevel);
+                info.aod = new AOD(io, this);
                 systemInfo = new SystemInfo(info, smu);
                 powerTable = new PowerTable(smu, io, mmio);
 
@@ -372,8 +378,6 @@ namespace ZenStates.Core
                 LastError = ex;
                 Status = IOModule.LibStatus.PARTIALLY_OK;
             }
-
-            memoryConfig = new MemoryConfig(this);
         }
 
         // [31-28] ccd index

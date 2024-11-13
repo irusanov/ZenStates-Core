@@ -9,6 +9,7 @@ namespace ZenStates.Core
     public class AOD
     {
         internal readonly IOModule io;
+        internal readonly Cpu cpuInstance;
         internal readonly ACPI acpi;
         internal readonly Cpu.CodeName codeName;
         internal readonly uint patchLevel;
@@ -115,13 +116,14 @@ namespace ZenStates.Core
             }
         }
 
-        public AOD(IOModule io, Cpu.CodeName codeName, uint patchLevel)
+        public AOD(IOModule io, Cpu cpuInstance)
         {
             this.io = io;
-            this.codeName = codeName;
+            this.cpuInstance = cpuInstance;
+            this.codeName = this.cpuInstance.info.codeName;
             this.acpi = new ACPI(io);
             this.Table = new AodTable();
-            this.patchLevel = patchLevel;
+            this.patchLevel = this.cpuInstance.info.patchLevel;
             this.Init();
         }
 
@@ -302,6 +304,10 @@ namespace ZenStates.Core
                 case Cpu.CodeName.GraniteRidge:
                     if (patchLevel > 0xB404022)
                     {
+                        var memModule = cpuInstance.GetMemoryConfig()?.Modules[0];
+                        var MDie = memModule != null && memModule.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
+                        if (MDie)
+                            return AodDictionaries.AodDataDictionary_1Ah_B404023_M;
                         return AodDictionaries.AodDataDictionary_1Ah_B404023;
                     }
                     return AodDictionaries.AodDataDictionary_1Ah;
