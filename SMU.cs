@@ -398,11 +398,14 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetHTCLimit = 0x59;
             Rsmu.SMU_MSG_SetPBOScalar = 0x5B;
             Rsmu.SMU_MSG_GetPBOScalar = 0x6D;
+            Rsmu.SMU_MSG_GetBoostLimitFrequency = 0x6E;
+            Rsmu.SMU_MSG_SetBoostLimitFrequencyAllCores = 0x70;
 
             Rsmu.SMU_MSG_SetDldoPsmMargin = 0x6;
             Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0x7;
             Rsmu.SMU_MSG_GetDldoPsmMargin = 0xD5;
             Rsmu.SMU_MSG_GetLN2Mode = 0xDD;
+            Rsmu.SMU_MSG_GetPerformanceData = 0x5C;
 
             // HSMP
             Hsmp.SMU_ADDR_MSG = 0x3B10534;

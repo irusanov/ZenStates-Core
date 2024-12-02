@@ -802,7 +802,7 @@ namespace ZenStates.Core
                 return false;
             }
 
-            if (info.family == Family.FAMILY_15H)
+            if (info.family <= Family.FAMILY_15H)
             {
                 return false;
             }
@@ -841,7 +841,7 @@ namespace ZenStates.Core
         public SMU.Status SetEDCSOCLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetEDCSOCLimit, arg).status;
         public SMU.Status SetTDCVDDLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetTDCVDDLimit, arg).status;
         public SMU.Status SetTDCSOCLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetTDCSOCLimit, arg).status;
-        public SMU.Status SetOverclockCpuVid(byte arg) => new SMUCommands.SetOverclockCpuVid(smu).Execute(arg).status;
+        public SMU.Status SetOverclockCpuVid(uint arg) => new SMUCommands.SetOverclockCpuVid(smu).Execute(arg).status;
         public SMU.Status EnableOcMode() => new SMUCommands.SetOcMode(smu).Execute(true).status;
         public SMU.Status DisableOcMode() => new SMUCommands.SetOcMode(smu).Execute(false).status;
         public SMU.Status SetPBOScalar(uint scalar) => new SMUCommands.SetPBOScalar(smu).Execute(scalar).status;
@@ -851,6 +851,16 @@ namespace ZenStates.Core
             SMUCommands.CmdResult result = new SMUCommands.GetPsmMarginSingleCore(smu).Execute(coreMask);
             return result.Success ? (uint)result.args[0] : (uint?)null;
         }
+        public int GetCorePerformanceData(uint index)
+        {
+            SMUCommands.CmdResult result = new SMUCommands.GetCorePerformanceData(smu).Execute(index);
+            if (result.Success)
+            {
+                return (int)result.args[0];
+            }
+            return -1;
+        }
+
         public uint? GetPsmMarginSingleCore(uint core, uint ccd, uint ccx) => GetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx));
         public bool SetPsmMarginAllCores(int margin) => new SMUCommands.SetPsmMarginAllCores(smu).Execute(margin).Success;
         public bool SetPsmMarginSingleCore(uint coreMask, int margin) => new SMUCommands.SetPsmMarginSingleCore(smu).Execute(coreMask, margin).Success;
@@ -881,6 +891,46 @@ namespace ZenStates.Core
 
             return ret;
         }
+
+        public uint GetFMax() => new SMUCommands.GetBoostLimitFrequency(smu).Execute().args[0];
+
+        public bool SetFMax(uint frequency) => new SMUCommands.SetBoostLimitAllCore(smu).Execute(frequency).Success;
+
+        public int GetCurrentHwVid()
+        {
+            uint data = 0;
+            uint address = 0;
+
+            if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU0 || smu.SMU_TYPE < SMU.SmuType.TYPE_CPU2)
+            {
+                address = 0x5A04C;
+            }
+            else if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU1 || smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
+            {
+                address = 0x6F05C;
+                if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
+                {
+                    if (ReadDwordEx(address, ref data))
+                        return (int)((data >> 6) & 0x1FF);
+                }
+            }
+            else if (smu.SMU_TYPE == SMU.SmuType.TYPE_CPU2 || smu.SMU_TYPE == SMU.SmuType.TYPE_CPU3)
+            {
+                address = (uint)(info.packageType == PackageType.AM4 ? 0x5A050 : 0x5A054);
+            }
+            else if (info.family > Family.FAMILY_17H)
+            {
+                address = 0x73014;
+                if (ReadDwordEx(address, ref data))
+                    return (int)((data >> 6) & 0x1FF);
+            }
+
+            if (address != 0 && ReadDwordEx(address, ref data))
+                return (int)(data >> 24);
+
+            return -1;
+        }
+
         public bool IsProchotEnabled()
         {
             uint data = ReadDword(0x59804);

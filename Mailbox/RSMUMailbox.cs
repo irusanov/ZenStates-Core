@@ -12,6 +12,7 @@
         public uint SMU_MSG_SetOverclockFrequencyAllCores { get; set; } = 0x0;
         public uint SMU_MSG_SetOverclockFrequencyPerCore { get; set; } = 0x0;
         public uint SMU_MSG_SetBoostLimitFrequencyAllCores { get; set; } = 0x0;
+        public uint SMU_MSG_GetBoostLimitFrequency { get; set; } = 0x0;
         public uint SMU_MSG_SetBoostLimitFrequency { get; set; } = 0x0;
         public uint SMU_MSG_SetOverclockCpuVid { get; set; } = 0x0;
         public uint SMU_MSG_EnableOcMode { get; set; } = 0x0;
@@ -36,5 +37,6 @@
         public uint SMU_MSG_GetFastestCoreofSocket { get; set; } = 0x0;
         public uint SMU_MSG_GetLN2Mode { get; set; } = 0x0;
         public uint SMU_MSG_IsOverclockable { get; set; } = 0x0;
+        public uint SMU_MSG_GetPerformanceData { get; set; } = 0x0;
     }
 }
