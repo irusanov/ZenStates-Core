@@ -71,7 +71,14 @@ namespace ZenStates.Core
 
         public static double VidToVoltageSVI3(uint vid)
         {
-            return 0.245 + vid * 0.005;
+            return Math.Round(0.245 + vid * 0.005, 3);
+        }
+
+        public static uint VoltageToVidSVI3(double targetVoltage)
+        {
+            if (targetVoltage < 0.245)
+                return 0;
+            return (uint)Math.Round((targetVoltage - 0.245) / 0.005);
         }
 
         private static bool CheckAllZero<T>(ref T[] typedArray)
