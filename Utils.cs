@@ -103,10 +103,10 @@ namespace ZenStates.Core
 
         public static bool AllZero(float[] arr) => CheckAllZero(ref arr);
 
-        public static uint[] MakeCmdArgs(uint[] args, int maxArgs = Constants.DEFAULT_MAILBOX_ARGS)
+        public static uint[] MakeCmdArgs(uint[] args, uint maxArgs = Constants.DEFAULT_MAILBOX_ARGS)
         {
             uint[] cmdArgs = new uint[maxArgs];
-            int length = Math.Min(maxArgs, args.Length);
+            uint length = (uint)Math.Min(maxArgs, args.Length);
 
             for (int i = 0; i < length; i++)
                 cmdArgs[i] = args[i];
@@ -114,7 +114,7 @@ namespace ZenStates.Core
             return cmdArgs;
         }
 
-        public static uint[] MakeCmdArgs(uint arg = 0, int maxArgs = Constants.DEFAULT_MAILBOX_ARGS)
+        public static uint[] MakeCmdArgs(uint arg = 0, uint maxArgs = Constants.DEFAULT_MAILBOX_ARGS)
         {
             return MakeCmdArgs(new uint[] { arg }, maxArgs);
         }

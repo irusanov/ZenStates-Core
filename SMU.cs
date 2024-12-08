@@ -127,16 +127,20 @@ namespace ZenStates.Core
                     return Status.FAILED;
                 }
 
+                uint maxValidArgAddress = uint.MaxValue - mailbox.MAX_ARGS * 4;
+
                 // Clear response register
                 SmuWriteReg(mailbox.SMU_ADDR_RSP, 0);
 
                 // Write data
                 uint[] cmdArgs = Utils.MakeCmdArgs(args, mailbox.MAX_ARGS);
+
                 for (int i = 0; i < cmdArgs.Length; ++i)
                 {
-                    uint address = mailbox.SMU_ADDR_ARG + (uint)(i * 4);
-                    if (address <= uint.MaxValue && address >= uint.MinValue)
-                        SmuWriteReg(address, cmdArgs[i]);
+                    if (mailbox.SMU_ADDR_ARG > maxValidArgAddress)
+                        continue;
+
+                    SmuWriteReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]);
                 }
 
                 // Send message
@@ -158,9 +162,10 @@ namespace ZenStates.Core
                     // Read back args
                     for (int i = 0; i < args.Length; ++i)
                     {
-                        uint address = mailbox.SMU_ADDR_ARG + (uint)(i * 4);
-                        if (address <= uint.MaxValue && address >= uint.MinValue)
-                            SmuReadReg(address, ref args[i]);
+                        if (mailbox.SMU_ADDR_ARG > maxValidArgAddress)
+                            continue;
+
+                        SmuReadReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]);
                     }
                 }
 
