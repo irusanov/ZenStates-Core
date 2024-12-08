@@ -582,6 +582,7 @@ namespace ZenStates.Core
         {
             { Cpu.CodeName.BristolRidge, new BristolRidgeSettings() },
             { Cpu.CodeName.Vishera, new UnsupportedSettings() },
+            { Cpu.CodeName.Llano, new UnsupportedSettings() },
 
             // Zen
             { Cpu.CodeName.SummitRidge, new SummitRidgeSettings() },

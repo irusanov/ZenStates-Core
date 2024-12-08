@@ -20,6 +20,8 @@ namespace ZenStates.Core
         public enum Family
         {
             UNSUPPORTED = 0x0,
+            FAMILY_10H = 0x10,
+            FAMILY_12H = 0x12,
             FAMILY_15H = 0x15,
             FAMILY_17H = 0x17,
             FAMILY_18H = 0x18,
@@ -31,6 +33,8 @@ namespace ZenStates.Core
         {
             Unsupported = 0,
             DEBUG,
+            K10,
+            Llano,
             BristolRidge,
             Vishera,
             SummitRidge,
@@ -507,7 +511,15 @@ namespace ZenStates.Core
         {
             CodeName codeName = CodeName.Unsupported;
 
-            if (cpuInfo.family == Family.FAMILY_15H)
+            if (cpuInfo.family == Family.FAMILY_10H)
+            {
+                codeName = CodeName.K10;
+            }
+            else if (cpuInfo.family == Family.FAMILY_12H)
+            {
+                codeName = CodeName.Llano;
+            }
+            else if (cpuInfo.family == Family.FAMILY_15H)
             {
                 switch (cpuInfo.model)
                 {
