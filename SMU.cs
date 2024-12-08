@@ -73,6 +73,8 @@ namespace ZenStates.Core
 
         private bool SmuWriteReg(uint addr, uint data)
         {
+            if (addr > uint.MaxValue) return false;
+
             if (Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_ADDR, addr))
                 return Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_DATA, data);
             return false;
@@ -80,6 +82,8 @@ namespace ZenStates.Core
 
         private bool SmuReadReg(uint addr, ref uint data)
         {
+            if (addr > uint.MaxValue) return false;
+
             if (Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_ADDR, addr))
                 return Ring0.ReadPciConfig(SMU_PCI_ADDR, SMU_OFFSET_DATA, out data);
             return false;
@@ -129,7 +133,11 @@ namespace ZenStates.Core
                 // Write data
                 uint[] cmdArgs = Utils.MakeCmdArgs(args, mailbox.MAX_ARGS);
                 for (int i = 0; i < cmdArgs.Length; ++i)
-                    SmuWriteReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]);
+                {
+                    uint address = mailbox.SMU_ADDR_ARG + (uint)(i * 4);
+                    if (address <= uint.MaxValue && address >= uint.MinValue)
+                        SmuWriteReg(address, cmdArgs[i]);
+                }
 
                 // Send message
                 SmuWriteReg(mailbox.SMU_ADDR_MSG, msg);
@@ -149,7 +157,11 @@ namespace ZenStates.Core
                 {
                     // Read back args
                     for (int i = 0; i < args.Length; ++i)
-                        SmuReadReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]);
+                    {
+                        uint address = mailbox.SMU_ADDR_ARG + (uint)(i * 4);
+                        if (address <= uint.MaxValue && address >= uint.MinValue)
+                            SmuReadReg(address, ref args[i]);
+                    }
                 }
 
                 Ring0.ReleasePciBusMutex();
