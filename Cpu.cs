@@ -838,6 +838,7 @@ namespace ZenStates.Core
         }
         public uint GetSmuVersion() => new SMUCommands.GetSmuVersion(smu).Execute().args[0];
         public double? GetBclk() => mmio.GetBclk();
+        public AMD_MMIO.ClkGen GetStrapStatus() => mmio.GetStrapStatus();
         public bool SetBclk(double blck) => mmio.SetBclk(blck);
         public SMU.Status TransferTableToDram() => new SMUCommands.TransferTableToDram(smu).Execute().status;
         public uint GetTableVersion() => new SMUCommands.GetTableVersion(smu).Execute().args[0];
