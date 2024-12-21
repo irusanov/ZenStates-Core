@@ -17,10 +17,16 @@ namespace ZenStates.Core
             return val & ~(((1U << n) - 1) << offset) | (newVal << offset);
         }
 
+        public static uint SetBit(uint val, int offset) => SetBits(val, offset, 1, 1);
+
+        public static uint ClearBit(uint val, int offset) => SetBits(val, offset, 1, 0);
+
         public static uint GetBits(uint val, int offset, int n)
         {
             return (val >> offset) & ~(~0U << n);
         }
+
+        public static uint GetBit(uint value, int bitOffset) => GetBits(value, bitOffset, 1);
 
         public static uint BitSlice(uint val, int hi, int lo)
         {
