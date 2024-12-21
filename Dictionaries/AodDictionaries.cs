@@ -344,6 +344,28 @@ namespace ZenStates.Core
         };
 
         // M-Die 24GB SR sticks
+        public static readonly Dictionary<string, int> AodDataDictionary_1Ah_M = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
+        {
+            { "CadBusDrvStren", 9028 },
+            { "ProcDataDrvStren", 9032 },
+
+            { "RttNomWr", 9036 },
+            { "RttNomRd", 9040 },
+            { "RttWr", 9044 },
+            { "RttPark", 9048 },
+            { "RttParkDqs", 9052 },
+
+            { "MemVddio", 9088 },
+            { "MemVddq", 9092 },
+            { "MemVpp", 9096 },
+            { "ApuVddio", 9100 },
+
+            { "ProcOdt", 9176 },
+            { "ProcOdtPullUp", 9176 },
+            { "ProcOdtPullDown", 9180 },
+            { "DramDataDrvStren", 9184 },
+        };
+
         public static readonly Dictionary<string, int> AodDataDictionary_1Ah_B404023_M = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
         {
             { "CadBusDrvStren", 9028 },

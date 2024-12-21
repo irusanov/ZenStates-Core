@@ -269,18 +269,18 @@ namespace ZenStates.Core
         {
             this.Table.AcpiTable = GetAcpiTable();
 
-            if (this.Table.AcpiTable != null)
+            if (this.Table?.AcpiTable?.Data != null)
             {
-                int regionIndex = GetAodRegionIndex(this.Table.AcpiTable?.Data);
+                int regionIndex = GetAodRegionIndex(this.Table.AcpiTable.Value.Data);
                 if (regionIndex == -1)
                     return;
 
                 byte[] region = new byte[16];
-                Buffer.BlockCopy(this.Table.AcpiTable?.Data, regionIndex, region, 0, 16);
+                Buffer.BlockCopy(this.Table.AcpiTable.Value.Data, regionIndex, region, 0, 16);
                 // OperationRegion(AODE, SystemMemory, Offset, Length)
                 OperationRegion opRegion = Utils.ByteArrayToStructure<OperationRegion>(region);
                 this.Table.BaseAddress = opRegion.Offset;
-                this.Table.Length = opRegion.Length[1] << 8 | opRegion.Length[0];
+                this.Table.Length = (opRegion.Length[1] << 8) | opRegion.Length[0];
             }
 
             this.Refresh();
@@ -302,15 +302,14 @@ namespace ZenStates.Core
                 case Cpu.CodeName.HawkPoint:
                     return AodDictionaries.AodDataDictionaryV4;
                 case Cpu.CodeName.GraniteRidge:
+                    var memModule = cpuInstance.GetMemoryConfig()?.Modules[0];
+                    var isMDie = memModule?.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
+
                     if (patchLevel > 0xB404022)
                     {
-                        var memModule = cpuInstance.GetMemoryConfig()?.Modules[0];
-                        var MDie = memModule != null && memModule.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
-                        if (MDie)
-                            return AodDictionaries.AodDataDictionary_1Ah_B404023_M;
-                        return AodDictionaries.AodDataDictionary_1Ah_B404023;
+                        return isMDie ? AodDictionaries.AodDataDictionary_1Ah_B404023_M : AodDictionaries.AodDataDictionary_1Ah_B404023;
                     }
-                    return AodDictionaries.AodDataDictionary_1Ah;
+                    return isMDie ? AodDictionaries.AodDataDictionary_1Ah_M : AodDictionaries.AodDataDictionary_1Ah;
                 default:
                     return AodDictionaries.AodDataDictionaryV1;
             }

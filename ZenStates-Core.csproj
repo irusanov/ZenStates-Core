@@ -1,13 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <RootNamespace>ZenStates.Core</RootNamespace>
-    <TargetFrameworks>net20;netstandard2.1;net6.0-windows</TargetFrameworks>
+    <TargetFrameworks>net20;netstandard2.1;net8.0-windows</TargetFrameworks>
     <AssemblyTitle>ZenStates.Core</AssemblyTitle>
     <Company>irusanov</Company>
     <Product>ZenStates.Core</Product>
     <Copyright>Copyright © 2024</Copyright>
-    <AssemblyVersion>1.72.0</AssemblyVersion>
-    <FileVersion>1.72.0</FileVersion>
+    <AssemblyVersion>1.73.0</AssemblyVersion>
+    <FileVersion>1.73.0</FileVersion>
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <IsWindows Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true'">true</IsWindows> 
     <IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux> 
@@ -30,11 +30,11 @@
     <WarningLevel>4</WarningLevel>
     <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
   </PropertyGroup>
-<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net6.0-windows|AnyCPU'">
+<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net8.0-windows|AnyCPU'">
 	<WarningLevel>4</WarningLevel>
 	<CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
 </PropertyGroup>
-<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net6.0-windows|AnyCPU'">
+<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net8.0-windows|AnyCPU'">
 	<WarningLevel>4</WarningLevel>
 	<CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
 </PropertyGroup>
