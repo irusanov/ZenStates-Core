@@ -34,7 +34,7 @@ namespace ZenStates.Core
             Unsupported = 0,
             DEBUG,
             K10,
-            Llano,
+            K12,
             BristolRidge,
             Vishera,
             SummitRidge,
@@ -517,7 +517,7 @@ namespace ZenStates.Core
             }
             else if (cpuInfo.family == Family.FAMILY_12H)
             {
-                codeName = CodeName.Llano;
+                codeName = CodeName.K12;
             }
             else if (cpuInfo.family == Family.FAMILY_15H)
             {

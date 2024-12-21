@@ -598,8 +598,6 @@ namespace ZenStates.Core
         private static readonly Dictionary<Cpu.CodeName, SMU> settings = new Dictionary<Cpu.CodeName, SMU>
         {
             { Cpu.CodeName.BristolRidge, new BristolRidgeSettings() },
-            { Cpu.CodeName.Vishera, new UnsupportedSettings() },
-            { Cpu.CodeName.Llano, new UnsupportedSettings() },
 
             // Zen
             { Cpu.CodeName.SummitRidge, new SummitRidgeSettings() },
