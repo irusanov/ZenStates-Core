@@ -205,12 +205,12 @@ namespace ZenStates.Core
             { 0x000620, 0xAFC, 0x11C, 0x12C, 0x13C, 0x14C, 0x434, -1, -1, -1, 0xE8 },
         };
 
-        private PTDef GetDefByVersion(uint version)
+        private static PTDef GetDefByVersion(uint version)
         {
             return PowerTables.Find(x => x.tableVersion == version);
         }
 
-        private PTDef GetDefaultTableDef(uint tableVersion, SMU.SmuType smutype)
+        private static PTDef GetDefaultTableDef(uint tableVersion, SMU.SmuType smutype)
         {
             uint version = 0;
 
@@ -265,7 +265,7 @@ namespace ZenStates.Core
             return GetDefByVersion(version);
         }
 
-        private PTDef GetPowerTableDef(uint tableVersion, SMU.SmuType smutype)
+        private static PTDef GetPowerTableDef(uint tableVersion, SMU.SmuType smutype)
         {
             PTDef temp = GetDefByVersion(tableVersion);
             if (temp.tableSize != 0)
@@ -278,21 +278,25 @@ namespace ZenStates.Core
             this.smu = smuInstance ?? throw new ArgumentNullException(nameof(smuInstance));
             this.io = ioInstance ?? throw new ArgumentNullException(nameof(ioInstance));
             this.mmio = mmio ?? throw new ArgumentNullException(nameof(mmio));
+
             SMUCommands.CmdResult result = new SMUCommands.GetDramAddress(smu).Execute();
+            if (!result.Success)
+                throw new ApplicationException("Could not get DRAM base address.");
+
             DramBaseAddressLo = DramBaseAddress = result.args[0];
             DramBaseAddressHi = result.args[1];
 
-            if (DramBaseAddress == 0)
-                throw new ApplicationException("Could not get DRAM base address.");
-
             if (!Utils.Is64Bit)
             {
-                var status = new SMUCommands.SetToolsDramAddress(smu).Execute(DramBaseAddress);
-                if (!status.Success)
+                result = new SMUCommands.SetToolsDramAddress(smu).Execute(DramBaseAddress);
+                if (!result.Success)
                     throw new ApplicationException("Could not set DRAM base address.");
             }
 
             tableDef = GetPowerTableDef(smu.TableVersion, smu.SMU_TYPE);
+            if (tableDef.tableSize <= 0)
+                throw new ApplicationException("Invalid table size.");
+
             TableSize = tableDef.tableSize;
             Table = new float[TableSize / 4];
             this.Refresh();
@@ -356,7 +360,13 @@ namespace ZenStates.Core
                 byte[] bytes = io.ReadMemory(dramBaseAddress, tableSizeInBytes);
 
                 if (bytes != null && bytes.Length > 0)
+                {
                     Buffer.BlockCopy(bytes, 0, table, 0, bytes.Length);
+                }
+                else
+                {
+                    Console.WriteLine("Error: ReadMemory returned null or empty byte array.");
+                }
             }
             else
             {
@@ -365,9 +375,15 @@ namespace ZenStates.Core
                     for (int i = 0; i < table.Length; ++i)
                     {
                         int offset = i * sizeof(float);
-                        io.GetPhysLong((UIntPtr)(DramBaseAddress + offset), out uint data);
-                        byte[] bytes = BitConverter.GetBytes(data);
-                        Buffer.BlockCopy(bytes, 0, table, offset, bytes.Length);
+                        if (io.GetPhysLong((UIntPtr)(DramBaseAddress + offset), out uint data))
+                        {
+                            byte[] bytes = BitConverter.GetBytes(data);
+                            Buffer.BlockCopy(bytes, 0, table, offset, bytes.Length);
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Error: GetPhysLong failed at offset {offset}.");
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -400,7 +416,8 @@ namespace ZenStates.Core
                         return status;
                 }
 
-                Buffer.BlockCopy(ReadTableFromMemory(TableSize), 0, Table, 0, TableSize);
+                float[] fullTable = ReadTableFromMemory(TableSize);
+                Buffer.BlockCopy(fullTable, 0, Table, 0, TableSize);
 
                 if (Utils.AllZero(Table))
                     return SMU.Status.FAILED;
