@@ -132,7 +132,7 @@ namespace ZenStates.Core
             // Try to get the table from RSDT first
             ACPITable? acpiTable = GetAcpiTableFromRsdt();
             if (acpiTable == null)
-                return GetAcpiTableFromRegistry();
+                return AOD.GetAcpiTableFromRegistry();
             return acpiTable;
         }
 
@@ -171,43 +171,48 @@ namespace ZenStates.Core
             return null;
         }
 
-        private ACPITable? GetAcpiTableFromRegistry()
+        private static ACPITable? GetAcpiTableFromRegistry()
         {
             string acpiRegistryPath = @"HARDWARE\ACPI";
 
+            RegistryKey acpiKey = null;
+
             try
             {
-                using (RegistryKey acpiKey = Registry.LocalMachine.OpenSubKey(acpiRegistryPath))
+                acpiKey = Registry.LocalMachine.OpenSubKey(acpiRegistryPath);
+
+                if (acpiKey != null)
                 {
-                    if (acpiKey != null)
+                    string[] subkeyNames = acpiKey.GetSubKeyNames();
+                    foreach (string subkeyName in subkeyNames)
                     {
-                        string[] subkeyNames = acpiKey.GetSubKeyNames();
-                        foreach (string subkeyName in subkeyNames)
+                        Console.WriteLine($"Subkey: {subkeyName}");
+
+                        if (subkeyName.StartsWith("SSD"))
                         {
-                            Console.WriteLine($"Subkey: {subkeyName}");
-
-                            if (subkeyName.StartsWith("SSD"))
+                            byte[] acpiTableData = GetRawTableFromSubkeys(acpiKey, subkeyName);
+                            if (acpiTableData != null)
                             {
-                                byte[] acpiTableData = GetRawTableFromSubkeys(acpiKey, subkeyName);
-                                if (acpiTableData != null)
-                                {
-                                    if (GetAodRegionIndex(acpiTableData) == -1)
-                                        continue;
+                                if (GetAodRegionIndex(acpiTableData) == -1)
+                                    continue;
 
-                                    return ParseSdtTable(acpiTableData);
-                                }
+                                return ParseSdtTable(acpiTableData);
                             }
                         }
                     }
-                    else
-                    {
-                        Console.WriteLine("ACPI registry key not found.");
-                    }
+                }
+                else
+                {
+                    Console.WriteLine("ACPI registry key not found.");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error accessing ACPI registry: {ex.Message}");
+            }
+            finally
+            {
+                acpiKey?.Close();
             }
 
             return null;
@@ -226,8 +231,10 @@ namespace ZenStates.Core
 
         private static byte[] GetRawTableFromSubkeys(RegistryKey parentKey, string subkeyName)
         {
-            using (RegistryKey subkey = parentKey.OpenSubKey(subkeyName))
+            RegistryKey subkey = null;
+            try
             {
+                subkey = parentKey.OpenSubKey(subkeyName);
                 if (subkey != null)
                 {
                     string[] subkeyNames = subkey.GetSubKeyNames();
@@ -260,9 +267,13 @@ namespace ZenStates.Core
                         }
                     }
                 }
-
-                return null;
             }
+            finally
+            {
+                subkey?.Close();
+            }
+
+            return null;
         }
 
         private void Init()
