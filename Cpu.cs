@@ -389,10 +389,12 @@ namespace ZenStates.Core
         // [23-20] core index
         public uint MakeCoreMask(uint core = 0, uint ccd = 0, uint ccx = 0)
         {
-            uint ccxInCcd = info.family >= Family.FAMILY_19H ? 1U : 2U;
-            uint coresInCcx = 8 / ccxInCcd;
+            if (info.family > Family.FAMILY_17H)
+            {
+                return (ccd << 28) | ((core % 8) << 20);
+            }
 
-            return ((ccd << 4 | ccx % ccxInCcd & 0xF) << 4 | core % coresInCcx & 0xF) << 20;
+            return (ccd << 28) | ((ccx % 2) << 24) | ((core % 4) << 20);
         }
 
         public bool ReadDwordEx(uint addr, ref uint data, int maxRetries = 10)
