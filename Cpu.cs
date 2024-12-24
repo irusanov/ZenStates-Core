@@ -593,6 +593,9 @@ namespace ZenStates.Core
                     case 0x98:
                         codeName = CodeName.Mero;
                         break;
+                    case 0xa0:
+                        codeName = CodeName.Mendocino;
+                        break;
 
                     default:
                         codeName = CodeName.Unsupported;
@@ -640,9 +643,6 @@ namespace ZenStates.Core
                     // https://github.com/InstLatx64/InstLatx64/commit/d3fd3cddc85b9a32966c54b59477b1c8eb3a60a3
                     case 0x7C:
                         codeName = CodeName.HawkPoint;
-                        break;
-                    case 0xa0:
-                        codeName = CodeName.Mendocino;
                         break;
 
                     default:
