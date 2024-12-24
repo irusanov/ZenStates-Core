@@ -2,9 +2,9 @@
 {
     public class CpuInitSettings
     {
-        public static int DefaultAutorefreshIntervalMs = 1000;
+        public const int DefaultAutorefreshIntervalMs = 1000;
 
-        public static CpuInitSettings defaultSetttings = new CpuInitSettings();
+        public static readonly CpuInitSettings defaultSetttings = new CpuInitSettings();
         public struct CpuInitModuleSettings
         {
             public bool? Enabled { get; set; }

@@ -796,7 +796,7 @@ namespace ZenStates.Core
 
         public uint GetPatchLevel()
         {
-            if (Ring0.Rdmsr(0x8b, out uint eax, out uint edx))
+            if (Ring0.Rdmsr(0x8b, out uint eax, out _))
                 return eax;
 
             return 0;
