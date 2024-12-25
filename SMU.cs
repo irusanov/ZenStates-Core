@@ -482,6 +482,8 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_GetDramBaseAddress = 0xB;
             Rsmu.SMU_MSG_GetTableVersion = 0xC;
             Rsmu.SMU_MSG_TransferTableToDram = 0x3D;
+            Rsmu.SMU_MSG_SetDldoPsmMargin = 0x58;
+            Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0x59;
             Rsmu.SMU_MSG_EnableOcMode = 0x69;
             Rsmu.SMU_MSG_DisableOcMode = 0x6A;
             Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x7D;
