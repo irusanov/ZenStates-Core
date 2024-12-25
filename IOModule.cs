@@ -116,7 +116,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                throw ex;
+                throw new Exception($"Error initializing IO module: {ex.Message}");
             }
         }
 

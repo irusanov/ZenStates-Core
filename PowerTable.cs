@@ -427,7 +427,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error occurred while reading table: " + ex.Message);
+                Console.WriteLine($"Error occurred while reading table: {ex.Message}");
                 return SMU.Status.FAILED;
             }
         }
