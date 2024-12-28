@@ -2,6 +2,7 @@ using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Management;
 using static ZenStates.Core.ACPI;
 
 namespace ZenStates.Core
@@ -13,6 +14,7 @@ namespace ZenStates.Core
         internal readonly ACPI acpi;
         internal readonly Cpu.CodeName codeName;
         internal readonly uint patchLevel;
+        internal readonly bool hasRMP;
         public AodTable Table;
 
         public class AodEnumBase
@@ -124,6 +126,7 @@ namespace ZenStates.Core
             this.acpi = new ACPI(io);
             this.Table = new AodTable();
             this.patchLevel = this.cpuInstance.info.patchLevel;
+            this.hasRMP = GetWmiFunctions().ContainsKey("Set RMP Profile");
             this.Init();
         }
 
@@ -318,12 +321,74 @@ namespace ZenStates.Core
 
                     if (patchLevel > 0xB404022)
                     {
-                        return isMDie ? AodDictionaries.AodDataDictionary_1Ah_B404023_M : AodDictionaries.AodDataDictionary_1Ah_B404023;
+                        if (isMDie && hasRMP)
+                            return AodDictionaries.AodDataDictionary_1Ah_B404023;
+                        if (isMDie)
+                            return AodDictionaries.AodDataDictionary_1Ah_B404023_M;
+                        
+                        return AodDictionaries.AodDataDictionary_1Ah_B404023;
                     }
-                    return isMDie ? AodDictionaries.AodDataDictionary_1Ah_M : AodDictionaries.AodDataDictionary_1Ah;
+
+                    if (isMDie && hasRMP)
+                        return AodDictionaries.AodDataDictionary_1Ah_M;
+                    
+                    return AodDictionaries.AodDataDictionary_1Ah;
                 default:
                     return AodDictionaries.AodDataDictionaryV1;
             }
+        }
+
+        private static Dictionary<string, uint> GetWmiFunctions()
+        {
+            Dictionary<string, uint> dict = new Dictionary<string, uint>();
+
+            try
+            {
+                string wmiAMDACPI = "AMD_ACPI";
+                string wmiScope = "root\\wmi";
+                ManagementBaseObject pack;
+
+                string instanceName = WMI.GetInstanceName(wmiScope, wmiAMDACPI);
+                ManagementObject classInstance = new ManagementObject(wmiScope,
+                    $"{wmiAMDACPI}.InstanceName='{instanceName}'",
+                    null);
+
+                // Get function names with their IDs
+                string[] functionObjects = { "GetObjectID", "GetObjectID2" };
+
+                foreach (var functionObject in functionObjects)
+                {
+                    try
+                    {
+                        pack = WMI.InvokeMethodAndGetValue(classInstance, functionObject, "pack", null, 0);
+
+                        if (pack != null)
+                        {
+                            var ID = (uint[])pack.GetPropertyValue("ID");
+                            var IDString = (string[])pack.GetPropertyValue("IDString");
+                            var Length = (byte)pack.GetPropertyValue("Length");
+
+                            for (var i = 0; i < Length; ++i)
+                            {
+                                if (IDString[i] == "")
+                                    break;
+
+                                dict.Add(IDString[i], ID[i]);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+
+            return dict;
         }
 
         public bool Refresh()
