@@ -340,7 +340,7 @@ namespace ZenStates.Core
             { "ProcOdtPullUp", 9172 },
             { "ProcOdtPullDown", 9176 },
             { "DramDataDrvStren", 9180 },
-            { "ProcDataDrvStren", 9188 },
+            { "ProcDataDrvStren", 9196 },
         };
 
         // M-Die 24GB SR sticks
