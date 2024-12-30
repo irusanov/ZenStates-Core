@@ -18,11 +18,12 @@
         internal const uint F19H_M01H_SVI_TEL_PLANE1 = (F17H_M01H_SVI + 0x14);
         internal const uint F19H_M21H_SVI_TEL_PLANE0 = (F17H_M01H_SVI + 0x10);
         internal const uint F19H_M21H_SVI_TEL_PLANE1 = (F17H_M01H_SVI + 0xC);
-        internal const uint F17H_M70H_CCD_TEMP = 0x00059954;
+        internal const uint F17H_CCD_TEMP = 0x00059954;
+        internal const uint F19H_CCD_TEMP = 0x00059B08;
         internal const uint THM_CUR_TEMP = 0x00059800;
         internal const uint THM_CUR_TEMP_RANGE_SEL_MASK = 0x80000;
-        internal const int DEFAULT_MAILBOX_ARGS = 6;
-        internal const int HSMP_MAILBOX_ARGS = 8;
+        internal const uint DEFAULT_MAILBOX_ARGS = 6;
+        internal const uint HSMP_MAILBOX_ARGS = 8;
         internal const float PBO_SCALAR_MIN = 0.0f;
         internal const float PBO_SCALAR_MAX = 10.0f;
         internal const float PBO_SCALAR_DEFAULT = 1.0f;

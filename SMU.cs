@@ -73,6 +73,8 @@ namespace ZenStates.Core
 
         private bool SmuWriteReg(uint addr, uint data)
         {
+            if (addr > uint.MaxValue) return false;
+
             if (Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_ADDR, addr))
                 return Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_DATA, data);
             return false;
@@ -80,6 +82,8 @@ namespace ZenStates.Core
 
         private bool SmuReadReg(uint addr, ref uint data)
         {
+            if (addr > uint.MaxValue) return false;
+
             if (Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_ADDR, addr))
                 return Ring0.ReadPciConfig(SMU_PCI_ADDR, SMU_OFFSET_DATA, out data);
             return false;
@@ -123,13 +127,21 @@ namespace ZenStates.Core
                     return Status.FAILED;
                 }
 
+                uint maxValidArgAddress = uint.MaxValue - mailbox.MAX_ARGS * 4;
+
                 // Clear response register
                 SmuWriteReg(mailbox.SMU_ADDR_RSP, 0);
 
                 // Write data
                 uint[] cmdArgs = Utils.MakeCmdArgs(args, mailbox.MAX_ARGS);
+
                 for (int i = 0; i < cmdArgs.Length; ++i)
+                {
+                    if (mailbox.SMU_ADDR_ARG > maxValidArgAddress)
+                        continue;
+
                     SmuWriteReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]);
+                }
 
                 // Send message
                 SmuWriteReg(mailbox.SMU_ADDR_MSG, msg);
@@ -149,7 +161,12 @@ namespace ZenStates.Core
                 {
                     // Read back args
                     for (int i = 0; i < args.Length; ++i)
+                    {
+                        if (mailbox.SMU_ADDR_ARG > maxValidArgAddress)
+                            continue;
+
                         SmuReadReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]);
+                    }
                 }
 
                 Ring0.ReleasePciBusMutex();
@@ -398,14 +415,28 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_SetHTCLimit = 0x59;
             Rsmu.SMU_MSG_SetPBOScalar = 0x5B;
             Rsmu.SMU_MSG_GetPBOScalar = 0x6D;
+            Rsmu.SMU_MSG_GetBoostLimitFrequency = 0x6E;
+            Rsmu.SMU_MSG_SetBoostLimitFrequencyAllCores = 0x70;
 
             Rsmu.SMU_MSG_SetDldoPsmMargin = 0x6;
             Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0x7;
             Rsmu.SMU_MSG_GetDldoPsmMargin = 0xD5;
             Rsmu.SMU_MSG_GetLN2Mode = 0xDD;
+            Rsmu.SMU_MSG_GetPerformanceData = 0x5C;
 
             // HSMP
             Hsmp.SMU_ADDR_MSG = 0x3B10534;
+            Hsmp.SMU_ADDR_RSP = 0x3B10980;
+            Hsmp.SMU_ADDR_ARG = 0x3B109E0;
+        }
+    }
+
+    public class Zen5Settings : Zen4Settings
+    {
+        public Zen5Settings()
+        {
+            // HSMP
+            Hsmp.SMU_ADDR_MSG = 0x3B10934;
             Hsmp.SMU_ADDR_RSP = 0x3B10980;
             Hsmp.SMU_ADDR_ARG = 0x3B109E0;
         }
@@ -451,6 +482,8 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_GetDramBaseAddress = 0xB;
             Rsmu.SMU_MSG_GetTableVersion = 0xC;
             Rsmu.SMU_MSG_TransferTableToDram = 0x3D;
+            Rsmu.SMU_MSG_SetDldoPsmMargin = 0x58;
+            Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0x59;
             Rsmu.SMU_MSG_EnableOcMode = 0x69;
             Rsmu.SMU_MSG_DisableOcMode = 0x6A;
             Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x7D;
@@ -594,8 +627,9 @@ namespace ZenStates.Core
             { Cpu.CodeName.DragonRange, new Zen4Settings() },
 
             // Zen5
-            { Cpu.CodeName.GraniteRidge, new Zen4Settings() },
-            { Cpu.CodeName.Bergamo, new Zen4Settings() },
+            { Cpu.CodeName.GraniteRidge, new Zen5Settings() },
+            { Cpu.CodeName.Bergamo, new Zen5Settings() },
+            { Cpu.CodeName.Turin, new Zen5Settings() },
 
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },
@@ -617,6 +651,8 @@ namespace ZenStates.Core
             { Cpu.CodeName.Phoenix2, new APUSettings1_Rembrandt() },
             { Cpu.CodeName.HawkPoint, new APUSettings1_Rembrandt() },
             { Cpu.CodeName.Mendocino, new APUSettings1_Rembrandt() },
+            { Cpu.CodeName.StrixPoint, new APUSettings1_Rembrandt() },
+            { Cpu.CodeName.StrixHalo, new APUSettings1_Rembrandt() },
 
             { Cpu.CodeName.Unsupported, new UnsupportedSettings() },
         };

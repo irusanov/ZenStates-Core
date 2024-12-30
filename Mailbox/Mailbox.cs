@@ -2,11 +2,11 @@
 {
     public class Mailbox
     {
-        public Mailbox(int maxArgs = Constants.DEFAULT_MAILBOX_ARGS)
+        public Mailbox(uint maxArgs = Constants.DEFAULT_MAILBOX_ARGS)
         {
             this.MAX_ARGS = maxArgs;
         }
-        public int MAX_ARGS { get; protected set; }
+        public uint MAX_ARGS { get; protected set; }
         // Configurable registers
         public uint SMU_ADDR_MSG { get; set; } = 0x0;
         public uint SMU_ADDR_RSP { get; set; } = 0x0;

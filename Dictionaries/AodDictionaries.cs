@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace ZenStates.Core
 {
@@ -268,7 +267,8 @@ namespace ZenStates.Core
         };
 
         // GraniteRidge
-        public static readonly Dictionary<string, int> AodDataDictionaryV5 = new Dictionary<string, int>
+
+        public static readonly Dictionary<string, int> BaseAodDataDictionary_1Ah = new Dictionary<string, int>
         {
             { "SMTEn", 8920 },
             { "MemClk", 8924 },
@@ -297,7 +297,10 @@ namespace ZenStates.Core
             { "TwrwrDd", 9016 },
             { "Twrrd", 9020 },
             { "Trdwr", 9024 },
+        };
 
+        public static readonly Dictionary<string, int> AodDataDictionary_1Ah = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
+        {
             { "CadBusDrvStren", 9028 },
             { "ProcDataDrvStren", 9032 },
 
@@ -313,13 +316,76 @@ namespace ZenStates.Core
             { "ApuVddio", 9100 },
 
             { "ProcOdt", 9164 },
+            { "ProcOdtPullUp", 9164 },
+            { "ProcOdtPullDown", 9168 },
             { "DramDataDrvStren", 9172 }
+        };
 
-            // Proc ODT 48ohm
-            // Proc CA Drive stren 30ohm
+        public static readonly Dictionary<string, int> AodDataDictionary_1Ah_B404023 = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
+        {
+            { "CadBusDrvStren", 9028 },
 
-            // Proc Data Drive stren 40ohm
-            // Dram Data drive stren 48ohm
+            { "RttNomWr", 9032 },
+            { "RttNomRd", 9036 },
+            { "RttWr", 9040 },
+            { "RttPark", 9044 },
+            { "RttParkDqs", 9048 },
+
+            { "MemVddio", 9084 },
+            { "MemVddq", 9088 },
+            { "MemVpp", 9092 },
+            { "ApuVddio", 9096 },
+
+            { "ProcOdt", 9172 },
+            { "ProcOdtPullUp", 9172 },
+            { "ProcOdtPullDown", 9176 },
+            { "DramDataDrvStren", 9180 },
+            { "ProcDataDrvStren", 9196 },
+        };
+
+        // M-Die 24GB SR sticks
+        public static readonly Dictionary<string, int> AodDataDictionary_1Ah_M = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
+        {
+            { "CadBusDrvStren", 9028 },
+            { "ProcDataDrvStren", 9032 },
+
+            { "RttNomWr", 9036 },
+            { "RttNomRd", 9040 },
+            { "RttWr", 9044 },
+            { "RttPark", 9048 },
+            { "RttParkDqs", 9052 },
+
+            { "MemVddio", 9088 },
+            { "MemVddq", 9092 },
+            { "MemVpp", 9096 },
+            { "ApuVddio", 9100 },
+
+            { "ProcOdt", 9176 },
+            { "ProcOdtPullUp", 9176 },
+            { "ProcOdtPullDown", 9180 },
+            { "DramDataDrvStren", 9184 },
+        };
+
+        public static readonly Dictionary<string, int> AodDataDictionary_1Ah_B404023_M = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
+        {
+            { "CadBusDrvStren", 9028 },
+
+            { "RttNomWr", 9032 },
+            { "RttNomRd", 9036 },
+            { "RttWr", 9040 },
+            { "RttPark", 9044 },
+            { "RttParkDqs", 9048 },
+
+            { "MemVddio", 9084 },
+            { "MemVddq", 9088 },
+            { "MemVpp", 9092 },
+            { "ApuVddio", 9096 },
+
+            { "ProcOdt", 9160 },
+            { "ProcOdtPullUp", 9160 },
+            { "ProcOdtPullDown", 9164 },
+            { "DramDataDrvStren", 9168 },
+            { "ProcDataDrvStren", 9176 }
         };
     }
 }

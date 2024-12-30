@@ -1,9 +1,8 @@
 using Microsoft.Win32;
-using OpenHardwareMonitor.Hardware;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Runtime.InteropServices;
+using System.Management;
 using static ZenStates.Core.ACPI;
 
 namespace ZenStates.Core
@@ -11,8 +10,11 @@ namespace ZenStates.Core
     public class AOD
     {
         internal readonly IOModule io;
+        internal readonly Cpu cpuInstance;
         internal readonly ACPI acpi;
         internal readonly Cpu.CodeName codeName;
+        internal readonly uint patchLevel;
+        internal readonly bool hasRMP;
         public AodTable Table;
 
         public class AodEnumBase
@@ -116,12 +118,15 @@ namespace ZenStates.Core
             }
         }
 
-        public AOD(IOModule io, Cpu.CodeName codeName)
+        public AOD(IOModule io, Cpu cpuInstance)
         {
             this.io = io;
-            this.codeName = codeName;
+            this.cpuInstance = cpuInstance;
+            this.codeName = this.cpuInstance.info.codeName;
             this.acpi = new ACPI(io);
             this.Table = new AodTable();
+            this.patchLevel = this.cpuInstance.info.patchLevel;
+            this.hasRMP = GetWmiFunctions().ContainsKey("Set RMP Profile");
             this.Init();
         }
 
@@ -130,7 +135,7 @@ namespace ZenStates.Core
             // Try to get the table from RSDT first
             ACPITable? acpiTable = GetAcpiTableFromRsdt();
             if (acpiTable == null)
-                return GetAcpiTableFromRegistry();
+                return AOD.GetAcpiTableFromRegistry();
             return acpiTable;
         }
 
@@ -169,43 +174,48 @@ namespace ZenStates.Core
             return null;
         }
 
-        private ACPITable? GetAcpiTableFromRegistry()
+        private static ACPITable? GetAcpiTableFromRegistry()
         {
             string acpiRegistryPath = @"HARDWARE\ACPI";
 
+            RegistryKey acpiKey = null;
+
             try
             {
-                using (RegistryKey acpiKey = Registry.LocalMachine.OpenSubKey(acpiRegistryPath))
+                acpiKey = Registry.LocalMachine.OpenSubKey(acpiRegistryPath);
+
+                if (acpiKey != null)
                 {
-                    if (acpiKey != null)
+                    string[] subkeyNames = acpiKey.GetSubKeyNames();
+                    foreach (string subkeyName in subkeyNames)
                     {
-                        string[] subkeyNames = acpiKey.GetSubKeyNames();
-                        foreach (string subkeyName in subkeyNames)
+                        Console.WriteLine($"Subkey: {subkeyName}");
+
+                        if (subkeyName.StartsWith("SSD"))
                         {
-                            Console.WriteLine($"Subkey: {subkeyName}");
-
-                            if (subkeyName.StartsWith("SSD"))
+                            byte[] acpiTableData = GetRawTableFromSubkeys(acpiKey, subkeyName);
+                            if (acpiTableData != null)
                             {
-                                byte[] acpiTableData = GetRawTableFromSubkeys(acpiKey, subkeyName);
-                                if (acpiTableData != null)
-                                {
-                                    if (GetAodRegionIndex(acpiTableData) == -1)
-                                        continue;
+                                if (GetAodRegionIndex(acpiTableData) == -1)
+                                    continue;
 
-                                    return ParseSdtTable(acpiTableData);
-                                }
+                                return ParseSdtTable(acpiTableData);
                             }
                         }
                     }
-                    else
-                    {
-                        Console.WriteLine("ACPI registry key not found.");
-                    }
+                }
+                else
+                {
+                    Console.WriteLine("ACPI registry key not found.");
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error accessing ACPI registry: {ex.Message}");
+            }
+            finally
+            {
+                acpiKey?.Close();
             }
 
             return null;
@@ -224,8 +234,10 @@ namespace ZenStates.Core
 
         private static byte[] GetRawTableFromSubkeys(RegistryKey parentKey, string subkeyName)
         {
-            using (RegistryKey subkey = parentKey.OpenSubKey(subkeyName))
+            RegistryKey subkey = null;
+            try
             {
+                subkey = parentKey.OpenSubKey(subkeyName);
                 if (subkey != null)
                 {
                     string[] subkeyNames = subkey.GetSubKeyNames();
@@ -258,33 +270,37 @@ namespace ZenStates.Core
                         }
                     }
                 }
-
-                return null;
             }
+            finally
+            {
+                subkey?.Close();
+            }
+
+            return null;
         }
 
         private void Init()
         {
             this.Table.AcpiTable = GetAcpiTable();
 
-            if (this.Table.AcpiTable != null)
+            if (this.Table?.AcpiTable?.Data != null)
             {
-                int regionIndex = GetAodRegionIndex(this.Table.AcpiTable?.Data);
+                int regionIndex = GetAodRegionIndex(this.Table.AcpiTable.Value.Data);
                 if (regionIndex == -1)
                     return;
 
                 byte[] region = new byte[16];
-                Buffer.BlockCopy(this.Table.AcpiTable?.Data, regionIndex, region, 0, 16);
+                Buffer.BlockCopy(this.Table.AcpiTable.Value.Data, regionIndex, region, 0, 16);
                 // OperationRegion(AODE, SystemMemory, Offset, Length)
                 OperationRegion opRegion = Utils.ByteArrayToStructure<OperationRegion>(region);
                 this.Table.BaseAddress = opRegion.Offset;
-                this.Table.Length = opRegion.Length[1] << 8 | opRegion.Length[0];
+                this.Table.Length = (opRegion.Length[1] << 8) | opRegion.Length[0];
             }
 
             this.Refresh();
         }
 
-        private Dictionary<string, int> GetAodDataDictionary(Cpu.CodeName codeName)
+        private Dictionary<string, int> GetAodDataDictionary(Cpu.CodeName codeName, uint patchLevel)
         {
             if (Table.AcpiTable.Value.Header.OEMTableID == TableSignature.LENOVO_AOD)
                 return AodDictionaries.AodDataDictionaryV3;
@@ -300,10 +316,79 @@ namespace ZenStates.Core
                 case Cpu.CodeName.HawkPoint:
                     return AodDictionaries.AodDataDictionaryV4;
                 case Cpu.CodeName.GraniteRidge:
-                    return AodDictionaries.AodDataDictionaryV5;
+                    var memModule = cpuInstance.GetMemoryConfig()?.Modules[0];
+                    var isMDie = memModule?.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
+
+                    if (patchLevel > 0xB404022)
+                    {
+                        if (isMDie && hasRMP)
+                            return AodDictionaries.AodDataDictionary_1Ah_B404023;
+                        if (isMDie)
+                            return AodDictionaries.AodDataDictionary_1Ah_B404023_M;
+
+                        return AodDictionaries.AodDataDictionary_1Ah_B404023;
+                    }
+
+                    if (isMDie && hasRMP)
+                        return AodDictionaries.AodDataDictionary_1Ah_M;
+                    
+                    return AodDictionaries.AodDataDictionary_1Ah;
                 default:
                     return AodDictionaries.AodDataDictionaryV1;
             }
+        }
+
+        private static Dictionary<string, uint> GetWmiFunctions()
+        {
+            Dictionary<string, uint> dict = new Dictionary<string, uint>();
+
+            try
+            {
+                string wmiAMDACPI = "AMD_ACPI";
+                string wmiScope = "root\\wmi";
+                ManagementBaseObject pack;
+
+                string instanceName = WMI.GetInstanceName(wmiScope, wmiAMDACPI);
+                ManagementObject classInstance = new ManagementObject(wmiScope,
+                    $"{wmiAMDACPI}.InstanceName='{instanceName}'",
+                    null);
+
+                // Get function names with their IDs
+                string[] functionObjects = { "GetObjectID", "GetObjectID2" };
+
+                foreach (var functionObject in functionObjects)
+                {
+                    try
+                    {
+                        pack = WMI.InvokeMethodAndGetValue(classInstance, functionObject, "pack", null, 0);
+
+                        if (pack != null)
+                        {
+                            var ID = (uint[])pack.GetPropertyValue("ID");
+                            var IDString = (string[])pack.GetPropertyValue("IDString");
+                            var Length = (byte)pack.GetPropertyValue("Length");
+
+                            for (var i = 0; i < Length; ++i)
+                            {
+                                if (IDString[i] == "")
+                                    break;
+
+                                dict.Add(IDString[i], ID[i]);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+
+            return dict;
         }
 
         public bool Refresh()
@@ -313,7 +398,7 @@ namespace ZenStates.Core
                 this.Table.RawAodTable = this.io.ReadMemory(new IntPtr(this.Table.BaseAddress), this.Table.Length);
                 // this.Table.Data = Utils.ByteArrayToStructure<AodData>(this.Table.rawAodTable);
                 // int test = Utils.FindSequence(rawTable, 0, BitConverter.GetBytes(0x3ae));
-                this.Table.Data = AodData.CreateFromByteArray(this.Table.RawAodTable, GetAodDataDictionary(this.codeName));
+                this.Table.Data = AodData.CreateFromByteArray(this.Table.RawAodTable, GetAodDataDictionary(this.codeName, this.patchLevel));
                 return true;
             }
             catch { }

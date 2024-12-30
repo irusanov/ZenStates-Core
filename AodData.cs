@@ -40,6 +40,8 @@ namespace ZenStates.Core
         public CadBusDrvStren CadBusDrvStren { get; set; }
         public ProcDataDrvStren ProcDataDrvStren { get; set; }
         public ProcOdt ProcOdt { get; set; }
+        public ProcOdt ProcOdtPullUp { get; set; }
+        public ProcOdt ProcOdtPullDown { get; set; }
         public ProcOdtImpedance ProcCaOdt { get; set; }
         public ProcOdtImpedance ProcCkOdt { get; set; }
         public ProcOdtImpedance ProcDqOdt { get; set; }

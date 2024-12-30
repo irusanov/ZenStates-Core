@@ -17,10 +17,16 @@ namespace ZenStates.Core
             return val & ~(((1U << n) - 1) << offset) | (newVal << offset);
         }
 
+        public static uint SetBit(uint val, int offset) => SetBits(val, offset, 1, 1);
+
+        public static uint ClearBit(uint val, int offset) => SetBits(val, offset, 1, 0);
+
         public static uint GetBits(uint val, int offset, int n)
         {
             return (val >> offset) & ~(~0U << n);
         }
+
+        public static uint GetBit(uint value, int bitOffset) => GetBits(value, bitOffset, 1);
 
         public static uint BitSlice(uint val, int hi, int lo)
         {
@@ -71,7 +77,14 @@ namespace ZenStates.Core
 
         public static double VidToVoltageSVI3(uint vid)
         {
-            return 0.245 + vid * 0.005;
+            return Math.Round(0.245 + vid * 0.005, 3);
+        }
+
+        public static uint VoltageToVidSVI3(double targetVoltage)
+        {
+            if (targetVoltage < 0.245)
+                return 0;
+            return (uint)Math.Round((targetVoltage - 0.245) / 0.005);
         }
 
         private static bool CheckAllZero<T>(ref T[] typedArray)
@@ -96,10 +109,10 @@ namespace ZenStates.Core
 
         public static bool AllZero(float[] arr) => CheckAllZero(ref arr);
 
-        public static uint[] MakeCmdArgs(uint[] args, int maxArgs = Constants.DEFAULT_MAILBOX_ARGS)
+        public static uint[] MakeCmdArgs(uint[] args, uint maxArgs = Constants.DEFAULT_MAILBOX_ARGS)
         {
             uint[] cmdArgs = new uint[maxArgs];
-            int length = Math.Min(maxArgs, args.Length);
+            uint length = (uint)Math.Min(maxArgs, args.Length);
 
             for (int i = 0; i < length; i++)
                 cmdArgs[i] = args[i];
@@ -107,7 +120,7 @@ namespace ZenStates.Core
             return cmdArgs;
         }
 
-        public static uint[] MakeCmdArgs(uint arg = 0, int maxArgs = Constants.DEFAULT_MAILBOX_ARGS)
+        public static uint[] MakeCmdArgs(uint arg = 0, uint maxArgs = Constants.DEFAULT_MAILBOX_ARGS)
         {
             return MakeCmdArgs(new uint[] { arg }, maxArgs);
         }
@@ -167,46 +180,49 @@ namespace ZenStates.Core
         }
 
         /// <summary>Looks for the next occurrence of a sequence in a byte array</summary>
-        /// <param name="array">Array that will be scanned</param>
+        /// <param name="source">Array that will be scanned</param>
         /// <param name="start">Index in the array at which scanning will begin</param>
-        /// <param name="sequence">Sequence the array will be scanned for</param>
+        /// <param name="pattern">Sequence the array will be scanned for</param>
         /// <returns>
         ///   The index of the next occurrence of the sequence of -1 if not found
         /// </returns>
-        public static int FindSequence(byte[] array, int start, byte[] sequence)
+        public static int FindSequence(byte[] source, int start, byte[] pattern)
         {
-            if (array == null || sequence == null)
-            {
+            if (source == null || source.Length == 0 || pattern == null || pattern.Length == 0)
                 return -1;
-            }
 
-            int end = array.Length - sequence.Length; // past here no match is possible
-            byte firstByte = sequence[0]; // cached to tell compiler there's no aliasing
+            if (pattern.Length > source.Length)
+                return -1;
+
+            if (start < 0 || start >= source.Length)
+                return -1;
+
+            int end = source.Length - pattern.Length;
+            byte firstByte = pattern[0];
 
             while (start <= end)
             {
-                // scan for first byte only. compiler-friendly.
-                if (array[start] == firstByte)
+                if (source[start] == firstByte)
                 {
-                    // scan for rest of sequence
-                    for (int offset = 1; ; ++offset)
+                    int offset;
+                    for (offset = 1; offset < pattern.Length; offset++)
                     {
-                        if (offset == sequence.Length)
-                        { // full sequence matched?
-                            return start;
-                        }
-                        else if (array[start + offset] != sequence[offset])
+                        if (source[start + offset] != pattern[offset])
                         {
                             break;
                         }
                     }
+
+                    if (offset == pattern.Length)
+                        return start;
                 }
-                ++start;
+
+                start++;
             }
 
-            // end of array reached without match
             return -1;
         }
+
 
         public static bool ArrayMembersEqual(float[] array1, float[] array2, int numElements)
         {
@@ -348,8 +364,9 @@ namespace ZenStates.Core
                     Console.WriteLine($"File not found: {filePath}");
                 }
                 return true;
-            } 
-            catch (Exception ex) {
+            }
+            catch (Exception ex)
+            {
                 return false;
             }
         }

@@ -8,7 +8,7 @@ namespace ZenStates.Core.SMUCommands
         internal CmdResult result;
         private bool disposedValue;
 
-        protected BaseSMUCommand(SMU smuInstance, int maxArgs = Constants.DEFAULT_MAILBOX_ARGS)
+        protected BaseSMUCommand(SMU smuInstance, uint maxArgs = Constants.DEFAULT_MAILBOX_ARGS)
         {
             if (smuInstance != null)
             {

@@ -1,16 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace ZenStates.Core
+﻿namespace ZenStates.Core
 {
     public class CpuInitSettings
     {
-        public static int DefaultAutorefreshIntervalMs = 1000;
+        public const int DefaultAutorefreshIntervalMs = 1000;
 
-        public static CpuInitSettings defaultSetttings = new CpuInitSettings();
-        public struct CpuInitModuleSettings {
-            public bool? Enabled { get; set; } 
+        public static readonly CpuInitSettings defaultSetttings = new CpuInitSettings();
+        public struct CpuInitModuleSettings
+        {
+            public bool? Enabled { get; set; }
             public bool? Autorefresh { get; set; }
             public int? AutorefreshInterval { get; set; }
         }
@@ -23,21 +20,26 @@ namespace ZenStates.Core
 
         public CpuInitSettings()
         {
-            IoModule = new CpuInitModuleSettings() {
+            IoModule = new CpuInitModuleSettings()
+            {
                 Enabled = true
             };
-            Timings = new CpuInitModuleSettings() {
+            Timings = new CpuInitModuleSettings()
+            {
                 Enabled = true,
                 Autorefresh = true,
                 AutorefreshInterval = DefaultAutorefreshIntervalMs
             };
-            Aod = new CpuInitModuleSettings() {
+            Aod = new CpuInitModuleSettings()
+            {
                 Enabled = true
             };
-            Wmi = new CpuInitModuleSettings() {
+            Wmi = new CpuInitModuleSettings()
+            {
                 Enabled = true
             };
-            Sensors = new CpuInitModuleSettings() {
+            Sensors = new CpuInitModuleSettings()
+            {
                 Enabled = true,
                 Autorefresh = true,
                 AutorefreshInterval = DefaultAutorefreshIntervalMs

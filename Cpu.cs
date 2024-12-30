@@ -1,5 +1,6 @@
 using OpenHardwareMonitor.Hardware;
 using System;
+using System.Globalization;
 using System.IO;
 using System.Reflection;
 using ZenStates.Core.DRAM;
@@ -19,6 +20,8 @@ namespace ZenStates.Core
         public enum Family
         {
             UNSUPPORTED = 0x0,
+            FAMILY_10H = 0x10,
+            FAMILY_12H = 0x12,
             FAMILY_15H = 0x15,
             FAMILY_17H = 0x17,
             FAMILY_18H = 0x18,
@@ -30,7 +33,10 @@ namespace ZenStates.Core
         {
             Unsupported = 0,
             DEBUG,
+            K10,
+            K12,
             BristolRidge,
+            Vishera,
             SummitRidge,
             Whitehaven,
             Naples,
@@ -155,6 +161,8 @@ namespace ZenStates.Core
          * Summit: 0x5D25C
          * Threadripper: 0x5D25C
          * Vermeer: 0x30081D98
+         * Raphael: 0x30081CD0
+         * GraniteRidge: 0x304A03DC
          */
 
         private CpuTopology GetCpuTopology(Family family, CodeName codeName, uint model)
@@ -221,12 +229,18 @@ namespace ZenStates.Core
                 fuse1 += 0x40; // 0x5D258
                 fuse2 += 0x40; // 0x5D25C
             }
+            else if (family == Family.FAMILY_1AH)
+            {
+                ccxPerCcd = 1;
+                fuse1 += 0x1A4;
+                fuse2 += 0x1A4;
+            }
 
             if (ReadDwordEx(fuse1, ref ccdsPresent) && ReadDwordEx(fuse2, ref ccdsDown))
             {
                 uint ccdEnableMap = Utils.BitSlice(ccdsPresent, 23, 22);
                 uint ccdDisableMap = Utils.BitSlice(ccdsPresent, 31, 30) | (Utils.BitSlice(ccdsDown, 5, 0) << 2);
-                uint coreDisableMapAddress = 0x30081800 + offset;
+                uint coreDisableMapAddress = family == Family.FAMILY_1AH ? 0x304A03DC : 0x30081800 + offset;
                 uint enabledCcd = Utils.CountSetBits(ccdEnableMap);
 
                 topology.ccds = enabledCcd > 0 ? enabledCcd : 1;
@@ -242,7 +256,8 @@ namespace ZenStates.Core
                 if (ReadDwordEx(coreDisableMapAddress, ref coreFuse))
                 {
                     var coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
-                    if (coresPerCcx > 0) {
+                    if (coresPerCcx > 0)
+                    {
                         topology.coresPerCcx = coresPerCcx;
                     }
                 }
@@ -275,6 +290,10 @@ namespace ZenStates.Core
         public Cpu(CpuInitSettings settings = null)
         {
             _settings = settings ?? CpuInitSettings.defaultSetttings;
+
+#if !NET20
+            CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+#endif
 
             Ring0.Open();
 
@@ -341,9 +360,15 @@ namespace ZenStates.Core
 
             try
             {
+                memoryConfig = new MemoryConfig(this);
+            }
+            catch { }
+
+            try
+            {
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
-                info.aod = new AOD(io, info.codeName);
+                info.aod = new AOD(io, this);
                 systemInfo = new SystemInfo(info, smu);
                 powerTable = new PowerTable(smu, io, mmio);
 
@@ -357,8 +382,6 @@ namespace ZenStates.Core
                 LastError = ex;
                 Status = IOModule.LibStatus.PARTIALLY_OK;
             }
-
-            memoryConfig = new MemoryConfig(this);
         }
 
         // [31-28] ccd index
@@ -366,10 +389,12 @@ namespace ZenStates.Core
         // [23-20] core index
         public uint MakeCoreMask(uint core = 0, uint ccd = 0, uint ccx = 0)
         {
-            uint ccxInCcd = info.family == Family.FAMILY_19H ? 1U : 2U;
-            uint coresInCcx = 8 / ccxInCcd;
+            if (info.family > Family.FAMILY_17H)
+            {
+                return (ccd << 28) | ((core % 8) << 20);
+            }
 
-            return ((ccd << 4 | ccx % ccxInCcd & 0xF) << 4 | core % coresInCcx & 0xF) << 20;
+            return (ccd << 28) | ((ccx % 2) << 24) | ((core % 4) << 20);
         }
 
         public bool ReadDwordEx(uint addr, ref uint data, int maxRetries = 10)
@@ -480,6 +505,7 @@ namespace ZenStates.Core
         public void WriteIoPort(uint port, byte value) => Ring0.WriteIoPort(port, value);
         public byte ReadIoPort(uint port) => Ring0.ReadIoPort(port);
         public bool ReadPciConfig(uint pciAddress, uint regAddress, ref uint value) => Ring0.ReadPciConfig(pciAddress, regAddress, out value);
+        public bool WritePciConfig(uint pciAddress, uint regAddress, uint value) => Ring0.WritePciConfig(pciAddress, regAddress, value);
         public uint GetPciAddress(byte bus, byte device, byte function) => Ring0.GetPciAddress(bus, device, function);
 
         // https://en.wikichip.org/wiki/amd/cpuid
@@ -487,12 +513,23 @@ namespace ZenStates.Core
         {
             CodeName codeName = CodeName.Unsupported;
 
-            if (cpuInfo.family == Family.FAMILY_15H)
+            if (cpuInfo.family == Family.FAMILY_10H)
+            {
+                codeName = CodeName.K10;
+            }
+            else if (cpuInfo.family == Family.FAMILY_12H)
+            {
+                codeName = CodeName.K12;
+            }
+            else if (cpuInfo.family == Family.FAMILY_15H)
             {
                 switch (cpuInfo.model)
                 {
                     case 0x65:
                         codeName = CodeName.BristolRidge;
+                        break;
+                    case 0x2:
+                        codeName = CodeName.Vishera;
                         break;
                 }
             }
@@ -556,6 +593,9 @@ namespace ZenStates.Core
                     case 0x98:
                         codeName = CodeName.Mero;
                         break;
+                    case 0xa0:
+                        codeName = CodeName.Mendocino;
+                        break;
 
                     default:
                         codeName = CodeName.Unsupported;
@@ -604,15 +644,14 @@ namespace ZenStates.Core
                     case 0x7C:
                         codeName = CodeName.HawkPoint;
                         break;
-                    case 0xa0:
-                        codeName = CodeName.Mendocino;
-                        break;
 
                     default:
                         codeName = CodeName.Unsupported;
                         break;
                 }
-            } else if (cpuInfo.family == Family.FAMILY_1AH) {
+            }
+            else if (cpuInfo.family == Family.FAMILY_1AH)
+            {
                 switch (cpuInfo.model)
                 {
                     case 0x10:
@@ -759,7 +798,7 @@ namespace ZenStates.Core
 
         public uint GetPatchLevel()
         {
-            if (Ring0.Rdmsr(0x8b, out uint eax, out uint edx))
+            if (Ring0.Rdmsr(0x8b, out uint eax, out _))
                 return eax;
 
             return 0;
@@ -777,7 +816,7 @@ namespace ZenStates.Core
                 return false;
             }
 
-            if (info.family == Family.FAMILY_15H)
+            if (info.family <= Family.FAMILY_15H)
             {
                 return false;
             }
@@ -801,6 +840,7 @@ namespace ZenStates.Core
         }
         public uint GetSmuVersion() => new SMUCommands.GetSmuVersion(smu).Execute().args[0];
         public double? GetBclk() => mmio.GetBclk();
+        public AMD_MMIO.ClkGen GetStrapStatus() => mmio.GetStrapStatus();
         public bool SetBclk(double blck) => mmio.SetBclk(blck);
         public SMU.Status TransferTableToDram() => new SMUCommands.TransferTableToDram(smu).Execute().status;
         public uint GetTableVersion() => new SMUCommands.GetTableVersion(smu).Execute().args[0];
@@ -816,17 +856,27 @@ namespace ZenStates.Core
         public SMU.Status SetEDCSOCLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetEDCSOCLimit, arg).status;
         public SMU.Status SetTDCVDDLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetTDCVDDLimit, arg).status;
         public SMU.Status SetTDCSOCLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetTDCSOCLimit, arg).status;
-        public SMU.Status SetOverclockCpuVid(byte arg) => new SMUCommands.SetOverclockCpuVid(smu).Execute(arg).status;
+        public SMU.Status SetOverclockCpuVid(uint arg) => new SMUCommands.SetOverclockCpuVid(smu).Execute(arg).status;
         public SMU.Status EnableOcMode() => new SMUCommands.SetOcMode(smu).Execute(true).status;
         public SMU.Status DisableOcMode() => new SMUCommands.SetOcMode(smu).Execute(false).status;
         public SMU.Status SetPBOScalar(uint scalar) => new SMUCommands.SetPBOScalar(smu).Execute(scalar).status;
         public SMU.Status RefreshPowerTable() => powerTable != null ? powerTable.Refresh() : SMU.Status.FAILED;
-        public int? GetPsmMarginSingleCore(uint coreMask)
+        public uint? GetPsmMarginSingleCore(uint coreMask)
         {
             SMUCommands.CmdResult result = new SMUCommands.GetPsmMarginSingleCore(smu).Execute(coreMask);
-            return result.Success ? (int)result.args[0] : (int?)null;
+            return result.Success ? (uint)result.args[0] : (uint?)null;
         }
-        public int? GetPsmMarginSingleCore(uint core, uint ccd, uint ccx) => GetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx));
+        public int GetCorePerformanceData(uint index)
+        {
+            SMUCommands.CmdResult result = new SMUCommands.GetCorePerformanceData(smu).Execute(index);
+            if (result.Success)
+            {
+                return (int)result.args[0];
+            }
+            return -1;
+        }
+
+        public uint? GetPsmMarginSingleCore(uint core, uint ccd, uint ccx) => GetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx));
         public bool SetPsmMarginAllCores(int margin) => new SMUCommands.SetPsmMarginAllCores(smu).Execute(margin).Success;
         public bool SetPsmMarginSingleCore(uint coreMask, int margin) => new SMUCommands.SetPsmMarginSingleCore(smu).Execute(coreMask, margin).Success;
         public bool SetPsmMarginSingleCore(uint core, uint ccd, uint ccx, int margin) => SetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx), margin);
@@ -856,6 +906,46 @@ namespace ZenStates.Core
 
             return ret;
         }
+
+        public uint GetFMax() => new SMUCommands.GetBoostLimitFrequency(smu).Execute().args[0];
+
+        public bool SetFMax(uint frequency) => new SMUCommands.SetBoostLimitAllCore(smu).Execute(frequency).Success;
+
+        public int GetCurrentHwVid()
+        {
+            uint data = 0;
+            uint address = 0;
+
+            if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU0 || smu.SMU_TYPE < SMU.SmuType.TYPE_CPU2)
+            {
+                address = 0x5A04C;
+            }
+            else if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU1 || smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
+            {
+                address = 0x6F05C;
+                if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
+                {
+                    if (ReadDwordEx(address, ref data))
+                        return (int)((data >> 6) & 0x1FF);
+                }
+            }
+            else if (smu.SMU_TYPE == SMU.SmuType.TYPE_CPU2 || smu.SMU_TYPE == SMU.SmuType.TYPE_CPU3)
+            {
+                address = (uint)(info.packageType == PackageType.AM4 ? 0x5A050 : 0x5A054);
+            }
+            else if (info.family > Family.FAMILY_17H)
+            {
+                address = 0x73014;
+                if (ReadDwordEx(address, ref data))
+                    return (int)((data >> 6) & 0x1FF);
+            }
+
+            if (address != 0 && ReadDwordEx(address, ref data))
+                return (int)(data >> 24);
+
+            return -1;
+        }
+
         public bool IsProchotEnabled()
         {
             uint data = ReadDword(0x59804);
@@ -896,8 +986,9 @@ namespace ZenStates.Core
         public float? GetSingleCcdTemperature(uint ccd)
         {
             uint thmData = 0;
+            uint register = this.info.family >= Family.FAMILY_19H ? Constants.F19H_CCD_TEMP : Constants.F17H_CCD_TEMP;
 
-            if (ReadDwordEx(Constants.F17H_M70H_CCD_TEMP + (ccd * 0x4), ref thmData))
+            if (ReadDwordEx(register + (ccd * 0x4), ref thmData))
             {
                 float ccdTemp = (thmData & 0xfff) * 0.125f - 305.0f;
                 if (ccdTemp > 0 && ccdTemp < 125) // Zen 2 reports 95 degrees C max, but it might exceed that.
