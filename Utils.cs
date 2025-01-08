@@ -141,6 +141,9 @@ namespace ZenStates.Core
 
         public static T ByteArrayToStructure<T>(byte[] byteArray) where T : new()
         {
+            if (byteArray == null)
+                return default;
+
             T structure;
             GCHandle handle = GCHandle.Alloc(byteArray, GCHandleType.Pinned);
             try
