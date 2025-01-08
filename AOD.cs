@@ -350,6 +350,10 @@ namespace ZenStates.Core
                 ManagementBaseObject pack;
 
                 string instanceName = WMI.GetInstanceName(wmiScope, wmiAMDACPI);
+
+                if (String.IsNullOrEmpty(instanceName))
+                    return dict;
+
                 ManagementObject classInstance = new ManagementObject(wmiScope,
                     $"{wmiAMDACPI}.InstanceName='{instanceName}'",
                     null);
