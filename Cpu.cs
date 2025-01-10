@@ -23,6 +23,7 @@ namespace ZenStates.Core
             FAMILY_10H = 0x10,
             FAMILY_12H = 0x12,
             FAMILY_15H = 0x15,
+            FAMILY_16H = 0x16,
             FAMILY_17H = 0x17,
             FAMILY_18H = 0x18,
             FAMILY_19H = 0x19,
@@ -35,6 +36,7 @@ namespace ZenStates.Core
             DEBUG,
             K10,
             K12,
+            K16,
             BristolRidge,
             Vishera,
             SummitRidge,
@@ -532,6 +534,10 @@ namespace ZenStates.Core
                         codeName = CodeName.Vishera;
                         break;
                 }
+            }
+            else if (cpuInfo.family == Family.FAMILY_16H)
+            {
+                codeName = CodeName.K16;
             }
             else if (cpuInfo.family == Family.FAMILY_17H)
             {

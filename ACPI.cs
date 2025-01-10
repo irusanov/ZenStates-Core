@@ -248,6 +248,10 @@ namespace ZenStates.Core
             RSDP rsdp = GetRsdp();
             SDTHeader rsdtHeader = GetHeader<SDTHeader>(rsdp.RsdtAddress > 0 ? rsdp.RsdtAddress : rsdp.XsdtAddress);
             byte[] rawTable = io.ReadMemory(new IntPtr(rsdp.RsdtAddress > 0 ? rsdp.RsdtAddress : (long)rsdp.XsdtAddress), (int)rsdtHeader.Length);
+
+            if (rawTable == null)
+                return new RSDT();
+
             GCHandle handle = GCHandle.Alloc(rawTable, GCHandleType.Pinned);
             try
             {
