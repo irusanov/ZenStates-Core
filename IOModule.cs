@@ -41,17 +41,24 @@ namespace ZenStates.Core
 
         public byte[] ReadMemory(IntPtr baseAddress, int size)
         {
-            if (MapPhysToLin != null && UnmapPhysicalMemory != null)
+            try
             {
-                IntPtr pdwLinAddr = MapPhysToLin(baseAddress, (uint)size, out IntPtr pPhysicalMemoryHandle);
-                if (pdwLinAddr != IntPtr.Zero)
+                if (MapPhysToLin != null && UnmapPhysicalMemory != null)
                 {
-                    byte[] bytes = new byte[size];
-                    Marshal.Copy(pdwLinAddr, bytes, 0, bytes.Length);
-                    UnmapPhysicalMemory(pPhysicalMemoryHandle, pdwLinAddr);
+                    IntPtr pdwLinAddr = MapPhysToLin(baseAddress, (uint)size, out IntPtr pPhysicalMemoryHandle);
+                    if (pdwLinAddr != IntPtr.Zero)
+                    {
+                        byte[] bytes = new byte[size];
+                        Marshal.Copy(pdwLinAddr, bytes, 0, bytes.Length);
+                        UnmapPhysicalMemory(pPhysicalMemoryHandle, pdwLinAddr);
 
-                    return bytes;
+                        return bytes;
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error reading memory: {ex.Message}");
             }
 
             return null;

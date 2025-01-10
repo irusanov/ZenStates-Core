@@ -318,12 +318,13 @@ namespace ZenStates.Core
                 case Cpu.CodeName.GraniteRidge:
                     var memModule = cpuInstance.GetMemoryConfig()?.Modules[0];
                     var isMDie = memModule?.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
+                    var isDR = memModule?.Rank == DRAM.MemRank.DR;
 
                     if (patchLevel > 0xB404022)
                     {
                         if (isMDie && hasRMP)
                             return AodDictionaries.AodDataDictionary_1Ah_B404023;
-                        if (isMDie)
+                        if (isMDie || isDR)
                             return AodDictionaries.AodDataDictionary_1Ah_B404023_M;
 
                         return AodDictionaries.AodDataDictionary_1Ah_B404023;
@@ -349,6 +350,10 @@ namespace ZenStates.Core
                 ManagementBaseObject pack;
 
                 string instanceName = WMI.GetInstanceName(wmiScope, wmiAMDACPI);
+
+                if (String.IsNullOrEmpty(instanceName))
+                    return dict;
+
                 ManagementObject classInstance = new ManagementObject(wmiScope,
                     $"{wmiAMDACPI}.InstanceName='{instanceName}'",
                     null);
