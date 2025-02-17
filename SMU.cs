@@ -404,6 +404,7 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_TransferTableToDram = 0x3;
             Rsmu.SMU_MSG_GetDramBaseAddress = 0x4;
             Rsmu.SMU_MSG_GetTableVersion = 0x5;
+            Rsmu.SMU_MSG_GetEXPOProfileActive = 0x35;
             Rsmu.SMU_MSG_EnableOcMode = 0x5D;
             Rsmu.SMU_MSG_DisableOcMode = 0x5E;
             Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x5F;
@@ -575,6 +576,7 @@ namespace ZenStates.Core
             Rsmu.SMU_MSG_GetDldoPsmMargin = 0x2F;
             Rsmu.SMU_MSG_SetGpuPsmMargin = 0xB7;
             Rsmu.SMU_MSG_GetGpuPsmMargin = 0x30;
+            Rsmu.SMU_MSG_GetEXPOProfileActive = 0xD2;
 
             // MP1
             // https://github.com/FlyGoat/RyzenAdj/blob/master/lib/nb_smu_ops.h#L45
@@ -584,6 +586,14 @@ namespace ZenStates.Core
 
             Mp1Smu.SMU_MSG_SetDldoPsmMargin = 0x4B;
             Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0x4C;
+        }
+    }
+
+    public class APUSettings1_Phoenix : APUSettings1_Rembrandt
+    {
+        public APUSettings1_Phoenix()
+        {
+            Rsmu.SMU_MSG_GetEXPOProfileActive = 0xDB;
         }
     }
 
@@ -647,12 +657,12 @@ namespace ZenStates.Core
             // Still unknown. The MP1 addresses are the same as on Rembrand according to coreboot
             // https://github.com/coreboot/coreboot/blob/master/src/soc/amd/mendocino/include/soc/smu.h
             // https://github.com/coreboot/coreboot/blob/master/src/soc/amd/phoenix/include/soc/smu.h
-            { Cpu.CodeName.Phoenix, new APUSettings1_Rembrandt() },
-            { Cpu.CodeName.Phoenix2, new APUSettings1_Rembrandt() },
-            { Cpu.CodeName.HawkPoint, new APUSettings1_Rembrandt() },
-            { Cpu.CodeName.Mendocino, new APUSettings1_Rembrandt() },
-            { Cpu.CodeName.StrixPoint, new APUSettings1_Rembrandt() },
-            { Cpu.CodeName.StrixHalo, new APUSettings1_Rembrandt() },
+            { Cpu.CodeName.Phoenix, new APUSettings1_Phoenix() },
+            { Cpu.CodeName.Phoenix2, new APUSettings1_Phoenix() },
+            { Cpu.CodeName.HawkPoint, new APUSettings1_Phoenix() },
+            { Cpu.CodeName.Mendocino, new APUSettings1_Phoenix() },
+            { Cpu.CodeName.StrixPoint, new APUSettings1_Phoenix() },
+            { Cpu.CodeName.StrixHalo, new APUSettings1_Phoenix() },
 
             { Cpu.CodeName.Unsupported, new UnsupportedSettings() },
         };

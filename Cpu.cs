@@ -857,6 +857,13 @@ namespace ZenStates.Core
             return (long)result.args[1] << 32 | result.args[0];
         }
         public bool GetLN2Mode() => new SMUCommands.GetLN2Mode(smu).Execute().args[0] == 1;
+
+        public bool IsEXPOProfileActive()
+        {
+            var cmd = new SMUCommands.GetEXPOProfileActive(smu);
+            cmd.Execute();
+            return cmd.IsEXPOProfileActive;
+        }
         public SMU.Status SetPPTLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetPPTLimit, arg).status;
         public SMU.Status SetEDCVDDLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetEDCVDDLimit, arg).status;
         public SMU.Status SetEDCSOCLimit(uint arg = 0U) => new SMUCommands.SetSmuLimit(smu).Execute(smu.Rsmu.SMU_MSG_SetEDCSOCLimit, arg).status;
