@@ -5,7 +5,7 @@
     <AssemblyTitle>ZenStates.Core</AssemblyTitle>
     <Company>irusanov</Company>
     <Product>ZenStates.Core</Product>
-    <Copyright>Copyright © 2024</Copyright>
+    <Copyright>Copyright © 2025</Copyright>
     <AssemblyVersion>1.75.0</AssemblyVersion>
     <FileVersion>1.75.0</FileVersion>
     <OutputPath>bin\$(Configuration)\</OutputPath>
