@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Management;
+using System.Text;
 using static ZenStates.Core.ACPI;
 
 namespace ZenStates.Core
@@ -11,7 +12,7 @@ namespace ZenStates.Core
     {
         internal readonly IOModule io;
         internal readonly Cpu cpuInstance;
-        internal readonly ACPI acpi;
+        public readonly ACPI acpi;
         internal readonly Cpu.CodeName codeName;
         internal readonly uint patchLevel;
         internal readonly bool hasRMP;
@@ -109,6 +110,7 @@ namespace ZenStates.Core
             public ACPITable? AcpiTable;
             public AodData Data;
             public byte[] RawAodTable;
+            public Dictionary<string, string> AcpiNames;
 
             public AodTable()
             {
@@ -283,7 +285,7 @@ namespace ZenStates.Core
         {
             this.Table.AcpiTable = GetAcpiTable();
 
-            if (this.Table?.AcpiTable?.Data != null)
+            if (this.Table?.AcpiTable.Value.Data != null)
             {
                 int regionIndex = GetAodRegionIndex(this.Table.AcpiTable.Value.Data);
                 if (regionIndex == -1)
@@ -316,6 +318,35 @@ namespace ZenStates.Core
                 case Cpu.CodeName.HawkPoint:
                     return AodDictionaries.AodDataDictionaryV4;
                 case Cpu.CodeName.GraniteRidge:
+                    var index = Utils.FindSequence(this.Table.RawAodTable, 0, new byte[] { 0xff, 0, 0, 0 });
+                    var tableStart = index + 36;
+
+                    if (index > -1)
+                    {
+                        if (patchLevel > 0xB404022)
+                        {
+                            return new Dictionary<string, int>(AodDictionaries.AodDataDictionary_1Ah_B404023)
+                            {
+                                ["ProcOdt"] = tableStart,
+                                ["ProcOdtPullUp"] = tableStart,
+                                ["ProcOdtPullDown"] = tableStart + 4,
+                                ["DramDataDrvStren"] = tableStart + 8,
+                                ["ProcDataDrvStren"] = tableStart + 24
+                            };
+                        }
+                        else
+                        {
+                            return new Dictionary<string, int>(AodDictionaries.AodDataDictionary_1Ah)
+                            {
+                                ["ProcOdt"] = tableStart,
+                                ["ProcOdtPullUp"] = tableStart,
+                                ["ProcOdtPullDown"] = tableStart + 4,
+                                ["DramDataDrvStren"] = tableStart + 8,
+                            };
+                        }
+                    }
+
+                    // Fallback to old code
                     var memModule = cpuInstance.GetMemoryConfig()?.Modules[0];
                     var isMDie = memModule?.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
                     var isDR = memModule?.Rank == DRAM.MemRank.DR;
@@ -324,7 +355,7 @@ namespace ZenStates.Core
                     {
                         if (isMDie && hasRMP)
                             return AodDictionaries.AodDataDictionary_1Ah_B404023;
-                        if (isMDie || isDR)
+                        if (isMDie)
                             return AodDictionaries.AodDataDictionary_1Ah_B404023_M;
 
                         return AodDictionaries.AodDataDictionary_1Ah_B404023;
@@ -404,11 +435,39 @@ namespace ZenStates.Core
                 // this.Table.Data = Utils.ByteArrayToStructure<AodData>(this.Table.rawAodTable);
                 // int test = Utils.FindSequence(rawTable, 0, BitConverter.GetBytes(0x3ae));
                 this.Table.Data = AodData.CreateFromByteArray(this.Table.RawAodTable, GetAodDataDictionary(this.codeName, this.patchLevel));
+                if (this.Table?.AcpiTable != null)
+                    this.Table.AcpiNames = GetAcpiNames(this.Table.AcpiTable.Value.Data);
                 return true;
             }
-            catch { }
+            catch (Exception ex) 
+            {
+                Console.WriteLine($"Error refreshing AOD data: {ex.Message}");
+            }
 
             return false;
+        }
+
+        private static Dictionary<string, string>GetAcpiNames(byte[] table)
+        {
+            // ACPI AML Opcode for "Name"
+            const byte AML_NAME_OP = 0x08;
+            Dictionary<string, string> list = new Dictionary<string, string>();
+
+            if (table == null)
+                return list;
+
+            for (int i = 0; i < table.Length; i++)
+            {
+                // Check for the Name opcode
+                if (table[i] == AML_NAME_OP)
+                {
+                    // Parse the NameString (4 ASCII characters)
+                    string name = Encoding.ASCII.GetString(table, i + 1, 4);
+                    byte value = table[i + 5];
+                    list.Add(name, value.ToString());
+                }
+            }
+            return list;
         }
     }
 }
