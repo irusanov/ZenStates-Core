@@ -371,7 +371,7 @@ namespace ZenStates.Core
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
                 info.aod = new AOD(io, this);
-                systemInfo = new SystemInfo(info, smu);
+                systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
                 powerTable = new PowerTable(smu, io, mmio);
 
                 if (!SendTestMessage())
@@ -421,22 +421,7 @@ namespace ZenStates.Core
 
         public bool ReadDword(uint addr, ref uint data, int maxRetries = 10)
         {
-            for (int retry = 0; retry < maxRetries; retry++)
-            {
-                if (Ring0.WaitPciBusMutex(10))
-                {
-                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) &&
-                        Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, out data))
-                    {
-                        Ring0.ReleasePciBusMutex();
-                        return true;
-                    }
-
-                    Ring0.ReleasePciBusMutex();
-                }
-            }
-
-            return false;
+            return ReadDwordEx(addr, ref data, maxRetries);
         }
 
         public uint ReadDword(uint addr, int maxRetries = 10)
@@ -1012,6 +997,42 @@ namespace ZenStates.Core
             return null;
         }
 
+        // TODO: move to ACPI?
+        private string GetAgesaVersion()
+        {
+            string agesaVersion = "";
+            try
+            {
+                //byte[] bytes = io.ReadMemory(new IntPtr(ACPI.RSDP_REGION_BASE_ADDRESS), ACPI.RSDP_REGION_LENGTH);
+                //byte[] pattern = new byte[] { 0x41, 0x47, 0x45, 0x53, 0x41, 0x21, 0x56, 0x39 };
+
+                var data = io.ReadMemory(new IntPtr(0xE0000), (int)(0xFFFFF - 0xE0000));
+                byte[] testSequence = System.Text.Encoding.ASCII.GetBytes("AGESA!V9");
+                int targetOffset = Utils.FindSequence(data, 0, testSequence);
+
+                if (targetOffset != -1)
+                {
+                    Console.WriteLine($"Found target sequence at offset 0x{targetOffset:X}");
+                    // Find the end of the string (null-terminated sequence)
+                    int endPos = Utils.FindSequence(data, targetOffset, new byte[] { 0x00, 0x00, 0x00, 0x00 });
+                    if (endPos > targetOffset)
+                    {
+                        agesaVersion = System.Text.Encoding.ASCII.GetString(data, targetOffset, endPos - targetOffset).Trim();
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("Target sequence not found.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Could not find AGESA version: {ex.Message}");
+            }
+
+            return agesaVersion;
+        }
+
         public MemoryConfig GetMemoryConfig() => memoryConfig;
 
         protected virtual void Dispose(bool disposing)
@@ -1028,7 +1049,6 @@ namespace ZenStates.Core
                 disposedValue = true;
             }
         }
-
         public void Dispose()
         {
             // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
