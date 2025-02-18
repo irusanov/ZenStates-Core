@@ -42,11 +42,19 @@ namespace ZenStates.Core
         public ProcOdt ProcOdt { get; set; }
         public ProcOdt ProcOdtPullUp { get; set; }
         public ProcOdt ProcOdtPullDown { get; set; }
+        // Phoenix
         public ProcOdtImpedance ProcCaOdt { get; set; }
         public ProcOdtImpedance ProcCkOdt { get; set; }
         public ProcOdtImpedance ProcDqOdt { get; set; }
         public ProcOdtImpedance ProcDqsOdt { get; set; }
+        // Phoenix: END
+        public ProcOdtImpedance ProcCsDs { get; set; }
+        public ProcOdtImpedance ProcCkDs { get; set; }
+        public ProcDataDrvStren ProcDqDsPullUp { get; set; }
+        public ProcDataDrvStren ProcDqDsPullDown { get; set; }
         public DramDataDrvStren DramDataDrvStren { get; set; }
+        public DramDataDrvStren DramDqDsPullUp { get; set; }
+        public DramDataDrvStren DramDqDsPullDown { get; set; }
         public Rtt RttNomWr { get; set; }
         public Rtt RttNomRd { get; set; }
         public Rtt RttWr { get; set; }

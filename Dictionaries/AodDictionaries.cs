@@ -297,6 +297,7 @@ namespace ZenStates.Core
             { "TwrwrDd", 9016 },
             { "Twrrd", 9020 },
             { "Trdwr", 9024 },
+            // ProcCaDrvStren
             { "CadBusDrvStren", 9028 },
         };
 
@@ -338,7 +339,13 @@ namespace ZenStates.Core
             { "ProcOdtPullUp", 9172 },
             { "ProcOdtPullDown", 9176 },
             { "DramDataDrvStren", 9180 },
+            { "DramDqDsPullUp", 9180 },
+            { "DramDqDsPullDown", 9184 },
+            { "ProcCsDs", 9188 },
+            { "ProcCkDs", 9192 },
             { "ProcDataDrvStren", 9196 },
+            { "ProcDqDsPullUp", 9196 },
+            { "ProcDqDsPullDown", 9200 },
         };
 
         // M-Die 24GB SR sticks
@@ -380,7 +387,14 @@ namespace ZenStates.Core
             { "ProcOdtPullUp", 9160 },
             { "ProcOdtPullDown", 9164 },
             { "DramDataDrvStren", 9168 },
-            { "ProcDataDrvStren", 9176 }
+
+            { "DramDqDsPullUp", 9168 },
+            { "DramDqDsPullDown", 9168 },
+            { "ProcCsDs", 9172 },
+            { "ProcCkDs", 9176 },
+            { "ProcDataDrvStren", 9180 },
+            { "ProcDqDsPullUp", 9184 },
+            { "ProcDqDsPullDown", 9188 },
         };
     }
 }

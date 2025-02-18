@@ -331,7 +331,13 @@ namespace ZenStates.Core
                                 ["ProcOdtPullUp"] = tableStart,
                                 ["ProcOdtPullDown"] = tableStart + 4,
                                 ["DramDataDrvStren"] = tableStart + 8,
-                                ["ProcDataDrvStren"] = tableStart + 24
+                                ["DramDqDsPullUp"] = tableStart + 8,
+                                ["DramDqDsPullDown"] = tableStart + 12,
+                                ["ProcCsDs"] = tableStart + 16,
+                                ["ProcCkDs"] = tableStart + 20,
+                                ["ProcDataDrvStren"] = tableStart + 24,
+                                ["ProcDqDsPullUp"] = tableStart + 24,
+                                ["ProcDqDsPullDown"] = tableStart + 28,
                             };
                         }
                         else
