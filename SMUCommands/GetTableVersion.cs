@@ -2,6 +2,9 @@
 {
     internal class GetTableVersion : BaseSMUCommand
     {
+        public uint TableVersion => result.args[0];
+        public uint TableSize => result.args[1];
+
         public GetTableVersion(SMU smu) : base(smu) { }
         public override CmdResult Execute()
         {

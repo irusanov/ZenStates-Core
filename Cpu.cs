@@ -342,7 +342,8 @@ namespace ZenStates.Core
                 smu = GetMaintainedSettings.GetByType(info.codeName);
                 smu.Hsmp.Init(this);
                 smu.Version = GetSmuVersion();
-                smu.TableVersion = GetTableVersion();
+                var tableVersionResult = GetTableVersion();
+                smu.TableVersion = tableVersionResult.TableVersion;
             }
             else
             {
@@ -834,7 +835,19 @@ namespace ZenStates.Core
         public AMD_MMIO.ClkGen GetStrapStatus() => mmio.GetStrapStatus();
         public bool SetBclk(double blck) => mmio.SetBclk(blck);
         public SMU.Status TransferTableToDram() => new SMUCommands.TransferTableToDram(smu).Execute().status;
-        public uint GetTableVersion() => new SMUCommands.GetTableVersion(smu).Execute().args[0];
+
+        public struct TableVersionResult
+        {
+            public uint TableVersion;
+            public uint TableSize;
+        }
+
+        public TableVersionResult GetTableVersion()
+        {
+            var cmd = new SMUCommands.GetTableVersion(smu);
+            cmd.Execute();
+            return new TableVersionResult { TableVersion = cmd.TableVersion, TableSize = cmd.TableSize };
+        }
         public uint GetDramBaseAddress() => new SMUCommands.GetDramAddress(smu).Execute().args[0];
         public long GetDramBaseAddress64()
         {
