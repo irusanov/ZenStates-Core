@@ -3,6 +3,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
+using System.Text;
 using ZenStates.Core.DRAM;
 
 namespace ZenStates.Core
@@ -1025,12 +1026,13 @@ namespace ZenStates.Core
 
                 if (targetOffset != -1)
                 {
+                    targetOffset += testSequence.Length;
                     Console.WriteLine($"Found target sequence at offset 0x{targetOffset:X}");
                     // Find the end of the string (null-terminated sequence)
-                    int endPos = Utils.FindSequence(data, targetOffset, new byte[] { 0x00, 0x00, 0x00, 0x00 });
+                    int endPos = Utils.FindSequence(data, targetOffset, new byte[] { 0x00, 0x00 });
                     if (endPos > targetOffset)
                     {
-                        agesaVersion = System.Text.Encoding.ASCII.GetString(data, targetOffset, endPos - targetOffset).Trim();
+                        agesaVersion = Encoding.ASCII.GetString(data, targetOffset, endPos - targetOffset).Trim('\0').Trim();
                     }
                 }
                 else
