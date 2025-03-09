@@ -122,6 +122,7 @@ namespace ZenStates.Core.DRAM
         public uint TRCPAGE { get; internal set; }
         public uint CKE { get; internal set; }
         public uint STAG { get; internal set; }
+        public uint STAGsb { get; internal set; }
         public uint MOD { get; internal set; }
         public uint MODPDA { get; internal set; }
         public uint MRD { get; internal set; }
@@ -133,6 +134,8 @@ namespace ZenStates.Core.DRAM
         public uint PHYWRD { get; internal set; }
         public uint PHYWRL { get; internal set; }
         public uint PHYRDL { get; internal set; }
+        public uint WRPRE { get; internal set; }
+        public uint RDPRE { get; internal set; }
         public float RFCns { get => Utils.ToNanoseconds(RFC, Frequency); }
         public float REFIns { get => Utils.ToNanoseconds(REFI, Frequency); }
 

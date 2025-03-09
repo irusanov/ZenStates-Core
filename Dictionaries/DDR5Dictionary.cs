@@ -85,6 +85,7 @@ namespace ZenStates.Core
             }},
             { 0x50250, new[] {
                 new TimingDef { Name = "STAG",      HiBit = 26  ,   LoBit = 16  },
+                new TimingDef { Name = "STAGsb",    HiBit = 8   ,   LoBit = 0  },
             }},
             { 0x50254, new[] {
                 new TimingDef { Name = "CKE",       HiBit = 28  ,   LoBit = 24  },
@@ -94,6 +95,10 @@ namespace ZenStates.Core
                 new TimingDef { Name = "PHYWRD",    HiBit = 26  ,   LoBit = 24  },
                 new TimingDef { Name = "PHYRDL",    HiBit = 23  ,   LoBit = 16  },
                 new TimingDef { Name = "PHYWRL",    HiBit = 15  ,   LoBit = 8   },
+            }},
+            { 0x502A4, new[] {
+                new TimingDef { Name = "WRPRE",     HiBit = 10  ,   LoBit = 8   },
+                new TimingDef { Name = "RDPRE",     HiBit = 2   ,   LoBit = 0   },
             }},
             /*
             { 0x50284, new[] {
