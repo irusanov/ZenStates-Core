@@ -369,7 +369,7 @@ namespace ZenStates.Core
 
                     if (isMDie && hasRMP)
                         return AodDictionaries.AodDataDictionary_1Ah_M;
-                    
+
                     return AodDictionaries.AodDataDictionary_1Ah;
                 default:
                     return AodDictionaries.AodDataDictionaryV1;
@@ -441,11 +441,11 @@ namespace ZenStates.Core
                 // this.Table.Data = Utils.ByteArrayToStructure<AodData>(this.Table.rawAodTable);
                 // int test = Utils.FindSequence(rawTable, 0, BitConverter.GetBytes(0x3ae));
                 this.Table.Data = AodData.CreateFromByteArray(this.Table.RawAodTable, GetAodDataDictionary(this.codeName, this.patchLevel));
-                if (this.Table?.AcpiTable != null)
-                    this.Table.AcpiNames = GetAcpiNames(this.Table.AcpiTable.Value.Data);
+                //if (this.Table?.AcpiTable != null)
+                //    this.Table.AcpiNames = GetAcpiNames(this.Table.AcpiTable.Value.Data);
                 return true;
             }
-            catch (Exception ex) 
+            catch (Exception ex)
             {
                 Console.WriteLine($"Error refreshing AOD data: {ex.Message}");
             }
@@ -453,7 +453,7 @@ namespace ZenStates.Core
             return false;
         }
 
-        private static Dictionary<string, string>GetAcpiNames(byte[] table)
+        private static Dictionary<string, string> GetAcpiNames(byte[] table)
         {
             // ACPI AML Opcode for "Name"
             const byte AML_NAME_OP = 0x08;

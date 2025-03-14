@@ -1,6 +1,4 @@
-﻿using static ZenStates.Core.DRAM.MemoryConfig;
-
-namespace ZenStates.Core.DRAM
+﻿namespace ZenStates.Core.DRAM
 {
     public interface IDramTimings
     {

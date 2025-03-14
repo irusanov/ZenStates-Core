@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace ZenStates.Core.SMUCommands
+﻿namespace ZenStates.Core.SMUCommands
 {
     internal class GetEXPOProfileActive : BaseSMUCommand
     {
