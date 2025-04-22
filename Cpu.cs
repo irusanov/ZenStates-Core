@@ -455,11 +455,64 @@ namespace ZenStates.Core
 
         public double GetCoreMulti(int index = 0)
         {
-            if (!Ring0.RdmsrTx(0xC0010293, out uint eax, out uint edx, GroupAffinity.Single(0, index)))
-                return 0;
+            HwPstateStatus status = GetHwPstateStatus(index);
 
-            double multi = 25 * (eax & 0xFF) / (12.5 * (eax >> 8 & 0x3F));
-            return Math.Round(multi * 4, MidpointRounding.ToEven) / 4;
+            if (info.family < Family.FAMILY_1AH)
+            {
+                double fid = status.CurCpuFid;
+                double dfs = status.CurCpuDfsId;
+
+                if (dfs == 0) return 0;
+
+                double multi = 25 * fid / (12.5 * dfs);
+                return Math.Round(multi * 4, MidpointRounding.ToEven) / 4;
+            }
+
+            return Utils.BitSlice(status.Value, 11, 0) * 5;
+        }
+
+        public struct HwPstateStatus
+        {
+            private uint _value;
+
+            public uint Value
+            {
+                get { return _value; }
+                set { _value = value; }
+            }
+
+            public byte CurCpuFid
+            {
+                get { return (byte)Utils.BitSlice(_value, 7, 0); }
+                set { _value = Utils.SetBits(_value, 0, 8, value); }
+            }
+
+            public byte CurCpuDfsId
+            {
+                get { return (byte)Utils.BitSlice(_value, 13, 8); }
+                set { _value = Utils.SetBits(_value, 8, 6, value); }
+            }
+
+            public byte CurCpuVid
+            {
+                get { return (byte)Utils.BitSlice(_value, 21, 14); }
+                set { _value = Utils.SetBits(_value, 14, 8, value); }
+            }
+
+            public byte CurHwPstate
+            {
+                get { return (byte)Utils.BitSlice(_value, 24, 22); }
+                set { _value = Utils.SetBits(_value, 22, 3, value); }
+            }
+        }
+
+        public HwPstateStatus GetHwPstateStatus(int index = 0)
+        {
+            if (Ring0.RdmsrTx(Constants.MSR_HW_PSTATE_STATUS, out uint eax, out uint edx, GroupAffinity.Single(0, index)))
+            {
+                return new HwPstateStatus { Value = eax };
+            }
+            return new HwPstateStatus();
         }
 
         public bool Cpuid(uint index, ref uint eax, ref uint ebx, ref uint ecx, ref uint edx)
