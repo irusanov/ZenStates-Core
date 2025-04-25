@@ -3,6 +3,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using ZenStates.Core.DRAM;
 
@@ -21,6 +22,7 @@ namespace ZenStates.Core
         public enum Family
         {
             UNSUPPORTED = 0x0,
+            FAMILY_0FH = 0x0F,
             FAMILY_10H = 0x10,
             FAMILY_12H = 0x12,
             FAMILY_15H = 0x15,
@@ -35,6 +37,7 @@ namespace ZenStates.Core
         {
             Unsupported = 0,
             DEBUG,
+            K8,
             K10,
             K12,
             K16,
@@ -74,7 +77,9 @@ namespace ZenStates.Core
             KrackanPoint,
             StrixHalo,
             Turin,
+            TurinD,
             Bergamo,
+            ShimadaPeak,
         };
 
 
@@ -555,7 +560,11 @@ namespace ZenStates.Core
         {
             CodeName codeName = CodeName.Unsupported;
 
-            if (cpuInfo.family == Family.FAMILY_10H)
+            if (cpuInfo.family == Family.FAMILY_0FH)
+            {
+                codeName = CodeName.K8;
+            }
+            else if (cpuInfo.family == Family.FAMILY_10H)
             {
                 codeName = CodeName.K10;
             }
@@ -700,8 +709,15 @@ namespace ZenStates.Core
             {
                 switch (cpuInfo.model)
                 {
-                    case 0x10:
+                    case 0x2:
                         codeName = CodeName.Turin;
+                        break;
+                    // https://github.com/InstLatx64/InstLatx64/commit/9e87330a805eb78a8c74f0b63fa767c0571c9e8b
+                    case 0x8:
+                        codeName = CodeName.ShimadaPeak;
+                        break;
+                    case 0x11:
+                        codeName = CodeName.TurinD;
                         break;
                     case 0x20:
                         codeName = CodeName.StrixPoint;

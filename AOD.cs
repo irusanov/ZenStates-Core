@@ -318,6 +318,9 @@ namespace ZenStates.Core
                 case Cpu.CodeName.HawkPoint:
                     return AodDictionaries.AodDataDictionaryV4;
                 case Cpu.CodeName.GraniteRidge:
+                case Cpu.CodeName.Turin:
+                case Cpu.CodeName.TurinD:
+                case Cpu.CodeName.ShimadaPeak:
                     var index = Utils.FindSequence(this.Table.RawAodTable, 0, new byte[] { 0xff, 0, 0, 0 });
                     var tableStart = index + 36;
 

@@ -639,7 +639,10 @@ namespace ZenStates.Core
             // Zen5
             { Cpu.CodeName.GraniteRidge, new Zen5Settings() },
             { Cpu.CodeName.Bergamo, new Zen5Settings() },
+            // Experimental
             { Cpu.CodeName.Turin, new Zen5Settings() },
+            { Cpu.CodeName.TurinD, new Zen5Settings() },
+            { Cpu.CodeName.ShimadaPeak, new Zen5Settings() },
 
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },
