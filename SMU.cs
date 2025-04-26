@@ -1,6 +1,7 @@
 using OpenHardwareMonitor.Hardware;
 using System;
 using System.Collections.Generic;
+using ZenStates.Core.SMUSettings;
 
 namespace ZenStates.Core
 {
@@ -35,10 +36,32 @@ namespace ZenStates.Core
             FAILED = 0xFF,
             UNKNOWN_CMD = 0xFE,
             CMD_REJECTED_PREREQ = 0xFD,
-            CMD_REJECTED_BUSY = 0xFC
+            CMD_REJECTED_BUSY = 0xFC,
+            // custom status codes
+            TIMEOUT_MUTEX_LOCK = 0x30,
+            TIMEOUT_MAILBOX_READY = 0x31,
+            TIMEOUT_MAILBOX_MSG_WRITE = 0x32,
         }
 
-        protected internal SMU()
+        public uint Version { get; set; }
+        public uint TableVersion { get; set; }
+        //public bool ManualOverclockSupported { get; protected set; }
+        public SmuType SMU_TYPE { get; protected set; }
+        public uint SMU_PCI_ADDR { get; protected set; }
+        public uint SMU_OFFSET_ADDR { get; protected set; }
+        public uint SMU_OFFSET_DATA { get; protected set; }
+
+        // SMU has different mailboxes, each with its own registers and command IDs
+        public RSMUMailbox Rsmu { get; protected set; }
+        public MP1Mailbox Mp1Smu { get; protected set; }
+        public HSMPMailbox Hsmp { get; protected set; }
+
+        protected SMU()
+        {
+            Initialize();
+        }
+
+        private void Initialize()
         {
             Version = 0;
             // SMU
@@ -54,22 +77,6 @@ namespace ZenStates.Core
             Mp1Smu = new MP1Mailbox();
             Hsmp = new HSMPMailbox();
         }
-
-        public uint Version { get; set; }
-
-        public uint TableVersion { get; set; }
-        //public bool ManualOverclockSupported { get; protected set; }
-
-        public SmuType SMU_TYPE { get; protected set; }
-
-        public uint SMU_PCI_ADDR { get; protected set; }
-        public uint SMU_OFFSET_ADDR { get; protected set; }
-        public uint SMU_OFFSET_DATA { get; protected set; }
-
-        // SMU has different mailboxes, each with its own registers and command IDs
-        public RSMUMailbox Rsmu { get; protected set; }
-        public MP1Mailbox Mp1Smu { get; protected set; }
-        public HSMPMailbox Hsmp { get; protected set; }
 
         private bool SmuWriteReg(uint addr, uint data)
         {
@@ -103,28 +110,33 @@ namespace ZenStates.Core
             return timeout != 0 && data > 0;
         }
 
+        // Check all the arguments and don't execute if invalid
+        // If the mailbox addresses are not set, they would have the default value of 0x0
+        // TODO: Add custom status for not implemented command?
+        private static bool ValidateMailbox(Mailbox mailbox, uint msg)
+        {
+            return mailbox != null &&
+                   mailbox.SMU_ADDR_MSG != 0 &&
+                   mailbox.SMU_ADDR_ARG != 0 &&
+                   mailbox.SMU_ADDR_RSP != 0 &&
+                   msg != 0;
+        }
+
         public Status SendSmuCommand(Mailbox mailbox, uint msg, ref uint[] args)
         {
-            uint status = 0xFF; // SMU.Status.FAILED;
-
-            // Check all the arguments and don't execute if invalid
-            // If the mailbox addresses are not set, they would have the default value of 0x0
-            // TODO: Add custom status for not implemented command?
-            if (msg == 0
-                || mailbox == null
-                || mailbox.SMU_ADDR_MSG == 0
-                || mailbox.SMU_ADDR_ARG == 0
-                || mailbox.SMU_ADDR_RSP == 0)
+            if (!ValidateMailbox(mailbox, msg))
                 return Status.UNKNOWN_CMD;
 
-            if (Ring0.WaitPciBusMutex(10))
+            if (!Ring0.WaitPciBusMutex(10))
+                return Status.TIMEOUT_MUTEX_LOCK;
+
+            try
             {
                 // Wait done
                 if (!SmuWaitDone(mailbox))
                 {
                     // Initial probe failed, some other command is still being processed or the PCI read failed
-                    Ring0.ReleasePciBusMutex();
-                    return Status.FAILED;
+                    return Status.TIMEOUT_MAILBOX_READY;
                 }
 
                 uint maxValidArgAddress = uint.MaxValue - mailbox.MAX_ARGS * 4;
@@ -150,10 +162,10 @@ namespace ZenStates.Core
                 if (!SmuWaitDone(mailbox))
                 {
                     // Timeout reached or PCI read failed
-                    Ring0.ReleasePciBusMutex();
-                    return Status.FAILED;
+                    return Status.TIMEOUT_MAILBOX_MSG_WRITE;
                 }
 
+                uint status = 0;
                 // If we reach this stage, read final status
                 SmuReadReg(mailbox.SMU_ADDR_RSP, ref status);
 
@@ -168,11 +180,12 @@ namespace ZenStates.Core
                         SmuReadReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]);
                     }
                 }
-
+                return (Status)status;
+            }
+            finally
+            {
                 Ring0.ReleasePciBusMutex();
             }
-
-            return (Status)status;
         }
 
         // Legacy
@@ -190,418 +203,6 @@ namespace ZenStates.Core
             if (Hsmp.IsSupported && msg <= Hsmp.HighestSupportedFunction)
                 return SendSmuCommand(Hsmp, msg, ref args);
             return Status.UNKNOWN_CMD;
-        }
-    }
-
-    public class BristolRidgeSettings : SMU
-    {
-        public BristolRidgeSettings()
-        {
-            SMU_TYPE = SmuType.TYPE_CPU9;
-
-            SMU_OFFSET_ADDR = 0xB8;
-            SMU_OFFSET_DATA = 0xBC;
-
-            Rsmu.SMU_ADDR_MSG = 0x13000000;
-            Rsmu.SMU_ADDR_RSP = 0x13000010;
-            Rsmu.SMU_ADDR_ARG = 0x13000020;
-        }
-    }
-
-    // Zen (Summit Ridge), ThreadRipper (Whitehaven)
-    public class SummitRidgeSettings : SMU
-    {
-        public SummitRidgeSettings()
-        {
-            SMU_TYPE = SmuType.TYPE_CPU0;
-
-            // RSMU
-            Rsmu.SMU_ADDR_MSG = 0x03B1051C;
-            Rsmu.SMU_ADDR_RSP = 0x03B10568;
-            Rsmu.SMU_ADDR_ARG = 0x03B10590;
-
-            Rsmu.SMU_MSG_TransferTableToDram = 0xA;
-            Rsmu.SMU_MSG_GetDramBaseAddress = 0xC;
-            // Rsmu.SMU_MSG_EnableOcMode = 0x63; // Disable PROCHOT?
-
-            // MP1
-            Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
-            Mp1Smu.SMU_ADDR_RSP = 0x03B10564;
-            Mp1Smu.SMU_ADDR_ARG = 0x03B10598;
-
-            //Mp1Smu.SMU_MSG_TransferTableToDram = 0x21; // ?
-            Mp1Smu.SMU_MSG_EnableOcMode = 0x23;
-            Mp1Smu.SMU_MSG_DisableOcMode = 0x24; // is this still working?
-            Mp1Smu.SMU_MSG_SetOverclockFrequencyAllCores = 0x26;
-            Mp1Smu.SMU_MSG_SetOverclockFrequencyPerCore = 0x27;
-            Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x28;
-        }
-    }
-
-    // Zen+ (Pinnacle Ridge)
-    public class ZenPSettings : SMU
-    {
-        public ZenPSettings()
-        {
-            SMU_TYPE = SmuType.TYPE_CPU1;
-
-            // RSMU
-            Rsmu.SMU_ADDR_MSG = 0x03B1051C;
-            Rsmu.SMU_ADDR_RSP = 0x03B10568;
-            Rsmu.SMU_ADDR_ARG = 0x03B10590;
-
-            Rsmu.SMU_MSG_TransferTableToDram = 0xA;
-            Rsmu.SMU_MSG_GetDramBaseAddress = 0xC;
-            Rsmu.SMU_MSG_EnableOcMode = 0x6B; //0x63; <-- Disable PROCHOT?
-            //SMU_MSG_DisableOcMode = 0x64;
-            Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x6C;
-            Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x6D;
-            Rsmu.SMU_MSG_SetOverclockCpuVid = 0x6E;
-
-            Rsmu.SMU_MSG_SetPPTLimit = 0x64; // ?
-            Rsmu.SMU_MSG_SetTDCVDDLimit = 0x65; // ?
-            Rsmu.SMU_MSG_SetEDCVDDLimit = 0x66;
-            Rsmu.SMU_MSG_SetHTCLimit = 0x68;
-
-            Rsmu.SMU_MSG_SetPBOScalar = 0x6A;
-            Rsmu.SMU_MSG_GetPBOScalar = 0x6F;
-
-            // MP1
-            Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
-            Mp1Smu.SMU_ADDR_RSP = 0x03B10564;
-            Mp1Smu.SMU_ADDR_ARG = 0x03B10598;
-        }
-    }
-
-    // TR2 (Colfax) 
-    public class ColfaxSettings : SMU
-    {
-        public ColfaxSettings()
-        {
-            SMU_TYPE = SmuType.TYPE_CPU1;
-
-            // RSMU
-            Rsmu.SMU_ADDR_MSG = 0x03B1051C;
-            Rsmu.SMU_ADDR_RSP = 0x03B10568;
-            Rsmu.SMU_ADDR_ARG = 0x03B10590;
-
-            Rsmu.SMU_MSG_TransferTableToDram = 0xA;
-            Rsmu.SMU_MSG_GetDramBaseAddress = 0xC;
-            Rsmu.SMU_MSG_EnableOcMode = 0x63;
-            Rsmu.SMU_MSG_DisableOcMode = 0x64;
-            Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x68;
-            Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x69;
-            Rsmu.SMU_MSG_SetOverclockCpuVid = 0x6A;
-
-            Rsmu.SMU_MSG_SetTDCVDDLimit = 0x6B; // ?
-            Rsmu.SMU_MSG_SetEDCVDDLimit = 0x6C; // ?
-            Rsmu.SMU_MSG_SetHTCLimit = 0x6E;
-
-            Rsmu.SMU_MSG_SetPBOScalar = 0x6F;
-            Rsmu.SMU_MSG_GetPBOScalar = 0x70;
-
-            // MP1
-            Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
-            Mp1Smu.SMU_ADDR_RSP = 0x03B10564;
-            Mp1Smu.SMU_ADDR_ARG = 0x03B10598;
-        }
-    }
-
-    // Ryzen 3000 (Matisse), TR 3000 (Castle Peak)
-    public class Zen2Settings : SMU
-    {
-        public Zen2Settings()
-        {
-            SMU_TYPE = SmuType.TYPE_CPU2;
-
-            // RSMU
-            Rsmu.SMU_ADDR_MSG = 0x03B10524;
-            Rsmu.SMU_ADDR_RSP = 0x03B10570;
-            Rsmu.SMU_ADDR_ARG = 0x03B10A40;
-
-            Rsmu.SMU_MSG_TransferTableToDram = 0x5;
-            Rsmu.SMU_MSG_GetDramBaseAddress = 0x6;
-            Rsmu.SMU_MSG_GetTableVersion = 0x8;
-            Rsmu.SMU_MSG_EnableOcMode = 0x5A;
-            Rsmu.SMU_MSG_DisableOcMode = 0x5B;
-            Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x5C;
-            Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x5D;
-            Rsmu.SMU_MSG_SetOverclockCpuVid = 0x61;
-            Rsmu.SMU_MSG_SetPPTLimit = 0x53;
-            Rsmu.SMU_MSG_SetTDCVDDLimit = 0x54;
-            Rsmu.SMU_MSG_SetEDCVDDLimit = 0x55;
-            Rsmu.SMU_MSG_SetHTCLimit = 0x56;
-            Rsmu.SMU_MSG_GetFastestCoreofSocket = 0x59;
-            Rsmu.SMU_MSG_SetPBOScalar = 0x58;
-            Rsmu.SMU_MSG_GetPBOScalar = 0x6C;
-            Rsmu.SMU_MSG_ReadBoostLimit = 0x6E;
-            Rsmu.SMU_MSG_IsOverclockable = 0x6F;
-
-            // MP1
-            Mp1Smu.SMU_ADDR_MSG = 0x3B10530;
-            Mp1Smu.SMU_ADDR_RSP = 0x3B1057C;
-            Mp1Smu.SMU_ADDR_ARG = 0x3B109C4;
-
-            Mp1Smu.SMU_MSG_SetToolsDramAddress = 0x6;
-            Mp1Smu.SMU_MSG_EnableOcMode = 0x24;
-            Mp1Smu.SMU_MSG_DisableOcMode = 0x25;
-            Mp1Smu.SMU_MSG_SetOverclockFrequencyPerCore = 0x27;
-            Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x28;
-            Mp1Smu.SMU_MSG_SetPBOScalar = 0x2F;
-            Mp1Smu.SMU_MSG_SetEDCVDDLimit = 0x3C;
-            Mp1Smu.SMU_MSG_SetTDCVDDLimit = 0x3B;
-            Mp1Smu.SMU_MSG_SetPPTLimit = 0x3D;
-            Mp1Smu.SMU_MSG_SetHTCLimit = 0x3E;
-
-            // HSMP
-            Hsmp.SMU_ADDR_MSG = 0x3B10534;
-            Hsmp.SMU_ADDR_RSP = 0x3B10980;
-            Hsmp.SMU_ADDR_ARG = 0x3B109E0;
-        }
-    }
-
-    // Ryzen 5000 (Vermeer), TR 5000 (Chagall)?
-    public class Zen3Settings : Zen2Settings
-    {
-        public Zen3Settings()
-        {
-            SMU_TYPE = SmuType.TYPE_CPU3;
-
-            Rsmu.SMU_MSG_SetDldoPsmMargin = 0xA;
-            Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0xB;
-            Rsmu.SMU_MSG_GetDldoPsmMargin = 0x7C;
-
-            Mp1Smu.SMU_MSG_SetDldoPsmMargin = 0x35;
-            Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0x36;
-            Mp1Smu.SMU_MSG_GetDldoPsmMargin = 0x48;
-        }
-    }
-
-    // Ryzen 7000 (Raphael)
-    // Seems to be similar to Zen2 and Zen3
-    public class Zen4Settings : Zen3Settings
-    {
-        public Zen4Settings()
-        {
-            SMU_TYPE = SmuType.TYPE_CPU4;
-
-            // MP1
-            Mp1Smu.SMU_MSG_SetTDCVDDLimit = 0x3C;
-            Mp1Smu.SMU_MSG_SetEDCVDDLimit = 0x3D;
-            Mp1Smu.SMU_MSG_SetPPTLimit = 0x3E;
-            Mp1Smu.SMU_MSG_SetHTCLimit = 0x3F;
-
-            // Unknown
-            Mp1Smu.SMU_MSG_SetDldoPsmMargin = 0;
-            Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0;
-            Mp1Smu.SMU_MSG_GetDldoPsmMargin = 0;
-
-            // RSMU
-            Rsmu.SMU_ADDR_MSG = 0x03B10524;
-            Rsmu.SMU_ADDR_RSP = 0x03B10570;
-            Rsmu.SMU_ADDR_ARG = 0x03B10A40;
-
-            Rsmu.SMU_MSG_TransferTableToDram = 0x3;
-            Rsmu.SMU_MSG_GetDramBaseAddress = 0x4;
-            Rsmu.SMU_MSG_GetTableVersion = 0x5;
-            Rsmu.SMU_MSG_GetEXPOProfileActive = 0x35;
-            Rsmu.SMU_MSG_EnableOcMode = 0x5D;
-            Rsmu.SMU_MSG_DisableOcMode = 0x5E;
-            Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x5F;
-            Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x60;
-            Rsmu.SMU_MSG_SetOverclockCpuVid = 0x61;
-            Rsmu.SMU_MSG_SetPPTLimit = 0x56;
-            Rsmu.SMU_MSG_SetTDCVDDLimit = 0x57;
-            Rsmu.SMU_MSG_SetEDCVDDLimit = 0x58;
-            Rsmu.SMU_MSG_SetHTCLimit = 0x59;
-            Rsmu.SMU_MSG_SetPBOScalar = 0x5B;
-            Rsmu.SMU_MSG_GetPBOScalar = 0x6D;
-            Rsmu.SMU_MSG_GetBoostLimitFrequency = 0x6E;
-            Rsmu.SMU_MSG_SetBoostLimitFrequencyAllCores = 0x70;
-
-            Rsmu.SMU_MSG_SetDldoPsmMargin = 0x6;
-            Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0x7;
-            Rsmu.SMU_MSG_GetDldoPsmMargin = 0xD5;
-            Rsmu.SMU_MSG_GetLN2Mode = 0xDD;
-            Rsmu.SMU_MSG_GetPerformanceData = 0x5C;
-
-            // HSMP
-            Hsmp.SMU_ADDR_MSG = 0x3B10534;
-            Hsmp.SMU_ADDR_RSP = 0x3B10980;
-            Hsmp.SMU_ADDR_ARG = 0x3B109E0;
-        }
-    }
-
-    public class Zen5Settings : Zen4Settings
-    {
-        public Zen5Settings()
-        {
-            // HSMP
-            Hsmp.SMU_ADDR_MSG = 0x3B10934;
-            Hsmp.SMU_ADDR_RSP = 0x3B10980;
-            Hsmp.SMU_ADDR_ARG = 0x3B109E0;
-        }
-    }
-
-    // Epyc 2 (Rome) ES
-    public class RomeSettings : SMU
-    {
-        public RomeSettings()
-        {
-            SMU_TYPE = SmuType.TYPE_CPU2;
-
-            // RSMU
-            Rsmu.SMU_ADDR_MSG = 0x03B10524;
-            Rsmu.SMU_ADDR_RSP = 0x03B10570;
-            Rsmu.SMU_ADDR_ARG = 0x03B10A40;
-
-            Rsmu.SMU_MSG_TransferTableToDram = 0x5;
-            Rsmu.SMU_MSG_GetDramBaseAddress = 0x6;
-            Rsmu.SMU_MSG_GetTableVersion = 0x8;
-            Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x18;
-            // SMU_MSG_SetOverclockFrequencyPerCore = 0x19;
-            Rsmu.SMU_MSG_SetOverclockCpuVid = 0x12;
-
-            // MP1
-            Mp1Smu.SMU_ADDR_MSG = 0x3B10530;
-            Mp1Smu.SMU_ADDR_RSP = 0x3B1057C;
-            Mp1Smu.SMU_ADDR_ARG = 0x3B109C4;
-        }
-    }
-
-    // RavenRidge, RavenRidge 2, FireFlight, Picasso
-    public class APUSettings0 : SMU
-    {
-        public APUSettings0()
-        {
-            SMU_TYPE = SmuType.TYPE_APU0;
-
-            Rsmu.SMU_ADDR_MSG = 0x03B10A20;
-            Rsmu.SMU_ADDR_RSP = 0x03B10A80;
-            Rsmu.SMU_ADDR_ARG = 0x03B10A88;
-
-            Rsmu.SMU_MSG_GetDramBaseAddress = 0xB;
-            Rsmu.SMU_MSG_GetTableVersion = 0xC;
-            Rsmu.SMU_MSG_TransferTableToDram = 0x3D;
-            Rsmu.SMU_MSG_SetDldoPsmMargin = 0x58;
-            Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0x59;
-            Rsmu.SMU_MSG_EnableOcMode = 0x69;
-            Rsmu.SMU_MSG_DisableOcMode = 0x6A;
-            Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x7D;
-            Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x7E;
-            Rsmu.SMU_MSG_SetOverclockCpuVid = 0x7F;
-            Rsmu.SMU_MSG_GetPBOScalar = 0x68;
-            Rsmu.SMU_MSG_IsOverclockable = 0x88;
-
-            // MP1
-            Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
-            Mp1Smu.SMU_ADDR_RSP = 0x03B10564;
-            Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
-        }
-    }
-
-    public class APUSettings0_Picasso : APUSettings0
-    {
-        public APUSettings0_Picasso()
-        {
-            Rsmu.SMU_MSG_GetPBOScalar = 0x62;
-            Rsmu.SMU_MSG_IsOverclockable = 0x87;
-        }
-    }
-
-    // Renoir, Cezanne, Rembrandt
-    public class APUSettings1 : SMU
-    {
-        public APUSettings1()
-        {
-            SMU_TYPE = SmuType.TYPE_APU1;
-
-            Rsmu.SMU_ADDR_MSG = 0x03B10A20;
-            Rsmu.SMU_ADDR_RSP = 0x03B10A80;
-            Rsmu.SMU_ADDR_ARG = 0x03B10A88;
-
-            Rsmu.SMU_MSG_GetTableVersion = 0x6;
-            Rsmu.SMU_MSG_TransferTableToDram = 0x65;
-            Rsmu.SMU_MSG_GetDramBaseAddress = 0x66;
-            Rsmu.SMU_MSG_EnableOcMode = 0x17;
-            Rsmu.SMU_MSG_DisableOcMode = 0x18;
-            Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x19;
-            Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x1A;
-            Rsmu.SMU_MSG_SetOverclockCpuVid = 0x1B;
-            Rsmu.SMU_MSG_SetPPTLimit = 0x33;
-            Rsmu.SMU_MSG_SetHTCLimit = 0x37;
-            Rsmu.SMU_MSG_SetTDCVDDLimit = 0x38;
-            Rsmu.SMU_MSG_SetTDCSOCLimit = 0x39;
-            Rsmu.SMU_MSG_SetEDCVDDLimit = 0x3A;
-            Rsmu.SMU_MSG_SetEDCSOCLimit = 0x3B;
-            Rsmu.SMU_MSG_SetPBOScalar = 0x3F;
-            Rsmu.SMU_MSG_GetPBOScalar = 0xF;
-
-            // MP1
-            Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
-            Mp1Smu.SMU_ADDR_RSP = 0x03B10564;
-            Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
-
-            Mp1Smu.SMU_MSG_EnableOcMode = 0x2F;
-            Mp1Smu.SMU_MSG_DisableOcMode = 0x30;
-            Mp1Smu.SMU_MSG_SetOverclockFrequencyPerCore = 0x32;
-            Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x33;
-            Mp1Smu.SMU_MSG_SetHTCLimit = 0x3E;
-            Mp1Smu.SMU_MSG_SetPBOScalar = 0x49;
-        }
-    }
-
-    public class APUSettings1_Cezanne : APUSettings1
-    {
-        public APUSettings1_Cezanne()
-        {
-            Rsmu.SMU_MSG_SetDldoPsmMargin = 0x52;
-            Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0xB1;
-            Rsmu.SMU_MSG_GetDldoPsmMargin = 0xC3;
-            Rsmu.SMU_MSG_SetGpuPsmMargin = 0x53;
-            Rsmu.SMU_MSG_GetGpuPsmMargin = 0xC6;
-        }
-    }
-
-    public class APUSettings1_Rembrandt : APUSettings1
-    {
-        public APUSettings1_Rembrandt()
-        {
-            SMU_TYPE = SmuType.TYPE_APU2;
-
-            Rsmu.SMU_MSG_SetPBOScalar = 0x3E;
-
-            Rsmu.SMU_MSG_SetDldoPsmMargin = 0x53;
-            Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0x5D;
-            Rsmu.SMU_MSG_GetDldoPsmMargin = 0x2F;
-            Rsmu.SMU_MSG_SetGpuPsmMargin = 0xB7;
-            Rsmu.SMU_MSG_GetGpuPsmMargin = 0x30;
-            Rsmu.SMU_MSG_GetEXPOProfileActive = 0xD2;
-
-            // MP1
-            // https://github.com/FlyGoat/RyzenAdj/blob/master/lib/nb_smu_ops.h#L45
-            Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
-            Mp1Smu.SMU_ADDR_RSP = 0x03B10578;
-            Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
-
-            Mp1Smu.SMU_MSG_SetDldoPsmMargin = 0x4B;
-            Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0x4C;
-        }
-    }
-
-    public class APUSettings1_Phoenix : APUSettings1_Rembrandt
-    {
-        public APUSettings1_Phoenix()
-        {
-            Rsmu.SMU_MSG_GetEXPOProfileActive = 0xDB;
-        }
-    }
-
-    public class UnsupportedSettings : SMU
-    {
-        public UnsupportedSettings()
-        {
-            SMU_TYPE = SmuType.TYPE_UNSUPPORTED;
         }
     }
 
