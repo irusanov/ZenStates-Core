@@ -283,11 +283,11 @@ namespace ZenStates.Core
 
         private void Init()
         {
-            this.Table.AcpiTable = GetAcpiTable();
+            Table.AcpiTable = GetAcpiTable();
 
-            if (this.Table?.AcpiTable.Value.Data != null)
+            if (Table.AcpiTable != null && Table?.AcpiTable.Value.Data != null)
             {
-                int regionIndex = GetAodRegionIndex(this.Table.AcpiTable.Value.Data);
+                int regionIndex = GetAodRegionIndex(Table.AcpiTable.Value.Data);
                 if (regionIndex == -1)
                     return;
 
@@ -297,9 +297,9 @@ namespace ZenStates.Core
                 OperationRegion opRegion = Utils.ByteArrayToStructure<OperationRegion>(region);
                 this.Table.BaseAddress = opRegion.Offset;
                 this.Table.Length = (opRegion.Length[1] << 8) | opRegion.Length[0];
-            }
 
-            this.Refresh();
+                this.Refresh();
+            }
         }
 
         private Dictionary<string, int> GetAodDataDictionary(Cpu.CodeName codeName, uint patchLevel)
