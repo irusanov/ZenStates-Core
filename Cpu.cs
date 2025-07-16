@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using ZenStates.Core.DRAM;
 
 namespace ZenStates.Core
@@ -689,7 +690,9 @@ namespace ZenStates.Core
                         break;
                     case 0x74:
                     case 0x75:
-                        codeName = CodeName.Phoenix;
+                        bool isHawkPoint = Regex.IsMatch(cpuInfo.cpuName, @"\b80\d{2}\b", RegexOptions.Compiled | RegexOptions.CultureInvariant) 
+                            || Regex.IsMatch(cpuInfo.cpuName, @"Ryzen [3579](?:\s+PRO)?\s+2\d{2}\s", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+                        codeName = isHawkPoint ? CodeName.HawkPoint : CodeName.Phoenix;
                         break;
                     case 0x78:
                         codeName = CodeName.Phoenix2;
