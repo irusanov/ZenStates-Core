@@ -28,6 +28,7 @@
             Rsmu.SMU_MSG_SetEDCSOCLimit = 0x3B;
             Rsmu.SMU_MSG_SetPBOScalar = 0x3F;
             Rsmu.SMU_MSG_GetPBOScalar = 0xF;
+            Rsmu.SMU_MSG_IsOverclockable = 0x82;
 
             // MP1
             Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
@@ -36,9 +37,10 @@
 
             Mp1Smu.SMU_MSG_EnableOcMode = 0x2F;
             Mp1Smu.SMU_MSG_DisableOcMode = 0x30;
+            Mp1Smu.SMU_MSG_SetOverclockFrequencyAllCores = 0x31;
             Mp1Smu.SMU_MSG_SetOverclockFrequencyPerCore = 0x32;
             Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x33;
-            Mp1Smu.SMU_MSG_SetHTCLimit = 0x3E;
+            Mp1Smu.SMU_MSG_SetHTCLimit = 0x19;
             Mp1Smu.SMU_MSG_SetPBOScalar = 0x49;
         }
     }
