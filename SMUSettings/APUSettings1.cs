@@ -29,6 +29,7 @@
             Rsmu.SMU_MSG_SetPBOScalar = 0x3F;
             Rsmu.SMU_MSG_GetPBOScalar = 0xF;
             Rsmu.SMU_MSG_IsOverclockable = 0x82;
+            Rsmu.SMU_MSG_GetBoostLimitFrequency = 0x42;
 
             // MP1
             Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
