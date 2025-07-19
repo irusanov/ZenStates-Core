@@ -75,6 +75,7 @@ namespace ZenStates.Core
             StrixPoint,
             GraniteRidge,
             KrackanPoint,
+            KrackanPoint2,
             StrixHalo,
             Turin,
             TurinD,
@@ -729,6 +730,10 @@ namespace ZenStates.Core
                         break;
                     case 0x60:
                         codeName = CodeName.KrackanPoint;
+                        break;
+                    // https://github.com/InstLatx64/InstLatx64/commit/66e13a582b9a7ca1b284ea03dd1e3299b8260f24
+                    case 0x68:
+                        codeName = CodeName.KrackanPoint2;
                         break;
                     case 0x70:
                         codeName = CodeName.StrixHalo;
