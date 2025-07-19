@@ -514,7 +514,8 @@ namespace ZenStates.Core
 
         public HwPstateStatus GetHwPstateStatus(int index = 0)
         {
-            if (Ring0.RdmsrTx(Constants.MSR_HW_PSTATE_STATUS, out uint eax, out uint edx, GroupAffinity.Single(0, index)))
+            ulong group = info.topology.cores > 8 ? (ulong)Math.Pow(4, index) : 1UL << index;    
+            if (Ring0.RdmsrTx(Constants.MSR_HW_PSTATE_STATUS, out uint eax, out uint edx, new GroupAffinity(0, group)))
             {
                 return new HwPstateStatus { Value = eax };
             }
