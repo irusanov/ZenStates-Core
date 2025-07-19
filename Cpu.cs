@@ -817,6 +817,10 @@ namespace ZenStates.Core
                 case CodeName.Phoenix:
                 case CodeName.Phoenix2:
                 case CodeName.HawkPoint:
+                case CodeName.StrixPoint:
+                case CodeName.KrackanPoint:
+                case CodeName.KrackanPoint2:
+                case CodeName.StrixHalo:
                     svi.coreAddress = Constants.F17H_M60H_SVI_TEL_PLANE0;
                     svi.socAddress = Constants.F17H_M60H_SVI_TEL_PLANE1;
                     break;
