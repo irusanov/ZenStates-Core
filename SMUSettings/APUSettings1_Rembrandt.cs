@@ -10,10 +10,10 @@
 
             Rsmu.SMU_MSG_SetDldoPsmMargin = 0x53;
             Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0x5D;
-            Rsmu.SMU_MSG_GetDldoPsmMargin = 0x2F;
-            Rsmu.SMU_MSG_SetGpuPsmMargin = 0xB7;
-            Rsmu.SMU_MSG_GetGpuPsmMargin = 0x30;
-            Rsmu.SMU_MSG_GetEXPOProfileActive = 0xD2;
+            Rsmu.SMU_MSG_GetDldoPsmMargin = 0xE1; // 0x2F;
+            Rsmu.SMU_MSG_SetGpuPsmMargin = 0x1F; // 0xB7;
+            Rsmu.SMU_MSG_GetGpuPsmMargin = 0x20; // 0x30;
+            Rsmu.SMU_MSG_GetEXPOProfileActive = 0xDB; // 0xD2;
 
             // MP1
             // https://github.com/FlyGoat/RyzenAdj/blob/master/lib/nb_smu_ops.h#L45

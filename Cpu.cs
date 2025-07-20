@@ -75,6 +75,7 @@ namespace ZenStates.Core
             StrixPoint,
             GraniteRidge,
             KrackanPoint,
+            KrackanPoint2,
             StrixHalo,
             Turin,
             TurinD,
@@ -514,7 +515,8 @@ namespace ZenStates.Core
 
         public HwPstateStatus GetHwPstateStatus(int index = 0)
         {
-            if (Ring0.RdmsrTx(Constants.MSR_HW_PSTATE_STATUS, out uint eax, out uint edx, GroupAffinity.Single(0, index)))
+            ulong group = info.topology.cores > 8 ? (ulong)Math.Pow(4, index) : 1UL << index;    
+            if (Ring0.RdmsrTx(Constants.MSR_HW_PSTATE_STATUS, out uint eax, out uint edx, new GroupAffinity(0, group)))
             {
                 return new HwPstateStatus { Value = eax };
             }
@@ -731,6 +733,10 @@ namespace ZenStates.Core
                     case 0x60:
                         codeName = CodeName.KrackanPoint;
                         break;
+                    // https://github.com/InstLatx64/InstLatx64/commit/66e13a582b9a7ca1b284ea03dd1e3299b8260f24
+                    case 0x68:
+                        codeName = CodeName.KrackanPoint2;
+                        break;
                     case 0x70:
                         codeName = CodeName.StrixHalo;
                         break;
@@ -813,6 +819,10 @@ namespace ZenStates.Core
                 case CodeName.Phoenix:
                 case CodeName.Phoenix2:
                 case CodeName.HawkPoint:
+                case CodeName.StrixPoint:
+                case CodeName.KrackanPoint:
+                case CodeName.KrackanPoint2:
+                case CodeName.StrixHalo:
                     svi.coreAddress = Constants.F17H_M60H_SVI_TEL_PLANE0;
                     svi.socAddress = Constants.F17H_M60H_SVI_TEL_PLANE1;
                     break;
