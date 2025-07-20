@@ -171,6 +171,7 @@ namespace ZenStates.Core
          * Vermeer: 0x30081D98
          * Raphael: 0x30081CD0
          * GraniteRidge: 0x304A03DC
+         * Phoenix: 0x5D528
          */
 
         private CpuTopology GetCpuTopology(Family family, CodeName codeName, uint model)
@@ -328,8 +329,8 @@ namespace ZenStates.Core
                 info.cpuid = eax;
                 info.family = (Family)(((eax & 0xf00) >> 8) + ((eax & 0xff00000) >> 20));
                 info.baseModel = (eax & 0xf0) >> 4;
-                info.extModel = (eax & 0xf0000) >> 12;
-                info.model = info.baseModel + info.extModel;
+                info.extModel = (eax & 0xf0000) >> 16;
+                info.model = info.baseModel + info.extModel * 0x10;
                 info.stepping = eax & 0xf;
                 // info.logicalCores = Utils.GetBits(ebx, 16, 8);
             }
