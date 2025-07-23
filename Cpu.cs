@@ -173,6 +173,7 @@ namespace ZenStates.Core
          * Raphael: 0x30081CD0
          * GraniteRidge: 0x304A03DC
          * Phoenix: 0x5D528
+         * StrixPoint: 0x3820AB0
          */
 
         private CpuTopology GetCpuTopology(Family family, CodeName codeName, uint model)
@@ -970,7 +971,14 @@ namespace ZenStates.Core
             return -1;
         }
 
-        public uint? GetPsmMarginSingleCore(uint core, uint ccd, uint ccx) => GetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx));
+        public uint? GetPsmMarginSingleCore(uint core, uint ccd, uint ccx)
+        {
+            if (smu.SMU_TYPE >= SMU.SmuType.TYPE_APU0 && smu.SMU_TYPE <= SMU.SmuType.TYPE_APU2)
+            {
+                return GetPsmMarginSingleCore(core);
+            }
+            return GetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx));
+        }
         public bool SetPsmMarginAllCores(int margin) => new SMUCommands.SetPsmMarginAllCores(smu).Execute(margin).Success;
         public bool SetPsmMarginSingleCore(uint coreMask, int margin) => new SMUCommands.SetPsmMarginSingleCore(smu).Execute(coreMask, margin).Success;
         public bool SetPsmMarginSingleCore(uint core, uint ccd, uint ccx, int margin) => SetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx), margin);
