@@ -177,10 +177,10 @@ namespace ZenStates.Core.DRAM
             else if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
             {
                 var value = cpu.ReadDword(address);
-                if (value != 0 && value == 0x07FFFBFE)
+                if (value != 0 && (Utils.GetBit(value, 9) == 0 || Utils.GetBit(value, 10) == 0))
                     return MemRank.DR;
                 value = cpu.ReadDword(address + 4);
-                if (value != 0 && value == 0x07FFFBFE)
+                if (value != 0 && (Utils.GetBit(value, 9) == 0 || Utils.GetBit(value, 10) == 0))
                     return MemRank.DR;
             }
 
