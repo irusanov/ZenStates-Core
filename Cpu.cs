@@ -155,23 +155,24 @@ namespace ZenStates.Core
 
         /**
          * Core fuse
-         * CastlePeak: 0x30081A38
-         * Cezanne: 0x5D449
-         * Chagall: 0x30081D98
-         * Colfax: 0x5D25C
-         * Matisse: 0x30081A38
-         * Picasso: 0x5D254
-         * Pinnacle: 0x5D25C
-         * Raphael: 0x30081CD0
-         * Raven2: 0x5D254
-         * Raven:  0x5D254
-         * Rembrandt: 0x5D4DC
-         * Renoir: 0x5D3E8
          * Summit: 0x5D25C
+         * Colfax: 0x5D25C
+         * Pinnacle: 0x5D25C
          * Threadripper: 0x5D25C
+         * 
+         * Matisse: 0x30081A38
+         * CastlePeak: 0x30081A38
+         * Chagall: 0x30081D98
          * Vermeer: 0x30081D98
          * Raphael: 0x30081CD0
-         * GraniteRidge: 0x304A03DC
+         * ShimadaPeak: 0x3820094 ?
+         * 
+         * Raven:  0x5D254
+         * Raven2: 0x5D254
+         * Picasso: 0x5D254
+         * Cezanne: 0x5D449
+         * Renoir: 0x5D3E8
+         * Rembrandt: 0x5D4DC
          * Phoenix: 0x5D528
          * StrixPoint: 0x3820AB0
          */

@@ -243,7 +243,7 @@ namespace ZenStates.Core
             // Experimental
             { Cpu.CodeName.Turin, new Zen5Settings() },
             { Cpu.CodeName.TurinD, new Zen5Settings() },
-            { Cpu.CodeName.ShimadaPeak, new Zen5Settings() },
+            { Cpu.CodeName.ShimadaPeak, new ShimadaPeak() },
 
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },
