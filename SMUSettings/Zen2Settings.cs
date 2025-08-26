@@ -27,7 +27,7 @@
             Rsmu.SMU_MSG_GetFastestCoreofSocket = 0x59;
             Rsmu.SMU_MSG_SetPBOScalar = 0x58;
             Rsmu.SMU_MSG_GetPBOScalar = 0x6C;
-            Rsmu.SMU_MSG_ReadBoostLimit = 0x6E;
+            Rsmu.SMU_MSG_GetBoostLimitFrequency = 0x6E;
             Rsmu.SMU_MSG_IsOverclockable = 0x6F;
 
             // MP1
