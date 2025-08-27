@@ -213,18 +213,18 @@ namespace ZenStates.Core
             { Cpu.CodeName.BristolRidge, new BristolRidgeSettings() },
 
             // Zen
-            { Cpu.CodeName.SummitRidge, new SummitRidgeSettings() },
-            { Cpu.CodeName.Naples, new SummitRidgeSettings() },
-            { Cpu.CodeName.Whitehaven, new SummitRidgeSettings() },
+            { Cpu.CodeName.SummitRidge, new ZenSettings() },
+            { Cpu.CodeName.Naples, new ZenSettings() },
+            { Cpu.CodeName.Whitehaven, new ZenSettings() },
 
             // Zen+
             { Cpu.CodeName.PinnacleRidge, new ZenPSettings() },
-            { Cpu.CodeName.Colfax, new ColfaxSettings() },
+            { Cpu.CodeName.Colfax, new ZenPSettings_Colfax() },
 
             // Zen2
             { Cpu.CodeName.Matisse, new Zen2Settings() },
             { Cpu.CodeName.CastlePeak, new Zen2Settings() },
-            { Cpu.CodeName.Rome, new RomeSettings() },
+            { Cpu.CodeName.Rome, new Zen2Settings_Rome() },
 
             // Zen3
             { Cpu.CodeName.Vermeer, new Zen3Settings() },
@@ -243,7 +243,7 @@ namespace ZenStates.Core
             // Experimental
             { Cpu.CodeName.Turin, new Zen5Settings() },
             { Cpu.CodeName.TurinD, new Zen5Settings() },
-            { Cpu.CodeName.ShimadaPeak, new ShimadaPeak() },
+            { Cpu.CodeName.ShimadaPeak, new Zen5Settings_ShimadaPeak() },
 
             // APU
             { Cpu.CodeName.RavenRidge, new APUSettings0() },
@@ -257,8 +257,7 @@ namespace ZenStates.Core
 
             { Cpu.CodeName.Mero, new APUSettings1() }, // unknown, presumably based on VanGogh
             { Cpu.CodeName.VanGogh, new APUSettings1() }, // experimental
-            { Cpu.CodeName.Rembrandt, new APUSettings1_Rembrandt() },
-            // Still unknown. The MP1 addresses are the same as on Rembrand according to coreboot
+            { Cpu.CodeName.Rembrandt, new APUSettings1_Phoenix() },
             // https://github.com/coreboot/coreboot/blob/master/src/soc/amd/mendocino/include/soc/smu.h
             // https://github.com/coreboot/coreboot/blob/master/src/soc/amd/phoenix/include/soc/smu.h
             { Cpu.CodeName.Phoenix, new APUSettings1_Phoenix() },

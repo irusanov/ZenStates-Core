@@ -11,7 +11,7 @@ namespace ZenStates.Core.SMUCommands
             {
                 SendCommand();
 
-                // I was getting CMD_REJECTED_PREREQ for some reason, but hwinfo wass able to overcome this
+                // I was getting CMD_REJECTED_PREREQ for some reason, but hwinfo was able to overcome this
                 // Resending the command was enough to clear the status and to successfully pass from the second attempt
                 // Add a sleep to give it a better chance
                 if (result.status == SMU.Status.CMD_REJECTED_PREREQ)

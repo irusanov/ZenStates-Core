@@ -1,9 +1,9 @@
 ﻿namespace ZenStates.Core.SMUSettings
 {
     // Epyc 2 (Rome) ES
-    public class RomeSettings : SMU
+    public class Zen2Settings_Rome : SMU
     {
-        public RomeSettings()
+        public Zen2Settings_Rome()
         {
             SMU_TYPE = SmuType.TYPE_CPU2;
 

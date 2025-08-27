@@ -1,9 +1,9 @@
 ﻿namespace ZenStates.Core.SMUSettings
 {
     // Zen (Summit Ridge), ThreadRipper (Whitehaven)
-    public class SummitRidgeSettings : SMU
+    public class ZenSettings : SMU
     {
-        public SummitRidgeSettings()
+        public ZenSettings()
         {
             SMU_TYPE = SmuType.TYPE_CPU0;
 

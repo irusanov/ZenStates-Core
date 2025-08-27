@@ -1,9 +1,9 @@
 ﻿namespace ZenStates.Core.SMUSettings
 {
     // TR2 (Colfax) 
-    public class ColfaxSettings : SMU
+    public class ZenPSettings_Colfax : SMU
     {
-        public ColfaxSettings()
+        public ZenPSettings_Colfax()
         {
             SMU_TYPE = SmuType.TYPE_CPU1;
 
