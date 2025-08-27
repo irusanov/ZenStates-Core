@@ -1,15 +1,15 @@
 ﻿namespace ZenStates.Core.SMUSettings
 {
-    public class ShimadaPeak: SMU
+    public class Zen5Settings_ShimadaPeak: SMU
     {
-        public ShimadaPeak()
+        public Zen5Settings_ShimadaPeak()
         {
             SMU_TYPE = SmuType.TYPE_CPU4;
 
             // RSMU
-            Rsmu.SMU_ADDR_ARG = 0x03B10970;
-            Rsmu.SMU_ADDR_MSG = 0x03B10A40;
-            Rsmu.SMU_ADDR_RSP = 0x03B10924;
+            Rsmu.SMU_ADDR_MSG = 0x03B10924;
+            Rsmu.SMU_ADDR_RSP = 0x03B10970;
+            Rsmu.SMU_ADDR_ARG = 0x03B10A40;
 
             Rsmu.SMU_MSG_TransferTableToDram = 0x3;
             Rsmu.SMU_MSG_GetDramBaseAddress = 0x4;
