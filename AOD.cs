@@ -302,6 +302,67 @@ namespace ZenStates.Core
             }
         }
 
+        // TODO: Make generic for all CPUs
+        private Dictionary<string, int> GetBaseDictionaryByFrequency(float frequency)
+        {
+            if (frequency > 0)
+            {
+                var value = (int)(frequency / 2);
+                var tableIndex = Utils.FindSequence(this.Table.RawAodTable, 0, BitConverter.GetBytes(value));
+                if (tableIndex > -1)
+                {
+                    return new Dictionary<string, int>()
+                    {
+                        { "SMTEn", tableIndex - 4 },
+                        { "MemClk", tableIndex },
+                        { "Tcl", tableIndex + 4 },
+                        { "Trcd", tableIndex + 8 },
+                        { "Trp", tableIndex + 12},
+                        { "Tras", tableIndex + 16 },
+                        { "Trc", tableIndex + 20 },
+                        { "Twr", tableIndex + 24 },
+                        { "Trfc", tableIndex + 28 },
+                        { "Trfc2", tableIndex + 32 },
+                        { "Trfcsb", tableIndex + 36 },
+                        { "Trtp", tableIndex + 40 },
+                        { "TrrdL", tableIndex + 44 },
+                        { "TrrdS", tableIndex + 48 },
+                        { "Tfaw", tableIndex + 52 },
+                        { "TwtrL", tableIndex + 56 },
+                        { "TwtrS", tableIndex + 60 },
+                        { "TrdrdScL", tableIndex + 64 },
+                        { "TrdrdSc", tableIndex + 68 },
+                        { "TrdrdSd", tableIndex + 72 },
+                        { "TrdrdDd", tableIndex + 76 },
+                        { "TwrwrScL", tableIndex + 80 },
+                        { "TwrwrSc", tableIndex + 84 },
+                        { "TwrwrSd", tableIndex + 88 },
+                        { "TwrwrDd", tableIndex + 92 },
+                        { "Twrrd", tableIndex + 96},
+                        { "Trdwr", tableIndex + 100},
+                        { "CadBusDrvStren", tableIndex + 104 },
+                        { "ProcDataDrvStren", tableIndex + 108},
+                        { "ProcCaOdt", tableIndex + 112 },
+                        { "ProcCkOdt", tableIndex + 116 },
+                        { "ProcDqOdt", tableIndex + 120 },
+                        { "ProcDqsOdt", tableIndex + 124 },
+                        { "DramDataDrvStren", tableIndex + 128 },
+                        { "RttNomWr", tableIndex + 132 },
+                        { "RttNomRd", tableIndex + 136 },
+                        { "RttWr", tableIndex + 140 },
+                        { "RttPark", tableIndex + 144 },
+                        { "RttParkDqs", tableIndex + 148 },
+
+                        { "MemVddio", tableIndex + 196 },
+                        { "MemVddq", tableIndex + 200 },
+                        { "MemVpp", tableIndex + 204 },
+                        { "ApuVddio", tableIndex + 208 }
+                    };
+                }
+            }
+            return new Dictionary<string, int>();
+        }
+
         private Dictionary<string, int> GetAodDataDictionary(Cpu.CodeName codeName, uint patchLevel)
         {
             if (Table.AcpiTable.Value.Header.OEMTableID == TableSignature.LENOVO_AOD)
@@ -316,6 +377,9 @@ namespace ZenStates.Core
                 case Cpu.CodeName.Phoenix:
                 case Cpu.CodeName.Phoenix2:
                 case Cpu.CodeName.HawkPoint:
+                    var baseDictionary = GetBaseDictionaryByFrequency((cpuInstance.GetMemoryConfig()?.Timings[0].Value as DRAM.BaseDramTimings)?.Frequency ?? 0);
+                    if (baseDictionary.Count > 0)
+                        return baseDictionary;
                     return AodDictionaries.AodDataDictionaryV4;
                 case Cpu.CodeName.GraniteRidge:
                 case Cpu.CodeName.Turin:
@@ -326,7 +390,24 @@ namespace ZenStates.Core
 
                     if (index > -1)
                     {
-                        if (patchLevel > 0xB404022)
+                        if (codeName == Cpu.CodeName.ShimadaPeak)
+                        {
+                            return new Dictionary<string, int>(AodDictionaries.AodDataDictionaryV5)
+                            {
+                                ["ProcOdt"] = tableStart,
+                                ["ProcOdtPullUp"] = tableStart,
+                                ["ProcOdtPullDown"] = tableStart + 4,
+                                ["DramDataDrvStren"] = tableStart + 8,
+                                ["DramDqDsPullUp"] = tableStart + 8,
+                                ["DramDqDsPullDown"] = tableStart + 12,
+                                ["ProcCsDs"] = tableStart + 16,
+                                ["ProcCkDs"] = tableStart + 20,
+                                ["ProcDataDrvStren"] = tableStart + 24,
+                                ["ProcDqDsPullUp"] = tableStart + 24,
+                                ["ProcDqDsPullDown"] = tableStart + 28,
+                            };
+                        }
+                        else if (patchLevel > 0xB404022)
                         {
                             return new Dictionary<string, int>(AodDictionaries.AodDataDictionary_1Ah_B404023)
                             {
