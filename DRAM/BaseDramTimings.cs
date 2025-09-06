@@ -5,6 +5,48 @@ using static ZenStates.Core.DRAM.MemoryConfig;
 
 namespace ZenStates.Core.DRAM
 {
+    public readonly struct BooleanProp
+    {
+        private readonly uint value;
+
+        public BooleanProp(uint value)
+        {
+            this.value = value;
+        }
+
+        public override string ToString()
+        {
+            if (value == 1) return "Enabled";
+            if (value == 0) return "Disabled";
+            return "Unknown";
+        }
+
+        // Allow implicit conversion both ways
+        public static implicit operator BooleanProp(uint value) => new BooleanProp(value);
+        public static implicit operator uint(BooleanProp flag) => flag.value;
+    }
+
+    public readonly struct CommandRateProp
+    {
+        private readonly uint value;
+
+        public CommandRateProp(uint value)
+        {
+            this.value = value;
+        }
+
+        public override string ToString()
+        {
+            if (value == 1) return "2T";
+            if (value == 0) return "1T";
+            return "Unknown";
+        }
+
+        // Allow implicit conversion both ways
+        public static implicit operator CommandRateProp(uint value) => new CommandRateProp(value);
+        public static implicit operator uint(CommandRateProp flag) => flag.value;
+    }
+
     [Serializable]
     public abstract class BaseDramTimings : IDramTimings, IDisposable
     {
@@ -90,11 +132,11 @@ namespace ZenStates.Core.DRAM
         public float Frequency => Ratio * 200;
         public float Ratio { get; internal set; }
         // public string TotalCapacity { get; internal set; }
-        public uint BGS { get; internal set; }
-        public uint BGSAlt { get; internal set; }
-        public uint GDM { get; internal set; }
-        public uint PowerDown { get; internal set; }
-        public uint Cmd2T { get; internal set; }
+        public BooleanProp BGS { get; internal set; }
+        public BooleanProp BGSAlt { get; internal set; }
+        public BooleanProp GDM { get; internal set; }
+        public BooleanProp PowerDown { get; internal set; }
+        public CommandRateProp Cmd2T { get; internal set; }
         public uint CL { get; internal set; }
         public uint RCDWR { get; internal set; }
         public uint RCDRD { get; internal set; }
