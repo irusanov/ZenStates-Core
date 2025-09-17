@@ -27,7 +27,10 @@ namespace ZenStates.Core.DRAM
 
         public Ddr5Timings(Cpu cpu) : base(cpu)
         {
-            this.Type = MemType.DDR5;
+            if (cpu.smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
+                this.Type = MemType.LPDDR5;
+            else
+                this.Type = MemType.DDR5;
             this.Dict = DDR5Dictionary.defs;
         }
 

@@ -7,7 +7,7 @@ namespace ZenStates.Core.DRAM
 {
     public class MemoryConfig
     {
-        private const int DRAM_TYPE_BIT_MASK = 0x1;
+        private const int DRAM_TYPE_BIT_MASK = 0x3;
 
         private const uint DRAM_TYPE_REG_ADDR = 0x50100;
 
@@ -35,6 +35,7 @@ namespace ZenStates.Core.DRAM
 
         public enum MemType
         {
+            UNKNOWN = -1,
             DDR4 = 0,
             DDR5 = 1,
             LPDDR5 = 2,
@@ -48,7 +49,7 @@ namespace ZenStates.Core.DRAM
             GB = 3,
         }
 
-        public MemType Type { get; protected set; }
+        public MemType Type { get; protected set; } = MemType.UNKNOWN;
 
         public Capacity TotalCapacity { get; protected set; }
 
@@ -62,6 +63,7 @@ namespace ZenStates.Core.DRAM
         {
             cpu = cpuInstance;
 
+            //TODO: Get first DCT offset
             Type = (MemType)(cpu.ReadDword(0 | DRAM_TYPE_REG_ADDR) & DRAM_TYPE_BIT_MASK);
 
             ChannelsPerDimm = 1; // Type == MemType.DDR5 ? 2u : 1u;
@@ -80,7 +82,7 @@ namespace ZenStates.Core.DRAM
             {
                 if (Type == MemType.DDR4)
                     Timings.Add(new KeyValuePair<uint, BaseDramTimings>(module.DctOffset, new Ddr4Timings(cpu)));
-                else if (Type == MemType.DDR5)
+                else if (Type >= MemType.DDR5)
                     Timings.Add(new KeyValuePair<uint, BaseDramTimings>(module.DctOffset, new Ddr5Timings(cpu)));
 
                 ReadTimings(module.DctOffset);

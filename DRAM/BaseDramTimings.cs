@@ -128,7 +128,7 @@ namespace ZenStates.Core.DRAM
             }
         }
 
-        public MemType Type { get; set; }
+        public MemType Type { get; set; } = MemType.UNKNOWN;
         public float Frequency => Ratio * 200;
         public float Ratio { get; internal set; }
         // public string TotalCapacity { get; internal set; }
