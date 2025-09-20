@@ -177,6 +177,7 @@ namespace ZenStates.Core
          * StrixPoint: 0x3820AB0
          */
 
+        // TODO: Refactor topology retrieval and fix for known fuse addresses
         private CpuTopology GetCpuTopology(Family family, CodeName codeName, uint model)
         {
             CpuTopology topology = new CpuTopology();
