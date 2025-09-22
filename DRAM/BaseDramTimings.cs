@@ -88,7 +88,7 @@ namespace ZenStates.Core.DRAM
                         if (propertyInfo != null)
                         {
                             object converted = Utils.ConvertValue(value, propertyInfo.PropertyType);
-                            if (converted != null)
+                            //if (converted != null)
                             {
                                 propertyInfo.SetValue(this, converted, null);
                             }
