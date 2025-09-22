@@ -2,6 +2,7 @@ using Microsoft.Win32;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -432,6 +433,42 @@ namespace ZenStates.Core
             string output = result.StandardOutput;
 
             return !output.Contains("FAILED 1060");
+        }
+
+        /// <summary>
+        /// Attempts to convert a value to the specified target type.
+        /// Supports implicit/explicit operators, enums, primitives, and nullable types.
+        /// </summary>
+        public static object ConvertValue(object value, Type targetType)
+        {
+            if (value == null)
+                return null;
+
+            Type sourceType = value.GetType();
+            Type underlyingTarget = Nullable.GetUnderlyingType(targetType) ?? targetType;
+
+            if (underlyingTarget.IsAssignableFrom(sourceType))
+                return value;
+
+            try
+            {
+                if (underlyingTarget.IsEnum || underlyingTarget.IsPrimitive)
+                    return Convert.ChangeType(value, underlyingTarget);
+
+                MethodInfo op = underlyingTarget.GetMethod("op_Implicit", new[] { sourceType });
+                if (op != null)
+                    return op.Invoke(null, new[] { value });
+
+                MethodInfo opExplicit = underlyingTarget.GetMethod("op_Explicit", new[] { sourceType });
+                if (opExplicit != null)
+                    return opExplicit.Invoke(null, new[] { value });
+            }
+            catch
+            {
+                // ignored
+            }
+
+            return null;
         }
     }
 }
