@@ -127,7 +127,7 @@ namespace ZenStates.Core
             if (!ValidateMailbox(mailbox, msg))
                 return Status.UNKNOWN_CMD;
 
-            if (!Ring0.WaitPciBusMutex(10))
+            if (!Mutexes.WaitPciBus(10))
                 return Status.TIMEOUT_MUTEX_LOCK;
 
             try
@@ -184,7 +184,7 @@ namespace ZenStates.Core
             }
             finally
             {
-                Ring0.ReleasePciBusMutex();
+                Mutexes.ReleasePciBus();
             }
         }
 

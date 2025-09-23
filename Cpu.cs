@@ -307,7 +307,7 @@ namespace ZenStates.Core
 #if !NET20
             CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 #endif
-
+            Mutexes.Open();
             Ring0.Open();
 
             if (!Ring0.IsOpen)
@@ -416,16 +416,16 @@ namespace ZenStates.Core
         {
             for (int retry = 0; retry < maxRetries; retry++)
             {
-                if (Ring0.WaitPciBusMutex(10))
+                if (Mutexes.WaitPciBus(10))
                 {
                     if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr)
                         && Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, out data))
                     {
-                        Ring0.ReleasePciBusMutex();
+                        Mutexes.ReleasePciBus();
                         return true;
                     }
 
-                    Ring0.ReleasePciBusMutex();
+                    Mutexes.ReleasePciBus();
                 }
             }
 
@@ -448,16 +448,16 @@ namespace ZenStates.Core
         {
             for (int retry = 0; retry < maxRetries; retry++)
             {
-                if (Ring0.WaitPciBusMutex(10))
+                if (Mutexes.WaitPciBus(10))
                 {
                     if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) &&
                         Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, data))
                     {
-                        Ring0.ReleasePciBusMutex();
+                        Mutexes.ReleasePciBus();
                         return true;
                     }
 
-                    Ring0.ReleasePciBusMutex();
+                    Mutexes.ReleasePciBus();
                 }
             }
 
@@ -1150,6 +1150,7 @@ namespace ZenStates.Core
                 if (disposing)
                 {
                     io.Dispose();
+                    Mutexes.Close();
                     Ring0.Close();
                     Opcode.Close();
                 }
