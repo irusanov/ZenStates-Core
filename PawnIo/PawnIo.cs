@@ -160,7 +160,7 @@ namespace ZenStates.Core
             return pawnIO;
         }
 
-        private static PawnIo LoadModuleFromResource(Assembly assembly, string resourceName)
+        public static PawnIo LoadModuleFromResource(Assembly assembly, string resourceName)
         {
             PawnIo pawnIO = new PawnIo();
             Stream s = assembly.GetManifestResourceStream(resourceName);
