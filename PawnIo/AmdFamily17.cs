@@ -1,4 +1,7 @@
-﻿namespace ZenStates.Core
+﻿using OpenHardwareMonitor.Hardware;
+using System;
+
+namespace ZenStates.Core
 {
     public class AmdFamily17
     {
@@ -57,6 +60,16 @@
             }
 
             return true;
+        }
+
+        public bool ReadMsrTx(uint index, out uint eax, out uint edx, GroupAffinity affinity)
+        {
+            var previousAffinity = ThreadAffinity.Set(affinity);
+
+            bool result = ReadMsr(index, out eax, out edx);
+
+            ThreadAffinity.Set(previousAffinity);
+            return result;
         }
 
         public void Close()

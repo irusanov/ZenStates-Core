@@ -12,6 +12,8 @@ namespace ZenStates.Core
     public class Cpu : IDisposable
     {
         private readonly CpuInitSettings _settings;
+        private readonly AmdFamily17 _pawnAmd;
+        private readonly RyzenSmu _pawnRyzenSmu;
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
 
@@ -210,8 +212,9 @@ namespace ZenStates.Core
 
                 for (int i = 0; i < topology.logicalCores; i += (int)topology.threadsPerCore)
                 {
-                    if (Ring0.RdmsrTx(0xC00102B3, out eax, out edx, GroupAffinity.Single(0, i)))
-                        topology.performanceOfCore[i / topology.threadsPerCore] = eax & 0xff;
+                    uint _eax = default; uint _edx = default;
+                    if (ReadMsrTx(0xC00102B3, ref _eax, ref _edx, GroupAffinity.Single(0, i)))
+                        topology.performanceOfCore[i / topology.threadsPerCore] = _eax & 0xff;
                     else
                         topology.performanceOfCore[i / topology.threadsPerCore] = 0;
                 }
@@ -322,6 +325,9 @@ namespace ZenStates.Core
             }
 
             Opcode.Open();
+
+            _pawnAmd = new AmdFamily17();
+            _pawnRyzenSmu = new RyzenSmu();
 
             info.vendor = GetVendor();
             if (info.vendor != Constants.VENDOR_AMD && info.vendor != Constants.VENDOR_HYGON)
@@ -520,9 +526,10 @@ namespace ZenStates.Core
         public HwPstateStatus GetHwPstateStatus(int index = 0)
         {
             ulong group = info.topology.cores > 8 ? (ulong)Math.Pow(4, index) : 1UL << index;    
-            if (Ring0.RdmsrTx(Constants.MSR_HW_PSTATE_STATUS, out uint eax, out uint edx, new GroupAffinity(0, group)))
+            ulong group = info.topology.cores > 8 ? (ulong)Math.Pow(4, index) : 1UL << index;
+            if (_pawnAmd.ReadMsrTx(Constants.MSR_HW_PSTATE_STATUS, out uint _eax, out uint _edx, new GroupAffinity(0, group)))
             {
-                return new HwPstateStatus { Value = eax };
+                return new HwPstateStatus { Value = _eax };
             }
             return new HwPstateStatus();
         }
@@ -534,18 +541,18 @@ namespace ZenStates.Core
 
         public bool ReadMsr(uint index, ref uint eax, ref uint edx)
         {
-            return Ring0.Rdmsr(index, out eax, out edx);
+            return _pawnAmd.ReadMsr(index, out eax, out edx);
         }
 
-        public bool ReadMsrTx(uint index, ref uint eax, ref uint edx, int i)
+        public bool ReadMsrTx(uint index, ref uint eax, ref uint edx, GroupAffinity affinity)
         {
-            GroupAffinity affinity = GroupAffinity.Single(0, i);
-
-            return Ring0.RdmsrTx(index, out eax, out edx, affinity);
+            return _pawnAmd.ReadMsrTx(index, out eax, out edx, affinity);
         }
 
         public bool WriteMsr(uint msr, uint eax, uint edx)
         {
+            throw new NotSupportedException("WriteMsr is currently not supported by PawnIO");
+            /*
             bool res = true;
 
             for (var i = 0; i < info.topology.logicalCores; i++)
@@ -554,6 +561,7 @@ namespace ZenStates.Core
             }
 
             return res;
+            */
         }
 
         public void WriteIoPort(uint port, byte value) => Ring0.WriteIoPort(port, value);
@@ -877,7 +885,8 @@ namespace ZenStates.Core
 
         public uint GetPatchLevel()
         {
-            if (Ring0.Rdmsr(0x8b, out uint eax, out _))
+            // TODO: This read fails
+            if (_pawnAmd.ReadMsr(0x8b, out uint eax, out _))
                 return eax;
 
             return 0;
@@ -887,7 +896,7 @@ namespace ZenStates.Core
         {
             if (info.codeName == CodeName.SummitRidge)
             {
-                if (Ring0.Rdmsr(0xC0010063, out uint eax, out uint edx))
+                if (_pawnAmd.ReadMsr(0xC0010063, out uint eax, out _))
                 {
                     // Summit Ridge, Raven Ridge
                     return Convert.ToBoolean((eax >> 1) & 1);
@@ -1153,6 +1162,8 @@ namespace ZenStates.Core
                     Mutexes.Close();
                     Ring0.Close();
                     Opcode.Close();
+                    _pawnAmd?.Close();
+                    _pawnRyzenSmu?.Close();
                 }
 
                 disposedValue = true;
