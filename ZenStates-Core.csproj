@@ -49,6 +49,18 @@
     <Reference Include="System.ServiceProcess" />
   </ItemGroup>
   <ItemGroup>
+    <None Remove="Resources\PawnIo\AMDFamily0F.bin" />
+    <None Remove="Resources\PawnIo\AMDFamily10.bin" />
+    <None Remove="Resources\PawnIo\AMDFamily17.bin" />
+    <None Remove="Resources\PawnIo\IntelMSR.bin" />
+    <None Remove="Resources\PawnIo\LpcACPIEC.bin" />
+    <None Remove="Resources\PawnIo\LpcIO.bin" />
+    <None Remove="Resources\PawnIo\RyzenSMU.bin" />
+    <None Remove="Resources\PawnIo\SmbusI801.bin" />
+    <None Remove="Resources\PawnIo\SmbusNCT6793.bin" />
+    <None Remove="Resources\PawnIo\SmbusPIIX4.bin" />
+  </ItemGroup>
+  <ItemGroup>
     <None Include="External\InpOut\DLPortIO.txt" />
     <None Include="External\InpOut\license.txt" />
     <None Include="External\InpOut\ReadMe.txt" />
@@ -59,6 +71,16 @@
     <None Include="External\InpOut\x64\inpoutx64.dll" />
     <None Include="External\WinIo\LICENSE.txt" />
     <None Include="External\WinRing0\LICENSE.txt" />
+    <EmbeddedResource Include="Resources\PawnIo\AMDFamily0F.bin" />
+    <EmbeddedResource Include="Resources\PawnIo\AMDFamily10.bin" />
+    <EmbeddedResource Include="Resources\PawnIo\AMDFamily17.bin" />
+    <EmbeddedResource Include="Resources\PawnIo\IntelMSR.bin" />
+    <EmbeddedResource Include="Resources\PawnIo\LpcACPIEC.bin" />
+    <EmbeddedResource Include="Resources\PawnIo\LpcIO.bin" />
+    <EmbeddedResource Include="Resources\PawnIo\RyzenSMU.bin" />
+    <EmbeddedResource Include="Resources\PawnIo\SmbusI801.bin" />
+    <EmbeddedResource Include="Resources\PawnIo\SmbusNCT6793.bin" />
+    <EmbeddedResource Include="Resources\PawnIo\SmbusPIIX4.bin" />
     <EmbeddedResource Include="WinRing0.sys" />
     <EmbeddedResource Include="WinRing0x64.sys" />
   </ItemGroup>
