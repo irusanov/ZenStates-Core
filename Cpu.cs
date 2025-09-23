@@ -525,9 +525,8 @@ namespace ZenStates.Core
 
         public HwPstateStatus GetHwPstateStatus(int index = 0)
         {
-            ulong group = info.topology.cores > 8 ? (ulong)Math.Pow(4, index) : 1UL << index;    
             ulong group = info.topology.cores > 8 ? (ulong)Math.Pow(4, index) : 1UL << index;
-            if (_pawnAmd.ReadMsrTx(Constants.MSR_HW_PSTATE_STATUS, out uint _eax, out uint _edx, new GroupAffinity(0, group)))
+            if (_pawnAmd.ReadMsrTx(Constants.MSR_HW_PSTATE_STATUS, out uint _eax, out _, new GroupAffinity(0, group)))
             {
                 return new HwPstateStatus { Value = _eax };
             }
