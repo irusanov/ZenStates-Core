@@ -152,8 +152,14 @@ namespace ZenStates.Core
         public readonly PowerTable powerTable;
         public readonly MemoryConfig memoryConfig;
 
-        public IOModule.LibStatus Status { get; }
-        public Exception LastError { get; }
+        public IOModule.LibStatus Status
+        {
+            get;
+        }
+        public Exception LastError
+        {
+            get;
+        }
 
         /**
          * Core fuse
@@ -391,7 +397,7 @@ namespace ZenStates.Core
                 info.svi2 = GetSVI2Info(info.codeName);
                 info.aod = new AOD(io, this);
                 systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
-                powerTable = new PowerTable(smu, io, mmio);
+                powerTable = new PowerTable(_pawnRyzenSmu, io, mmio);
 
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
@@ -494,32 +500,62 @@ namespace ZenStates.Core
 
             public uint Value
             {
-                get { return _value; }
-                set { _value = value; }
+                get
+                {
+                    return _value;
+                }
+                set
+                {
+                    _value = value;
+                }
             }
 
             public byte CurCpuFid
             {
-                get { return (byte)Utils.BitSlice(_value, 7, 0); }
-                set { _value = Utils.SetBits(_value, 0, 8, value); }
+                get
+                {
+                    return (byte)Utils.BitSlice(_value, 7, 0);
+                }
+                set
+                {
+                    _value = Utils.SetBits(_value, 0, 8, value);
+                }
             }
 
             public byte CurCpuDfsId
             {
-                get { return (byte)Utils.BitSlice(_value, 13, 8); }
-                set { _value = Utils.SetBits(_value, 8, 6, value); }
+                get
+                {
+                    return (byte)Utils.BitSlice(_value, 13, 8);
+                }
+                set
+                {
+                    _value = Utils.SetBits(_value, 8, 6, value);
+                }
             }
 
             public byte CurCpuVid
             {
-                get { return (byte)Utils.BitSlice(_value, 21, 14); }
-                set { _value = Utils.SetBits(_value, 14, 8, value); }
+                get
+                {
+                    return (byte)Utils.BitSlice(_value, 21, 14);
+                }
+                set
+                {
+                    _value = Utils.SetBits(_value, 14, 8, value);
+                }
             }
 
             public byte CurHwPstate
             {
-                get { return (byte)Utils.BitSlice(_value, 24, 22); }
-                set { _value = Utils.SetBits(_value, 22, 3, value); }
+                get
+                {
+                    return (byte)Utils.BitSlice(_value, 24, 22);
+                }
+                set
+                {
+                    _value = Utils.SetBits(_value, 22, 3, value);
+                }
             }
         }
 
@@ -704,7 +740,7 @@ namespace ZenStates.Core
                         break;
                     case 0x74:
                     case 0x75:
-                        bool isHawkPoint = Regex.IsMatch(cpuInfo.cpuName, @"\b80\d{2}\b", RegexOptions.Compiled | RegexOptions.CultureInvariant) 
+                        bool isHawkPoint = Regex.IsMatch(cpuInfo.cpuName, @"\b80\d{2}\b", RegexOptions.Compiled | RegexOptions.CultureInvariant)
                             || Regex.IsMatch(cpuInfo.cpuName, @"Ryzen [3579](?:\s+PRO)?\s+2\d{2}\s", RegexOptions.Compiled | RegexOptions.CultureInvariant);
                         codeName = isHawkPoint ? CodeName.HawkPoint : CodeName.Phoenix;
                         break;
@@ -1162,7 +1198,7 @@ namespace ZenStates.Core
                     Ring0.Close();
                     Opcode.Close();
                     _pawnAmd?.Close();
-                    _pawnRyzenSmu?.Close();
+                    _pawnRyzenSmu?.Dispose();
                 }
 
                 disposedValue = true;
