@@ -1198,6 +1198,7 @@ namespace ZenStates.Core
                     Ring0.Close();
                     Opcode.Close();
                     _pawnAmd?.Close();
+                    _pawnRyzenSmu?.Dispose();
                 }
 
                 disposedValue = true;
