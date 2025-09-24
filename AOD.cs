@@ -457,7 +457,7 @@ namespace ZenStates.Core
             }
         }
 
-        private static Dictionary<string, uint> GetWmiFunctions()
+        public static Dictionary<string, uint> GetWmiFunctions()
         {
             Dictionary<string, uint> dict = new Dictionary<string, uint>();
 
