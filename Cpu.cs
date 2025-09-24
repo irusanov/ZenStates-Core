@@ -1,6 +1,8 @@
 using OpenHardwareMonitor.Hardware;
 using System;
+#if !NET20
 using System.Globalization;
+#endif
 using System.IO;
 using System.Reflection;
 using System.Text;
@@ -430,8 +432,7 @@ namespace ZenStates.Core
             {
                 if (Mutexes.WaitPciBus(10))
                 {
-                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr)
-                        && Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, out data))
+                    if (_pawnAmd.ReadSmn(addr, out data))
                     {
                         Mutexes.ReleasePciBus();
                         return true;
@@ -458,7 +459,9 @@ namespace ZenStates.Core
 
         public bool WriteDwordEx(uint addr, uint data, int maxRetries = 10)
         {
-            for (int retry = 0; retry < maxRetries; retry++)
+            throw new NotSupportedException("WriteDwordEx is currently not supported by PawnIO");
+
+            /*for (int retry = 0; retry < maxRetries; retry++)
             {
                 if (Mutexes.WaitPciBus(10))
                 {
@@ -473,7 +476,7 @@ namespace ZenStates.Core
                 }
             }
 
-            return false;
+            return false;*/
         }
 
         public double GetCoreMulti(int index = 0)

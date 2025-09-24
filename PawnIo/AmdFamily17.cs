@@ -22,6 +22,26 @@ namespace ZenStates.Core
             return (uint)result[0];
         }
 
+        public bool ReadSmn(uint offset, out uint data)
+        {
+            long[] input = new long[1];
+            long[] output = new long[1];
+            input[0] = offset;
+
+            uint returnSize;
+            int result = _pawnIo.ExecuteHr("ioctl_read_smn", input, 1, output, 1, out returnSize);
+
+            // NTSTATUS_SUCCESS
+            if (result == 0 && returnSize > 0)
+            {
+                data = (uint)output[0];
+                return true;
+            }
+
+            data = 0;
+            return false;
+        }
+
         public bool ReadMsr(uint index, out uint eax, out uint edx)
         {
             long[] inArray = new long[1];
