@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 
 namespace ZenStates.Core
@@ -226,7 +227,7 @@ namespace ZenStates.Core
             try
             {
                 long[] result = _pawnIO.Execute("ioctl_get_smu_version", new long[0], 1);
-                return (uint)result[0];
+                return Convert.ToUInt32(result[0] & 0xffffffff);
             }
             finally
             {
@@ -323,11 +324,19 @@ namespace ZenStates.Core
         /// <summary>
         /// Gets the CPU code name from the SMU.
         /// </summary>
-        /// <returns>The CPU code name as a long value.</returns>
-        private long GetCodeName()
+        /// <returns>The CPU code name as a int value.</returns>
+        private int GetCodeName()
         {
-            long[] result = _pawnIO.Execute("ioctl_get_code_name", new long[0], 1);
-            return result[0];
+            long[] input = new long[0];
+            long[] output = new long[1];
+
+            int status = _pawnIO.ExecuteHr("ioctl_get_code_name", input, 0, output, 1, out uint returnSize);
+            if (status != 0 || returnSize == 0 || output.Length == 0)
+            {
+                Debug.WriteLine($"ioctl_get_code_name failed with status: 0x{status:X8}, output length: {output.Length}, returnSize: {returnSize}");
+                return (int)CpuCodeName.Undefined;
+            }
+            return Convert.ToInt32(output[0] & 0xffffffff);
         }
 
         /// <summary>
@@ -342,8 +351,8 @@ namespace ZenStates.Core
 
             try
             {
-                long[] result = _pawnIO.Execute("ioctl_resolve_pm_table", new long[0], 2);
-                version = (uint)result[0];
+                long[] result = _pawnIO.Execute("ioctl_resolve_pm_table", new long[2], 2);
+                version = Convert.ToUInt32(result[0] & 0xffffffff);
                 baseAddress = result[1];
             }
             finally
@@ -374,7 +383,7 @@ namespace ZenStates.Core
             }
 
             // Read the PM table
-            long[] rawData = _pawnIO.Execute("ioctl_read_pm_table", new long[0], (int)((_pmTableSize + 7) / 8));
+            long[] rawData = _pawnIO.Execute("ioctl_read_pm_table", new long[1], (int)((_pmTableSize + 7) / 8));
             Buffer.BlockCopy(rawData, 0, table, 0, (int)_pmTableSize);
 
             return table;

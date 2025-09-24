@@ -19,7 +19,7 @@ namespace ZenStates.Core
             input[0] = offset;
 
             long[] result = _pawnIo.Execute("ioctl_read_smn", input, 1);
-            return (uint)result[0];
+            return Convert.ToUInt32(result[0] & 0xffffffff);
         }
 
         public bool ReadSmn(uint offset, out uint data)
@@ -34,7 +34,7 @@ namespace ZenStates.Core
             // NTSTATUS_SUCCESS
             if (result == 0 && returnSize > 0)
             {
-                data = (uint)output[0];
+                data = Convert.ToUInt32(output[0] & 0xffffffff);
                 return true;
             }
 
@@ -52,8 +52,8 @@ namespace ZenStates.Core
             try
             {
                 long[] outArray = _pawnIo.Execute("ioctl_read_msr", inArray, 1);
-                eax = (uint)outArray[0];
-                edx = (uint)(outArray[0] >> 32);
+                eax = Convert.ToUInt32(outArray[0] & 0xffffffff);
+                edx = Convert.ToUInt32((outArray[0] >> 32) & 0xffffffff);
             }
             catch
             {
