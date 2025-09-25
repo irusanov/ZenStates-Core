@@ -1,3 +1,5 @@
+#define DISABLE_WINRING0 
+
 using OpenHardwareMonitor.Hardware;
 using System;
 #if !NET20
@@ -319,8 +321,15 @@ namespace ZenStates.Core
             CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 #endif
             Mutexes.Open();
+#if !DISABLE_WINRING0
             Ring0.Open();
+#endif
 
+            if (!PawnIo.IsInstalled)
+            {
+                throw new ApplicationException("PawnIO is not installed.");
+            }
+#if !DISABLE_WINRING0
             if (!Ring0.IsOpen)
             {
                 string errorReport = Ring0.GetReport();
@@ -331,7 +340,7 @@ namespace ZenStates.Core
 
                 throw new ApplicationException("Error opening WinRing kernel driver");
             }
-
+#endif
             Opcode.Open();
 
             _pawnAmd = new AmdFamily17();
@@ -1198,7 +1207,9 @@ namespace ZenStates.Core
                 {
                     io.Dispose();
                     Mutexes.Close();
+#if !DISABLE_WINRING0
                     Ring0.Close();
+#endif
                     Opcode.Close();
                     _pawnAmd?.Close();
                     _pawnRyzenSmu?.Dispose();
