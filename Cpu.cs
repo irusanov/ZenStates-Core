@@ -1,9 +1,12 @@
-#define DISABLE_WINRING0 
+#define ENABLE_WINRING0 
 
 using OpenHardwareMonitor.Hardware;
 using System;
 #if !NET20
 using System.Globalization;
+#endif
+#if ENABLE_WINRING0
+using System.IO;
 #endif
 using System.Reflection;
 using System.Text;
@@ -318,7 +321,7 @@ namespace ZenStates.Core
             CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 #endif
             Mutexes.Open();
-#if !DISABLE_WINRING0
+#if ENABLE_WINRING0
             Ring0.Open();
 #endif
 
@@ -326,7 +329,7 @@ namespace ZenStates.Core
             {
                 throw new ApplicationException("PawnIO is not installed.");
             }
-#if !DISABLE_WINRING0
+#if ENABLE_WINRING0
             if (!Ring0.IsOpen)
             {
                 string errorReport = Ring0.GetReport();
@@ -1204,7 +1207,7 @@ namespace ZenStates.Core
                 {
                     io.Dispose();
                     Mutexes.Close();
-#if !DISABLE_WINRING0
+#if ENABLE_WINRING0
                     Ring0.Close();
 #endif
                     Opcode.Close();
