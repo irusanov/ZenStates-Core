@@ -120,8 +120,9 @@ namespace ZenStates.Core
             try
             {
                 // Load the PawnIO module from embedded resource
-                string resourceName = "ZenStates.Core.Resources.PawnIo.RyzenSMU.bin";
-                _pawnIO = PawnIo.LoadModuleFromResource(typeof(RyzenSmu).Assembly, resourceName);
+                //string resourceName = "ZenStates.Core.Resources.PawnIo.RyzenSMU.bin";
+                //_pawnIO = PawnIo.LoadModuleFromResource(typeof(RyzenSmu).Assembly, resourceName);
+                _pawnIO = PawnIo.OpenFromFile("RyzenSMU.amx");
 
                 // Get CPU information
                 _cpuCodeName = (CpuCodeName)GetCodeName();
@@ -534,6 +535,9 @@ namespace ZenStates.Core
                     break;
                 case 0x00540104:
                     _pmTableSize = 0x950;
+                    break;
+                case 0x00620205:
+                    _pmTableSize = 0x994;
                     break;
                 default:
                     throw new NotSupportedException($"Raphael/GraniteRidge PM table version 0x{_pmTableVersion:X8} is not supported");
