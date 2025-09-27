@@ -80,6 +80,11 @@ namespace ZenStates.Core
 
         private static string SmuVersionToString(uint ver)
         {
+            if (ver.Equals(0))
+            {
+                return "Unknown";
+            }
+
             if ((ver & 0xFF000000) > 0)
             {
                 return $"{(ver >> 24) & 0xff}.{(ver >> 16) & 0xff}.{(ver >> 8) & 0xff}.{ver & 0xff}";

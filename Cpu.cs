@@ -1,6 +1,8 @@
 using OpenHardwareMonitor.Hardware;
 using System;
+#if !NET20
 using System.Globalization;
+#endif
 using System.IO;
 using System.Reflection;
 using System.Text;
@@ -15,9 +17,7 @@ namespace ZenStates.Core
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
 
-        public readonly string Version = ((AssemblyFileVersionAttribute)Attribute.GetCustomAttribute(
-                Assembly.GetExecutingAssembly(),
-                typeof(AssemblyFileVersionAttribute), false)).Version;
+        public readonly Version Version = Assembly.GetExecutingAssembly().GetName().Version;
 
         public enum Family
         {
