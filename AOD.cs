@@ -283,7 +283,8 @@ namespace ZenStates.Core
 
         private void Init()
         {
-            Table.AcpiTable = GetAcpiTable();
+            //Table.AcpiTable = GetAcpiTable();
+            Table.AcpiTable = AOD.GetAcpiTableFromRegistry();
 
             if (Table.AcpiTable != null && Table?.AcpiTable.Value.Data != null)
             {
