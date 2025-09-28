@@ -1,4 +1,4 @@
-#define ENABLE_WINRING0 
+//#define ENABLE_WINRING0
 
 using OpenHardwareMonitor.Hardware;
 using System;
