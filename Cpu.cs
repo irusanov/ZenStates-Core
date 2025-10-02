@@ -972,7 +972,8 @@ namespace ZenStates.Core
             SMUCommands.CmdResult result = cmd.Execute(arg);
             return result.Success && cmd.IsSumCorrect;
         }
-        public uint GetSmuVersion() => new SMUCommands.GetSmuVersion(smu).Execute().args[0];
+        //public uint GetSmuVersion() => new SMUCommands.GetSmuVersion(smu).Execute().args[0];
+        public uint GetSmuVersion() => _pawnRyzenSmu.GetSmuVersion();
         public double? GetBclk() => mmio.GetBclk();
         public AMD_MMIO.ClkGen GetStrapStatus() => mmio.GetStrapStatus();
         public bool SetBclk(double blck) => mmio.SetBclk(blck);
@@ -986,9 +987,9 @@ namespace ZenStates.Core
 
         public TableVersionResult GetTableVersion()
         {
-            var cmd = new SMUCommands.GetTableVersion(smu);
-            cmd.Execute();
-            return new TableVersionResult { TableVersion = cmd.TableVersion, TableSize = cmd.TableSize };
+            //var cmd = new SMUCommands.GetTableVersion(smu);
+            //cmd.Execute();
+            return new TableVersionResult { TableVersion = _pawnRyzenSmu.PmTableVersion, TableSize = _pawnRyzenSmu.PmTableSize };
         }
         public uint GetDramBaseAddress() => new SMUCommands.GetDramAddress(smu).Execute().args[0];
         public long GetDramBaseAddress64()

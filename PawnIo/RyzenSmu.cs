@@ -201,6 +201,16 @@ namespace ZenStates.Core
         public uint PmTableVersion => _pmTableVersion;
 
         /// <summary>
+        /// Gets the PM table szie.
+        /// </summary>
+        public uint PmTableSize=> _pmTableSize;
+
+        /// <summary>
+        /// Gets the PM table alt size.
+        /// </summary>
+        public uint PmTableSizeAlt => _pmTableSizeAlt;
+
+        /// <summary>
         /// Gets the DRAM base address for the PM table.
         /// </summary>
         public long DramBaseAddress => _dramBaseAddress;
