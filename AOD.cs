@@ -389,10 +389,10 @@ namespace ZenStates.Core
                             { "RttPark", lastOffset + 40 },
                             { "RttParkDqs", lastOffset + 44 },
 
-                            { "MemVddio", lastOffset + 92 },
-                            { "MemVddq", lastOffset + 96 },
-                            { "MemVpp", lastOffset + 100 },
-                            { "ApuVddio", lastOffset + 104 }
+                            { "MemVddio", lastOffset + 88 },
+                            { "MemVddq", lastOffset + 92 },
+                            { "MemVpp", lastOffset + 96 },
+                            { "ApuVddio", lastOffset + 100 }
                         };
                     }
                     return AodDictionaries.AodDataDictionaryV4;

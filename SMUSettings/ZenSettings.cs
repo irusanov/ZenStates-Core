@@ -14,6 +14,7 @@
 
             Rsmu.SMU_MSG_TransferTableToDram = 0xA;
             Rsmu.SMU_MSG_GetDramBaseAddress = 0xC;
+            Rsmu.SMU_MSG_GetTableVersion = 0xD;
             // Rsmu.SMU_MSG_EnableOcMode = 0x63; // Disable PROCHOT?
 
             // MP1
