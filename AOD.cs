@@ -361,6 +361,9 @@ namespace ZenStates.Core
                 return AodDictionaries.AodDataDictionaryV3;
 
             var baseDictionary = GetBaseDictionaryByFrequency();
+            var lastOffset = baseDictionary.LastOffset;
+            var memModule = cpuInstance.GetMemoryConfig()?.Modules[0];
+            var isMDie = memModule?.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
 
             switch (codeName)
             {
@@ -373,7 +376,6 @@ namespace ZenStates.Core
                 case Cpu.CodeName.HawkPoint:
                     if (baseDictionary.Dict != null)
                     {
-                        var lastOffset = baseDictionary.LastOffset;
                         // CadBusDrvStren seems to always be present, so use it as a shortcut to get the largest offset
                         return new Dictionary<string, int>(baseDictionary.Dict)
                         {
@@ -400,59 +402,93 @@ namespace ZenStates.Core
                 case Cpu.CodeName.Turin:
                 case Cpu.CodeName.TurinD:
                 case Cpu.CodeName.ShimadaPeak:
-                    var index = Utils.FindSequence(this.Table.RawAodTable, 0, new byte[] { 0xff, 0, 0, 0 });
-                    var tableStart = index + 36;
-
-                    if (index > -1)
+                    if (baseDictionary.Dict != null)
                     {
+                        var dict = new Dictionary<string, int>();
+
                         if (patchLevel > 0xB404022)
                         {
-                            return new Dictionary<string, int>(AodDictionaries.AodDataDictionary_1Ah_B404023)
+                            dict = new Dictionary<string, int>(baseDictionary.Dict)
                             {
-                                ["ProcOdt"] = tableStart,
-                                ["ProcOdtPullUp"] = tableStart,
-                                ["ProcOdtPullDown"] = tableStart + 4,
-                                ["DramDataDrvStren"] = tableStart + 8,
-                                ["DramDqDsPullUp"] = tableStart + 8,
-                                ["DramDqDsPullDown"] = tableStart + 12,
-                                ["ProcCsDs"] = tableStart + 16,
-                                ["ProcCkDs"] = tableStart + 20,
-                                ["ProcDataDrvStren"] = tableStart + 24,
-                                ["ProcDqDsPullUp"] = tableStart + 24,
-                                ["ProcDqDsPullDown"] = tableStart + 28,
+                                { "RttNomWr", lastOffset + 4 },
+                                { "RttNomRd", lastOffset + 8 },
+                                { "RttWr", lastOffset + 12 },
+                                { "RttPark", lastOffset + 16 },
+                                { "RttParkDqs", lastOffset + 20 },
+
+                                { "MemVddio", lastOffset + 56 },
+                                { "MemVddq", lastOffset + 60 },
+                                { "MemVpp", lastOffset + 64 },
+                                { "ApuVddio", lastOffset + 68 },
+
+                                { "ProcOdt", lastOffset + 144 },
+                                { "ProcOdtPullUp", lastOffset + 144 },
+                                { "ProcOdtPullDown", lastOffset + 148 },
+                                { "DramDataDrvStren", lastOffset + 152 },
+                                { "DramDqDsPullUp", lastOffset + 152 },
+                                { "DramDqDsPullDown", lastOffset + 156 },
+                                { "ProcCsDs", lastOffset + 160 },
+                                { "ProcCkDs", lastOffset + 164 },
+                                { "ProcDataDrvStren", lastOffset + 168 },
+                                { "ProcDqDsPullUp", lastOffset + 172 },
+                                { "ProcDqDsPullDown", lastOffset +  176 },
                             };
+
+                            // Why?
+                            if (isMDie && !hasRMP)
+                            {
+                                dict["ProcOdt"] = lastOffset + 132;
+                                dict["ProcOdtPullUp"] = lastOffset + 132;
+                                dict["ProcOdtPullDown"] = lastOffset + 136;
+                                dict["DramDataDrvStren"] = lastOffset + 140;
+                                dict["DramDqDsPullUp"] = lastOffset + 140;
+                                dict["DramDqDsPullDown"] = lastOffset + 140;
+                                dict["ProcCsDs"] = lastOffset + 144;
+                                dict["ProcCkDs"] = lastOffset + 148;
+                                dict["ProcDataDrvStren"] = lastOffset + 152;
+                                dict["ProcDqDsPullUp"] = lastOffset + 156;
+                                dict["ProcDqDsPullDown"] = lastOffset + 160;
+                            }
+
+                            return dict;
                         }
                         else
                         {
-                            return new Dictionary<string, int>(AodDictionaries.AodDataDictionary_1Ah)
+                            dict = new Dictionary<string, int>(baseDictionary.Dict)
                             {
-                                ["ProcOdt"] = tableStart,
-                                ["ProcOdtPullUp"] = tableStart,
-                                ["ProcOdtPullDown"] = tableStart + 4,
-                                ["DramDataDrvStren"] = tableStart + 8,
+                                { "ProcDataDrvStren", lastOffset + 4 },
+
+                                { "RttNomWr", lastOffset + 8 },
+                                { "RttNomRd", lastOffset + 12 },
+                                { "RttWr", lastOffset + 16 },
+                                { "RttPark", lastOffset + 20 },
+                                { "RttParkDqs", lastOffset + 24 },
+
+                                { "MemVddio", lastOffset + 60 },
+                                { "MemVddq", lastOffset + 64 },
+                                { "MemVpp", lastOffset + 68 },
+                                { "ApuVddio", lastOffset + 72 },
+
+                                { "ProcOdt", lastOffset + 136 },
+                                { "ProcOdtPullUp", lastOffset + 136 },
+                                { "ProcOdtPullDown", lastOffset + 140 },
+                                { "DramDataDrvStren", lastOffset + 144 }
                             };
+
+                            
+                            if (isMDie && hasRMP)
+                            {
+                                dict["ProcOdt"] = lastOffset + 148;
+                                dict["ProcOdtPullUp"] = lastOffset + 148;
+                                dict["ProcOdtPullDown"] = lastOffset + 152;
+                                dict["DramDataDrvStren"] = lastOffset + 156;
+                            }
+
+                            return dict;
                         }
                     }
 
-                    // Fallback to old code
-                    var memModule = cpuInstance.GetMemoryConfig()?.Modules[0];
-                    var isMDie = memModule?.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
-                    var isDR = memModule?.Rank == DRAM.MemRank.DR;
-
-                    if (patchLevel > 0xB404022)
-                    {
-                        if (isMDie && hasRMP)
-                            return AodDictionaries.AodDataDictionary_1Ah_B404023;
-                        if (isMDie)
-                            return AodDictionaries.AodDataDictionary_1Ah_B404023_M;
-
-                        return AodDictionaries.AodDataDictionary_1Ah_B404023;
-                    }
-
-                    if (isMDie && hasRMP)
-                        return AodDictionaries.AodDataDictionary_1Ah_M;
-
-                    return AodDictionaries.AodDataDictionary_1Ah;
+                    return AodDictionaries.AodDataDictionary_1Ah_B404023;
                 default:
                     return AodDictionaries.AodDataDictionaryV1;
             }

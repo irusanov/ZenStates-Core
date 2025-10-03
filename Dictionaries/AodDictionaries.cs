@@ -274,62 +274,6 @@ namespace ZenStates.Core
             { "ApuVddio", 9128 }
         };
 
-        // Shimada Peak
-        public static readonly Dictionary<string, int> AodDataDictionaryV5 = new Dictionary<string, int>
-        {
-            { "SMTEn", 8916 },
-            { "MemClk", 8920 },
-            { "Tcl", 8924 },
-            { "Trcd", 8928 },
-            { "Trp", 8932 },
-            { "Tras", 8936 },
-            { "Trc", 8940 },
-            { "Twr", 8944 },
-            { "Trfc", 8948 },
-            { "Trfc2", 8952 },
-            { "Trfcsb", 8956 },
-            { "Trtp", 8960 },
-            { "TrrdL", 8964 },
-            { "TrrdS", 8968 },
-            { "Tfaw", 8972 },
-            { "TwtrL", 8976 },
-            { "TwtrS", 8980 },
-            { "TrdrdScL", 8984 },
-            { "TrdrdSc", 8988 },
-            { "TrdrdSd", 8992 },
-            { "TrdrdDd", 8996 },
-            { "TwrwrScL", 9000 },
-            { "TwrwrSc", 9004 },
-            { "TwrwrSd", 9008 },
-            { "TwrwrDd", 9012 },
-            { "Twrrd", 9016 },
-            { "Trdwr", 9020 },
-            { "CadBusDrvStren", 9024 },
-            
-            { "RttNomWr", 9032 },
-            { "RttNomRd", 9036 },
-            { "RttWr", 9040 },
-            { "RttPark", 9044 },
-            { "RttParkDqs", 9048 },
-
-            { "MemVddio", 9084 },
-            { "MemVddq", 9088 },
-            { "MemVpp", 9092 },
-            { "ApuVddio", 9096 },
-
-            { "ProcOdt", 9172 },
-            { "ProcOdtPullUp", 9172 },
-            { "ProcOdtPullDown", 9176 },
-            { "DramDataDrvStren", 9180 },
-            { "DramDqDsPullUp", 9180 },
-            { "DramDqDsPullDown", 9184 },
-            { "ProcCsDs", 9188 },
-            { "ProcCkDs", 9192 },
-            { "ProcDataDrvStren", 9196 },
-            { "ProcDqDsPullUp", 9196 },
-            { "ProcDqDsPullDown", 9200 },
-        };
-
         // GraniteRidge
         public static readonly Dictionary<string, int> BaseAodDataDictionary_1Ah = new Dictionary<string, int>
         {
@@ -364,26 +308,26 @@ namespace ZenStates.Core
             { "CadBusDrvStren", 9028 },
         };
 
-        public static readonly Dictionary<string, int> AodDataDictionary_1Ah = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
-        {
-            { "ProcDataDrvStren", 9032 },
+        //public static readonly Dictionary<string, int> AodDataDictionary_1Ah = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
+        //{
+        //    { "ProcDataDrvStren", 9032 },
 
-            { "RttNomWr", 9036 },
-            { "RttNomRd", 9040 },
-            { "RttWr", 9044 },
-            { "RttPark", 9048 },
-            { "RttParkDqs", 9052 },
+        //    { "RttNomWr", 9036 },
+        //    { "RttNomRd", 9040 },
+        //    { "RttWr", 9044 },
+        //    { "RttPark", 9048 },
+        //    { "RttParkDqs", 9052 },
 
-            { "MemVddio", 9088 },
-            { "MemVddq", 9092 },
-            { "MemVpp", 9096 },
-            { "ApuVddio", 9100 },
+        //    { "MemVddio", 9088 },
+        //    { "MemVddq", 9092 },
+        //    { "MemVpp", 9096 },
+        //    { "ApuVddio", 9100 },
 
-            { "ProcOdt", 9164 },
-            { "ProcOdtPullUp", 9164 },
-            { "ProcOdtPullDown", 9168 },
-            { "DramDataDrvStren", 9172 }
-        };
+        //    { "ProcOdt", 9164 },
+        //    { "ProcOdtPullUp", 9164 },
+        //    { "ProcOdtPullDown", 9168 },
+        //    { "DramDataDrvStren", 9172 }
+        //};
 
         public static readonly Dictionary<string, int> AodDataDictionary_1Ah_B404023 = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
         {
@@ -412,52 +356,52 @@ namespace ZenStates.Core
         };
 
         // M-Die 24GB SR sticks
-        public static readonly Dictionary<string, int> AodDataDictionary_1Ah_M = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
-        {
-            { "ProcDataDrvStren", 9032 },
+        //public static readonly Dictionary<string, int> AodDataDictionary_1Ah_M = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
+        //{
+        //    { "ProcDataDrvStren", 9032 },
 
-            { "RttNomWr", 9036 },
-            { "RttNomRd", 9040 },
-            { "RttWr", 9044 },
-            { "RttPark", 9048 },
-            { "RttParkDqs", 9052 },
+        //    { "RttNomWr", 9036 },
+        //    { "RttNomRd", 9040 },
+        //    { "RttWr", 9044 },
+        //    { "RttPark", 9048 },
+        //    { "RttParkDqs", 9052 },
 
-            { "MemVddio", 9088 },
-            { "MemVddq", 9092 },
-            { "MemVpp", 9096 },
-            { "ApuVddio", 9100 },
+        //    { "MemVddio", 9088 },
+        //    { "MemVddq", 9092 },
+        //    { "MemVpp", 9096 },
+        //    { "ApuVddio", 9100 },
 
-            { "ProcOdt", 9176 },
-            { "ProcOdtPullUp", 9176 },
-            { "ProcOdtPullDown", 9180 },
-            { "DramDataDrvStren", 9184 },
-        };
+        //    { "ProcOdt", 9176 },
+        //    { "ProcOdtPullUp", 9176 },
+        //    { "ProcOdtPullDown", 9180 },
+        //    { "DramDataDrvStren", 9184 },
+        //};
 
-        public static readonly Dictionary<string, int> AodDataDictionary_1Ah_B404023_M = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
-        {
-            { "RttNomWr", 9032 },
-            { "RttNomRd", 9036 },
-            { "RttWr", 9040 },
-            { "RttPark", 9044 },
-            { "RttParkDqs", 9048 },
+        //public static readonly Dictionary<string, int> AodDataDictionary_1Ah_B404023_M = new Dictionary<string, int>(BaseAodDataDictionary_1Ah)
+        //{
+        //    { "RttNomWr", 9032 },
+        //    { "RttNomRd", 9036 },
+        //    { "RttWr", 9040 },
+        //    { "RttPark", 9044 },
+        //    { "RttParkDqs", 9048 },
 
-            { "MemVddio", 9084 },
-            { "MemVddq", 9088 },
-            { "MemVpp", 9092 },
-            { "ApuVddio", 9096 },
+        //    { "MemVddio", 9084 },
+        //    { "MemVddq", 9088 },
+        //    { "MemVpp", 9092 },
+        //    { "ApuVddio", 9096 },
 
-            { "ProcOdt", 9160 },
-            { "ProcOdtPullUp", 9160 },
-            { "ProcOdtPullDown", 9164 },
-            { "DramDataDrvStren", 9168 },
+        //    { "ProcOdt", 9160 },
+        //    { "ProcOdtPullUp", 9160 },
+        //    { "ProcOdtPullDown", 9164 },
+        //    { "DramDataDrvStren", 9168 },
 
-            { "DramDqDsPullUp", 9168 },
-            { "DramDqDsPullDown", 9168 },
-            { "ProcCsDs", 9172 },
-            { "ProcCkDs", 9176 },
-            { "ProcDataDrvStren", 9180 },
-            { "ProcDqDsPullUp", 9184 },
-            { "ProcDqDsPullDown", 9188 },
-        };
+        //    { "DramDqDsPullUp", 9168 },
+        //    { "DramDqDsPullDown", 9168 },
+        //    { "ProcCsDs", 9172 },
+        //    { "ProcCkDs", 9176 },
+        //    { "ProcDataDrvStren", 9180 },
+        //    { "ProcDqDsPullUp", 9184 },
+        //    { "ProcDqDsPullDown", 9188 },
+        //};
     }
 }
