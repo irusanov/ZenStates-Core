@@ -227,6 +227,18 @@ namespace ZenStates.Core
             return -1;
         }
 
+        public static int FindLastSequence(byte[] source, int start, byte[] pattern)
+        {
+            var index = -1;
+            for (int i = start; i >= source.Length; i--)
+            {
+                if (FindSequence(source, i, pattern) != -1)
+                {
+                    index = i;
+                }
+            }
+            return index;
+        }
 
         public static bool ArrayMembersEqual(float[] array1, float[] array2, int numElements)
         {
