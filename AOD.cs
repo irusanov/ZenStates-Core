@@ -312,7 +312,7 @@ namespace ZenStates.Core
             if (frequency >= 2400)
             {
                 var value = (int)(frequency / 2);
-                var tableIndex = Utils.FindSequence(this.Table.RawAodTable, 0, BitConverter.GetBytes(value));
+                var tableIndex = Utils.FindLastSequence(this.Table.RawAodTable, 0, BitConverter.GetBytes(value));
                 if (tableIndex > -1)
                 {
                     return new BaseDictionary()
@@ -376,7 +376,6 @@ namespace ZenStates.Core
                 case Cpu.CodeName.HawkPoint:
                     if (baseDictionary.Dict != null)
                     {
-                        // CadBusDrvStren seems to always be present, so use it as a shortcut to get the largest offset
                         return new Dictionary<string, int>(baseDictionary.Dict)
                         {
                             { "ProcDataDrvStren", lastOffset + 4},

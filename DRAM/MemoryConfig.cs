@@ -62,21 +62,16 @@ namespace ZenStates.Core.DRAM
         public MemoryConfig(Cpu cpuInstance)
         {
             cpu = cpuInstance;
-
-            //TODO: Get first DCT offset
-            Type = (MemType)(cpu.ReadDword(0 | DRAM_TYPE_REG_ADDR) & DRAM_TYPE_BIT_MASK);
-
             ChannelsPerDimm = 1; // Type == MemType.DDR5 ? 2u : 1u;
-
             Channels = new List<Channel>();
-
             Modules = new List<MemoryModule>();
+            Timings = new List<KeyValuePair<uint, BaseDramTimings>>();
 
             ReadModulesInfo();
-
             ReadChannels();
 
-            Timings = new List<KeyValuePair<uint, BaseDramTimings>>();
+            var offset = Channels.Count > 0 ? Channels[0].Offset : 0;
+            Type = (MemType)(cpu.ReadDword(offset | DRAM_TYPE_REG_ADDR) & DRAM_TYPE_BIT_MASK);
 
             foreach (MemoryModule module in Modules)
             {

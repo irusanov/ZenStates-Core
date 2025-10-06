@@ -183,7 +183,12 @@ namespace ZenStates.Core.DRAM
         public uint PHYWRD { get; internal set; }
         public uint PHYWRL { get; internal set; }
         public uint PHYRDL { get; internal set; }
-        public uint WRPRE { get; internal set; }
+        // WRPRE seems to be zero-based in the register and off by one
+        private uint _wrpre;
+        public uint WRPRE {
+            get => _wrpre + 1;
+            internal set => _wrpre = value;
+        }
         public uint RDPRE { get; internal set; }
         public float RFCns { get => Utils.ToNanoseconds(RFC, Frequency); }
         public float REFIns { get => Utils.ToNanoseconds(REFI, Frequency); }
