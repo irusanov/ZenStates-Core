@@ -6,6 +6,7 @@ namespace ZenStates.Core
 {
     public class PowerTable : INotifyPropertyChanged
     {
+        private readonly Cpu.CodeName _codeName = Cpu.CodeName.Unsupported;
         private readonly IOModule io;
         private readonly RyzenSmu smu;
         private readonly AMD_MMIO mmio;
@@ -212,16 +213,106 @@ namespace ZenStates.Core
             return PowerTables.Find(x => x.tableVersion == version);
         }
 
-        private static PTDef? GetPowerTableDef(uint tableVersion)
+        // Temporary restore method for default tables, but modify to match code name instead of smu type
+        private PTDef? GetDefaultTableDef(uint tableVersion)
+        {
+            if (_codeName == Cpu.CodeName.Unsupported)
+                return null;
+
+            uint version = 0;
+
+            switch (_codeName)
+            {
+                case Cpu.CodeName.SummitRidge:
+                case Cpu.CodeName.Naples:
+                case Cpu.CodeName.Whitehaven:
+                    version = 0x100;
+                    break;
+
+                case Cpu.CodeName.PinnacleRidge:
+                case Cpu.CodeName.Colfax:
+                    version = 0x101;
+                    break;
+
+                case Cpu.CodeName.Matisse:
+                case Cpu.CodeName.CastlePeak:
+                case Cpu.CodeName.Rome:
+                    uint temp = tableVersion & 0x7;
+                    if (temp == 0)
+                        version = 0x200;
+                    else if (temp == 1 || temp == 2 || temp == 4)
+                        version = 0x202;
+                    else
+                        version = 0x203;
+                    break;
+
+                case Cpu.CodeName.Vermeer:
+                case Cpu.CodeName.Chagall:
+                case Cpu.CodeName.Milan:
+                    version = 0x300;
+                    break;
+
+                case Cpu.CodeName.Raphael:
+                case Cpu.CodeName.Genoa:
+                case Cpu.CodeName.StormPeak:
+                case Cpu.CodeName.DragonRange:
+                case Cpu.CodeName.GraniteRidge:
+                case Cpu.CodeName.Bergamo:
+                case Cpu.CodeName.Turin:
+                case Cpu.CodeName.TurinD:
+                case Cpu.CodeName.ShimadaPeak:
+                    if ((tableVersion >> 16) == 0x5c)
+                        version = 0x5c0;
+                    else if ((tableVersion >> 16) == 0x62)
+                        version = 0x620;
+                    else if ((tableVersion >> 16) == 0x73)
+                        version = 0x730;
+                    else
+                        version = 0x400;
+                    break;
+
+                case Cpu.CodeName.RavenRidge:
+                case Cpu.CodeName.FireFlight:
+                case Cpu.CodeName.Dali:
+                case Cpu.CodeName.Picasso:
+                    version = 0x10;
+                    break;
+
+                case Cpu.CodeName.Renoir:
+                case Cpu.CodeName.Lucienne:
+                case Cpu.CodeName.Cezanne:
+                case Cpu.CodeName.Mero:
+                case Cpu.CodeName.VanGogh:
+                case Cpu.CodeName.Rembrandt:
+                case Cpu.CodeName.Phoenix:
+                case Cpu.CodeName.Phoenix2:
+                case Cpu.CodeName.HawkPoint:
+                case Cpu.CodeName.Mendocino:
+                case Cpu.CodeName.StrixPoint:
+                case Cpu.CodeName.StrixHalo:
+                    if ((tableVersion >> 16) == 0x37)
+                        version = 0x11;
+                    else if ((tableVersion >> 16) == 0x4c)
+                        version = 0x4c0;
+                    else
+                        version = 0x12;
+                    break;
+            }
+
+            return GetDefByVersion(version);
+        }
+
+        private /*static*/ PTDef? GetPowerTableDef(uint tableVersion)
         {
             PTDef temp = GetDefByVersion(tableVersion);
             if (temp.tableSize != 0)
                 return temp;
-            return null;
+            return GetDefaultTableDef(tableVersion);
         }
 
-        public PowerTable(RyzenSmu smuInstance, IOModule ioInstance, AMD_MMIO mmio)
+        public PowerTable(RyzenSmu smuInstance, IOModule ioInstance, AMD_MMIO mmio, Cpu.CodeName? codeName)
         {
+            this._codeName = codeName ?? Cpu.CodeName.Unsupported;
             this.smu = smuInstance ?? throw new ArgumentNullException(nameof(smuInstance));
             this.io = ioInstance ?? throw new ArgumentNullException(nameof(ioInstance));
             this.mmio = mmio ?? throw new ArgumentNullException(nameof(mmio));
@@ -233,6 +324,9 @@ namespace ZenStates.Core
                 throw new ApplicationException("Invalid table size.");
 
             TableSize = tableDef.tableSize;
+            if (TableSize > smu.PmTableSize && smu.PmTableSize > 0)
+                TableSize = (int)smu.PmTableSize;
+
             Table = new float[TableSize / 4];
             this.Refresh();
         }
