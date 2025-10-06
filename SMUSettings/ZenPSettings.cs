@@ -14,6 +14,8 @@
 
             Rsmu.SMU_MSG_TransferTableToDram = 0xA;
             Rsmu.SMU_MSG_GetDramBaseAddress = 0xC;
+            Rsmu.SMU_MSG_GetTableVersion = 0xD;
+            Rsmu.SMU_MSG_GetPerformanceData = 0xE;
             Rsmu.SMU_MSG_EnableOcMode = 0x6B; //0x63; <-- Disable PROCHOT?
             //SMU_MSG_DisableOcMode = 0x64;
             Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x6C;
