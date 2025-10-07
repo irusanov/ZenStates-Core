@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
@@ -158,6 +158,7 @@ namespace ZenStates.Core
                     break;
 
                 case CpuCodeName.Renoir:
+                case CpuCodeName.Rembrandt:
                     ConfigureRenoirPmTableSize();
                     break;
 
@@ -176,8 +177,13 @@ namespace ZenStates.Core
                     ConfigureRaphaelPmTableSize();
                     break;
 
+                // TODO: Implement all codenames and known table sizes; add fallback
+                // Temporary use big enough default table size
+                // The actual table refresh does not care about the size and the handling of supported codenames are done in the driver module
                 default:
-                    throw new NotSupportedException($"CPU code name {_cpuCodeName} is not supported");
+                    _pmTableSize = 0x9AA; // Default size for unsupported CPUs
+                    break;
+                    //throw new NotSupportedException($"CPU code name {_cpuCodeName} is not supported");
             }
         }
 
@@ -488,8 +494,8 @@ namespace ZenStates.Core
                 case 0x380805:
                     _pmTableSize = 0x8F0;
                     break;
-                default:
-                    throw new NotSupportedException($"Vermeer PM table version 0x{_pmTableVersion:X8} is not supported");
+                //default:
+                //    throw new NotSupportedException($"Vermeer PM table version 0x{_pmTableVersion:X8} is not supported");
             }
         }
 
@@ -513,8 +519,11 @@ namespace ZenStates.Core
                 case 0x370005:
                     _pmTableSize = 0x8C8;
                     break;
-                default:
-                    throw new NotSupportedException($"Renoir PM table version 0x{_pmTableVersion:X8} is not supported");
+                case 0x450005:
+                    _pmTableSize = 0xAA4;
+                    break;
+                //default:
+                //    throw new NotSupportedException($"Renoir PM table version 0x{_pmTableVersion:X8} is not supported");
             }
         }
 
@@ -525,8 +534,8 @@ namespace ZenStates.Core
                 case 0x400005:
                     _pmTableSize = 0x944;
                     break;
-                default:
-                    throw new NotSupportedException($"Cezanne PM table version 0x{_pmTableVersion:X8} is not supported");
+                //default:
+                //    throw new NotSupportedException($"Cezanne PM table version 0x{_pmTableVersion:X8} is not supported");
             }
         }
 
@@ -549,8 +558,8 @@ namespace ZenStates.Core
                 case 0x00620205:
                     _pmTableSize = 0x994;
                     break;
-                default:
-                    throw new NotSupportedException($"Raphael/GraniteRidge PM table version 0x{_pmTableVersion:X8} is not supported");
+                //default:
+                //    throw new NotSupportedException($"Raphael/GraniteRidge PM table version 0x{_pmTableVersion:X8} is not supported");
             }
         }
 
