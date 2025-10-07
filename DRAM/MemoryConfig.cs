@@ -67,11 +67,11 @@ namespace ZenStates.Core.DRAM
             Modules = new List<MemoryModule>();
             Timings = new List<KeyValuePair<uint, BaseDramTimings>>();
 
+            //var offset = Channels.Count > 0 ? Channels[0].Offset : 0;
+            Type = (MemType)(cpu.ReadDword(0 | DRAM_TYPE_REG_ADDR) & DRAM_TYPE_BIT_MASK);
+
             ReadModulesInfo();
             ReadChannels();
-
-            var offset = Channels.Count > 0 ? Channels[0].Offset : 0;
-            Type = (MemType)(cpu.ReadDword(offset | DRAM_TYPE_REG_ADDR) & DRAM_TYPE_BIT_MASK);
 
             foreach (MemoryModule module in Modules)
             {

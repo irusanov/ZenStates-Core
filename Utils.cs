@@ -229,15 +229,15 @@ namespace ZenStates.Core
 
         public static int FindLastSequence(byte[] source, int start, byte[] pattern)
         {
-            var index = -1;
-            for (int i = start; i >= source.Length; i--)
+            var lastIndex = -1;
+            for (int i = start; i <= source.Length; i++)
             {
                 if (FindSequence(source, i, pattern) != -1)
                 {
-                    index = i;
+                    lastIndex = i;
                 }
             }
-            return index;
+            return lastIndex;
         }
 
         public static bool ArrayMembersEqual(float[] array1, float[] array2, int numElements)
@@ -283,6 +283,17 @@ namespace ZenStates.Core
                 return trefins;
             }
             return 0;
+        }
+
+        public static byte[] ToBytes2<T>(T value, bool littleEndian = true) where T : struct
+        {
+            long number = Convert.ToInt64(value);
+            byte low = Convert.ToByte(number & 0xFF);
+            byte high = Convert.ToByte((number >> 8) & 0xFF);
+
+            return littleEndian
+                ? new byte[] { low, high }
+                : new byte[] { high, low };
         }
 
         public static void RemoveRegistryKey(string keyPath)

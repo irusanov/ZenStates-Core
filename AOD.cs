@@ -308,11 +308,10 @@ namespace ZenStates.Core
         // TODO: Make generic for all CPUs
         private BaseDictionary GetBaseDictionaryByFrequency()
         {
-            var frequency = (cpuInstance.GetMemoryConfig()?.Timings[0].Value as DRAM.BaseDramTimings)?.Frequency ?? 0;
-            if (frequency >= 2400)
+            var frequency = (cpuInstance.memoryConfig?.Timings[0].Value as DRAM.BaseDramTimings)?.Frequency ?? 0;
+            if (frequency > 0)
             {
-                var value = (int)(frequency / 2);
-                var tableIndex = Utils.FindLastSequence(this.Table.RawAodTable, 0, BitConverter.GetBytes(value));
+                var tableIndex = Utils.FindLastSequence(this.Table.RawAodTable, 0, Utils.ToBytes2(frequency / 2));
                 if (tableIndex > -1)
                 {
                     return new BaseDictionary()
@@ -362,7 +361,7 @@ namespace ZenStates.Core
 
             var baseDictionary = GetBaseDictionaryByFrequency();
             var lastOffset = baseDictionary.LastOffset;
-            var memModule = cpuInstance.GetMemoryConfig()?.Modules[0];
+            var memModule = cpuInstance.memoryConfig?.Modules[0];
             var isMDie = memModule?.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
 
             switch (codeName)
@@ -403,7 +402,7 @@ namespace ZenStates.Core
                 case Cpu.CodeName.ShimadaPeak:
                     if (baseDictionary.Dict != null)
                     {
-                        var dict = new Dictionary<string, int>();
+                        Dictionary<string, int> dict;
 
                         if (patchLevel > 0xB404022)
                         {
