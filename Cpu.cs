@@ -347,8 +347,19 @@ namespace ZenStates.Core
             if (info.vendor != Constants.VENDOR_AMD && info.vendor != Constants.VENDOR_HYGON)
                 throw new Exception("Not an AMD CPU");
 
-            _pawnAmd = new AmdFamily17();
-            _pawnRyzenSmu = new RyzenSmu();
+            if (!PawnIo.IsInstalled)
+                throw new ApplicationException("PawnIO is not installed.");
+
+            try
+            {
+                _pawnAmd = new AmdFamily17();
+                _pawnRyzenSmu = new RyzenSmu();
+            }
+            catch (Exception ex)
+            {
+                throw new ApplicationException("Error initializing PawnIO AMD module. Driver signature enforcement not disabled or driver not installed in development mode.", ex);
+            }
+
             mmio = new AMD_MMIO(io);
 
             if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))

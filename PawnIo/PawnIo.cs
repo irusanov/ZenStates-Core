@@ -154,7 +154,7 @@ namespace ZenStates.Core
             }
             catch
             {
-                // PawnIO not available or failed to load
+                throw new ApplicationException("PawnIO module failed to load");
             }
 
             return pawnIO;
@@ -190,7 +190,7 @@ namespace ZenStates.Core
                 }
                 catch
                 {
-                    // PawnIO not available
+                    throw new ApplicationException("PawnIO module resource failed to load");
                 }
 
                 s.Dispose();
