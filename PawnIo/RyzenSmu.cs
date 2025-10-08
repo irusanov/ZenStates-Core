@@ -384,8 +384,6 @@ namespace ZenStates.Core
         /// <returns>An array of float values from the PM table.</returns>
         private float[] UpdateAndReadPmTable()
         {
-            float[] table = new float[_pmTableSize / 4];
-
             // Update the PM table
             if (!Mutexes.WaitPciBus(5000))
                 throw new TimeoutException("Timeout waiting for PCI bus mutex");
@@ -401,7 +399,9 @@ namespace ZenStates.Core
 
             // Read the PM table
             long[] rawData = _pawnIO.Execute("ioctl_read_pm_table", new long[1], (int)((_pmTableSize + 7) / 8));
-            Buffer.BlockCopy(rawData, 0, table, 0, (int)_pmTableSize);
+            int size = Math.Min(rawData.Length * 4, (int)_pmTableSize);
+            float[] table = new float[size];
+            Buffer.BlockCopy(rawData, 0, table, 0, size);
 
             return table;
         }
