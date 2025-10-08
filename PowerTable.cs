@@ -385,7 +385,6 @@ namespace ZenStates.Core
 
             try
             {
-
                 float[] fullTable = smu.GetPmTable();
                 Buffer.BlockCopy(fullTable, 0, Table, 0, TableSize);
 

@@ -181,7 +181,7 @@ namespace ZenStates.Core
                 // Temporary use big enough default table size
                 // The actual table refresh does not care about the size and the handling of supported codenames are done in the driver module
                 default:
-                    _pmTableSize = 0x9AA; // Default size for unsupported CPUs
+                    _pmTableSize = 0xAFC; // Default size for unsupported CPUs
                     break;
                     //throw new NotSupportedException($"CPU code name {_cpuCodeName} is not supported");
             }
@@ -210,11 +210,6 @@ namespace ZenStates.Core
         /// Gets the PM table szie.
         /// </summary>
         public uint PmTableSize=> _pmTableSize;
-
-        /// <summary>
-        /// Gets the PM table alt size.
-        /// </summary>
-        public uint PmTableSizeAlt => _pmTableSizeAlt;
 
         /// <summary>
         /// Gets the DRAM base address for the PM table.
@@ -398,8 +393,9 @@ namespace ZenStates.Core
             }
 
             // Read the PM table
-            long[] rawData = _pawnIO.Execute("ioctl_read_pm_table", new long[1], (int)((_pmTableSize + 7) / 8));
+            long[] rawData = _pawnIO.Execute("ioctl_read_pm_table", new long[1], (int)_pmTableSize);
             int size = Math.Min(rawData.Length * 4, (int)_pmTableSize);
+            _pmTableSize = (uint)size;
             float[] table = new float[size];
             Buffer.BlockCopy(rawData, 0, table, 0, size);
 
@@ -696,6 +692,7 @@ namespace ZenStates.Core
 
     /// <summary>
     /// Defines the CPU code names for different AMD processor families.
+    /// This enum should match the enum in RyzenSmu PawnIO module.
     /// </summary>
     public enum CpuCodeName
     {
@@ -717,7 +714,28 @@ namespace ZenStates.Core
         Milan,
         Dali,
         Raphael,
-        GraniteRidge
+        GraniteRidge,
+        Naples,
+        FireFlight,
+        Rome,
+        Chagall,
+        Lucienne,
+        Phoenix,
+        Phoenix2,
+        Mendocino,
+        Genoa,
+        StormPeak,
+        DragonRange,
+        Mero,
+        HawkPoint,
+        StrixPoint,
+        StrixHalo,
+        KrakanPoint,
+        KrakanPoint2,
+        Turin,
+        TurinD,
+        Bergamo,
+        ShimadaPeak,
     }
 
     #endregion
