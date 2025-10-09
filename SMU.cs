@@ -266,6 +266,7 @@ namespace ZenStates.Core
             { Cpu.CodeName.Mendocino, new APUSettings1_Phoenix() },
             { Cpu.CodeName.StrixPoint, new APUSettings1_Phoenix() },
             { Cpu.CodeName.StrixHalo, new APUSettings1_Phoenix() },
+            { Cpu.CodeName.KrackanPoint, new APUSettings1_Phoenix() },
 
             { Cpu.CodeName.Unsupported, new UnsupportedSettings() },
         };
