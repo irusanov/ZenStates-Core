@@ -314,8 +314,8 @@ namespace ZenStates.Core
 
             if (_isSupported)
             {
-                report.AppendFormat("PM Table Size: 0x{0:X3}\n", _pmTableSize);
-                report.AppendFormat("PM Table Base Address: 0x{0:X8}\n", _dramBaseAddress);
+                report.AppendFormat("PM Table Size: 0x{0:X}\n", _pmTableSize);
+                report.AppendFormat("PM Table Base Address: 0x{0:X16}\n", _dramBaseAddress);
                 report.AppendLine();
 
                 AppendPmTableDump(report);
