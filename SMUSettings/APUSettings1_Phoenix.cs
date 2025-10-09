@@ -36,6 +36,8 @@
             Rsmu.SMU_MSG_GetEXPOProfileActive = 0xDB;
             Rsmu.SMU_MSG_GetPerformanceData = 0xB;
             Rsmu.SMU_MSG_GetLN2Mode = 0xC4;
+            Rsmu.SMU_MSG_SetBoostLimitFrequencyAllCores = 0x47;
+            Rsmu.SMU_MSG_SetBoostLimitFrequencyGpu = 0xCA;
 
             // MP1
             // https://github.com/FlyGoat/RyzenAdj/blob/master/lib/nb_smu_ops.h#L45

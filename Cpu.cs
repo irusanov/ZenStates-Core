@@ -175,6 +175,7 @@ namespace ZenStates.Core
          * Rembrandt: 0x5D4DC
          * Phoenix: 0x5D528
          * StrixPoint: 0x3820AB0
+         * KrackanPoint: 0x3820AB0
          */
 
         // TODO: Refactor topology retrieval and fix for known fuse addresses

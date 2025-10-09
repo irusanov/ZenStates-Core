@@ -33,6 +33,7 @@
             Rsmu.SMU_MSG_GetLN2Mode = 0xA6;
             Rsmu.SMU_MSG_IsOverclockable = 0x6F;
             Rsmu.SMU_MSG_GetDldoPsmMargin = 0xA3;
+            Rsmu.SMU_MSG_SetBoostLimitFrequencyAllCores = 0x70;
         }
     }
 }
