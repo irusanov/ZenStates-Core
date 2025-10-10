@@ -22,8 +22,9 @@ namespace ZenStates.Core
         private readonly long _dramBaseAddress;
         private uint _pmTableSize;
         private uint _pmTableSizeAlt;
-        private bool _disposed;
         private uint _detectedPmTableSize;
+        private volatile bool _disposed;
+        private readonly object _disposeLock = new object();
 
         #endregion
 
@@ -211,7 +212,7 @@ namespace ZenStates.Core
 
         /// <summary>
         /// Gets the PM table szie.
-        /// Tenporary add setter to update from legacy PowerTable if needed
+        /// Temporary add setter to update from legacy PowerTable if needed
         /// </summary>
         public uint PmTableSize {
             get => _pmTableSize;
@@ -593,9 +594,6 @@ namespace ZenStates.Core
 
         #region IDisposable Implementation
 
-        /// <summary>
-        /// Releases all resources used by the RyzenSmu instance.
-        /// </summary>
         public void Dispose()
         {
             Dispose(true);
@@ -608,9 +606,19 @@ namespace ZenStates.Core
         /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
         protected virtual void Dispose(bool disposing)
         {
-            if (!_disposed && disposing)
+            if (_disposed)
+                return;
+
+            lock (_disposeLock)
             {
-                _pawnIO?.Close();
+                if (_disposed)
+                    return;
+
+                if (disposing)
+                {
+                    _pawnIO?.Close();
+                }
+
                 _disposed = true;
             }
         }
