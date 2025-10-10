@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Threading;
 
 namespace ZenStates.Core
@@ -16,23 +17,28 @@ namespace ZenStates.Core
         {
             try
             {
-                return new Mutex(false, name);
+                var worldRule = new MutexAccessRule(new SecurityIdentifier(WellKnownSidType.WorldSid, null), MutexRights.FullControl, AccessControlType.Allow);
+                var mutexSecurity = new MutexSecurity();
+                mutexSecurity.AddAccessRule(worldRule);
+
+#if NETFRAMEWORK
+                return new Mutex(false, name, out _, mutexSecurity);
+#else
+                return MutexAcl.Create(false, name, out _, mutexSecurity);
+#endif
             }
             catch (UnauthorizedAccessException)
             {
                 try
                 {
-#if NETCOREAPP || NETSTANDARD || NET6_0_OR_GREATER
-                    return MutexAcl.OpenExisting(name, MutexRights.Synchronize);
-#else
-                    return Mutex.OpenExisting(name, MutexRights.Synchronize);
-#endif
+                    return Mutex.OpenExisting(name);
                 }
                 catch
                 {
-                    // ignored
+                    // Ignored.
                 }
             }
+
             return null;
         }
 
