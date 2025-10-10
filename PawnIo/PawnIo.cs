@@ -79,6 +79,9 @@ namespace ZenStates.Core
         /// <returns></returns>
         public static PawnIo LoadModuleFromFile(string filePath)
         {
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException(@"PawnIO module not found.", filePath);
+
             IntPtr handle = CreateFile(@"\\.\PawnIO", FileAccess.GENERIC_READ | FileAccess.GENERIC_WRITE, 0x00000003, IntPtr.Zero, CreationDisposition.OPEN_EXISTING, 0, IntPtr.Zero);
             if (handle == IntPtr.Zero || handle.ToInt64() == -1)
                 return new PawnIo(null);
