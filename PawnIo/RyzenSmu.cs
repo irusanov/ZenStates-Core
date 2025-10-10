@@ -23,6 +23,7 @@ namespace ZenStates.Core
         private uint _pmTableSize;
         private uint _pmTableSizeAlt;
         private bool _disposed;
+        private uint _detectedPmTableSize;
 
         #endregion
 
@@ -185,6 +186,8 @@ namespace ZenStates.Core
                     break;
                     //throw new NotSupportedException($"CPU code name {_cpuCodeName} is not supported");
             }
+
+            _detectedPmTableSize = _pmTableSize;
         }
 
         #endregion
@@ -319,6 +322,7 @@ namespace ZenStates.Core
             if (_isSupported)
             {
                 report.AppendFormat("PM Table Size: 0x{0:X}\n", _pmTableSize);
+                report.AppendFormat("PM Table Size (detected): 0x{0:X}\n", _detectedPmTableSize);
                 report.AppendFormat("PM Table Base Address: 0x{0:X16}\n", _dramBaseAddress);
                 report.AppendLine();
 
