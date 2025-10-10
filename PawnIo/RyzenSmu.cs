@@ -122,7 +122,7 @@ namespace ZenStates.Core
                 // Load the PawnIO module from embedded resource
                 //string resourceName = "ZenStates.Core.Resources.PawnIo.RyzenSMU.bin";
                 //_pawnIO = PawnIo.LoadModuleFromResource(typeof(RyzenSmu).Assembly, resourceName);
-                _pawnIO = PawnIo.OpenFromFile("RyzenSMU.amx");
+                _pawnIO = PawnIo.LoadFromFile("RyzenSMU.amx");
 
                 // Get CPU information
                 _cpuCodeName = (CpuCodeName)GetCodeName();

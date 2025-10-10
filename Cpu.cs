@@ -348,9 +348,6 @@ namespace ZenStates.Core
             if (info.vendor != Constants.VENDOR_AMD && info.vendor != Constants.VENDOR_HYGON)
                 throw new Exception("Not an AMD CPU");
 
-            if (!PawnIo.IsInstalled)
-                throw new ApplicationException("PawnIO is not installed.");
-
             try
             {
                 _pawnAmd = new AmdFamily17();
