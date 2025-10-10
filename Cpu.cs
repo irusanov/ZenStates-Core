@@ -25,6 +25,8 @@ namespace ZenStates.Core
 
         public readonly Version Version = Assembly.GetExecutingAssembly().GetName().Version;
 
+        public RyzenSmu RyzenSmu => _pawnRyzenSmu;
+
         public enum Family
         {
             UNSUPPORTED = 0x0,

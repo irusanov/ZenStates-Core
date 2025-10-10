@@ -181,7 +181,7 @@ namespace ZenStates.Core
                 // Temporary use big enough default table size
                 // The actual table refresh does not care about the size and the handling of supported codenames are done in the driver module
                 default:
-                    _pmTableSize = 0xAFC; // Default size for unsupported CPUs
+                    _pmTableSize = 0x994; // Default size for unsupported CPUs
                     break;
                     //throw new NotSupportedException($"CPU code name {_cpuCodeName} is not supported");
             }
@@ -208,8 +208,12 @@ namespace ZenStates.Core
 
         /// <summary>
         /// Gets the PM table szie.
+        /// Tenporary add setter to update from legacy PowerTable if needed
         /// </summary>
-        public uint PmTableSize=> _pmTableSize;
+        public uint PmTableSize {
+            get => _pmTableSize;
+            set => _pmTableSize = value;
+        }
 
         /// <summary>
         /// Gets the DRAM base address for the PM table.
@@ -380,6 +384,21 @@ namespace ZenStates.Core
         private float[] UpdateAndReadPmTable()
         {
             // Update the PM table
+            UpdatePmTable();
+
+            // Read the PM table
+            long[] rawData = ReadPmTable((int)((_pmTableSize + 7) / 8));
+            // TODO: This should not be needed
+            int size = Math.Min(rawData.Length * 8, (int)_pmTableSize);
+            _pmTableSize = size > 0 ? (uint)size : _pmTableSize;
+            float[] table = new float[size / 4];
+            Buffer.BlockCopy(rawData, 0, table, 0, size);
+
+            return table;
+        }
+
+        private void UpdatePmTable()
+        {
             if (!Mutexes.WaitPciBus(5000))
                 throw new TimeoutException("Timeout waiting for PCI bus mutex");
 
@@ -391,15 +410,22 @@ namespace ZenStates.Core
             {
                 Mutexes.ReleasePciBus();
             }
+        }
 
-            // Read the PM table
-            long[] rawData = _pawnIO.Execute("ioctl_read_pm_table", new long[1], (int)_pmTableSize);
-            int size = Math.Min(rawData.Length * 4, (int)_pmTableSize);
-            _pmTableSize = (uint)size;
-            float[] table = new float[size];
-            Buffer.BlockCopy(rawData, 0, table, 0, size);
+        private long[] ReadPmTable(int size)
+        {
+            if (!Mutexes.WaitPciBus(5000))
+                throw new TimeoutException("Timeout waiting for PCI bus mutex");
 
-            return table;
+            try
+            {
+                long[] outArray = _pawnIO.Execute("ioctl_read_pm_table", new long[0], size);
+                return outArray;
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
+            }
         }
 
         /// <summary>
@@ -463,8 +489,8 @@ namespace ZenStates.Core
                 case 0x240803:
                     _pmTableSize = 0x7E4;
                     break;
-                default:
-                    throw new NotSupportedException($"Matisse PM table version 0x{_pmTableVersion:X8} is not supported");
+                //default:
+                //    throw new NotSupportedException($"Matisse PM table version 0x{_pmTableVersion:X8} is not supported");
             }
         }
 

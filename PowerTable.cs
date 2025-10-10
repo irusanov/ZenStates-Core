@@ -381,10 +381,13 @@ namespace ZenStates.Core
                 throw new ApplicationException("Invalid table size.");
 
             TableSize = tableDef.tableSize;
-            if (TableSize > smu.PmTableSize && smu.PmTableSize > 0)
-                TableSize = (int)smu.PmTableSize;
+            // TODO: Move defitions to RyzenSMU.
+            // Temporary update the table size in RyzenSMU as it only has very few defined table sizes
+            if (TableSize > smu.PmTableSize)
+            {
+                smu.PmTableSize = (uint)TableSize;
+            }
 
-            Table = new float[TableSize / 4];
             this.Refresh();
         }
 
@@ -442,8 +445,10 @@ namespace ZenStates.Core
 
             try
             {
-                float[] fullTable = smu.GetPmTable();
-                Buffer.BlockCopy(fullTable, 0, Table, 0, TableSize);
+                if (Table?.Length == 0)
+                    Table = new float[TableSize / 4];
+
+                Table = smu.GetPmTable();
 
                 if (Utils.AllZero(Table))
                     return SMU.Status.FAILED;
