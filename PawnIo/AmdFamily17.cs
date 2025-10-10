@@ -11,7 +11,7 @@ namespace ZenStates.Core
         {
             //string resourceName = "ZenStates.Core.Resources.PawnIo.AMDFamily17.bin";
             //_pawnIo = PawnIo.LoadModuleFromResource(typeof(AmdFamily17).Assembly, resourceName);
-            _pawnIo = PawnIo.LoadFromFile("AMDFamily17.amx");
+            _pawnIo = PawnIo.LoadModuleFromFile("AMDFamily17.amx");
         }
 
         public uint ReadSmn(uint offset)

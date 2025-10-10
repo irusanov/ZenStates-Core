@@ -77,7 +77,7 @@ namespace ZenStates.Core
         /// </summary>
         /// <param name="filePath">The path to the file</param>
         /// <returns></returns>
-        public static PawnIo LoadFromFile(string filePath)
+        public static PawnIo LoadModuleFromFile(string filePath)
         {
             IntPtr handle = CreateFile(@"\\.\PawnIO", FileAccess.GENERIC_READ | FileAccess.GENERIC_WRITE, 0x00000003, IntPtr.Zero, CreationDisposition.OPEN_EXISTING, 0, IntPtr.Zero);
             if (handle == IntPtr.Zero || handle.ToInt64() == -1)
