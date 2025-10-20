@@ -105,6 +105,8 @@ namespace ZenStates.Core
             public ParsedSDTHeader Header;
             [MarshalAs(UnmanagedType.ByValArray)]
             public byte[] Data;
+            [MarshalAs(UnmanagedType.ByValArray)]
+            public byte[] _raw;
         };
 
         [Serializable]
@@ -168,12 +170,7 @@ namespace ZenStates.Core
             public byte _unknown5;
         };
 
-        private readonly IOModule io;
-
-        public ACPI(IOModule io)
-        {
-            this.io = io ?? throw new ArgumentNullException(nameof(io));
-        }
+        public ACPI() { }
 
         public static ParsedSDTHeader ParseRawHeader(SDTHeader rawHeader)
         {
@@ -219,30 +216,27 @@ namespace ZenStates.Core
         public static byte[] ByteSignature(string ascii) => BitConverter.GetBytes(Signature(ascii));
         public static byte[] ByteSignatureUL(string ascii) => BitConverter.GetBytes(SignatureUL(ascii));
 
-        public T GetHeader<T>(uint address, int length = 36) where T : new()
+        public static T ParseHeader<T>(byte[] bytes) where T : new()
         {
-            byte[] bytes = io.ReadMemory(new IntPtr(address), length);
+            if (bytes == null || bytes.Length < Marshal.SizeOf(typeof(T)))
+                throw new ArgumentException("ACPI: SDTHeader byte array is not correct size.");
             return Utils.ByteArrayToStructure<T>(bytes);
         }
 
-        public T GetHeader<T>(ulong address, int length = 36) where T : new()
+        public static RSDP ParseRsdp(byte[] bytes)
         {
-            byte[] bytes = io.ReadMemory(new IntPtr((long)address), length);
-            return Utils.ByteArrayToStructure<T>(bytes);
-        }
+            if (bytes?.Length != 36)
+                throw new ArgumentException("ACPI: RSDP byte array is not correct size, needs to be 36 bytes.");
 
-        public RSDP GetRsdp()
-        {
-            byte[] bytes = io.ReadMemory(new IntPtr(RSDP_REGION_BASE_ADDRESS), RSDP_REGION_LENGTH);
             int rsdpOffset = Utils.FindSequence(bytes, 0, ByteSignatureUL(TableSignature.RSDP));
 
             if (rsdpOffset < 0)
                 throw new SystemException("ACPI: Could not find RSDP signature");
 
-            return Utils.ByteArrayToStructure<RSDP>(io.ReadMemory(new IntPtr(RSDP_REGION_BASE_ADDRESS + rsdpOffset), 36));
+            return Utils.ByteArrayToStructure<RSDP>(bytes);
         }
 
-        public RSDT GetRsdt()
+        /*public RSDT GetRsdt()
         {
             RSDT rsdtTable;
             RSDP rsdp = GetRsdp();
@@ -269,7 +263,7 @@ namespace ZenStates.Core
                 handle.Free();
             }
             return rsdtTable;
-        }
+        }*/
 
         public static ACPITable ParseSdtTable(byte[] rawTable)
         {
@@ -285,6 +279,7 @@ namespace ZenStates.Core
                     RawHeader = rawHeader,
                     Header = ParseRawHeader(rawHeader),
                     Data = new byte[dataSize],
+                    _raw = rawTable,
                 };
                 Buffer.BlockCopy(rawTable, headerSize, acpiTable.Data, 0, dataSize);
             }

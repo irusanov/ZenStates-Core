@@ -416,7 +416,7 @@ namespace ZenStates.Core
             {
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
-                info.aod = new AOD(io, this);
+                info.aod = new AOD(this);
                 systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
                 powerTable = new PowerTable(_pawnRyzenSmu, io, mmio, info.codeName);
 
