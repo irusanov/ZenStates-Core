@@ -7,7 +7,6 @@ namespace ZenStates.Core
     public class PowerTable : INotifyPropertyChanged
     {
         private readonly Cpu.CodeName _codeName = Cpu.CodeName.Unsupported;
-        private readonly IOModule io;
         private readonly RyzenSmu smu;
         private readonly AMD_MMIO mmio;
         private readonly PTDef tableDef;
@@ -367,11 +366,10 @@ namespace ZenStates.Core
             return GetDefaultTableDef(tableVersion);
         }
 
-        public PowerTable(RyzenSmu smuInstance, IOModule ioInstance, AMD_MMIO mmio, Cpu.CodeName? codeName)
+        public PowerTable(RyzenSmu smuInstance, AMD_MMIO mmio, Cpu.CodeName? codeName)
         {
             this._codeName = codeName ?? Cpu.CodeName.Unsupported;
             this.smu = smuInstance ?? throw new ArgumentNullException(nameof(smuInstance));
-            this.io = ioInstance ?? throw new ArgumentNullException(nameof(ioInstance));
             this.mmio = mmio ?? throw new ArgumentNullException(nameof(mmio));
 
             DramBaseAddress = smu.DramBaseAddress;

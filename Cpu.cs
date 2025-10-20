@@ -418,7 +418,7 @@ namespace ZenStates.Core
                 info.svi2 = GetSVI2Info(info.codeName);
                 info.aod = new AOD(this);
                 systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
-                powerTable = new PowerTable(_pawnRyzenSmu, io, mmio, info.codeName);
+                powerTable = new PowerTable(_pawnRyzenSmu, mmio, info.codeName);
 
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
