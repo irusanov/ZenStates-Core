@@ -466,10 +466,7 @@ namespace ZenStates.Core
         public float MemRatio { get; set; } = 0;
 
         // Dynamic properties
-        public float[] Table
-        {
-            get; private set;
-        }
+        public float[] Table { get; private set; }
 
         float fclk;
         public float FCLK
