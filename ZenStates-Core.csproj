@@ -70,7 +70,6 @@
     <None Include="External\InpOut\x64\inpout32.h" />
     <None Include="External\InpOut\x64\inpoutx64.dll" />
     <None Include="External\WinIo\LICENSE.txt" />
-    <None Include="External\WinRing0\LICENSE.txt" />
     <EmbeddedResource Include="Resources\PawnIo\AMDFamily0F.bin" />
     <EmbeddedResource Include="Resources\PawnIo\AMDFamily10.bin" />
     <EmbeddedResource Include="Resources\PawnIo\AMDFamily17.bin" />
@@ -81,8 +80,6 @@
     <EmbeddedResource Include="Resources\PawnIo\SmbusI801.bin" />
     <EmbeddedResource Include="Resources\PawnIo\SmbusNCT6793.bin" />
     <EmbeddedResource Include="Resources\PawnIo\SmbusPIIX4.bin" />
-    <EmbeddedResource Include="WinRing0.sys" />
-    <EmbeddedResource Include="WinRing0x64.sys" />
   </ItemGroup>
   <ItemGroup>
     <None Include="External\InpOut\Win32\inpout32.lib" />
@@ -110,6 +107,6 @@
     </PackageReference>
   </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(isWindows)' == 'true'">
-    <Exec Command="xcopy /s /d /y &quot;$(ProjectDir)External\InpOut\x64\inpoutx64.dll&quot; &quot;$(OutDir)..\&quot;&#xD;&#xA;xcopy /s /d /y &quot;$(ProjectDir)External\WinIo\WinIo32.dll&quot; &quot;$(OutDir)..\&quot;&#xD;&#xA;xcopy /s /d /y &quot;$(ProjectDir)External\WinIo\WinIo32.sys&quot; &quot;$(OutDir)..\&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\InpOut\license.txt&quot; &quot;$(OutDir)..\InpOut.LICENSE.txt&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\WinIo\LICENSE.txt&quot; &quot;$(OutDir)..\WinIo32.LICENSE.txt&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\WinRing0\LICENSE.txt&quot; &quot;$(OutDir)..\WinRing0.LICENSE.txt&quot;" />
+    <Exec Command="xcopy /s /d /y &quot;$(ProjectDir)External\InpOut\x64\inpoutx64.dll&quot; &quot;$(OutDir)..\&quot;&#xD;&#xA;xcopy /s /d /y &quot;$(ProjectDir)External\WinIo\WinIo32.dll&quot; &quot;$(OutDir)..\&quot;&#xD;&#xA;xcopy /s /d /y &quot;$(ProjectDir)External\WinIo\WinIo32.sys&quot; &quot;$(OutDir)..\&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\InpOut\license.txt&quot; &quot;$(OutDir)..\InpOut.LICENSE.txt&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\WinIo\LICENSE.txt&quot; &quot;$(OutDir)..\WinIo32.LICENSE.txt&quot;" />
   </Target>
 </Project>

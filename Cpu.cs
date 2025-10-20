@@ -1,12 +1,7 @@
-//#define ENABLE_WINRING0
-
 using OpenHardwareMonitor.Hardware;
 using System;
 #if !NET20
 using System.Globalization;
-#endif
-#if ENABLE_WINRING0
-using System.IO;
 #endif
 using System.Reflection;
 using System.Text;
@@ -324,26 +319,12 @@ namespace ZenStates.Core
             CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 #endif
             Mutexes.Open();
-#if ENABLE_WINRING0
-            Ring0.Open();
-#endif
 
             if (!PawnIo.IsInstalled)
             {
                 throw new ApplicationException("PawnIO is not installed.");
             }
-#if ENABLE_WINRING0
-            if (!Ring0.IsOpen)
-            {
-                string errorReport = Ring0.GetReport();
-                using (var sw = new StreamWriter("WinRing0.txt", true))
-                {
-                    sw.Write(errorReport);
-                }
 
-                throw new ApplicationException("Error opening WinRing kernel driver");
-            }
-#endif
             Opcode.Open();
 
             info.vendor = GetVendor();
@@ -1218,9 +1199,6 @@ namespace ZenStates.Core
                 {
                     io.Dispose();
                     Mutexes.Close();
-#if ENABLE_WINRING0
-                    Ring0.Close();
-#endif
                     Opcode.Close();
                     _pawnAmd?.Close();
                     _pawnRyzenSmu?.Dispose();
