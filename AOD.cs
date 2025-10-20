@@ -10,6 +10,7 @@ namespace ZenStates.Core
 {
     public class AOD
     {
+        internal readonly IOModule io;
         internal readonly Cpu cpuInstance;
         public readonly ACPI acpi;
         internal readonly Cpu.CodeName codeName;
@@ -119,10 +120,12 @@ namespace ZenStates.Core
             }
         }
 
-        public AOD(Cpu cpuInstance)
+        public AOD(IOModule io, Cpu cpuInstance)
         {
+            this.io = io;
             this.cpuInstance = cpuInstance;
             this.codeName = this.cpuInstance.info.codeName;
+            this.acpi = new ACPI(io);
             this.Table = new AodTable();
             this.patchLevel = this.cpuInstance.info.patchLevel;
             this.hasRMP = GetWmiFunctions().ContainsKey("Set RMP Profile");
@@ -295,7 +298,7 @@ namespace ZenStates.Core
                 OperationRegion opRegion = Utils.ByteArrayToStructure<OperationRegion>(region);
                 this.Table.BaseAddress = opRegion.Offset;
                 this.Table.Length = (opRegion.Length[1] << 8) | opRegion.Length[0];
-                this.Table.RawAodTable = this.Table.AcpiTable.Value.Data;
+                this.Table.RawAodTable = this.io.ReadMemory(new IntPtr(this.Table.BaseAddress), this.Table.Length);
                 this.Table.Data = AodData.CreateFromByteArray(this.Table.RawAodTable, GetAodDataDictionary(this.codeName, this.patchLevel));
             }
         }
