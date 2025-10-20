@@ -1,6 +1,6 @@
 ﻿namespace ZenStates.Core.SMUSettings
 {
-    public class Zen5Settings_ShimadaPeak: SMU
+    public class Zen5Settings_ShimadaPeak : SMU
     {
         public Zen5Settings_ShimadaPeak()
         {

@@ -185,7 +185,8 @@ namespace ZenStates.Core.DRAM
         public uint PHYRDL { get; internal set; }
         // WRPRE seems to be zero-based in the register and off by one
         private uint _wrpre;
-        public uint WRPRE {
+        public uint WRPRE
+        {
             get => _wrpre + 1;
             internal set => _wrpre = value;
         }
