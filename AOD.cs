@@ -10,7 +10,6 @@ namespace ZenStates.Core
 {
     public class AOD
     {
-        internal readonly IOModule io;
         internal readonly Cpu cpuInstance;
         public readonly ACPI acpi;
         internal readonly Cpu.CodeName codeName;
@@ -120,28 +119,26 @@ namespace ZenStates.Core
             }
         }
 
-        public AOD(IOModule io, Cpu cpuInstance)
+        public AOD(Cpu cpuInstance)
         {
-            this.io = io;
             this.cpuInstance = cpuInstance;
             this.codeName = this.cpuInstance.info.codeName;
-            this.acpi = new ACPI(io);
             this.Table = new AodTable();
             this.patchLevel = this.cpuInstance.info.patchLevel;
             this.hasRMP = GetWmiFunctions().ContainsKey("Set RMP Profile");
             this.Init();
         }
 
-        private ACPITable? GetAcpiTable()
+        /*private ACPITable? GetAcpiTable()
         {
             // Try to get the table from RSDT first
             ACPITable? acpiTable = GetAcpiTableFromRsdt();
             if (acpiTable == null)
                 return AOD.GetAcpiTableFromRegistry();
             return acpiTable;
-        }
+        }*/
 
-        private ACPITable? GetAcpiTableFromRsdt()
+        /*private ACPITable? GetAcpiTableFromRsdt()
         {
             try
             {
@@ -174,7 +171,7 @@ namespace ZenStates.Core
             }
 
             return null;
-        }
+        }*/
 
         private static ACPITable? GetAcpiTableFromRegistry()
         {
@@ -284,7 +281,7 @@ namespace ZenStates.Core
         private void Init()
         {
             //Table.AcpiTable = GetAcpiTable();
-            Table.AcpiTable = AOD.GetAcpiTableFromRegistry();
+            Table.AcpiTable = GetAcpiTableFromRegistry();
 
             if (Table.AcpiTable != null && Table?.AcpiTable.Value.Data != null)
             {
@@ -553,7 +550,7 @@ namespace ZenStates.Core
         {
             try
             {
-                this.Table.RawAodTable = this.io.ReadMemory(new IntPtr(this.Table.BaseAddress), this.Table.Length);
+                this.Table.RawAodTable = this.Table.AcpiTable.Value._raw;
                 // this.Table.Data = Utils.ByteArrayToStructure<AodData>(this.Table.rawAodTable);
                 // int test = Utils.FindSequence(rawTable, 0, BitConverter.GetBytes(0x3ae));
                 this.Table.Data = AodData.CreateFromByteArray(this.Table.RawAodTable, GetAodDataDictionary(this.codeName, this.patchLevel));
