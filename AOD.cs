@@ -295,8 +295,8 @@ namespace ZenStates.Core
                 OperationRegion opRegion = Utils.ByteArrayToStructure<OperationRegion>(region);
                 this.Table.BaseAddress = opRegion.Offset;
                 this.Table.Length = (opRegion.Length[1] << 8) | opRegion.Length[0];
-
-                this.Refresh();
+                this.Table.RawAodTable = this.Table.AcpiTable.Value.Data;
+                this.Table.Data = AodData.CreateFromByteArray(this.Table.RawAodTable, GetAodDataDictionary(this.codeName, this.patchLevel));
             }
         }
 
@@ -544,26 +544,6 @@ namespace ZenStates.Core
             }
 
             return dict;
-        }
-
-        public bool Refresh()
-        {
-            try
-            {
-                this.Table.RawAodTable = this.Table.AcpiTable.Value._raw;
-                // this.Table.Data = Utils.ByteArrayToStructure<AodData>(this.Table.rawAodTable);
-                // int test = Utils.FindSequence(rawTable, 0, BitConverter.GetBytes(0x3ae));
-                this.Table.Data = AodData.CreateFromByteArray(this.Table.RawAodTable, GetAodDataDictionary(this.codeName, this.patchLevel));
-                //if (this.Table?.AcpiTable != null)
-                //    this.Table.AcpiNames = GetAcpiNames(this.Table.AcpiTable.Value.Data);
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error refreshing AOD data: {ex.Message}");
-            }
-
-            return false;
         }
 
         private static Dictionary<string, string> GetAcpiNames(byte[] table)

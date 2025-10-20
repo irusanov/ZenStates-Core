@@ -105,8 +105,6 @@ namespace ZenStates.Core
             public ParsedSDTHeader Header;
             [MarshalAs(UnmanagedType.ByValArray)]
             public byte[] Data;
-            [MarshalAs(UnmanagedType.ByValArray)]
-            public byte[] _raw;
         };
 
         [Serializable]
@@ -279,7 +277,6 @@ namespace ZenStates.Core
                     RawHeader = rawHeader,
                     Header = ParseRawHeader(rawHeader),
                     Data = new byte[dataSize],
-                    _raw = rawTable,
                 };
                 Buffer.BlockCopy(rawTable, headerSize, acpiTable.Data, 0, dataSize);
             }
