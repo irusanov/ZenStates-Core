@@ -7,8 +7,8 @@ namespace ZenStates.Core
 {
     public static class Mutexes
     {
-        private static Mutex isaBusMutex;
-        private static Mutex pciBusMutex;
+        private static Mutex _isaBusMutex;
+        private static Mutex _pciBusMutex;
 
         private static readonly string isaMutexName = "Global\\Access_ISABUS.HTP.Method";
         private static readonly string pciMutexName = "Global\\Access_PCI";
@@ -42,46 +42,52 @@ namespace ZenStates.Core
             return null;
         }
 
+        /// <summary>
+        /// Cleates or opens the mutexes.
+        /// </summary>
         public static void Open()
         {
-            isaBusMutex = CreateOrOpenExistingMutex(isaMutexName);
-            pciBusMutex = CreateOrOpenExistingMutex(pciMutexName);
+            _isaBusMutex = CreateOrOpenExistingMutex(isaMutexName);
+            _pciBusMutex = CreateOrOpenExistingMutex(pciMutexName);
         }
 
+        /// <summary>
+        /// Closes the mutexes.
+        /// </summary>
         public static void Close()
         {
-            isaBusMutex?.Close();
-            pciBusMutex?.Close();
+            _isaBusMutex?.Close();
+            _pciBusMutex?.Close();
         }
 
         public static bool WaitIsaBus(int millisecondsTimeout)
         {
-            return isaBusMutex.WaitOne(millisecondsTimeout);
+            return WaitMutex(_isaBusMutex, millisecondsTimeout);
         }
 
         public static void ReleaseIsaBus()
         {
-            isaBusMutex?.ReleaseMutex();
+            _isaBusMutex?.ReleaseMutex();
         }
 
         public static bool WaitPciBus(int millisecondsTimeout)
         {
-            return pciBusMutex.WaitOne(millisecondsTimeout);
+            return WaitMutex(_pciBusMutex, millisecondsTimeout);
         }
 
         public static void ReleasePciBus()
         {
-            pciBusMutex?.ReleaseMutex();
+            _pciBusMutex?.ReleaseMutex();
         }
 
-        public static bool WaitMutex(Mutex mutex, int millisecondsTimeout = 5000)
+        private static bool WaitMutex(Mutex mutex, int millisecondsTimeout = 5000)
         {
-            if (pciBusMutex == null)
+            if (mutex == null)
                 return true;
 
             try
             {
-                return pciBusMutex.WaitOne(millisecondsTimeout, false);
+                return mutex.WaitOne(millisecondsTimeout, false);
             }
             catch (AbandonedMutexException)
             {

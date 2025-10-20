@@ -12,9 +12,17 @@ namespace ZenStates.Core
     /// </summary>
     public class RyzenSmu : IDisposable
     {
+        #region Command Constants
+        private const string IOCTL_GET_SMU_VERSION = "ioctl_get_smu_version";
+        private const string IOCTL_RESOLVE_PM_TABLE = "ioctl_resolve_pm_table";
+        private const string IOCTL_READ_PM_TABLE = "ioctl_read_pm_table";
+        private const string IOCTL_UPDATE_PM_TABLE = "ioctl_update_pm_table";
+        private const string IOCTL_GET_CODE_NAME = "ioctl_get_code_name";
+        #endregion
+
         #region Private Fields
 
-        private readonly PawnIo _pawnIO;
+        private readonly PawnIo _pawnIo;
         private readonly CpuCodeName _cpuCodeName;
         private readonly bool _isSupported;
         private readonly Exception _initializationException;
@@ -124,7 +132,7 @@ namespace ZenStates.Core
                 // Load the PawnIO module from embedded resource
                 //string resourceName = "ZenStates.Core.Resources.PawnIo.RyzenSMU.bin";
                 //_pawnIO = PawnIo.LoadModuleFromResource(typeof(RyzenSmu).Assembly, resourceName);
-                _pawnIO = PawnIo.LoadModuleFromFile("RyzenSMU.amx");
+                _pawnIo = PawnIo.LoadModuleFromFile("RyzenSMU.amx");
 
                 // Get CPU information
                 _cpuCodeName = (CpuCodeName)GetCodeName();
@@ -141,59 +149,18 @@ namespace ZenStates.Core
             {
                 _isSupported = false;
                 _initializationException = ex;
+                Debug.WriteLine("RyzenSmu initialization failed: " + ex.Message);
             }
-        }
-
-        /// <summary>
-        /// Configures the PM table size based on the CPU code name and PM table version.
-        /// </summary>
-        private void ConfigurePmTableSize()
-        {
-            switch (_cpuCodeName)
-            {
-                case CpuCodeName.Matisse:
-                    ConfigureMatissePmTableSize();
-                    break;
-
-                case CpuCodeName.Vermeer:
-                    ConfigureVermeerPmTableSize();
-                    break;
-
-                case CpuCodeName.Renoir:
-                case CpuCodeName.Rembrandt:
-                    ConfigureRenoirPmTableSize();
-                    break;
-
-                case CpuCodeName.Cezanne:
-                    ConfigureCezannePmTableSize();
-                    break;
-
-                case CpuCodeName.Picasso:
-                case CpuCodeName.RavenRidge:
-                case CpuCodeName.RavenRidge2:
-                    ConfigureRavenRidgePmTableSize();
-                    break;
-
-                case CpuCodeName.Raphael:
-                case CpuCodeName.GraniteRidge:
-                    ConfigureRaphaelPmTableSize();
-                    break;
-
-                // TODO: Implement all codenames and known table sizes; add fallback
-                // Temporary use big enough default table size
-                // The actual table refresh does not care about the size and the handling of supported codenames are done in the driver module
-                default:
-                    _pmTableSize = 0x994; // Default size for unsupported CPUs
-                    break;
-                    //throw new NotSupportedException($"CPU code name {_cpuCodeName} is not supported");
-            }
-
-            _detectedPmTableSize = _pmTableSize;
         }
 
         #endregion
 
         #region Public Properties
+
+        /// <summary>
+        /// Gets a value indicating whether the PawnIO module is loaded.
+        /// </summary>
+        public bool IsLoaded => _pawnIo.IsLoaded;
 
         /// <summary>
         /// Gets a value indicating whether the current CPU is supported.
@@ -214,7 +181,8 @@ namespace ZenStates.Core
         /// Gets the PM table szie.
         /// Temporary add setter to update from legacy PowerTable if needed
         /// </summary>
-        public uint PmTableSize {
+        public uint PmTableSize
+        {
             get => _pmTableSize;
             set => _pmTableSize = value;
         }
@@ -246,7 +214,7 @@ namespace ZenStates.Core
 
             try
             {
-                long[] result = _pawnIO.Execute("ioctl_get_smu_version", new long[0], 1);
+                long[] result = _pawnIo.Execute(IOCTL_GET_SMU_VERSION, new long[0], 1);
                 return Convert.ToUInt32(result[0] & 0xffffffff);
             }
             finally
@@ -293,9 +261,9 @@ namespace ZenStates.Core
                     if (table.Length > 0 && table[0] != 0)
                         return table;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Ignore exceptions and retry
+                    Debug.WriteLine("GetPmTable attempt failed: " + ex.Message);
                 }
             }
 
@@ -332,7 +300,10 @@ namespace ZenStates.Core
             else
             {
                 report.AppendLine();
-                report.AppendFormat("Initialization Error: {0}\n", _initializationException?.Message ?? "Unknown error");
+                if (_initializationException != null)
+                    report.AppendFormat("Initialization Error: {0}\n", _initializationException.Message);
+                else
+                    report.AppendFormat("Initialization Error: {0}\n", "Unknown error");
             }
 
             return report.ToString();
@@ -351,7 +322,7 @@ namespace ZenStates.Core
             long[] input = new long[0];
             long[] output = new long[1];
 
-            int status = _pawnIO.ExecuteHr("ioctl_get_code_name", input, 0, output, 1, out uint returnSize);
+            int status = _pawnIo.ExecuteHr(IOCTL_GET_CODE_NAME, input, 0, output, 1, out uint returnSize);
             if (status != 0 || returnSize == 0 || output.Length == 0)
             {
                 Debug.WriteLine($"ioctl_get_code_name failed with status: 0x{status:X8}, output length: {output.Length}, returnSize: {returnSize}");
@@ -372,7 +343,7 @@ namespace ZenStates.Core
 
             try
             {
-                long[] result = _pawnIO.Execute("ioctl_resolve_pm_table", new long[2], 2);
+                long[] result = _pawnIo.Execute(IOCTL_RESOLVE_PM_TABLE, new long[2], 2);
                 version = Convert.ToUInt32(result[0] & 0xffffffff);
                 baseAddress = result[1];
             }
@@ -395,9 +366,11 @@ namespace ZenStates.Core
             long[] rawData = ReadPmTable((int)((_pmTableSize + 7) / 8));
             // TODO: This should not be needed
             int size = Math.Min(rawData.Length * 8, (int)_pmTableSize);
-            _pmTableSize = size > 0 ? (uint)size : _pmTableSize;
+            if (size > 0)
+                _pmTableSize = (uint)size;
             float[] table = new float[size / 4];
-            Buffer.BlockCopy(rawData, 0, table, 0, size);
+            if (size > 0)
+                Buffer.BlockCopy(rawData, 0, table, 0, size);
 
             return table;
         }
@@ -409,7 +382,7 @@ namespace ZenStates.Core
 
             try
             {
-                _pawnIO.Execute("ioctl_update_pm_table", new long[0], 0);
+                _pawnIo.Execute(IOCTL_UPDATE_PM_TABLE, new long[0], 0);
             }
             finally
             {
@@ -424,7 +397,7 @@ namespace ZenStates.Core
 
             try
             {
-                long[] outArray = _pawnIO.Execute("ioctl_read_pm_table", new long[0], size);
+                long[] outArray = _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[0], size);
                 return outArray;
             }
             finally
@@ -478,24 +451,63 @@ namespace ZenStates.Core
 
         #region PM Table Size Configuration Methods
 
+        /// <summary>
+        /// Configures the PM table size based on the CPU code name and PM table version.
+        /// </summary>
+        private void ConfigurePmTableSize()
+        {
+            switch (_cpuCodeName)
+            {
+                case CpuCodeName.Matisse:
+                    ConfigureMatissePmTableSize();
+                    break;
+
+                case CpuCodeName.Vermeer:
+                    ConfigureVermeerPmTableSize();
+                    break;
+
+                case CpuCodeName.Renoir:
+                case CpuCodeName.Rembrandt:
+                    ConfigureRenoirPmTableSize();
+                    break;
+
+                case CpuCodeName.Cezanne:
+                    ConfigureCezannePmTableSize();
+                    break;
+
+                case CpuCodeName.Picasso:
+                case CpuCodeName.RavenRidge:
+                case CpuCodeName.RavenRidge2:
+                    ConfigureRavenRidgePmTableSize();
+                    break;
+
+                case CpuCodeName.Raphael:
+                case CpuCodeName.GraniteRidge:
+                    ConfigureRaphaelPmTableSize();
+                    break;
+
+                // TODO: Implement all codenames and known table sizes; add fallback
+                // Temporary use big enough default table size
+                // The actual table refresh does not care about the size and the handling of supported codenames are done in the driver module
+                default:
+                    _pmTableSize = 0x994; // Default size for unsupported CPUs
+                    break;
+                    //throw new NotSupportedException($"CPU code name {_cpuCodeName} is not supported");
+            }
+
+            _detectedPmTableSize = _pmTableSize;
+        }
+
         private void ConfigureMatissePmTableSize()
         {
             switch (_pmTableVersion)
             {
-                case 0x240902:
-                    _pmTableSize = 0x514;
-                    break;
-                case 0x240903:
-                    _pmTableSize = 0x518;
-                    break;
-                case 0x240802:
-                    _pmTableSize = 0x7E0;
-                    break;
-                case 0x240803:
-                    _pmTableSize = 0x7E4;
-                    break;
-                //default:
-                //    throw new NotSupportedException($"Matisse PM table version 0x{_pmTableVersion:X8} is not supported");
+                case 0x240902: _pmTableSize = 0x514; break;
+                case 0x240903: _pmTableSize = 0x518; break;
+                case 0x240802: _pmTableSize = 0x7E0; break;
+                case 0x240803: _pmTableSize = 0x7E4; break;
+                    //default:
+                    //    throw new NotSupportedException($"Matisse PM table version 0x{_pmTableVersion:X8} is not supported");
             }
         }
 
@@ -503,26 +515,14 @@ namespace ZenStates.Core
         {
             switch (_pmTableVersion)
             {
-                case 0x2D0903:
-                    _pmTableSize = 0x594;
-                    break;
-                case 0x380904:
-                    _pmTableSize = 0x5A4;
-                    break;
-                case 0x380905:
-                    _pmTableSize = 0x5D0;
-                    break;
-                case 0x2D0803:
-                    _pmTableSize = 0x894;
-                    break;
-                case 0x380804:
-                    _pmTableSize = 0x8A4;
-                    break;
-                case 0x380805:
-                    _pmTableSize = 0x8F0;
-                    break;
-                //default:
-                //    throw new NotSupportedException($"Vermeer PM table version 0x{_pmTableVersion:X8} is not supported");
+                case 0x2D0903: _pmTableSize = 0x594; break;
+                case 0x380904: _pmTableSize = 0x5A4; break;
+                case 0x380905: _pmTableSize = 0x5D0; break;
+                case 0x2D0803: _pmTableSize = 0x894; break;
+                case 0x380804: _pmTableSize = 0x8A4; break;
+                case 0x380805: _pmTableSize = 0x8F0; break;
+                    //default:
+                    //    throw new NotSupportedException($"Vermeer PM table version 0x{_pmTableVersion:X8} is not supported");
             }
         }
 
@@ -530,27 +530,15 @@ namespace ZenStates.Core
         {
             switch (_pmTableVersion)
             {
-                case 0x370000:
-                    _pmTableSize = 0x794;
-                    break;
-                case 0x370001:
-                    _pmTableSize = 0x884;
-                    break;
+                case 0x370000: _pmTableSize = 0x794; break;
+                case 0x370001: _pmTableSize = 0x884; break;
                 case 0x370002:
-                case 0x370003:
-                    _pmTableSize = 0x88C;
-                    break;
-                case 0x370004:
-                    _pmTableSize = 0x8AC;
-                    break;
-                case 0x370005:
-                    _pmTableSize = 0x8C8;
-                    break;
-                case 0x450005:
-                    _pmTableSize = 0xAA4;
-                    break;
-                //default:
-                //    throw new NotSupportedException($"Renoir PM table version 0x{_pmTableVersion:X8} is not supported");
+                case 0x370003: _pmTableSize = 0x88C; break;
+                case 0x370004: _pmTableSize = 0x8AC; break;
+                case 0x370005: _pmTableSize = 0x8C8; break;
+                case 0x450005: _pmTableSize = 0xAA4; break;
+                    //default:
+                    //    throw new NotSupportedException($"Renoir PM table version 0x{_pmTableVersion:X8} is not supported");
             }
         }
 
@@ -558,11 +546,9 @@ namespace ZenStates.Core
         {
             switch (_pmTableVersion)
             {
-                case 0x400005:
-                    _pmTableSize = 0x944;
-                    break;
-                //default:
-                //    throw new NotSupportedException($"Cezanne PM table version 0x{_pmTableVersion:X8} is not supported");
+                case 0x400005: _pmTableSize = 0x944; break;
+                    //default:
+                    //    throw new NotSupportedException($"Cezanne PM table version 0x{_pmTableVersion:X8} is not supported");
             }
         }
 
@@ -576,17 +562,11 @@ namespace ZenStates.Core
         {
             switch (_pmTableVersion)
             {
-                case 0x00540004:
-                    _pmTableSize = 0x948;
-                    break;
-                case 0x00540104:
-                    _pmTableSize = 0x950;
-                    break;
-                case 0x00620205:
-                    _pmTableSize = 0x994;
-                    break;
-                //default:
-                //    throw new NotSupportedException($"Raphael/GraniteRidge PM table version 0x{_pmTableVersion:X8} is not supported");
+                case 0x00540004: _pmTableSize = 0x948; break;
+                case 0x00540104: _pmTableSize = 0x950; break;
+                case 0x00620205: _pmTableSize = 0x994; break;
+                    //default:
+                    //    throw new NotSupportedException($"Raphael/GraniteRidge PM table version 0x{_pmTableVersion:X8} is not supported");
             }
         }
 
@@ -616,7 +596,7 @@ namespace ZenStates.Core
 
                 if (disposing)
                 {
-                    _pawnIO?.Close();
+                    _pawnIo?.Close();
                 }
 
                 _disposed = true;

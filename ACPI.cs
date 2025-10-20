@@ -279,9 +279,10 @@ namespace ZenStates.Core
                     RawHeader = rawHeader,
                     Header = ParseRawHeader(rawHeader),
                     Data = new byte[dataSize],
-                    _raw = rawTable,
+                    _raw = new byte [rawTable.Length],
                 };
                 Buffer.BlockCopy(rawTable, headerSize, acpiTable.Data, 0, dataSize);
+                Buffer.BlockCopy(rawTable, headerSize, acpiTable._raw, 0, rawTable.Length);
             }
             finally
             {

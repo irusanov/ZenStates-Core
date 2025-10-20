@@ -1,5 +1,4 @@
 ﻿using System;
-using static ZenStates.Core.DRAM.MemoryConfig;
 
 namespace ZenStates.Core.DRAM
 {

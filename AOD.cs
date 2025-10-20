@@ -470,7 +470,7 @@ namespace ZenStates.Core
                                 { "DramDataDrvStren", lastOffset + 144 }
                             };
 
-                            
+
                             if (isMDie && hasRMP)
                             {
                                 dict["ProcOdt"] = lastOffset + 148;
