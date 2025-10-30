@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Management;
 using System.Text;
+using ZenStates.Core.DRAM;
 using static ZenStates.Core.ACPI;
 
 namespace ZenStates.Core
@@ -363,6 +364,8 @@ namespace ZenStates.Core
             var lastOffset = baseDictionary.LastOffset;
             var memModule = cpuInstance.memoryConfig?.Modules[0];
             var isMDie = memModule?.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
+            var isDR = memModule?.Rank == DRAM.MemRank.DR;
+            var capacityGB = memModule?.Capacity.SizeInBytes / Math.Pow(1024, (int)memModule?.Capacity.Unit) ?? 0;
 
             switch (codeName)
             {
@@ -375,7 +378,8 @@ namespace ZenStates.Core
                 case Cpu.CodeName.HawkPoint:
                     if (baseDictionary.Dict != null)
                     {
-                        return new Dictionary<string, int>(baseDictionary.Dict)
+                        Dictionary<string, int> dict;
+                        dict = new Dictionary<string, int>(baseDictionary.Dict)
                         {
                             { "ProcDataDrvStren", lastOffset + 4},
                             { "ProcCaOdt", lastOffset + 8 },
@@ -388,12 +392,19 @@ namespace ZenStates.Core
                             { "RttWr", lastOffset + 36 },
                             { "RttPark", lastOffset + 40 },
                             { "RttParkDqs", lastOffset + 44 },
-
-                            { "MemVddio", lastOffset + 88 },
-                            { "MemVddq", lastOffset + 92 },
-                            { "MemVpp", lastOffset + 96 },
-                            { "ApuVddio", lastOffset + 100 }
                         };
+
+                        //if (memModule.AddressConfig.NumRow > 16)
+                        //{
+                        //    lastOffset += 4;
+                        //}
+
+                        dict["MemVddio"] = lastOffset + 88;
+                        dict["MemVddq"] = lastOffset + 92;
+                        dict["ApuVddio"] = lastOffset + 100;
+                        dict["MemVpp"] = lastOffset + 96;
+
+                        return dict;
                     }
                     return AodDictionaries.AodDataDictionaryV4;
                 case Cpu.CodeName.GraniteRidge:
@@ -433,7 +444,8 @@ namespace ZenStates.Core
                             };
 
                             // Why?
-                            if (isMDie && !hasRMP)
+                            //if ((isMDie && !hasRMP) || (isDR && capacityGB >= 32))
+                            if (!hasRMP)
                             {
                                 dict["ProcOdt"] = lastOffset + 132;
                                 dict["ProcOdtPullUp"] = lastOffset + 132;
@@ -473,8 +485,9 @@ namespace ZenStates.Core
                                 { "DramDataDrvStren", lastOffset + 144 }
                             };
 
-
-                            if (isMDie && hasRMP)
+                            
+                            //if (isMDie && hasRMP)
+                            if (!hasRMP)
                             {
                                 dict["ProcOdt"] = lastOffset + 148;
                                 dict["ProcOdtPullUp"] = lastOffset + 148;

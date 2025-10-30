@@ -2,7 +2,7 @@
 {
     internal class GetEXPOProfileActive : BaseSMUCommand
     {
-        public bool IsEXPOProfileActive { get; protected set; }
+        public bool IsEXPOProfileActive { get; protected set; } = false;
         public GetEXPOProfileActive(SMU smu) : base(smu) { }
         public override CmdResult Execute()
         {
@@ -12,7 +12,17 @@
 
                 if (result.Success)
                 {
-                    IsEXPOProfileActive = (result.args[0] & 0x1000000) != 0;
+                    if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
+                    {
+                        if ((result.args[0] & 0xF) == 2)
+                        {
+                            IsEXPOProfileActive = (result.args[0] >> 24 & 1) == 1;
+                        }
+                    }
+                    else
+                    {
+                        IsEXPOProfileActive = (result.args[0] >> 24 & 1) == 1;
+                    }
                 }
             }
 
