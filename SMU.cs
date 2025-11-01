@@ -41,6 +41,7 @@ namespace ZenStates.Core
             TIMEOUT_MUTEX_LOCK = 0x30,
             TIMEOUT_MAILBOX_READY = 0x31,
             TIMEOUT_MAILBOX_MSG_WRITE = 0x32,
+            PCI_FAILED = 0x33,
         }
 
         public uint Version { get; set; }
@@ -142,7 +143,11 @@ namespace ZenStates.Core
                 uint maxValidArgAddress = uint.MaxValue - mailbox.MAX_ARGS * 4;
 
                 // Clear response register
-                SmuWriteReg(mailbox.SMU_ADDR_RSP, 0);
+                if (!SmuWriteReg(mailbox.SMU_ADDR_RSP, 0))
+                {
+                    // PCI write failed
+                    return Status.PCI_FAILED;
+                }
 
                 // Write data
                 uint[] cmdArgs = Utils.MakeCmdArgs(args, mailbox.MAX_ARGS);
@@ -152,11 +157,19 @@ namespace ZenStates.Core
                     if (mailbox.SMU_ADDR_ARG > maxValidArgAddress)
                         continue;
 
-                    SmuWriteReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]);
+                    if (!SmuWriteReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]))
+                    { 
+                        // PCI write failed
+                        return Status.PCI_FAILED;
+                    }
                 }
 
                 // Send message
-                SmuWriteReg(mailbox.SMU_ADDR_MSG, msg);
+                if (!SmuWriteReg(mailbox.SMU_ADDR_MSG, msg))
+                {
+                    // PCI write failed
+                    return Status.PCI_FAILED;
+                }
 
                 // Wait done
                 if (!SmuWaitDone(mailbox))
@@ -167,9 +180,13 @@ namespace ZenStates.Core
 
                 uint status = 0;
                 // If we reach this stage, read final status
-                SmuReadReg(mailbox.SMU_ADDR_RSP, ref status);
+                if (!SmuReadReg(mailbox.SMU_ADDR_RSP, ref status))
+                {
+                    // PCI read failed
+                    return Status.PCI_FAILED;
+                }
 
-                if ((Status)status == Status.OK)
+                if (unchecked((Status)status) == Status.OK)
                 {
                     // Read back args
                     for (int i = 0; i < args.Length; ++i)
@@ -177,10 +194,18 @@ namespace ZenStates.Core
                         if (mailbox.SMU_ADDR_ARG > maxValidArgAddress)
                             continue;
 
-                        SmuReadReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]);
+                        if (!SmuReadReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]))
+                        {
+                            // PCI read failed
+                            return Status.PCI_FAILED;
+                        }
                     }
                 }
-                return (Status)status;
+                return unchecked((Status)status);
+            }
+            catch
+            {
+                return Status.FAILED;
             }
             finally
             {
