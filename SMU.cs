@@ -186,6 +186,12 @@ namespace ZenStates.Core
                     return Status.PCI_FAILED;
                 }
 
+                if (status > byte.MaxValue)
+                {
+                    // Invalid status code
+                    return Status.FAILED;
+                }
+
                 if (unchecked((Status)status) == Status.OK)
                 {
                     // Read back args
