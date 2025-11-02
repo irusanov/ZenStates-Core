@@ -130,9 +130,9 @@ namespace ZenStates.Core
             try
             {
                 // Load the PawnIO module from embedded resource
-                //string resourceName = "ZenStates.Core.Resources.PawnIo.RyzenSMU.bin";
-                //_pawnIO = PawnIo.LoadModuleFromResource(typeof(RyzenSmu).Assembly, resourceName);
-                _pawnIo = PawnIo.LoadModuleFromFile("RyzenSMU.amx");
+                string resourceName = "ZenStates.Core.Resources.PawnIo.RyzenSMU.bin";
+                _pawnIo = PawnIo.LoadModuleFromResource(typeof(RyzenSmu).Assembly, resourceName);
+                //_pawnIo = PawnIo.LoadModuleFromFile("RyzenSMU.amx");
 
                 // Get CPU information
                 _cpuCodeName = (CpuCodeName)GetCodeName();
