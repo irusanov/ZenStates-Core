@@ -3,7 +3,6 @@ using System;
 #if !NET20
 using System.Globalization;
 #endif
-using System.IO;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -14,10 +13,14 @@ namespace ZenStates.Core
     public class Cpu : IDisposable
     {
         private readonly CpuInitSettings _settings;
+        private readonly AmdFamily17 _pawnAmd;
+        private readonly RyzenSmu _pawnRyzenSmu;
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
 
         public readonly Version Version = Assembly.GetExecutingAssembly().GetName().Version;
+
+        public RyzenSmu RyzenSmu => _pawnRyzenSmu;
 
         public enum Family
         {
@@ -211,8 +214,9 @@ namespace ZenStates.Core
 
                 for (int i = 0; i < topology.logicalCores; i += (int)topology.threadsPerCore)
                 {
-                    if (Ring0.RdmsrTx(0xC00102B3, out eax, out edx, GroupAffinity.Single(0, i)))
-                        topology.performanceOfCore[i / topology.threadsPerCore] = eax & 0xff;
+                    uint _eax = default; uint _edx = default;
+                    if (ReadMsrTx(0xC00102B3, ref _eax, ref _edx, GroupAffinity.Single(0, i)))
+                        topology.performanceOfCore[i / topology.threadsPerCore] = _eax & 0xff;
                     else
                         topology.performanceOfCore[i / topology.threadsPerCore] = 0;
                 }
@@ -309,17 +313,10 @@ namespace ZenStates.Core
             CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 #endif
             Mutexes.Open();
-            Ring0.Open();
 
-            if (!Ring0.IsOpen)
+            if (!PawnIo.IsInstalled)
             {
-                string errorReport = Ring0.GetReport();
-                using (var sw = new StreamWriter("WinRing0.txt", true))
-                {
-                    sw.Write(errorReport);
-                }
-
-                throw new ApplicationException("Error opening WinRing kernel driver");
+                throw new ApplicationException("PawnIO is not installed.");
             }
 
             Opcode.Open();
@@ -327,6 +324,16 @@ namespace ZenStates.Core
             info.vendor = GetVendor();
             if (info.vendor != Constants.VENDOR_AMD && info.vendor != Constants.VENDOR_HYGON)
                 throw new Exception("Not an AMD CPU");
+
+            try
+            {
+                _pawnAmd = new AmdFamily17();
+                _pawnRyzenSmu = new RyzenSmu();
+            }
+            catch (Exception ex)
+            {
+                throw new ApplicationException("Error initializing PawnIO AMD module. Driver signature enforcement not disabled or driver not installed in development mode.", ex);
+            }
 
             mmio = new AMD_MMIO(io);
 
@@ -386,7 +393,7 @@ namespace ZenStates.Core
                 info.svi2 = GetSVI2Info(info.codeName);
                 info.aod = new AOD(io, this);
                 systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
-                powerTable = new PowerTable(smu, io, mmio);
+                powerTable = new PowerTable(_pawnRyzenSmu, mmio, info.codeName);
 
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
@@ -419,8 +426,7 @@ namespace ZenStates.Core
             {
                 if (Mutexes.WaitPciBus(10))
                 {
-                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_ADDR, addr)
-                        && Ring0.ReadPciConfig(smu.SMU_PCI_ADDR, smu.SMU_OFFSET_DATA, out data))
+                    if (_pawnAmd.ReadSmn(addr, out data))
                     {
                         Mutexes.ReleasePciBus();
                         return true;
@@ -447,7 +453,9 @@ namespace ZenStates.Core
 
         public bool WriteDwordEx(uint addr, uint data, int maxRetries = 10)
         {
-            for (int retry = 0; retry < maxRetries; retry++)
+            throw new NotSupportedException("WriteDwordEx is currently not supported by PawnIO");
+
+            /*for (int retry = 0; retry < maxRetries; retry++)
             {
                 if (Mutexes.WaitPciBus(10))
                 {
@@ -462,7 +470,7 @@ namespace ZenStates.Core
                 }
             }
 
-            return false;
+            return false;*/
         }
 
         public double GetCoreMulti(int index = 0)
@@ -520,10 +528,10 @@ namespace ZenStates.Core
 
         public HwPstateStatus GetHwPstateStatus(int index = 0)
         {
-            ulong group = info.topology.cores > 8 ? (ulong)Math.Pow(4, index) : 1UL << index;    
-            if (Ring0.RdmsrTx(Constants.MSR_HW_PSTATE_STATUS, out uint eax, out uint edx, new GroupAffinity(0, group)))
+            ulong group = info.topology.cores > 8 ? (ulong)Math.Pow(4, index) : 1UL << index;
+            if (_pawnAmd.ReadMsrTx(Constants.MSR_HW_PSTATE_STATUS, out uint _eax, out _, new GroupAffinity(0, group)))
             {
-                return new HwPstateStatus { Value = eax };
+                return new HwPstateStatus { Value = _eax };
             }
             return new HwPstateStatus();
         }
@@ -535,18 +543,18 @@ namespace ZenStates.Core
 
         public bool ReadMsr(uint index, ref uint eax, ref uint edx)
         {
-            return Ring0.Rdmsr(index, out eax, out edx);
+            return _pawnAmd.ReadMsr(index, out eax, out edx);
         }
 
-        public bool ReadMsrTx(uint index, ref uint eax, ref uint edx, int i)
+        public bool ReadMsrTx(uint index, ref uint eax, ref uint edx, GroupAffinity affinity)
         {
-            GroupAffinity affinity = GroupAffinity.Single(0, i);
-
-            return Ring0.RdmsrTx(index, out eax, out edx, affinity);
+            return _pawnAmd.ReadMsrTx(index, out eax, out edx, affinity);
         }
 
         public bool WriteMsr(uint msr, uint eax, uint edx)
         {
+            throw new NotSupportedException("WriteMsr is currently not supported by PawnIO");
+            /*
             bool res = true;
 
             for (var i = 0; i < info.topology.logicalCores; i++)
@@ -555,6 +563,7 @@ namespace ZenStates.Core
             }
 
             return res;
+            */
         }
 
         public void WriteIoPort(uint port, byte value) => Ring0.WriteIoPort(port, value);
@@ -698,7 +707,7 @@ namespace ZenStates.Core
                         break;
                     case 0x74:
                     case 0x75:
-                        bool isHawkPoint = Regex.IsMatch(cpuInfo.cpuName, @"\b80\d{2}\b", RegexOptions.Compiled | RegexOptions.CultureInvariant) 
+                        bool isHawkPoint = Regex.IsMatch(cpuInfo.cpuName, @"\b80\d{2}\b", RegexOptions.Compiled | RegexOptions.CultureInvariant)
                             || Regex.IsMatch(cpuInfo.cpuName, @"Ryzen [3579](?:\s+PRO)?\s+2\d{2}\s", RegexOptions.Compiled | RegexOptions.CultureInvariant);
                         codeName = isHawkPoint ? CodeName.HawkPoint : CodeName.Phoenix;
                         break;
@@ -878,7 +887,8 @@ namespace ZenStates.Core
 
         public uint GetPatchLevel()
         {
-            if (Ring0.Rdmsr(0x8b, out uint eax, out _))
+            // TODO: This read fails
+            if (_pawnAmd.ReadMsr(0x8b, out uint eax, out _))
                 return eax;
 
             return 0;
@@ -888,7 +898,7 @@ namespace ZenStates.Core
         {
             if (info.codeName == CodeName.SummitRidge)
             {
-                if (Ring0.Rdmsr(0xC0010063, out uint eax, out uint edx))
+                if (_pawnAmd.ReadMsr(0xC0010063, out uint eax, out _))
                 {
                     // Summit Ridge, Raven Ridge
                     return Convert.ToBoolean((eax >> 1) & 1);
@@ -918,7 +928,8 @@ namespace ZenStates.Core
             SMUCommands.CmdResult result = cmd.Execute(arg);
             return result.Success && cmd.IsSumCorrect;
         }
-        public uint GetSmuVersion() => new SMUCommands.GetSmuVersion(smu).Execute().args[0];
+        //public uint GetSmuVersion() => new SMUCommands.GetSmuVersion(smu).Execute().args[0];
+        public uint GetSmuVersion() => _pawnRyzenSmu.GetSmuVersion();
         public double? GetBclk() => mmio.GetBclk();
         public AMD_MMIO.ClkGen GetStrapStatus() => mmio.GetStrapStatus();
         public bool SetBclk(double blck) => mmio.SetBclk(blck);
@@ -932,9 +943,9 @@ namespace ZenStates.Core
 
         public TableVersionResult GetTableVersion()
         {
-            var cmd = new SMUCommands.GetTableVersion(smu);
-            cmd.Execute();
-            return new TableVersionResult { TableVersion = cmd.TableVersion, TableSize = cmd.TableSize };
+            //var cmd = new SMUCommands.GetTableVersion(smu);
+            //cmd.Execute();
+            return new TableVersionResult { TableVersion = _pawnRyzenSmu.PmTableVersion, TableSize = _pawnRyzenSmu.PmTableSize };
         }
         public uint GetDramBaseAddress() => new SMUCommands.GetDramAddress(smu).Execute().args[0];
         public long GetDramBaseAddress64()
@@ -1153,8 +1164,9 @@ namespace ZenStates.Core
                 {
                     io.Dispose();
                     Mutexes.Close();
-                    Ring0.Close();
                     Opcode.Close();
+                    _pawnAmd?.Close();
+                    _pawnRyzenSmu?.Dispose();
                 }
 
                 disposedValue = true;

@@ -6,15 +6,12 @@ namespace ZenStates.Core
 {
     public class PowerTable : INotifyPropertyChanged
     {
-        private readonly IOModule io;
-        private readonly SMU smu;
+        private readonly Cpu.CodeName _codeName = Cpu.CodeName.Unsupported;
+        private readonly RyzenSmu smu;
         private readonly AMD_MMIO mmio;
         private readonly PTDef tableDef;
-        public readonly uint DramBaseAddressLo;
-        public readonly uint DramBaseAddressHi;
-        public readonly uint DramBaseAddress;
+        public readonly long DramBaseAddress;
         public readonly int TableSize;
-        private const int NUM_ELEMENTS_TO_COMPARE = 20;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -272,21 +269,30 @@ namespace ZenStates.Core
             return PowerTables.Find(x => x.tableVersion == version);
         }
 
-        private static PTDef GetDefaultTableDef(uint tableVersion, SMU.SmuType smutype)
+        // Temporary restore method for default tables, but modify to match code name instead of smu type
+        private PTDef? GetDefaultTableDef(uint tableVersion)
         {
+            if (_codeName == Cpu.CodeName.Unsupported)
+                return null;
+
             uint version = 0;
 
-            switch (smutype)
+            switch (_codeName)
             {
-                case SMU.SmuType.TYPE_CPU0:
+                case Cpu.CodeName.SummitRidge:
+                case Cpu.CodeName.Naples:
+                case Cpu.CodeName.Whitehaven:
                     version = 0x100;
                     break;
 
-                case SMU.SmuType.TYPE_CPU1:
+                case Cpu.CodeName.PinnacleRidge:
+                case Cpu.CodeName.Colfax:
                     version = 0x101;
                     break;
 
-                case SMU.SmuType.TYPE_CPU2:
+                case Cpu.CodeName.Matisse:
+                case Cpu.CodeName.CastlePeak:
+                case Cpu.CodeName.Rome:
                     uint temp = tableVersion & 0x7;
                     if (temp == 0)
                         version = 0x200;
@@ -296,11 +302,21 @@ namespace ZenStates.Core
                         version = 0x203;
                     break;
 
-                case SMU.SmuType.TYPE_CPU3:
+                case Cpu.CodeName.Vermeer:
+                case Cpu.CodeName.Chagall:
+                case Cpu.CodeName.Milan:
                     version = 0x300;
                     break;
 
-                case SMU.SmuType.TYPE_CPU4:
+                case Cpu.CodeName.Raphael:
+                case Cpu.CodeName.Genoa:
+                case Cpu.CodeName.StormPeak:
+                case Cpu.CodeName.DragonRange:
+                case Cpu.CodeName.GraniteRidge:
+                case Cpu.CodeName.Bergamo:
+                case Cpu.CodeName.Turin:
+                case Cpu.CodeName.TurinD:
+                case Cpu.CodeName.ShimadaPeak:
                     if ((tableVersion >> 16) == 0x5c)
                         version = 0x5c0;
                     else if ((tableVersion >> 16) == 0x62)
@@ -311,12 +327,25 @@ namespace ZenStates.Core
                         version = 0x400;
                     break;
 
-                case SMU.SmuType.TYPE_APU0:
+                case Cpu.CodeName.RavenRidge:
+                case Cpu.CodeName.FireFlight:
+                case Cpu.CodeName.Dali:
+                case Cpu.CodeName.Picasso:
                     version = 0x10;
                     break;
 
-                case SMU.SmuType.TYPE_APU1:
-                case SMU.SmuType.TYPE_APU2:
+                case Cpu.CodeName.Renoir:
+                case Cpu.CodeName.Lucienne:
+                case Cpu.CodeName.Cezanne:
+                case Cpu.CodeName.Mero:
+                case Cpu.CodeName.VanGogh:
+                case Cpu.CodeName.Rembrandt:
+                case Cpu.CodeName.Phoenix:
+                case Cpu.CodeName.Phoenix2:
+                case Cpu.CodeName.HawkPoint:
+                case Cpu.CodeName.Mendocino:
+                case Cpu.CodeName.StrixPoint:
+                case Cpu.CodeName.StrixHalo:
                     if ((tableVersion >> 16) == 0x37)
                         version = 0x11;
                     else if ((tableVersion >> 16) == 0x4c)
@@ -329,40 +358,34 @@ namespace ZenStates.Core
             return GetDefByVersion(version);
         }
 
-        private static PTDef GetPowerTableDef(uint tableVersion, SMU.SmuType smutype)
+        private /*static*/ PTDef? GetPowerTableDef(uint tableVersion)
         {
             PTDef temp = GetDefByVersion(tableVersion);
             if (temp.tableSize != 0)
                 return temp;
-            return GetDefaultTableDef(tableVersion, smutype);
+            return GetDefaultTableDef(tableVersion);
         }
 
-        public PowerTable(SMU smuInstance, IOModule ioInstance, AMD_MMIO mmio)
+        public PowerTable(RyzenSmu smuInstance, AMD_MMIO mmio, Cpu.CodeName? codeName)
         {
+            this._codeName = codeName ?? Cpu.CodeName.Unsupported;
             this.smu = smuInstance ?? throw new ArgumentNullException(nameof(smuInstance));
-            this.io = ioInstance ?? throw new ArgumentNullException(nameof(ioInstance));
             this.mmio = mmio ?? throw new ArgumentNullException(nameof(mmio));
 
-            SMUCommands.CmdResult result = new SMUCommands.GetDramAddress(smu).Execute();
-            if (!result.Success)
-                throw new ApplicationException("Could not get DRAM base address.");
+            DramBaseAddress = smu.DramBaseAddress;
 
-            DramBaseAddressLo = DramBaseAddress = result.args[0];
-            DramBaseAddressHi = result.args[1];
-
-            if (!Utils.Is64Bit)
-            {
-                result = new SMUCommands.SetToolsDramAddress(smu).Execute(DramBaseAddress);
-                if (!result.Success)
-                    throw new ApplicationException("Could not set DRAM base address.");
-            }
-
-            tableDef = GetPowerTableDef(smu.TableVersion, smu.SMU_TYPE);
+            tableDef = GetPowerTableDef(smu.PmTableVersion) ?? new PTDef();
             if (tableDef.tableSize <= 0)
                 throw new ApplicationException("Invalid table size.");
 
             TableSize = tableDef.tableSize;
-            Table = new float[TableSize / 4];
+            // TODO: Move defitions to RyzenSMU.
+            // Temporary update the table size in RyzenSMU as it only has very few defined table sizes
+            if (TableSize > smu.PmTableSize)
+            {
+                smu.PmTableSize = (uint)TableSize;
+            }
+
             this.Refresh();
         }
 
@@ -411,54 +434,6 @@ namespace ZenStates.Core
             }*/
         }
 
-        private float[] ReadTableFromMemory(int tableSizeInBytes)
-        {
-            float[] table = new float[tableSizeInBytes / 4];
-
-            if (Utils.Is64Bit)
-            {
-                IntPtr dramBaseAddress = smu.SMU_TYPE >= SMU.SmuType.TYPE_CPU4 && smu.SMU_TYPE < SMU.SmuType.TYPE_CPU9 || smu.SMU_TYPE == SMU.SmuType.TYPE_APU2
-                        ? new IntPtr((long)DramBaseAddressHi << 32 | DramBaseAddressLo)
-                        : new IntPtr(DramBaseAddressLo);
-
-                byte[] bytes = io.ReadMemory(dramBaseAddress, tableSizeInBytes);
-
-                if (bytes != null && bytes.Length > 0)
-                {
-                    Buffer.BlockCopy(bytes, 0, table, 0, bytes.Length);
-                }
-                else
-                {
-                    Console.WriteLine("Error: ReadMemory returned null or empty byte array.");
-                }
-            }
-            else
-            {
-                try
-                {
-                    for (int i = 0; i < table.Length; ++i)
-                    {
-                        int offset = i * sizeof(float);
-                        if (io.GetPhysLong((UIntPtr)(DramBaseAddress + offset), out uint data))
-                        {
-                            byte[] bytes = BitConverter.GetBytes(data);
-                            Buffer.BlockCopy(bytes, 0, table, offset, bytes.Length);
-                        }
-                        else
-                        {
-                            Console.WriteLine($"Error: GetPhysLong failed at offset {offset}.");
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine("Error occurred while reading table: " + ex.Message);
-                }
-            }
-
-            return table;
-        }
-
         public SMU.Status Refresh()
         {
             if (DramBaseAddress == 0)
@@ -468,20 +443,10 @@ namespace ZenStates.Core
 
             try
             {
-                float[] tempTable = ReadTableFromMemory(NUM_ELEMENTS_TO_COMPARE * 4);
+                if (Table?.Length == 0)
+                    Table = new float[TableSize / 4];
 
-                // Issue a refresh command if the table is empty or the first {NUM_ELEMENTS_TO_COMPARE} elements of both tables are equal,
-                // otherwise skip as some other app already refreshed the data.
-                // Checking for empty Table should issue a refresh on first load.
-                if (Utils.AllZero(Table) || Utils.AllZero(tempTable) || Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
-                {
-                    SMU.Status status = new SMUCommands.TransferTableToDram(smu).Execute().status;
-                    if (status != SMU.Status.OK)
-                        return status;
-                }
-
-                float[] fullTable = ReadTableFromMemory(TableSize);
-                Buffer.BlockCopy(fullTable, 0, Table, 0, TableSize);
+                Table = smu.GetPmTable();
 
                 if (Utils.AllZero(Table))
                     return SMU.Status.FAILED;
