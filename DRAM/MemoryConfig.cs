@@ -7,7 +7,7 @@ namespace ZenStates.Core.DRAM
 {
     public class MemoryConfig
     {
-        private const int DRAM_TYPE_BIT_MASK = 0x1;
+        private const int DRAM_TYPE_BIT_MASK = 0x3;
 
         private const uint DRAM_TYPE_REG_ADDR = 0x50100;
 
@@ -35,6 +35,7 @@ namespace ZenStates.Core.DRAM
 
         public enum MemType
         {
+            UNKNOWN = -1,
             DDR4 = 0,
             DDR5 = 1,
             LPDDR5 = 2,
@@ -48,7 +49,7 @@ namespace ZenStates.Core.DRAM
             GB = 3,
         }
 
-        public MemType Type { get; protected set; }
+        public MemType Type { get; protected set; } = MemType.UNKNOWN;
 
         public Capacity TotalCapacity { get; protected set; }
 
@@ -61,26 +62,22 @@ namespace ZenStates.Core.DRAM
         public MemoryConfig(Cpu cpuInstance)
         {
             cpu = cpuInstance;
+            ChannelsPerDimm = 1; // Type == MemType.DDR5 ? 2u : 1u;
+            Channels = new List<Channel>();
+            Modules = new List<MemoryModule>();
+            Timings = new List<KeyValuePair<uint, BaseDramTimings>>();
 
+            //var offset = Channels.Count > 0 ? Channels[0].Offset : 0;
             Type = (MemType)(cpu.ReadDword(0 | DRAM_TYPE_REG_ADDR) & DRAM_TYPE_BIT_MASK);
 
-            ChannelsPerDimm = 1; // Type == MemType.DDR5 ? 2u : 1u;
-
-            Channels = new List<Channel>();
-
-            Modules = new List<MemoryModule>();
-
             ReadModulesInfo();
-
             ReadChannels();
-
-            Timings = new List<KeyValuePair<uint, BaseDramTimings>>();
 
             foreach (MemoryModule module in Modules)
             {
                 if (Type == MemType.DDR4)
                     Timings.Add(new KeyValuePair<uint, BaseDramTimings>(module.DctOffset, new Ddr4Timings(cpu)));
-                else if (Type == MemType.DDR5)
+                else if (Type >= MemType.DDR5)
                     Timings.Add(new KeyValuePair<uint, BaseDramTimings>(module.DctOffset, new Ddr5Timings(cpu)));
 
                 ReadTimings(module.DctOffset);
@@ -177,10 +174,10 @@ namespace ZenStates.Core.DRAM
             else if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
             {
                 var value = cpu.ReadDword(address);
-                if (value != 0 && value == 0x07FFFBFE)
+                if (value != 0 && (Utils.GetBit(value, 9) == 0 || Utils.GetBit(value, 10) == 0))
                     return MemRank.DR;
                 value = cpu.ReadDword(address + 4);
-                if (value != 0 && value == 0x07FFFBFE)
+                if (value != 0 && (Utils.GetBit(value, 9) == 0 || Utils.GetBit(value, 10) == 0))
                     return MemRank.DR;
             }
 

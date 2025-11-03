@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Management;
+using System.Text;
+using ZenStates.Core.DRAM;
 using static ZenStates.Core.ACPI;
 
 namespace ZenStates.Core
@@ -11,7 +13,7 @@ namespace ZenStates.Core
     {
         internal readonly IOModule io;
         internal readonly Cpu cpuInstance;
-        internal readonly ACPI acpi;
+        public readonly ACPI acpi;
         internal readonly Cpu.CodeName codeName;
         internal readonly uint patchLevel;
         internal readonly bool hasRMP;
@@ -109,6 +111,7 @@ namespace ZenStates.Core
             public ACPITable? AcpiTable;
             public AodData Data;
             public byte[] RawAodTable;
+            public Dictionary<string, string> AcpiNames;
 
             public AodTable()
             {
@@ -130,16 +133,16 @@ namespace ZenStates.Core
             this.Init();
         }
 
-        private ACPITable? GetAcpiTable()
+        /*private ACPITable? GetAcpiTable()
         {
             // Try to get the table from RSDT first
             ACPITable? acpiTable = GetAcpiTableFromRsdt();
             if (acpiTable == null)
                 return AOD.GetAcpiTableFromRegistry();
             return acpiTable;
-        }
+        }*/
 
-        private ACPITable? GetAcpiTableFromRsdt()
+        /*private ACPITable? GetAcpiTableFromRsdt()
         {
             try
             {
@@ -172,7 +175,7 @@ namespace ZenStates.Core
             }
 
             return null;
-        }
+        }*/
 
         private static ACPITable? GetAcpiTableFromRegistry()
         {
@@ -281,11 +284,12 @@ namespace ZenStates.Core
 
         private void Init()
         {
-            this.Table.AcpiTable = GetAcpiTable();
+            //Table.AcpiTable = GetAcpiTable();
+            Table.AcpiTable = GetAcpiTableFromRegistry();
 
-            if (this.Table?.AcpiTable?.Data != null)
+            if (Table.AcpiTable != null && Table?.AcpiTable.Value.Data != null)
             {
-                int regionIndex = GetAodRegionIndex(this.Table.AcpiTable.Value.Data);
+                int regionIndex = GetAodRegionIndex(Table.AcpiTable.Value.Data);
                 if (regionIndex == -1)
                     return;
 
@@ -295,15 +299,73 @@ namespace ZenStates.Core
                 OperationRegion opRegion = Utils.ByteArrayToStructure<OperationRegion>(region);
                 this.Table.BaseAddress = opRegion.Offset;
                 this.Table.Length = (opRegion.Length[1] << 8) | opRegion.Length[0];
+                this.Table.RawAodTable = this.io.ReadMemory(new IntPtr(this.Table.BaseAddress), this.Table.Length);
+                this.Table.Data = AodData.CreateFromByteArray(this.Table.RawAodTable, GetAodDataDictionary(this.codeName, this.patchLevel));
             }
+        }
 
-            this.Refresh();
+        struct BaseDictionary { public Dictionary<string, int> Dict; public int LastOffset; }
+
+        // TODO: Make generic for all CPUs
+        private BaseDictionary GetBaseDictionaryByFrequency()
+        {
+            var frequency = (cpuInstance.memoryConfig?.Timings[0].Value as DRAM.BaseDramTimings)?.Frequency ?? 0;
+            if (frequency > 0)
+            {
+                var tableIndex = Utils.FindLastSequence(this.Table.RawAodTable, 0, Utils.ToBytes2(frequency / 2));
+                if (tableIndex > -1)
+                {
+                    return new BaseDictionary()
+                    {
+                        Dict = new Dictionary<string, int>()
+                        {
+                            { "SMTEn", tableIndex - 4 },
+                            { "MemClk", tableIndex },
+                            { "Tcl", tableIndex + 4 },
+                            { "Trcd", tableIndex + 8 },
+                            { "Trp", tableIndex + 12},
+                            { "Tras", tableIndex + 16 },
+                            { "Trc", tableIndex + 20 },
+                            { "Twr", tableIndex + 24 },
+                            { "Trfc", tableIndex + 28 },
+                            { "Trfc2", tableIndex + 32 },
+                            { "Trfcsb", tableIndex + 36 },
+                            { "Trtp", tableIndex + 40 },
+                            { "TrrdL", tableIndex + 44 },
+                            { "TrrdS", tableIndex + 48 },
+                            { "Tfaw", tableIndex + 52 },
+                            { "TwtrL", tableIndex + 56 },
+                            { "TwtrS", tableIndex + 60 },
+                            { "TrdrdScL", tableIndex + 64 },
+                            { "TrdrdSc", tableIndex + 68 },
+                            { "TrdrdSd", tableIndex + 72 },
+                            { "TrdrdDd", tableIndex + 76 },
+                            { "TwrwrScL", tableIndex + 80 },
+                            { "TwrwrSc", tableIndex + 84 },
+                            { "TwrwrSd", tableIndex + 88 },
+                            { "TwrwrDd", tableIndex + 92 },
+                            { "Twrrd", tableIndex + 96},
+                            { "Trdwr", tableIndex + 100},
+                            { "CadBusDrvStren", tableIndex + 104 },
+                        },
+                        LastOffset = tableIndex + 104
+                    };
+                }
+            }
+            return new BaseDictionary { Dict = null, LastOffset = -1 };
         }
 
         private Dictionary<string, int> GetAodDataDictionary(Cpu.CodeName codeName, uint patchLevel)
         {
             if (Table.AcpiTable.Value.Header.OEMTableID == TableSignature.LENOVO_AOD)
                 return AodDictionaries.AodDataDictionaryV3;
+
+            var baseDictionary = GetBaseDictionaryByFrequency();
+            var lastOffset = baseDictionary.LastOffset;
+            var memModule = cpuInstance.memoryConfig?.Modules[0];
+            var isMDie = memModule?.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
+            var isDR = memModule?.Rank == DRAM.MemRank.DR;
+            var capacityGB = memModule?.Capacity.SizeInBytes / Math.Pow(1024, (int)memModule?.Capacity.Unit) ?? 0;
 
             switch (codeName)
             {
@@ -314,32 +376,136 @@ namespace ZenStates.Core
                 case Cpu.CodeName.Phoenix:
                 case Cpu.CodeName.Phoenix2:
                 case Cpu.CodeName.HawkPoint:
+                    if (baseDictionary.Dict != null)
+                    {
+                        Dictionary<string, int> dict;
+                        dict = new Dictionary<string, int>(baseDictionary.Dict)
+                        {
+                            { "ProcDataDrvStren", lastOffset + 4},
+                            { "ProcCaOdt", lastOffset + 8 },
+                            { "ProcCkOdt", lastOffset + 12 },
+                            { "ProcDqOdt", lastOffset + 16 },
+                            { "ProcDqsOdt", lastOffset + 20 },
+                            { "DramDataDrvStren", lastOffset + 24 },
+                            { "RttNomWr", lastOffset + 28 },
+                            { "RttNomRd", lastOffset + 32 },
+                            { "RttWr", lastOffset + 36 },
+                            { "RttPark", lastOffset + 40 },
+                            { "RttParkDqs", lastOffset + 44 },
+                        };
+
+                        //if (memModule.AddressConfig.NumRow > 16)
+                        //{
+                        //    lastOffset += 4;
+                        //}
+
+                        dict["MemVddio"] = lastOffset + 88;
+                        dict["MemVddq"] = lastOffset + 92;
+                        dict["ApuVddio"] = lastOffset + 100;
+                        dict["MemVpp"] = lastOffset + 96;
+
+                        return dict;
+                    }
                     return AodDictionaries.AodDataDictionaryV4;
                 case Cpu.CodeName.GraniteRidge:
-                    var memModule = cpuInstance.GetMemoryConfig()?.Modules[0];
-                    var isMDie = memModule?.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
-                    var isDR = memModule?.Rank == DRAM.MemRank.DR;
-
-                    if (patchLevel > 0xB404022)
+                case Cpu.CodeName.Turin:
+                case Cpu.CodeName.TurinD:
+                case Cpu.CodeName.ShimadaPeak:
+                    if (baseDictionary.Dict != null)
                     {
-                        if (isMDie && hasRMP)
-                            return AodDictionaries.AodDataDictionary_1Ah_B404023;
-                        if (isMDie || isDR)
-                            return AodDictionaries.AodDataDictionary_1Ah_B404023_M;
+                        Dictionary<string, int> dict;
 
-                        return AodDictionaries.AodDataDictionary_1Ah_B404023;
+                        if (patchLevel > 0xB404022)
+                        {
+                            dict = new Dictionary<string, int>(baseDictionary.Dict)
+                            {
+                                { "RttNomWr", lastOffset + 4 },
+                                { "RttNomRd", lastOffset + 8 },
+                                { "RttWr", lastOffset + 12 },
+                                { "RttPark", lastOffset + 16 },
+                                { "RttParkDqs", lastOffset + 20 },
+
+                                { "MemVddio", lastOffset + 56 },
+                                { "MemVddq", lastOffset + 60 },
+                                { "MemVpp", lastOffset + 64 },
+                                { "ApuVddio", lastOffset + 68 },
+
+                                { "ProcOdt", lastOffset + 144 },
+                                { "ProcOdtPullUp", lastOffset + 144 },
+                                { "ProcOdtPullDown", lastOffset + 148 },
+                                { "DramDataDrvStren", lastOffset + 152 },
+                                { "DramDqDsPullUp", lastOffset + 152 },
+                                { "DramDqDsPullDown", lastOffset + 156 },
+                                { "ProcCsDs", lastOffset + 160 },
+                                { "ProcCkDs", lastOffset + 164 },
+                                { "ProcDataDrvStren", lastOffset + 168 },
+                                { "ProcDqDsPullUp", lastOffset + 172 },
+                                { "ProcDqDsPullDown", lastOffset +  176 },
+                            };
+
+                            // Why?
+                            //if ((isMDie && !hasRMP) || (isDR && capacityGB >= 32))
+                            if (!hasRMP)
+                            {
+                                dict["ProcOdt"] = lastOffset + 132;
+                                dict["ProcOdtPullUp"] = lastOffset + 132;
+                                dict["ProcOdtPullDown"] = lastOffset + 136;
+                                dict["DramDataDrvStren"] = lastOffset + 140;
+                                dict["DramDqDsPullUp"] = lastOffset + 140;
+                                dict["DramDqDsPullDown"] = lastOffset + 140;
+                                dict["ProcCsDs"] = lastOffset + 144;
+                                dict["ProcCkDs"] = lastOffset + 148;
+                                dict["ProcDataDrvStren"] = lastOffset + 152;
+                                dict["ProcDqDsPullUp"] = lastOffset + 156;
+                                dict["ProcDqDsPullDown"] = lastOffset + 160;
+                            }
+
+                            return dict;
+                        }
+                        else
+                        {
+                            dict = new Dictionary<string, int>(baseDictionary.Dict)
+                            {
+                                { "ProcDataDrvStren", lastOffset + 4 },
+
+                                { "RttNomWr", lastOffset + 8 },
+                                { "RttNomRd", lastOffset + 12 },
+                                { "RttWr", lastOffset + 16 },
+                                { "RttPark", lastOffset + 20 },
+                                { "RttParkDqs", lastOffset + 24 },
+
+                                { "MemVddio", lastOffset + 60 },
+                                { "MemVddq", lastOffset + 64 },
+                                { "MemVpp", lastOffset + 68 },
+                                { "ApuVddio", lastOffset + 72 },
+
+                                { "ProcOdt", lastOffset + 136 },
+                                { "ProcOdtPullUp", lastOffset + 136 },
+                                { "ProcOdtPullDown", lastOffset + 140 },
+                                { "DramDataDrvStren", lastOffset + 144 }
+                            };
+
+                            
+                            //if (isMDie && hasRMP)
+                            if (!hasRMP)
+                            {
+                                dict["ProcOdt"] = lastOffset + 148;
+                                dict["ProcOdtPullUp"] = lastOffset + 148;
+                                dict["ProcOdtPullDown"] = lastOffset + 152;
+                                dict["DramDataDrvStren"] = lastOffset + 156;
+                            }
+
+                            return dict;
+                        }
                     }
 
-                    if (isMDie && hasRMP)
-                        return AodDictionaries.AodDataDictionary_1Ah_M;
-                    
-                    return AodDictionaries.AodDataDictionary_1Ah;
+                    return AodDictionaries.AodDataDictionary_1Ah_B404023;
                 default:
                     return AodDictionaries.AodDataDictionaryV1;
             }
         }
 
-        private static Dictionary<string, uint> GetWmiFunctions()
+        public static Dictionary<string, uint> GetWmiFunctions()
         {
             Dictionary<string, uint> dict = new Dictionary<string, uint>();
 
@@ -396,19 +562,27 @@ namespace ZenStates.Core
             return dict;
         }
 
-        public bool Refresh()
+        private static Dictionary<string, string> GetAcpiNames(byte[] table)
         {
-            try
-            {
-                this.Table.RawAodTable = this.io.ReadMemory(new IntPtr(this.Table.BaseAddress), this.Table.Length);
-                // this.Table.Data = Utils.ByteArrayToStructure<AodData>(this.Table.rawAodTable);
-                // int test = Utils.FindSequence(rawTable, 0, BitConverter.GetBytes(0x3ae));
-                this.Table.Data = AodData.CreateFromByteArray(this.Table.RawAodTable, GetAodDataDictionary(this.codeName, this.patchLevel));
-                return true;
-            }
-            catch { }
+            // ACPI AML Opcode for "Name"
+            const byte AML_NAME_OP = 0x08;
+            Dictionary<string, string> list = new Dictionary<string, string>();
 
-            return false;
+            if (table == null)
+                return list;
+
+            for (int i = 0; i < table.Length; i++)
+            {
+                // Check for the Name opcode
+                if (table[i] == AML_NAME_OP)
+                {
+                    // Parse the NameString (4 ASCII characters)
+                    string name = Encoding.ASCII.GetString(table, i + 1, 4);
+                    byte value = table[i + 5];
+                    list.Add(name, value.ToString());
+                }
+            }
+            return list;
         }
     }
 }

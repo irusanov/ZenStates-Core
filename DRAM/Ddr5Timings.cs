@@ -1,5 +1,4 @@
 ﻿using System;
-using static ZenStates.Core.DRAM.MemoryConfig;
 
 namespace ZenStates.Core.DRAM
 {
@@ -27,7 +26,6 @@ namespace ZenStates.Core.DRAM
 
         public Ddr5Timings(Cpu cpu) : base(cpu)
         {
-            this.Type = MemType.DDR5;
             this.Dict = DDR5Dictionary.defs;
         }
 

@@ -2,6 +2,7 @@ using Microsoft.Win32;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -226,6 +227,18 @@ namespace ZenStates.Core
             return -1;
         }
 
+        public static int FindLastSequence(byte[] source, int start, byte[] pattern)
+        {
+            var lastIndex = -1;
+            for (int i = start; i <= source.Length; i++)
+            {
+                if (FindSequence(source, i, pattern) != -1)
+                {
+                    lastIndex = i;
+                }
+            }
+            return lastIndex;
+        }
 
         public static bool ArrayMembersEqual(float[] array1, float[] array2, int numElements)
         {
@@ -270,6 +283,17 @@ namespace ZenStates.Core
                 return trefins;
             }
             return 0;
+        }
+
+        public static byte[] ToBytes2<T>(T value, bool littleEndian = true) where T : struct
+        {
+            long number = Convert.ToInt64(value);
+            byte low = Convert.ToByte(number & 0xFF);
+            byte high = Convert.ToByte((number >> 8) & 0xFF);
+
+            return littleEndian
+                ? new byte[] { low, high }
+                : new byte[] { high, low };
         }
 
         public static void RemoveRegistryKey(string keyPath)
@@ -432,6 +456,42 @@ namespace ZenStates.Core
             string output = result.StandardOutput;
 
             return !output.Contains("FAILED 1060");
+        }
+
+        /// <summary>
+        /// Attempts to convert a value to the specified target type.
+        /// Supports implicit/explicit operators, enums, primitives, and nullable types.
+        /// </summary>
+        public static object ConvertValue(object value, Type targetType)
+        {
+            if (value == null)
+                return null;
+
+            Type sourceType = value.GetType();
+            Type underlyingTarget = Nullable.GetUnderlyingType(targetType) ?? targetType;
+
+            if (underlyingTarget.IsAssignableFrom(sourceType))
+                return value;
+
+            try
+            {
+                if (underlyingTarget.IsEnum || underlyingTarget.IsPrimitive)
+                    return Convert.ChangeType(value, underlyingTarget);
+
+                MethodInfo op = underlyingTarget.GetMethod("op_Implicit", new[] { sourceType });
+                if (op != null)
+                    return op.Invoke(null, new[] { value });
+
+                MethodInfo opExplicit = underlyingTarget.GetMethod("op_Explicit", new[] { sourceType });
+                if (opExplicit != null)
+                    return opExplicit.Invoke(null, new[] { value });
+            }
+            catch
+            {
+                // ignored
+            }
+
+            return null;
         }
     }
 }

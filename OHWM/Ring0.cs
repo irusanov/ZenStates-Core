@@ -12,7 +12,6 @@ using System;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Security.AccessControl;
 using System.Text;
 using System.Threading;
 
@@ -23,8 +22,6 @@ namespace OpenHardwareMonitor.Hardware
 
         private static KernelDriver driver;
         private static string fileName;
-        private static Mutex isaBusMutex;
-        private static Mutex pciBusMutex;
         private static readonly StringBuilder report = new StringBuilder();
 
         private const uint OLS_TYPE = 40000;
@@ -235,42 +232,6 @@ namespace OpenHardwareMonitor.Hardware
 
             if (!driver.IsOpen)
                 driver = null;
-
-            string isaMutexName = "Global\\Access_ISABUS.HTP.Method";
-            try
-            {
-                isaBusMutex = new Mutex(false, isaMutexName);
-            }
-            catch (UnauthorizedAccessException)
-            {
-                try
-                {
-#if NETCOREAPP || NETSTANDARD || NET6_0_OR_GREATER
-                    isaBusMutex = MutexAcl.OpenExisting(isaMutexName, MutexRights.Synchronize);
-#else
-                    isaBusMutex = Mutex.OpenExisting(isaMutexName, MutexRights.Synchronize);
-#endif
-                }
-                catch { }
-            }
-
-            string pciMutexName = "Global\\Access_PCI";
-            try
-            {
-                pciBusMutex = new Mutex(false, pciMutexName);
-            }
-            catch (UnauthorizedAccessException)
-            {
-                try
-                {
-#if NETCOREAPP || NETSTANDARD || NET6_0_OR_GREATER
-                    pciBusMutex = MutexAcl.OpenExisting(pciMutexName, MutexRights.Synchronize);
-#else
-                    pciBusMutex = Mutex.OpenExisting(pciMutexName, MutexRights.Synchronize);
-#endif
-                }
-                catch { }
-            }
         }
 
         public static bool IsOpen
@@ -292,18 +253,6 @@ namespace OpenHardwareMonitor.Hardware
                 driver.Delete();
 
             driver = null;
-
-            if (isaBusMutex != null)
-            {
-                isaBusMutex.Close();
-                isaBusMutex = null;
-            }
-
-            if (pciBusMutex != null)
-            {
-                pciBusMutex.Close();
-                pciBusMutex = null;
-            }
 
             // try to delete temporary driver file again if failed during open
             if (fileName != null && File.Exists(fileName))
@@ -331,44 +280,6 @@ namespace OpenHardwareMonitor.Hardware
             }
             else
                 return null;
-        }
-
-        public static bool WaitIsaBusMutex(int millisecondsTimeout)
-        {
-            if (isaBusMutex == null)
-                return true;
-            try
-            {
-                return isaBusMutex.WaitOne(millisecondsTimeout, false);
-            }
-            catch (AbandonedMutexException) { return true; }
-            catch (InvalidOperationException) { return false; }
-        }
-
-        public static void ReleaseIsaBusMutex()
-        {
-            if (isaBusMutex == null)
-                return;
-            isaBusMutex.ReleaseMutex();
-        }
-
-        public static bool WaitPciBusMutex(int millisecondsTimeout)
-        {
-            if (pciBusMutex == null)
-                return true;
-            try
-            {
-                return pciBusMutex.WaitOne(millisecondsTimeout, false);
-            }
-            catch (AbandonedMutexException) { return true; }
-            catch (InvalidOperationException) { return false; }
-        }
-
-        public static void ReleasePciBusMutex()
-        {
-            if (pciBusMutex == null)
-                return;
-            pciBusMutex.ReleaseMutex();
         }
 
         public static bool Rdmsr(uint index, out uint eax, out uint edx)

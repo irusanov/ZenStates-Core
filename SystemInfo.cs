@@ -9,11 +9,12 @@ namespace ZenStates.Core
     public class SystemInfo
     {
         private static CPUInfo cpuInfo;
-        public SystemInfo(CPUInfo info, SMU smu)
+        public SystemInfo(CPUInfo info, SMU smu, string agesaVersion)
         {
             cpuInfo = info;
             SmuVersion = smu.Version;
             SmuTableVersion = smu.TableVersion;
+            AgesaVersion = agesaVersion;
 
             try
             {
@@ -69,6 +70,7 @@ namespace ZenStates.Core
         public string MbVendor { get; private set; }
         public string MbName { get; private set; }
         public string BiosVersion { get; private set; }
+        public string AgesaVersion { get; set; }
         public uint SmuVersion { get; private set; }
         public uint SmuTableVersion { get; private set; }
         public uint PatchLevel => cpuInfo.patchLevel;
@@ -78,6 +80,11 @@ namespace ZenStates.Core
 
         private static string SmuVersionToString(uint ver)
         {
+            if (ver.Equals(0))
+            {
+                return "Unknown";
+            }
+
             if ((ver & 0xFF000000) > 0)
             {
                 return $"{(ver >> 24) & 0xff}.{(ver >> 16) & 0xff}.{(ver >> 8) & 0xff}.{ver & 0xff}";
