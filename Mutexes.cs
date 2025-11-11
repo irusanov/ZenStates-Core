@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Threading;
@@ -31,7 +31,11 @@ namespace ZenStates.Core
             {
                 try
                 {
-                    return Mutex.OpenExisting(name);
+#if NETFRAMEWORK
+                    return Mutex.OpenExisting(name, MutexRights.Synchronize);                
+#else
+                    return MutexAcl.OpenExisting(name, MutexRights.Synchronize);
+#endif
                 }
                 catch
                 {
