@@ -79,22 +79,11 @@ namespace ZenStates.Core
             Hsmp = new HSMPMailbox();
         }
 
-        private bool SmuWriteReg(uint addr, uint data)
+        private static RyzenSmu _ryzenSmu;
+
+        public static void SetRyzenSmu(RyzenSmu ryzenSmu)
         {
-            if (addr > uint.MaxValue) return false;
-
-            if (Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_ADDR, addr))
-                return Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_DATA, data);
-            return false;
-        }
-
-        private bool SmuReadReg(uint addr, ref uint data)
-        {
-            if (addr > uint.MaxValue) return false;
-
-            if (Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_ADDR, addr))
-                return Ring0.ReadPciConfig(SMU_PCI_ADDR, SMU_OFFSET_DATA, out data);
-            return false;
+            _ryzenSmu = ryzenSmu;
         }
 
         private bool SmuWaitDone(Mailbox mailbox)
@@ -105,7 +94,7 @@ namespace ZenStates.Core
 
             // Retry until response register is non-zero and reading RSP register is successful
             do
-                res = SmuReadReg(mailbox.SMU_ADDR_RSP, ref data);
+                res = _ryzenSmu.SmuReadReg(mailbox.SMU_ADDR_RSP, out data);
             while ((!res || data == 0) && --timeout > 0);
 
             return timeout != 0 && data > 0;
@@ -143,7 +132,7 @@ namespace ZenStates.Core
                 uint maxValidArgAddress = uint.MaxValue - mailbox.MAX_ARGS * 4;
 
                 // Clear response register
-                if (!SmuWriteReg(mailbox.SMU_ADDR_RSP, 0))
+                if (!_ryzenSmu.SmuWriteReg(mailbox.SMU_ADDR_RSP, 0))
                 {
                     // PCI write failed
                     return Status.PCI_FAILED;
@@ -157,7 +146,7 @@ namespace ZenStates.Core
                     if (mailbox.SMU_ADDR_ARG > maxValidArgAddress)
                         continue;
 
-                    if (!SmuWriteReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]))
+                    if (!_ryzenSmu.SmuWriteReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]))
                     { 
                         // PCI write failed
                         return Status.PCI_FAILED;
@@ -165,7 +154,7 @@ namespace ZenStates.Core
                 }
 
                 // Send message
-                if (!SmuWriteReg(mailbox.SMU_ADDR_MSG, msg))
+                if (!_ryzenSmu.SmuWriteReg(mailbox.SMU_ADDR_MSG, msg))
                 {
                     // PCI write failed
                     return Status.PCI_FAILED;
@@ -180,7 +169,7 @@ namespace ZenStates.Core
 
                 uint status = 0;
                 // If we reach this stage, read final status
-                if (!SmuReadReg(mailbox.SMU_ADDR_RSP, ref status))
+                if (!_ryzenSmu.SmuReadReg(mailbox.SMU_ADDR_RSP, out status))
                 {
                     // PCI read failed
                     return Status.PCI_FAILED;
@@ -200,7 +189,7 @@ namespace ZenStates.Core
                         if (mailbox.SMU_ADDR_ARG > maxValidArgAddress)
                             continue;
 
-                        if (!SmuReadReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]))
+                        if (!_ryzenSmu.SmuReadReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), out args[i]))
                         {
                             // PCI read failed
                             return Status.PCI_FAILED;

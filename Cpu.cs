@@ -359,6 +359,7 @@ namespace ZenStates.Core
             {
                 info.packageType = (PackageType)(ebx >> 28);
                 info.codeName = GetCodeName(info);
+                SMU.SetRyzenSmu(_pawnRyzenSmu);
                 smu = GetMaintainedSettings.GetByType(info.codeName);
                 smu.Hsmp.Init(this);
                 smu.Version = GetSmuVersion();

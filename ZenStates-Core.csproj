@@ -70,16 +70,8 @@
     <None Include="External\InpOut\x64\inpout32.h" />
     <None Include="External\InpOut\x64\inpoutx64.dll" />
     <None Include="External\WinIo\LICENSE.txt" />
-    <EmbeddedResource Include="Resources\PawnIo\AMDFamily0F.bin" />
-    <EmbeddedResource Include="Resources\PawnIo\AMDFamily10.bin" />
     <EmbeddedResource Include="Resources\PawnIo\AMDFamily17.bin" />
-    <EmbeddedResource Include="Resources\PawnIo\IntelMSR.bin" />
-    <EmbeddedResource Include="Resources\PawnIo\LpcACPIEC.bin" />
-    <EmbeddedResource Include="Resources\PawnIo\LpcIO.bin" />
     <EmbeddedResource Include="Resources\PawnIo\RyzenSMU.bin" />
-    <EmbeddedResource Include="Resources\PawnIo\SmbusI801.bin" />
-    <EmbeddedResource Include="Resources\PawnIo\SmbusNCT6793.bin" />
-    <EmbeddedResource Include="Resources\PawnIo\SmbusPIIX4.bin" />
   </ItemGroup>
   <ItemGroup>
     <None Include="External\InpOut\Win32\inpout32.lib" />
