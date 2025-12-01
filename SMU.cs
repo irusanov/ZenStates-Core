@@ -1,4 +1,3 @@
-using OpenHardwareMonitor.Hardware;
 using System;
 using System.Collections.Generic;
 using ZenStates.Core.SMUSettings;
@@ -79,22 +78,25 @@ namespace ZenStates.Core
             Hsmp = new HSMPMailbox();
         }
 
+        private static RyzenSmu _ryzenSmu;
+
+        public static void SetRyzenSmu(RyzenSmu ryzenSmu)
+        {
+            _ryzenSmu = ryzenSmu;
+        }
+
         private bool SmuWriteReg(uint addr, uint data)
         {
             if (addr > uint.MaxValue) return false;
 
-            if (Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_ADDR, addr))
-                return Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_DATA, data);
-            return false;
+            return _ryzenSmu.SmuWriteReg(addr, data);
         }
 
         private bool SmuReadReg(uint addr, ref uint data)
         {
             if (addr > uint.MaxValue) return false;
 
-            if (Ring0.WritePciConfig(SMU_PCI_ADDR, SMU_OFFSET_ADDR, addr))
-                return Ring0.ReadPciConfig(SMU_PCI_ADDR, SMU_OFFSET_DATA, out data);
-            return false;
+            return _ryzenSmu.SmuReadReg(addr, out data);
         }
 
         private bool SmuWaitDone(Mailbox mailbox)
@@ -158,7 +160,7 @@ namespace ZenStates.Core
                         continue;
 
                     if (!SmuWriteReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]))
-                    { 
+                    {
                         // PCI write failed
                         return Status.PCI_FAILED;
                     }

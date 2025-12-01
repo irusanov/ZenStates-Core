@@ -31,11 +31,7 @@ namespace ZenStates.Core
             {
                 try
                 {
-#if NETFRAMEWORK
-                    return Mutex.OpenExisting(name, MutexRights.Synchronize);                
-#else
-                    return MutexAcl.OpenExisting(name, MutexRights.Synchronize);
-#endif
+                    return Mutex.OpenExisting(name);                
                 }
                 catch
                 {
@@ -87,7 +83,7 @@ namespace ZenStates.Core
         private static bool WaitMutex(Mutex mutex, int millisecondsTimeout = 5000)
         {
             if (mutex == null)
-                return true;
+                return false;
 
             try
             {

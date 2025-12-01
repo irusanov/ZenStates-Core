@@ -359,6 +359,7 @@ namespace ZenStates.Core
             {
                 info.packageType = (PackageType)(ebx >> 28);
                 info.codeName = GetCodeName(info);
+                SMU.SetRyzenSmu(_pawnRyzenSmu);
                 smu = GetMaintainedSettings.GetByType(info.codeName);
                 smu.Hsmp.Init(this);
                 smu.Version = GetSmuVersion();
@@ -426,13 +427,14 @@ namespace ZenStates.Core
             {
                 if (Mutexes.WaitPciBus(10))
                 {
-                    if (_pawnAmd.ReadSmn(addr, out data))
+                    try
+                    {
+                        return _pawnAmd.ReadSmn(addr, out data);
+                    }
+                    finally
                     {
                         Mutexes.ReleasePciBus();
-                        return true;
                     }
-
-                    Mutexes.ReleasePciBus();
                 }
             }
 
@@ -455,22 +457,22 @@ namespace ZenStates.Core
         {
             throw new NotSupportedException("WriteDwordEx is currently not supported by PawnIO");
 
-            /*for (int retry = 0; retry < maxRetries; retry++)
-            {
-                if (Mutexes.WaitPciBus(10))
-                {
-                    if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) &&
-                        Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, data))
-                    {
-                        Mutexes.ReleasePciBus();
-                        return true;
-                    }
+            //for (int retry = 0; retry < maxRetries; retry++)
+            //{
+            //    if (Mutexes.WaitPciBus(10))
+            //    {
+            //        if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) &&
+            //            Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, data))
+            //        {
+            //            Mutexes.ReleasePciBus();
+            //            return true;
+            //        }
 
-                    Mutexes.ReleasePciBus();
-                }
-            }
+            //        Mutexes.ReleasePciBus();
+            //    }
+            //}
 
-            return false;*/
+            //return false;
         }
 
         public double GetCoreMulti(int index = 0)
@@ -553,24 +555,21 @@ namespace ZenStates.Core
 
         public bool WriteMsr(uint msr, uint eax, uint edx)
         {
-            throw new NotSupportedException("WriteMsr is currently not supported by PawnIO");
-            /*
             bool res = true;
 
             for (var i = 0; i < info.topology.logicalCores; i++)
             {
-                res = Ring0.WrmsrTx(msr, eax, edx, GroupAffinity.Single(0, i));
+                res = _pawnAmd.WriteMsrTx(msr, eax, edx, GroupAffinity.Single(0, i));
             }
 
             return res;
-            */
         }
 
-        public void WriteIoPort(uint port, byte value) => Ring0.WriteIoPort(port, value);
-        public byte ReadIoPort(uint port) => Ring0.ReadIoPort(port);
-        public bool ReadPciConfig(uint pciAddress, uint regAddress, ref uint value) => Ring0.ReadPciConfig(pciAddress, regAddress, out value);
-        public bool WritePciConfig(uint pciAddress, uint regAddress, uint value) => Ring0.WritePciConfig(pciAddress, regAddress, value);
-        public uint GetPciAddress(byte bus, byte device, byte function) => Ring0.GetPciAddress(bus, device, function);
+        //public void WriteIoPort(uint port, byte value) => Ring0.WriteIoPort(port, value);
+        //public byte ReadIoPort(uint port) => Ring0.ReadIoPort(port);
+        //public bool ReadPciConfig(uint pciAddress, uint regAddress, ref uint value) => Ring0.ReadPciConfig(pciAddress, regAddress, out value);
+        //public bool WritePciConfig(uint pciAddress, uint regAddress, uint value) => Ring0.WritePciConfig(pciAddress, regAddress, value);
+        //public uint GetPciAddress(byte bus, byte device, byte function) => Ring0.GetPciAddress(bus, device, function);
 
         // https://en.wikichip.org/wiki/amd/cpuid
         public CodeName GetCodeName(CPUInfo cpuInfo)
