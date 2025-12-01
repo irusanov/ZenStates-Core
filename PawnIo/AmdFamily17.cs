@@ -101,7 +101,7 @@ namespace ZenStates.Core
         {
             try
             {
-                int status = _pawnIo.ExecuteHr("ioctl_write_msr", new long[] { index, (long)eaxedx }, 2, new long[0], 0, out uint _);
+                int status = _pawnIo.ExecuteHr("ioctl_write_msr", new long[] { index, unchecked((long)eaxedx) }, 2, new long[0], 0, out uint _);
                 if (status != 0)
                     return false;
                 return true;
