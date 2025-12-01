@@ -555,16 +555,14 @@ namespace ZenStates.Core
 
         public bool WriteMsr(uint msr, uint eax, uint edx)
         {
-            throw new NotSupportedException("WriteMsr is currently not supported by PawnIO");
+            bool res = true;
 
-            //bool res = true;
+            for (var i = 0; i < info.topology.logicalCores; i++)
+            {
+                res = _pawnAmd.WriteMsrTx(msr, eax, edx, GroupAffinity.Single(0, i));
+            }
 
-            //for (var i = 0; i < info.topology.logicalCores; i++)
-            //{
-            //    res = Ring0.WrmsrTx(msr, eax, edx, GroupAffinity.Single(0, i));
-            //}
-
-            //return res;
+            return res;
         }
 
         //public void WriteIoPort(uint port, byte value) => Ring0.WriteIoPort(port, value);

@@ -41,22 +41,6 @@ namespace ZenStates.Core
             return false;
         }
 
-        public bool ReadMsr(uint index, out uint eax, out uint edx)
-        {
-            try
-            {
-                long[] outArray = _pawnIo.Execute("ioctl_read_msr", new long[] { index }, 1);
-                eax = unchecked((uint)outArray[0]);
-                edx = unchecked((uint)(outArray[0] >> 32));
-                return true;
-            }
-            catch
-            {
-                eax = edx = 0;
-                return false;
-            }
-        }
-
         public bool ReadMsr(uint index, out ulong eaxedx)
         {
             try
@@ -72,12 +56,63 @@ namespace ZenStates.Core
             }
         }
 
+        public bool ReadMsr(uint index, out uint eax, out uint edx)
+        {
+            try
+            {
+                if (!ReadMsr(index, out ulong eaxedx))
+                {
+                    eax = edx = 0;
+                    return false;
+                }
+                eax = unchecked((uint)eaxedx);
+                edx = unchecked((uint)eaxedx >> 32);
+                return true;
+            }
+            catch
+            {
+                eax = edx = 0;
+                return false;
+            }
+        }
+
         public bool ReadMsrTx(uint index, out uint eax, out uint edx, GroupAffinity affinity)
         {
             GroupAffinity previousAffinity = ThreadAffinity.Set(affinity);
             try
             {
                 return ReadMsr(index, out eax, out edx);
+            }
+            finally
+            {
+                ThreadAffinity.Set(previousAffinity);
+            }
+        }
+
+        public bool WriteMsr(uint index, ulong eaxedx)
+        {
+            try
+            {
+                _pawnIo.Execute("ioctl_write_msr", new long[] { index, (long)eaxedx }, 0);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public bool WriteMsr(uint index, uint eax, uint edx)
+        {
+            return WriteMsr(index, ((ulong)edx << 32) | eax);
+        }
+
+        public bool WriteMsrTx(uint index, uint eax, uint edx, GroupAffinity affinity)
+        {
+            GroupAffinity previousAffinity = ThreadAffinity.Set(affinity);
+            try
+            {
+                return WriteMsr(index, eax, edx);
             }
             finally
             {
