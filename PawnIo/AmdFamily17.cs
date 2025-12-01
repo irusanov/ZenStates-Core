@@ -41,13 +41,21 @@ namespace ZenStates.Core
             return false;
         }
 
+        // TODO: Handle different NTSTATUS codes
         public bool ReadMsr(uint index, out ulong eaxedx)
         {
             try
             {
-                var result = _pawnIo.Execute("ioctl_read_msr", new long[] { index }, 1);
-                eaxedx = unchecked((ulong)result[0]);
-                return true;
+                var output = new long[1];
+                int status = _pawnIo.ExecuteHr("ioctl_read_msr", new long[] { index }, 1, output, 1, out uint returnSize);
+                System.Diagnostics.Debug.WriteLine($"ReadMsr: index=0x{index:X}, status=0x{status:X}, returnSize={returnSize}");
+                if (status == 0 && returnSize > 0)
+                {
+                    eaxedx = unchecked((ulong)output[0]);
+                    return true;
+                }
+                eaxedx = 0;
+                return false;
             }
             catch
             {
@@ -93,7 +101,9 @@ namespace ZenStates.Core
         {
             try
             {
-                _pawnIo.Execute("ioctl_write_msr", new long[] { index, (long)eaxedx }, 0);
+                int status = _pawnIo.ExecuteHr("ioctl_write_msr", new long[] { index, (long)eaxedx }, 2, new long[0], 0, out uint _);
+                if (status != 0)
+                    return false;
                 return true;
             }
             catch
