@@ -24,10 +24,21 @@ The following AMD Zen-based codenames are supported
 * Cezanne
 * Rembrandt
 * Lucienne
+* Raphael
 * Phoenix
+* Phoenix2
 * Mendocino
 * Genoa
 * StormPeak
+* DragonRange
+* Mero
+* HawkPoint
+* StrixPoint
+* GraniteRidge
+* KrackanPoint
+* StrixHalo
+* Turin
+* Bergamo
 
 ## How To
 First, reference the DLL in your .NET project and import it.
