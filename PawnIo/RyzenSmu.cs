@@ -138,7 +138,7 @@ namespace ZenStates.Core
                 _cpuCodeName = (CpuCodeName)GetCodeName();
 
                 // Resolve PM table information
-                ResolvePmTableInfo(out _pmTableVersion, out _dramBaseAddress);
+                ResolvePmTable(out _pmTableVersion, out _dramBaseAddress);
 
                 // Configure PM table size based on CPU and version
                 ConfigurePmTableSize();
@@ -336,7 +336,7 @@ namespace ZenStates.Core
         /// </summary>
         /// <param name="version">The PM table version.</param>
         /// <param name="baseAddress">The PM table base address.</param>
-        private void ResolvePmTableInfo(out uint version, out long baseAddress)
+        private void ResolvePmTable(out uint version, out long baseAddress)
         {
             if (!Mutexes.WaitPciBus(5000))
                 throw new TimeoutException("Timeout waiting for PCI bus mutex");
@@ -346,6 +346,37 @@ namespace ZenStates.Core
                 long[] result = _pawnIo.Execute(IOCTL_RESOLVE_PM_TABLE, new long[2], 2);
                 version = Convert.ToUInt32(result[0] & 0xffffffff);
                 baseAddress = result[1];
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
+            }
+        }
+
+        public long[] ReadPmTable(int size)
+        {
+            if (!Mutexes.WaitPciBus(5000))
+                throw new TimeoutException("Timeout waiting for PCI bus mutex");
+
+            try
+            {
+                long[] outArray = _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[] { }, size);
+                return outArray;
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
+            }
+        }
+
+        public void UpdatePmTable()
+        {
+            if (!Mutexes.WaitPciBus(5000))
+                throw new TimeoutException("Timeout waiting for PCI bus mutex");
+
+            try
+            {
+                _pawnIo.Execute(IOCTL_UPDATE_PM_TABLE, new long[] { }, 0);
             }
             finally
             {
@@ -373,37 +404,6 @@ namespace ZenStates.Core
                 Buffer.BlockCopy(rawData, 0, table, 0, size);
 
             return table;
-        }
-
-        private void UpdatePmTable()
-        {
-            if (!Mutexes.WaitPciBus(5000))
-                throw new TimeoutException("Timeout waiting for PCI bus mutex");
-
-            try
-            {
-                _pawnIo.Execute(IOCTL_UPDATE_PM_TABLE, new long[0], 0);
-            }
-            finally
-            {
-                Mutexes.ReleasePciBus();
-            }
-        }
-
-        private long[] ReadPmTable(int size)
-        {
-            if (!Mutexes.WaitPciBus(5000))
-                throw new TimeoutException("Timeout waiting for PCI bus mutex");
-
-            try
-            {
-                long[] outArray = _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[0], size);
-                return outArray;
-            }
-            finally
-            {
-                Mutexes.ReleasePciBus();
-            }
         }
 
         /// <summary>
