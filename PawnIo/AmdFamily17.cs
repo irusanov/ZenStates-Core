@@ -74,7 +74,7 @@ namespace ZenStates.Core
                     return false;
                 }
                 eax = unchecked((uint)eaxedx);
-                edx = unchecked((uint)eaxedx >> 32);
+                edx = unchecked((uint)(eaxedx >> 32));
                 return true;
             }
             catch
