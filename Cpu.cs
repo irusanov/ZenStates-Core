@@ -1,5 +1,7 @@
 using OpenHardwareMonitor.Hardware;
 using System;
+using System.Diagnostics;
+
 #if !NET20
 using System.Globalization;
 #endif
@@ -332,7 +334,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                throw new ApplicationException("Error initializing PawnIO AMD module. Driver signature enforcement not disabled or driver not installed in development mode.", ex);
+                throw new ApplicationException("Error initializing PawnIO AMD module.", ex);
             }
 
             mmio = new AMD_MMIO(io);
@@ -1142,7 +1144,7 @@ namespace ZenStates.Core
                 }
                 else
                 {
-                    Console.WriteLine("Target sequence not found.");
+                    Debug.WriteLine("Target sequence not found.");
                 }
             }
             catch (Exception ex)
