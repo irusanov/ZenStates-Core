@@ -1,6 +1,7 @@
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Management;
 using System.Text;
@@ -257,14 +258,14 @@ namespace ZenStates.Core
                             }
                         }
 
-                        Console.WriteLine($"No REG_BINARY value found in {subkeyName}.");
+                        Debug.WriteLine($"No REG_BINARY value found in {subkeyName}.");
                     }
                     else
                     {
                         // Continue drilling down if there are more subkeys
                         foreach (string nestedSubkeyName in subkeyNames)
                         {
-                            Console.WriteLine($"Nested Subkey: {nestedSubkeyName}");
+                            Debug.WriteLine($"Nested Subkey: {nestedSubkeyName}");
                             byte[] rawTable = GetRawTableFromSubkeys(subkey, nestedSubkeyName);
                             if (rawTable != null)
                             {
