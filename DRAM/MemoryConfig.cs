@@ -68,23 +68,36 @@ namespace ZenStates.Core.DRAM
             Timings = new List<KeyValuePair<uint, BaseDramTimings>>();
 
             ReadModulesInfo();
-            ReadChannels();
 
-            var offset = Modules.Count > 0 ? Modules[0].DctOffset : 0;
-            Type = (MemType)(cpu.ReadDword(offset | DRAM_TYPE_REG_ADDR) & DRAM_TYPE_BIT_MASK);
-
-            foreach (MemoryModule module in Modules)
+            try
             {
-                if (Type == MemType.DDR4)
-                    Timings.Add(new KeyValuePair<uint, BaseDramTimings>(module.DctOffset, new Ddr4Timings(cpu)));
-                else if (Type >= MemType.DDR5)
-                    Timings.Add(new KeyValuePair<uint, BaseDramTimings>(module.DctOffset, new Ddr5Timings(cpu)));
+                if (!Mutexes.WaitPciBus(5000))
+                {
+                    throw new TimeoutException("Timeout waiting for PCI bus mutex.");
+                }
 
-                ReadTimings(module.DctOffset);
+                ReadChannels();
+
+                var offset = Modules.Count > 0 ? Modules[0].DctOffset : 0;
+                Type = (MemType)(cpu.ReadDword(offset | DRAM_TYPE_REG_ADDR) & DRAM_TYPE_BIT_MASK);
+
+                foreach (MemoryModule module in Modules)
+                {
+                    if (Type == MemType.DDR4)
+                        Timings.Add(new KeyValuePair<uint, BaseDramTimings>(module.DctOffset, new Ddr4Timings(cpu)));
+                    else if (Type >= MemType.DDR5)
+                        Timings.Add(new KeyValuePair<uint, BaseDramTimings>(module.DctOffset, new Ddr5Timings(cpu)));
+
+                    ReadTimingsInternal(module.DctOffset);
+                }
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
             }
         }
 
-        public void ReadTimings(uint offset = 0)
+        internal void ReadTimingsInternal(uint offset = 0)
         {
             foreach (var item in Timings)
             {
@@ -93,6 +106,23 @@ namespace ZenStates.Core.DRAM
                     item.Value.Read(offset);
                     break;
                 }
+             }
+        }
+
+        public void ReadTimings(uint offset = 0)
+        {
+            try
+            {
+                if (!Mutexes.WaitPciBus(5000))
+                {
+                    throw new TimeoutException("Timeout waiting for PCI bus mutex.");
+                }
+
+                ReadTimingsInternal(offset);
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
             }
         }
 

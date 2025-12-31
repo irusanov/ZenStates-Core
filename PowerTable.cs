@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using static ZenStates.Core.SMU;
 
 namespace ZenStates.Core
 {
@@ -436,28 +437,38 @@ namespace ZenStates.Core
 
         public SMU.Status Refresh()
         {
-            if (DramBaseAddress == 0)
-            {
-                return SMU.Status.FAILED;
-            }
-
             try
             {
-                if (Table?.Length == 0)
-                    Table = new float[TableSize / 4];
+                if (!Mutexes.WaitPciBus(5000))
+                    return Status.TIMEOUT_MUTEX_LOCK;
 
-                Table = smu.GetPmTable();
-
-                if (Utils.AllZero(Table))
+                if (DramBaseAddress == 0)
+                {
                     return SMU.Status.FAILED;
+                }
 
-                ParseTable(Table);
-                return SMU.Status.OK;
+                try
+                {
+                    if (Table?.Length == 0)
+                        Table = new float[TableSize / 4];
+
+                    Table = smu.GetPmTable();
+
+                    if (Utils.AllZero(Table))
+                        return SMU.Status.FAILED;
+
+                    ParseTable(Table);
+                    return SMU.Status.OK;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error occurred while reading table: {ex.Message}");
+                    return SMU.Status.FAILED;
+                }
             }
-            catch (Exception ex)
+            finally
             {
-                Console.WriteLine($"Error occurred while reading table: {ex.Message}");
-                return SMU.Status.FAILED;
+                Mutexes.ReleasePciBus();
             }
         }
 

@@ -227,7 +227,7 @@ namespace ZenStates.Core
         }
 
         /// <summary>
-        /// Send the SMU Command.
+        /// Send the SMU Command to RSMU. PawnIO module does not support other mailboxes.
         /// </summary>
         /// <returns>The SMU status converted to HR result.</returns>
         public int SendSmuCommand(uint command, ref uint[] args)
@@ -263,12 +263,26 @@ namespace ZenStates.Core
         /// Read the SMU Register.
         /// </summary>
         /// <returns>Reading status: true - success, false - failed.</returns>
-        public bool SmuReadReg(uint register, out uint value)
+        //public bool SmuReadReg(uint register, out uint value)
+        //{
+        //    ThrowIfDisposed();
+
+        //    if (!Mutexes.WaitPciBus(5000))
+        //        throw new TimeoutException("Timeout waiting for PCI bus mutex");
+
+        //    try
+        //    {
+        //        return SmuReadRegInternal(register, out value);
+        //    }
+        //    finally
+        //    {
+        //        Mutexes.ReleasePciBus();
+        //    }
+        //}
+
+        internal bool SmuReadRegInternal(uint register, out uint value)
         {
             ThrowIfDisposed();
-
-            if (!Mutexes.WaitPciBus(5000))
-                throw new TimeoutException("Timeout waiting for PCI bus mutex");
 
             try
             {
@@ -283,9 +297,10 @@ namespace ZenStates.Core
                 }
                 return false;
             }
-            finally
+            catch
             {
-                Mutexes.ReleasePciBus();
+                value = 0;
+                return false;
             }
         }
 
@@ -293,12 +308,9 @@ namespace ZenStates.Core
         /// Write the SMU Register.
         /// </summary>
         /// <returns>Reading status: true - success, false - failed.</returns>
-        public bool SmuWriteReg(uint register, uint value)
+        internal bool SmuWriteRegInternal(uint register, uint value)
         {
             ThrowIfDisposed();
-
-            if (!Mutexes.WaitPciBus(5000))
-                throw new TimeoutException("Timeout waiting for PCI bus mutex");
 
             try
             {
@@ -313,11 +325,28 @@ namespace ZenStates.Core
                 }
                 return false;
             }
-            finally
+            catch
             {
-                Mutexes.ReleasePciBus();
+                return false;
             }
         }
+
+        //public bool SmuWriteReg(uint register, uint value)
+        //{
+        //    ThrowIfDisposed();
+
+        //    if (!Mutexes.WaitPciBus(5000))
+        //        throw new TimeoutException("Timeout waiting for PCI bus mutex");
+
+        //    try
+        //    {
+        //       return SmuWriteRegInternal(register, value);
+        //    }
+        //    finally
+        //    {
+        //        Mutexes.ReleasePciBus();
+        //    }
+        //}
 
         /// <summary>
         /// Gets the PM table structure definition for the current CPU.

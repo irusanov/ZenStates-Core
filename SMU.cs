@@ -89,14 +89,14 @@ namespace ZenStates.Core
         {
             if (addr > uint.MaxValue) return false;
 
-            return _ryzenSmu.SmuWriteReg(addr, data);
+            return _ryzenSmu.SmuWriteRegInternal(addr, data);
         }
 
         private bool SmuReadReg(uint addr, ref uint data)
         {
             if (addr > uint.MaxValue) return false;
 
-            return _ryzenSmu.SmuReadReg(addr, out data);
+            return _ryzenSmu.SmuReadRegInternal(addr, out data);
         }
 
         private bool SmuWaitDone(Mailbox mailbox)
@@ -130,7 +130,7 @@ namespace ZenStates.Core
             if (!ValidateMailbox(mailbox, msg))
                 return Status.UNKNOWN_CMD;
 
-            if (!Mutexes.WaitPciBus(10))
+            if (!Mutexes.WaitPciBus(5000))
                 return Status.TIMEOUT_MUTEX_LOCK;
 
             try

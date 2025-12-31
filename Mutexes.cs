@@ -10,45 +10,42 @@ namespace ZenStates.Core
         private static Mutex _isaBusMutex;
         private static Mutex _pciBusMutex;
 
-        private static readonly string isaMutexName = "Global\\Access_ISABUS.HTP.Method";
-        private static readonly string pciMutexName = "Global\\Access_PCI";
-
-        static Mutex CreateOrOpenExistingMutex(string name)
-        {
-            try
-            {
-                var worldRule = new MutexAccessRule(new SecurityIdentifier(WellKnownSidType.WorldSid, null), MutexRights.FullControl, AccessControlType.Allow);
-                var mutexSecurity = new MutexSecurity();
-                mutexSecurity.AddAccessRule(worldRule);
-
-#if NETFRAMEWORK
-                return new Mutex(false, name, out _, mutexSecurity);
-#else
-                return MutexAcl.Create(false, name, out _, mutexSecurity);
-#endif
-            }
-            catch (UnauthorizedAccessException)
-            {
-                try
-                {
-                    return Mutex.OpenExisting(name);                
-                }
-                catch
-                {
-                    // Ignored.
-                }
-            }
-
-            return null;
-        }
 
         /// <summary>
-        /// Cleates or opens the mutexes.
+        /// Opens the mutexes.
         /// </summary>
         public static void Open()
         {
-            _isaBusMutex = CreateOrOpenExistingMutex(isaMutexName);
-            _pciBusMutex = CreateOrOpenExistingMutex(pciMutexName);
+            _isaBusMutex = CreateOrOpenExistingMutex("Global\\Access_ISABUS.HTP.Method");
+            _pciBusMutex = CreateOrOpenExistingMutex("Global\\Access_PCI");
+
+            Mutex CreateOrOpenExistingMutex(string name)
+            {
+                try
+                {
+                    var worldRule = new MutexAccessRule(new SecurityIdentifier(WellKnownSidType.WorldSid, null), MutexRights.FullControl, AccessControlType.Allow);
+                    var mutexSecurity = new MutexSecurity();
+                    mutexSecurity.AddAccessRule(worldRule);
+#if NETFRAMEWORK
+                    return new Mutex(false, name, out _, mutexSecurity);
+#else
+                    return MutexAcl.Create(false, name, out _, mutexSecurity);
+#endif
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    try
+                    {
+                        return Mutex.OpenExisting(name);
+                    }
+                    catch
+                    {
+                        // Ignored.
+                    }
+                }
+
+                return null;
+            }
         }
 
         /// <summary>

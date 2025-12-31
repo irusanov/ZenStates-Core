@@ -256,52 +256,66 @@ namespace ZenStates.Core
                 fuse2 += 0x1A4;
             }
 
-            if (ReadDwordEx(fuse1, ref ccdsPresent) && ReadDwordEx(fuse2, ref ccdsDown))
+            try
             {
-                uint ccdEnableMap = Utils.BitSlice(ccdsPresent, 23, 22);
-                uint ccdDisableMap = Utils.BitSlice(ccdsPresent, 31, 30) | (Utils.BitSlice(ccdsDown, 5, 0) << 2);
-                uint coreDisableMapAddress = family == Family.FAMILY_1AH ? 0x304A03DC : 0x30081800 + offset;
-                uint enabledCcd = Utils.CountSetBits(ccdEnableMap);
+                if (!Mutexes.WaitPciBus(5000))
+                    throw new TimeoutException("Timeout waiting for PCI bus mutex");
 
-                topology.ccds = enabledCcd > 0 ? enabledCcd : 1;
-                topology.ccxs = topology.ccds * ccxPerCcd;
-                topology.physicalCores = topology.ccxs * 8 / ccxPerCcd;
-                topology.ccdEnableMap = ccdEnableMap;
-                topology.ccdDisableMap = ccdDisableMap;
-                topology.fuse1 = fuse1;
-                topology.fuse2 = fuse2;
-                topology.ccdsPresent = ccdsPresent;
-                topology.ccdsDown = ccdsDown;
-
-                if (ReadDwordEx(coreDisableMapAddress, ref coreFuse))
+                if (ReadDwordEx(fuse1, ref ccdsPresent) && ReadDwordEx(fuse2, ref ccdsDown))
                 {
-                    var coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
-                    if (coresPerCcx > 0)
+                    uint ccdEnableMap = Utils.BitSlice(ccdsPresent, 23, 22);
+                    uint ccdDisableMap = Utils.BitSlice(ccdsPresent, 31, 30) | (Utils.BitSlice(ccdsDown, 5, 0) << 2);
+                    uint coreDisableMapAddress = family == Family.FAMILY_1AH ? 0x304A03DC : 0x30081800 + offset;
+                    uint enabledCcd = Utils.CountSetBits(ccdEnableMap);
+
+                    topology.ccds = enabledCcd > 0 ? enabledCcd : 1;
+                    topology.ccxs = topology.ccds * ccxPerCcd;
+                    topology.physicalCores = topology.ccxs * 8 / ccxPerCcd;
+                    topology.ccdEnableMap = ccdEnableMap;
+                    topology.ccdDisableMap = ccdDisableMap;
+                    topology.fuse1 = fuse1;
+                    topology.fuse2 = fuse2;
+                    topology.ccdsPresent = ccdsPresent;
+                    topology.ccdsDown = ccdsDown;
+
+                    if (ReadDwordEx(coreDisableMapAddress, ref coreFuse))
                     {
-                        topology.coresPerCcx = coresPerCcx;
+                        var coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
+                        if (coresPerCcx > 0)
+                        {
+                            topology.coresPerCcx = coresPerCcx;
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("Could not read core fuse!");
+                    }
+
+                    topology.coreDisableMap = new uint[topology.ccds];
+
+                    for (int i = 0; i < topology.ccds; i++)
+                    {
+                        if (Utils.GetBits(ccdEnableMap, i, 1) == 1)
+                        {
+                            if (ReadDwordEx(((uint)i << 25) + coreDisableMapAddress, ref coreFuse))
+                                topology.coreDisableMap[i] = coreFuse & 0xff;
+                            else
+                                Console.WriteLine($"Could not read core fuse for CCD{i}!");
+                        }
                     }
                 }
                 else
                 {
-                    Console.WriteLine("Could not read core fuse!");
-                }
-
-                topology.coreDisableMap = new uint[topology.ccds];
-
-                for (int i = 0; i < topology.ccds; i++)
-                {
-                    if (Utils.GetBits(ccdEnableMap, i, 1) == 1)
-                    {
-                        if (ReadDwordEx(((uint)i << 25) + coreDisableMapAddress, ref coreFuse))
-                            topology.coreDisableMap[i] = coreFuse & 0xff;
-                        else
-                            Console.WriteLine($"Could not read core fuse for CCD{i}!");
-                    }
+                    Console.WriteLine("Could not read CCD fuse!");
                 }
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine("Could not read CCD fuse!");
+                Console.WriteLine($"Error retrieving CPU topology. {ex}");
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
             }
 
             return topology;
@@ -427,17 +441,11 @@ namespace ZenStates.Core
         {
             for (int retry = 0; retry < maxRetries; retry++)
             {
-                if (Mutexes.WaitPciBus(10))
+                try
                 {
-                    try
-                    {
-                        return _pawnAmd.ReadSmn(addr, out data);
-                    }
-                    finally
-                    {
-                        Mutexes.ReleasePciBus();
-                    }
+                    return _pawnAmd.ReadSmn(addr, out data);
                 }
+                catch { }
             }
 
             return false;
@@ -1033,90 +1041,141 @@ namespace ZenStates.Core
 
         public int GetCurrentHwVid()
         {
-            uint data = 0;
-            uint address = 0;
-
-            if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU0 || smu.SMU_TYPE < SMU.SmuType.TYPE_CPU2)
+            try
             {
-                address = 0x5A04C;
-            }
-            else if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU1 || smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
-            {
-                address = 0x6F05C;
-                if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
+                if (!Mutexes.WaitPciBus(5000))
                 {
+                    Console.WriteLine("GetCurrentHwVid: Timeout waiting for PCI bus mutex");
+                    return -1;
+                }
+
+                uint data = 0;
+                uint address = 0;
+
+                if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU0 || smu.SMU_TYPE < SMU.SmuType.TYPE_CPU2)
+                {
+                    address = 0x5A04C;
+                }
+                else if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU1 || smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
+                {
+                    address = 0x6F05C;
+                    if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
+                    {
+                        if (ReadDwordEx(address, ref data))
+                            return (int)((data >> 6) & 0x1FF);
+                    }
+                }
+                else if (smu.SMU_TYPE == SMU.SmuType.TYPE_CPU2 || smu.SMU_TYPE == SMU.SmuType.TYPE_CPU3)
+                {
+                    address = (uint)(info.packageType == PackageType.AM4 ? 0x5A050 : 0x5A054);
+                }
+                else if (info.family > Family.FAMILY_17H)
+                {
+                    address = 0x73014;
                     if (ReadDwordEx(address, ref data))
                         return (int)((data >> 6) & 0x1FF);
                 }
-            }
-            else if (smu.SMU_TYPE == SMU.SmuType.TYPE_CPU2 || smu.SMU_TYPE == SMU.SmuType.TYPE_CPU3)
-            {
-                address = (uint)(info.packageType == PackageType.AM4 ? 0x5A050 : 0x5A054);
-            }
-            else if (info.family > Family.FAMILY_17H)
-            {
-                address = 0x73014;
-                if (ReadDwordEx(address, ref data))
-                    return (int)((data >> 6) & 0x1FF);
-            }
 
-            if (address != 0 && ReadDwordEx(address, ref data))
-                return (int)(data >> 24);
-
+                if (address != 0 && ReadDwordEx(address, ref data))
+                    return (int)(data >> 24);
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
+            }
             return -1;
         }
 
-        public bool IsProchotEnabled()
+        public bool? IsProchotEnabled()
         {
-            uint data = ReadDword(0x59804);
-            return (data & 1) == 1;
+            try
+            {
+                if (!Mutexes.WaitPciBus(5000))
+                {
+                    Console.WriteLine("IsProchotEnabled: Timeout waiting for PCI bus mutex");
+                    return null;
+                }
+
+                uint data = ReadDword(0x59804);
+                return (data & 1) == 1;
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
+            }
         }
 
         public float? GetCpuTemperature()
         {
-            uint thmData = 0;
-
-            if (ReadDwordEx(Constants.THM_CUR_TEMP, ref thmData))
+            try
             {
-                float offset = 0.0f;
+                if (!Mutexes.WaitPciBus(5000))
+                {
+                    Console.WriteLine("GetCpuTemperature: Timeout waiting for PCI bus mutex");
+                    return null;
+                }
 
-                // Get tctl temperature offset
-                // Offset table: https://github.com/torvalds/linux/blob/master/drivers/hwmon/k10temp.c#L78
-                if (info.cpuName.Contains("2700X"))
-                    offset = -10.0f;
-                else if (info.cpuName.Contains("1600X") || info.cpuName.Contains("1700X") || info.cpuName.Contains("1800X"))
-                    offset = -20.0f;
-                else if (info.cpuName.Contains("Threadripper 19") || info.cpuName.Contains("Threadripper 29"))
-                    offset = -27.0f;
+                uint thmData = 0;
 
-                // THMx000[31:21] = CUR_TEMP, THMx000[19] = CUR_TEMP_RANGE_SEL
-                // Range sel = 0 to 255C (Temp = Tctl - offset)
-                float temperature = (thmData >> 21) * 0.125f + offset;
+                if (ReadDwordEx(Constants.THM_CUR_TEMP, ref thmData))
+                {
+                    float offset = 0.0f;
 
-                // Range sel = -49 to 206C (Temp = Tctl - offset - 49)
-                if ((thmData & Constants.THM_CUR_TEMP_RANGE_SEL_MASK) != 0)
-                    temperature -= 49.0f;
+                    // Get tctl temperature offset
+                    // Offset table: https://github.com/torvalds/linux/blob/master/drivers/hwmon/k10temp.c#L78
+                    if (info.cpuName.Contains("2700X"))
+                        offset = -10.0f;
+                    else if (info.cpuName.Contains("1600X") || info.cpuName.Contains("1700X") || info.cpuName.Contains("1800X"))
+                        offset = -20.0f;
+                    else if (info.cpuName.Contains("Threadripper 19") || info.cpuName.Contains("Threadripper 29"))
+                        offset = -27.0f;
 
-                return temperature;
+                    // THMx000[31:21] = CUR_TEMP, THMx000[19] = CUR_TEMP_RANGE_SEL
+                    // Range sel = 0 to 255C (Temp = Tctl - offset)
+                    float temperature = (thmData >> 21) * 0.125f + offset;
+
+                    // Range sel = -49 to 206C (Temp = Tctl - offset - 49)
+                    if ((thmData & Constants.THM_CUR_TEMP_RANGE_SEL_MASK) != 0)
+                        temperature -= 49.0f;
+
+                    return temperature;
+                }
+
+                return null;
             }
-
-            return null;
+            finally
+            {
+                Mutexes.ReleasePciBus();
+            }
         }
 
         public float? GetSingleCcdTemperature(uint ccd)
         {
-            uint thmData = 0;
-            uint register = this.info.family >= Family.FAMILY_19H ? Constants.F19H_CCD_TEMP : Constants.F17H_CCD_TEMP;
-
-            if (ReadDwordEx(register + (ccd * 0x4), ref thmData))
+            try
             {
-                float ccdTemp = (thmData & 0xfff) * 0.125f - 305.0f;
-                if (ccdTemp > 0 && ccdTemp < 125) // Zen 2 reports 95 degrees C max, but it might exceed that.
-                    return ccdTemp;
-                return 0;
-            }
+                if (!Mutexes.WaitPciBus(5000))
+                {
+                    Console.WriteLine("GetSingleCcdTemperature: Timeout waiting for PCI bus mutex");
+                    return null;
+                }
 
-            return null;
+                uint thmData = 0;
+                uint register = this.info.family >= Family.FAMILY_19H ? Constants.F19H_CCD_TEMP : Constants.F17H_CCD_TEMP;
+
+                if (ReadDwordEx(register + (ccd * 0x4), ref thmData))
+                {
+                    float ccdTemp = (thmData & 0xfff) * 0.125f - 305.0f;
+                    if (ccdTemp > 0 && ccdTemp < 125) // Zen 2 reports 95 degrees C max, but it might exceed that.
+                        return ccdTemp;
+                    return 0;
+                }
+
+                return null;
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
+            }
         }
 
         // TODO: move to ACPI?
@@ -1135,7 +1194,7 @@ namespace ZenStates.Core
                 if (targetOffset != -1)
                 {
                     targetOffset += testSequence.Length;
-                    Console.WriteLine($"Found target sequence at offset 0x{targetOffset:X}");
+                    Debug.WriteLine($"Found target sequence at offset 0x{targetOffset:X}");
                     // Find the end of the string (null-terminated sequence)
                     int endPos = Utils.FindSequence(data, targetOffset, new byte[] { 0x00, 0x00 });
                     if (endPos > targetOffset)
@@ -1150,7 +1209,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Could not find AGESA version: {ex.Message}");
+                Debug.WriteLine($"Could not find AGESA version: {ex.Message}");
             }
 
             return agesaVersion;
