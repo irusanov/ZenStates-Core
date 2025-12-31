@@ -740,6 +740,7 @@ namespace ZenStates.Core
                         codeName = CodeName.TurinD;
                         break;
                     case 0x20:
+                    case 0x24:
                         codeName = CodeName.StrixPoint;
                         break;
                     case 0x44:
