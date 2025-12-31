@@ -297,9 +297,12 @@ namespace ZenStates.Core
             { Cpu.CodeName.Phoenix2, new APUSettings1_Phoenix() },
             { Cpu.CodeName.HawkPoint, new APUSettings1_Phoenix() },
             { Cpu.CodeName.Mendocino, new APUSettings1_Phoenix() },
+
             { Cpu.CodeName.StrixPoint, new APUSettings1_Phoenix() },
             { Cpu.CodeName.StrixHalo, new APUSettings1_Phoenix() },
             { Cpu.CodeName.KrackanPoint, new APUSettings1_Phoenix() },
+
+            { Cpu.CodeName.KrackanPoint2, new Zen4Settings() },
 
             { Cpu.CodeName.Unsupported, new UnsupportedSettings() },
         };
