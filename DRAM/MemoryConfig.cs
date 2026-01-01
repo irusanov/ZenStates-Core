@@ -69,13 +69,13 @@ namespace ZenStates.Core.DRAM
 
             ReadModulesInfo();
 
+            if (!Mutexes.WaitPciBus(5000))
+            {
+                throw new TimeoutException("Timeout waiting for PCI bus mutex.");
+            }
+
             try
             {
-                if (!Mutexes.WaitPciBus(5000))
-                {
-                    throw new TimeoutException("Timeout waiting for PCI bus mutex.");
-                }
-
                 ReadChannels();
 
                 var offset = Modules.Count > 0 ? Modules[0].DctOffset : 0;
@@ -111,13 +111,13 @@ namespace ZenStates.Core.DRAM
 
         public void ReadTimings(uint offset = 0)
         {
+            if (!Mutexes.WaitPciBus(5000))
+            {
+                throw new TimeoutException("Timeout waiting for PCI bus mutex.");
+            }
+
             try
             {
-                if (!Mutexes.WaitPciBus(5000))
-                {
-                    throw new TimeoutException("Timeout waiting for PCI bus mutex.");
-                }
-
                 ReadTimingsInternal(offset);
             }
             finally

@@ -256,11 +256,11 @@ namespace ZenStates.Core
                 fuse2 += 0x1A4;
             }
 
+            if (!Mutexes.WaitPciBus(5000))
+                throw new TimeoutException("Timeout waiting for PCI bus mutex");
+
             try
             {
-                if (!Mutexes.WaitPciBus(5000))
-                    throw new TimeoutException("Timeout waiting for PCI bus mutex");
-
                 if (ReadDwordEx(fuse1, ref ccdsPresent) && ReadDwordEx(fuse2, ref ccdsDown))
                 {
                     uint ccdEnableMap = Utils.BitSlice(ccdsPresent, 23, 22);
@@ -1088,14 +1088,14 @@ namespace ZenStates.Core
 
         public bool? IsProchotEnabled()
         {
+            if (!Mutexes.WaitPciBus(5000))
+            {
+                Console.WriteLine("IsProchotEnabled: Timeout waiting for PCI bus mutex");
+                return null;
+            }
+
             try
             {
-                if (!Mutexes.WaitPciBus(5000))
-                {
-                    Console.WriteLine("IsProchotEnabled: Timeout waiting for PCI bus mutex");
-                    return null;
-                }
-
                 uint data = ReadDword(0x59804);
                 return (data & 1) == 1;
             }
@@ -1107,14 +1107,14 @@ namespace ZenStates.Core
 
         public float? GetCpuTemperature()
         {
+            if (!Mutexes.WaitPciBus(5000))
+            {
+                Console.WriteLine("GetCpuTemperature: Timeout waiting for PCI bus mutex");
+                return null;
+            }
+
             try
             {
-                if (!Mutexes.WaitPciBus(5000))
-                {
-                    Console.WriteLine("GetCpuTemperature: Timeout waiting for PCI bus mutex");
-                    return null;
-                }
-
                 uint thmData = 0;
 
                 if (ReadDwordEx(Constants.THM_CUR_TEMP, ref thmData))
@@ -1151,14 +1151,14 @@ namespace ZenStates.Core
 
         public float? GetSingleCcdTemperature(uint ccd)
         {
+            if (!Mutexes.WaitPciBus(5000))
+            {
+                Console.WriteLine("GetSingleCcdTemperature: Timeout waiting for PCI bus mutex");
+                return null;
+            }
+
             try
             {
-                if (!Mutexes.WaitPciBus(5000))
-                {
-                    Console.WriteLine("GetSingleCcdTemperature: Timeout waiting for PCI bus mutex");
-                    return null;
-                }
-
                 uint thmData = 0;
                 uint register = this.info.family >= Family.FAMILY_19H ? Constants.F19H_CCD_TEMP : Constants.F17H_CCD_TEMP;
 

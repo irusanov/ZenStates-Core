@@ -437,38 +437,28 @@ namespace ZenStates.Core
 
         public SMU.Status Refresh()
         {
+            if (DramBaseAddress == 0)
+            {
+                return SMU.Status.FAILED;
+            }
+
             try
             {
-                if (!Mutexes.WaitPciBus(5000))
-                    return Status.TIMEOUT_MUTEX_LOCK;
+                if (Table?.Length == 0)
+                    Table = new float[TableSize / 4];
 
-                if (DramBaseAddress == 0)
-                {
+                Table = smu.GetPmTable();
+
+                if (Utils.AllZero(Table))
                     return SMU.Status.FAILED;
-                }
 
-                try
-                {
-                    if (Table?.Length == 0)
-                        Table = new float[TableSize / 4];
-
-                    Table = smu.GetPmTable();
-
-                    if (Utils.AllZero(Table))
-                        return SMU.Status.FAILED;
-
-                    ParseTable(Table);
-                    return SMU.Status.OK;
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error occurred while reading table: {ex.Message}");
-                    return SMU.Status.FAILED;
-                }
+                ParseTable(Table);
+                return SMU.Status.OK;
             }
-            finally
+            catch (Exception ex)
             {
-                Mutexes.ReleasePciBus();
+                Console.WriteLine($"Error occurred while reading table: {ex.Message}");
+                return SMU.Status.FAILED;
             }
         }
 

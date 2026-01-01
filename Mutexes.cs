@@ -10,7 +10,6 @@ namespace ZenStates.Core
         private static Mutex _isaBusMutex;
         private static Mutex _pciBusMutex;
 
-
         /// <summary>
         /// Opens the mutexes.
         /// </summary>
@@ -80,7 +79,7 @@ namespace ZenStates.Core
         private static bool WaitMutex(Mutex mutex, int millisecondsTimeout = 5000)
         {
             if (mutex == null)
-                return false;
+                return true;
 
             try
             {

@@ -263,22 +263,22 @@ namespace ZenStates.Core
         /// Read the SMU Register.
         /// </summary>
         /// <returns>Reading status: true - success, false - failed.</returns>
-        //public bool SmuReadReg(uint register, out uint value)
-        //{
-        //    ThrowIfDisposed();
+        public bool SmuReadReg(uint register, out uint value)
+        {
+            ThrowIfDisposed();
 
-        //    if (!Mutexes.WaitPciBus(5000))
-        //        throw new TimeoutException("Timeout waiting for PCI bus mutex");
+            if (!Mutexes.WaitPciBus(5000))
+                throw new TimeoutException("Timeout waiting for PCI bus mutex");
 
-        //    try
-        //    {
-        //        return SmuReadRegInternal(register, out value);
-        //    }
-        //    finally
-        //    {
-        //        Mutexes.ReleasePciBus();
-        //    }
-        //}
+            try
+            {
+                return SmuReadRegInternal(register, out value);
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
+            }
+        }
 
         internal bool SmuReadRegInternal(uint register, out uint value)
         {
@@ -331,22 +331,22 @@ namespace ZenStates.Core
             }
         }
 
-        //public bool SmuWriteReg(uint register, uint value)
-        //{
-        //    ThrowIfDisposed();
+        public bool SmuWriteReg(uint register, uint value)
+        {
+            ThrowIfDisposed();
 
-        //    if (!Mutexes.WaitPciBus(5000))
-        //        throw new TimeoutException("Timeout waiting for PCI bus mutex");
+            if (!Mutexes.WaitPciBus(5000))
+                throw new TimeoutException("Timeout waiting for PCI bus mutex");
 
-        //    try
-        //    {
-        //       return SmuWriteRegInternal(register, value);
-        //    }
-        //    finally
-        //    {
-        //        Mutexes.ReleasePciBus();
-        //    }
-        //}
+            try
+            {
+                return SmuWriteRegInternal(register, value);
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
+            }
+        }
 
         /// <summary>
         /// Gets the PM table structure definition for the current CPU.
@@ -515,20 +515,25 @@ namespace ZenStates.Core
         /// <returns>An array of float values from the PM table.</returns>
         private float[] UpdateAndReadPmTable()
         {
-            // Update the PM table
-            UpdatePmTable();
+            if (!Mutexes.WaitPciBus(5000))
+                throw new TimeoutException("Timeout waiting for PCI bus mutex");
 
-            // Read the PM table
-            long[] rawData = ReadPmTable((int)((_pmTableSize + 7) / 8));
-            // TODO: This should not be needed
-            int size = Math.Min(rawData.Length * 8, (int)_pmTableSize);
-            if (size > 0)
-                _pmTableSize = (uint)size;
-            float[] table = new float[size / 4];
-            if (size > 0)
-                Buffer.BlockCopy(rawData, 0, table, 0, size);
+            try
+            {
+                // Update the PM table
+                _pawnIo.Execute(IOCTL_UPDATE_PM_TABLE, new long[] { }, 0);
+                // Read the PM table
+                long[] rawData = _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[] { }, (int)((_pmTableSize + 7) / 8));
+                float[] table = new float[_pmTableSize / 4];
+                if (_pmTableSize > 0)
+                    Buffer.BlockCopy(rawData, 0, table, 0, (int)_pmTableSize);
 
-            return table;
+                return table;
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
+            }
         }
 
         /// <summary>
