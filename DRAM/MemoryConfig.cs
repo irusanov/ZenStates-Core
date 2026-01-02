@@ -71,7 +71,7 @@ namespace ZenStates.Core.DRAM
 
             if (!Mutexes.WaitPciBus(5000))
             {
-                throw new TimeoutException("Timeout waiting for PCI bus mutex.");
+                throw new TimeoutException("MemoryConfig: Timeout waiting for PCI bus mutex.");
             }
 
             try

@@ -79,7 +79,7 @@ namespace ZenStates.Core
         private static bool WaitMutex(Mutex mutex, int millisecondsTimeout = 5000)
         {
             if (mutex == null)
-                return true;
+                return false;
 
             try
             {

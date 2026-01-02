@@ -256,66 +256,66 @@ namespace ZenStates.Core
                 fuse2 += 0x1A4;
             }
 
-            if (!Mutexes.WaitPciBus(5000))
-                throw new TimeoutException("Timeout waiting for PCI bus mutex");
-
-            try
+            if (Mutexes.WaitPciBus(5000))
             {
-                if (ReadDwordEx(fuse1, ref ccdsPresent) && ReadDwordEx(fuse2, ref ccdsDown))
+                try
                 {
-                    uint ccdEnableMap = Utils.BitSlice(ccdsPresent, 23, 22);
-                    uint ccdDisableMap = Utils.BitSlice(ccdsPresent, 31, 30) | (Utils.BitSlice(ccdsDown, 5, 0) << 2);
-                    uint coreDisableMapAddress = family == Family.FAMILY_1AH ? 0x304A03DC : 0x30081800 + offset;
-                    uint enabledCcd = Utils.CountSetBits(ccdEnableMap);
-
-                    topology.ccds = enabledCcd > 0 ? enabledCcd : 1;
-                    topology.ccxs = topology.ccds * ccxPerCcd;
-                    topology.physicalCores = topology.ccxs * 8 / ccxPerCcd;
-                    topology.ccdEnableMap = ccdEnableMap;
-                    topology.ccdDisableMap = ccdDisableMap;
-                    topology.fuse1 = fuse1;
-                    topology.fuse2 = fuse2;
-                    topology.ccdsPresent = ccdsPresent;
-                    topology.ccdsDown = ccdsDown;
-
-                    if (ReadDwordEx(coreDisableMapAddress, ref coreFuse))
+                    if (ReadDwordEx(fuse1, ref ccdsPresent) && ReadDwordEx(fuse2, ref ccdsDown))
                     {
-                        var coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
-                        if (coresPerCcx > 0)
+                        uint ccdEnableMap = Utils.BitSlice(ccdsPresent, 23, 22);
+                        uint ccdDisableMap = Utils.BitSlice(ccdsPresent, 31, 30) | (Utils.BitSlice(ccdsDown, 5, 0) << 2);
+                        uint coreDisableMapAddress = family == Family.FAMILY_1AH ? 0x304A03DC : 0x30081800 + offset;
+                        uint enabledCcd = Utils.CountSetBits(ccdEnableMap);
+
+                        topology.ccds = enabledCcd > 0 ? enabledCcd : 1;
+                        topology.ccxs = topology.ccds * ccxPerCcd;
+                        topology.physicalCores = topology.ccxs * 8 / ccxPerCcd;
+                        topology.ccdEnableMap = ccdEnableMap;
+                        topology.ccdDisableMap = ccdDisableMap;
+                        topology.fuse1 = fuse1;
+                        topology.fuse2 = fuse2;
+                        topology.ccdsPresent = ccdsPresent;
+                        topology.ccdsDown = ccdsDown;
+
+                        if (ReadDwordEx(coreDisableMapAddress, ref coreFuse))
                         {
-                            topology.coresPerCcx = coresPerCcx;
+                            var coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
+                            if (coresPerCcx > 0)
+                            {
+                                topology.coresPerCcx = coresPerCcx;
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine("Could not read core fuse!");
+                        }
+
+                        topology.coreDisableMap = new uint[topology.ccds];
+
+                        for (int i = 0; i < topology.ccds; i++)
+                        {
+                            if (Utils.GetBits(ccdEnableMap, i, 1) == 1)
+                            {
+                                if (ReadDwordEx(((uint)i << 25) + coreDisableMapAddress, ref coreFuse))
+                                    topology.coreDisableMap[i] = coreFuse & 0xff;
+                                else
+                                    Console.WriteLine($"Could not read core fuse for CCD{i}!");
+                            }
                         }
                     }
                     else
                     {
-                        Console.WriteLine("Could not read core fuse!");
-                    }
-
-                    topology.coreDisableMap = new uint[topology.ccds];
-
-                    for (int i = 0; i < topology.ccds; i++)
-                    {
-                        if (Utils.GetBits(ccdEnableMap, i, 1) == 1)
-                        {
-                            if (ReadDwordEx(((uint)i << 25) + coreDisableMapAddress, ref coreFuse))
-                                topology.coreDisableMap[i] = coreFuse & 0xff;
-                            else
-                                Console.WriteLine($"Could not read core fuse for CCD{i}!");
-                        }
+                        Console.WriteLine("Could not read CCD fuse!");
                     }
                 }
-                else
+                catch (Exception ex)
                 {
-                    Console.WriteLine("Could not read CCD fuse!");
+                    Console.WriteLine($"Error retrieving CPU topology. {ex}");
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error retrieving CPU topology. {ex}");
-            }
-            finally
-            {
-                Mutexes.ReleasePciBus();
+                finally
+                {
+                    Mutexes.ReleasePciBus();
+                }
             }
 
             return topology;
