@@ -128,70 +128,22 @@ namespace ZenStates.Core.DRAM
 
         private void ReadModulesInfo()
         {
-            using (ManagementObjectSearcher searcher = new ManagementObjectSearcher("select * from Win32_PhysicalMemory"))
+            foreach (var module in SMBiosSingleton.Instance.MemoryDevices)
             {
-                bool connected = false;
+                ulong size = (ulong)module.Size * 1024 * 1024;
+                Modules.Add(new MemoryModule(module.PartNumber.Trim(), module.BankLocator.Trim(),
+                    module.ManufacturerName.Trim(), module.DeviceLocator.Trim(),
+                    size, module.Speed));
+            }
 
-                try
+            if (Modules?.Count > 0)
+            {
+                ulong totalCapacity = 0UL;
+                foreach (MemoryModule module in Modules)
                 {
-                    WMI.Connect(@"root\cimv2");
-
-                    connected = true;
-
-                    foreach (var qo in searcher.Get())
-                    {
-                        var capacity = 0UL;
-                        var clockSpeed = 0U;
-                        var partNumber = "N/A";
-                        var bankLabel = "";
-                        var manufacturer = "";
-                        var deviceLocator = "";
-
-                        var queryObject = (ManagementObject)qo;
-
-                        var temp = WMI.TryGetProperty(queryObject, "Capacity");
-                        if (temp != null) capacity = (ulong)temp;
-
-                        temp = WMI.TryGetProperty(queryObject, "partNumber");
-                        if (temp != null) partNumber = (string)temp;
-
-                        temp = WMI.TryGetProperty(queryObject, "BankLabel");
-                        if (temp != null) bankLabel = (string)temp;
-
-                        temp = WMI.TryGetProperty(queryObject, "Manufacturer");
-                        if (temp != null) manufacturer = (string)temp;
-
-                        temp = WMI.TryGetProperty(queryObject, "DeviceLocator");
-                        if (temp != null) deviceLocator = (string)temp;
-
-                        temp = WMI.TryGetProperty(queryObject, "ConfiguredClockSpeed");
-                        if (temp != null) clockSpeed = (uint)temp;
-
-                        Modules.Add(new MemoryModule(partNumber.Trim(), bankLabel.Trim(), manufacturer.Trim(),
-                            deviceLocator, capacity, clockSpeed));
-
-                        //string bl = bankLabel.Length > 0 ? new string(bankLabel.Where(char.IsDigit).ToArray()) : "";
-                        //string dl = deviceLocator.Length > 0 ? new string(deviceLocator.Where(char.IsDigit).ToArray()) : "";
-
-                        //comboBoxPartNumber.Items.Add($"#{bl}: {partNumber}");
-                        //comboBoxPartNumber.SelectedIndex = 0;
-                    }
+                    totalCapacity += module.Capacity.SizeInBytes;
                 }
-                catch (Exception ex)
-                {
-                    //throw new ApplicationException(connected ? @"Failed to get installed memory parameters." : $@"{ex.Message}");
-                    Debug.WriteLine(connected ? @"Failed to get installed memory parameters." : $@"{ex.Message}");
-                }
-
-                if (Modules?.Count > 0)
-                {
-                    ulong totalCapacity = 0UL;
-                    foreach (MemoryModule module in Modules)
-                    {
-                        totalCapacity += module.Capacity.SizeInBytes;
-                    }
-                    TotalCapacity = new Capacity(totalCapacity);
-                }
+                TotalCapacity = new Capacity(totalCapacity);
             }
         }
 
