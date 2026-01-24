@@ -897,7 +897,6 @@ namespace ZenStates.Core
 
         public uint GetPatchLevel()
         {
-            // TODO: This read fails
             if (_pawnAmd.ReadMsr(0x8b, out uint eax, out _))
                 return eax;
 
