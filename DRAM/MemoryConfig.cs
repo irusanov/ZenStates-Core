@@ -1,4 +1,5 @@
-﻿using System;
+﻿using OpenHardwareMonitor.Hardware;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Management;
@@ -31,14 +32,6 @@ namespace ZenStates.Core.DRAM
             public int HiBit;
 
             public int LoBit;
-        }
-
-        public enum MemType
-        {
-            UNKNOWN = -1,
-            DDR4 = 0,
-            DDR5 = 1,
-            LPDDR5 = 2,
         }
 
         public enum CapacityUnit
@@ -74,18 +67,18 @@ namespace ZenStates.Core.DRAM
                 throw new TimeoutException("MemoryConfig: Timeout waiting for PCI bus mutex.");
             }
 
+            //var offset = Modules.Count > 0 ? Modules[0].DctOffset : 0;
+            //Type = (MemType)(cpu.ReadDword(offset | DRAM_TYPE_REG_ADDR) & DRAM_TYPE_BIT_MASK);
+
             try
             {
                 ReadChannels();
 
-                var offset = Modules.Count > 0 ? Modules[0].DctOffset : 0;
-                Type = (MemType)(cpu.ReadDword(offset | DRAM_TYPE_REG_ADDR) & DRAM_TYPE_BIT_MASK);
-
                 foreach (MemoryModule module in Modules)
                 {
-                    if (Type == MemType.DDR4)
+                    if (Type == MemType.DDR4 || Type == MemType.LPDDR4)
                         Timings.Add(new KeyValuePair<uint, BaseDramTimings>(module.DctOffset, new Ddr4Timings(cpu)));
-                    else if (Type >= MemType.DDR5)
+                    else if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
                         Timings.Add(new KeyValuePair<uint, BaseDramTimings>(module.DctOffset, new Ddr5Timings(cpu)));
 
                     ReadTimingsInternal(module.DctOffset);
@@ -94,6 +87,23 @@ namespace ZenStates.Core.DRAM
             finally
             {
                 Mutexes.ReleasePciBus();
+            }
+        }
+
+        internal static MemType SMBiosDramTypeToMemType(MemoryType type)
+        {
+            switch (type)
+            {
+                case MemoryType.DDR4:
+                    return MemType.DDR4;
+                case MemoryType.LPDDR4:
+                    return MemType.LPDDR4;
+                case MemoryType.DDR5:
+                    return MemType.DDR5;
+                case MemoryType.LPDDR5:
+                    return MemType.LPDDR5;
+                default:
+                    return MemType.UNKNOWN;
             }
         }
 
@@ -130,10 +140,14 @@ namespace ZenStates.Core.DRAM
         {
             foreach (var module in SMBiosSingleton.Instance.MemoryDevices)
             {
-                ulong size = (ulong)module.Size * 1024 * 1024;
-                Modules.Add(new MemoryModule(module.PartNumber.Trim(), module.BankLocator.Trim(),
-                    module.ManufacturerName.Trim(), module.DeviceLocator.Trim(),
-                    size, module.Speed));
+                if (module.Size > 0)
+                {
+                    ulong sizeInBytes = (ulong)module.Size * 1024 * 1024;
+                    var type = SMBiosDramTypeToMemType(module.Type);
+                    Modules.Add(new MemoryModule(module.PartNumber.Trim(), module.BankLocator.Trim(),
+                        module.ManufacturerName.Trim(), module.DeviceLocator.Trim(),
+                        sizeInBytes, module.Speed, type));
+                }
             }
 
             if (Modules?.Count > 0)
@@ -144,12 +158,13 @@ namespace ZenStates.Core.DRAM
                     totalCapacity += module.Capacity.SizeInBytes;
                 }
                 TotalCapacity = new Capacity(totalCapacity);
+                Type = Modules[0].Type;
             }
         }
 
         private MemRank GetRank(uint address)
         {
-            if (Type == MemType.DDR4)
+            if (Type == MemType.DDR4 || Type == MemType.LPDDR4)
             {
                 return (MemRank)Utils.GetBits(cpu.ReadDword(address), 0, 1);
             }
@@ -216,7 +231,7 @@ namespace ZenStates.Core.DRAM
                             MemoryModule module = Modules[dimmIndex++];
                             module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}1";
                             module.DctOffset = offset;
-                            module.Rank = (Type == MemType.DDR4) ? GetRank(offset | 0x50080) : GetRank(offset | 0x50020);
+                            module.Rank = (Type == MemType.DDR4 || Type == MemType.LPDDR4) ? GetRank(offset | 0x50080) : GetRank(offset | 0x50020);
                             module.AddressConfig = GetAddressConfig(offset | 0x50040);
                         }
 
@@ -225,7 +240,7 @@ namespace ZenStates.Core.DRAM
                             MemoryModule module = Modules[dimmIndex++];
                             module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}2";
                             module.DctOffset = offset;
-                            module.Rank = (Type == MemType.DDR4) ? GetRank(offset | 0x50084) : GetRank(offset | 0x50028);
+                            module.Rank = (Type == MemType.DDR4 || Type == MemType.LPDDR4) ? GetRank(offset | 0x50084) : GetRank(offset | 0x50028);
                             module.AddressConfig = GetAddressConfig(offset | 0x50048);
                         }
                     }

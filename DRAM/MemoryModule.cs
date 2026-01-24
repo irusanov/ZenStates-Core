@@ -1,7 +1,17 @@
 ﻿using System.Collections;
+using System.Reflection;
 
 namespace ZenStates.Core.DRAM
 {
+    public enum MemType
+    {
+        UNKNOWN = -1,
+        DDR4,
+        DDR5,
+        LPDDR4,
+        LPDDR5,
+    }
+
     public enum MemRank
     {
         SR = 0,
@@ -131,6 +141,7 @@ namespace ZenStates.Core.DRAM
         public Capacity Capacity { get; set; }
         public uint ClockSpeed { get; set; }
         public MemRank Rank { get; set; }
+        public MemType Type { get; set; } = MemType.UNKNOWN;
         public string Slot { get; set; } = "";
         public uint DctOffset { get; set; } = 0;
         public DramAddressConfig AddressConfig { get; set; }
@@ -141,7 +152,7 @@ namespace ZenStates.Core.DRAM
         }
 
         public MemoryModule(string partNumber, string bankLabel, string manufacturer,
-            string deviceLocator, ulong capacity, uint clockSpeed)
+            string deviceLocator, ulong capacity, uint clockSpeed, MemType type)
         {
             PartNumber = partNumber;
             Capacity = new Capacity(capacity);
@@ -149,6 +160,7 @@ namespace ZenStates.Core.DRAM
             BankLabel = bankLabel;
             Manufacturer = manufacturer;
             DeviceLocator = deviceLocator;
+            Type = type;
         }
 
         public IEnumerator GetEnumerator()
