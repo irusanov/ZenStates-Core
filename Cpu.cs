@@ -1180,31 +1180,11 @@ namespace ZenStates.Core
         // TODO: move to ACPI?
         private string GetAgesaVersion()
         {
-            string agesaVersion = "";
+            string agesaVersion = AgesaUtils.AGESA_UNKNOWN;
             try
             {
-                //byte[] bytes = io.ReadMemory(new IntPtr(ACPI.RSDP_REGION_BASE_ADDRESS), ACPI.RSDP_REGION_LENGTH);
-                //byte[] pattern = new byte[] { 0x41, 0x47, 0x45, 0x53, 0x41, 0x21, 0x56, 0x39 };
-
                 var data = io.ReadMemory(new IntPtr(0xE0000), (int)(0xFFFFF - 0xE0000));
-                byte[] testSequence = System.Text.Encoding.ASCII.GetBytes("AGESA!V9");
-                int targetOffset = Utils.FindSequence(data, 0, testSequence);
-
-                if (targetOffset != -1)
-                {
-                    targetOffset += testSequence.Length;
-                    Debug.WriteLine($"Found target sequence at offset 0x{targetOffset:X}");
-                    // Find the end of the string (null-terminated sequence)
-                    int endPos = Utils.FindSequence(data, targetOffset, new byte[] { 0x00, 0x00 });
-                    if (endPos > targetOffset)
-                    {
-                        agesaVersion = Encoding.ASCII.GetString(data, targetOffset, endPos - targetOffset).Trim('\0').Trim();
-                    }
-                }
-                else
-                {
-                    Debug.WriteLine("Target sequence not found.");
-                }
+                agesaVersion = AgesaUtils.ParseVersion(data);
             }
             catch (Exception ex)
             {
