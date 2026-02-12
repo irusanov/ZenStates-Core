@@ -415,6 +415,8 @@ namespace ZenStates.Core
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
 
+                powerTable.Refresh();
+
                 Status = IOModule.LibStatus.OK;
             }
             catch (Exception ex)
@@ -449,6 +451,25 @@ namespace ZenStates.Core
             }
 
             return false;
+        }
+
+        public bool IoReadDwordEx(uint addr, ref uint data, int maxRetries = 10)
+        {
+            Mutexes.WaitPciBus(5000);
+            try
+            {
+                io.DlPortWritePortUlong(0x0CF8, addr);
+                data = unchecked((uint)(io.DlPortReadPortUlong(0x0CFC)));
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
+            }
         }
 
         public bool ReadDword(uint addr, ref uint data, int maxRetries = 10)
@@ -1177,21 +1198,19 @@ namespace ZenStates.Core
             }
         }
 
-        // TODO: move to ACPI?
         private string GetAgesaVersion()
         {
-            string agesaVersion = AgesaUtils.AGESA_UNKNOWN;
             try
             {
                 var data = io.ReadMemory(new IntPtr(0xE0000), (int)(0xFFFFF - 0xE0000));
-                agesaVersion = AgesaUtils.ParseVersion(data);
+                return AgesaUtils.ParseVersion(data);
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Could not find AGESA version: {ex.Message}");
             }
 
-            return agesaVersion;
+            return string.Empty;
         }
 
         public MemoryConfig GetMemoryConfig() => memoryConfig;

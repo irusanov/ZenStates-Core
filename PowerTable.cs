@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using static ZenStates.Core.SMU;
 
 namespace ZenStates.Core
 {
@@ -455,7 +454,7 @@ namespace ZenStates.Core
                 // Issue a refresh command if the table is empty or the first {NUM_ELEMENTS_TO_COMPARE} elements of both tables are equal,
                 // otherwise skip as some other app already refreshed the data.
                 // Checking for empty Table should issue a refresh on first load.
-                if (Utils.AllZero(tempTable) || Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
+                if (Utils.AllZero(Table) || Utils.AllZero(tempTable) || Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
                 {
                     smu.UpdatePmTable();
                 }

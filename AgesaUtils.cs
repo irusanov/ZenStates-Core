@@ -5,7 +5,6 @@ namespace ZenStates.Core
     public static class AgesaUtils
     {
         private static readonly bool[] Allowed = BuildAllowedTable();
-        public const string AGESA_UNKNOWN = @"Unknown";
 
         public static string ParseVersion(byte[] source)
         {
@@ -15,7 +14,7 @@ namespace ZenStates.Core
             if (markerOffset == -1)
             {
                 //Debug.WriteLine("AGESA marker not found.");
-                return AGESA_UNKNOWN;
+                return string.Empty;
             }
 
             int versionStart = markerOffset + marker.Length;
@@ -28,7 +27,7 @@ namespace ZenStates.Core
                     .Trim('\0', ' ');
             }
 
-            return AGESA_UNKNOWN;
+            return string.Empty;
         }
 
         private static int FindFirstInvalid(byte[] data, int startIndex = 0)
