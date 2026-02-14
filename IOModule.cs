@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -104,6 +104,8 @@ namespace ZenStates.Core
                 SetPhysLong = (_SetPhysLong)GetDelegate(ioModule, "SetPhysLong", typeof(_SetPhysLong));
                 MapPhysToLin = (_MapPhysToLin)GetDelegate(ioModule, "MapPhysToLin", typeof(_MapPhysToLin));
                 UnmapPhysicalMemory = (_UnmapPhysicalMemory)GetDelegate(ioModule, "UnmapPhysicalMemory", typeof(_UnmapPhysicalMemory));
+                DlPortReadPortUlong = (_DlPortReadPortUlong)GetDelegate(ioModule, "DlPortReadPortUlong", typeof(_DlPortReadPortUlong));
+                DlPortWritePortUlong = (_DlPortWritePortUlong)GetDelegate(ioModule, "DlPortWritePortUlong", typeof(_DlPortWritePortUlong));
 
                 // 64bit only
                 if (Utils.Is64Bit)
@@ -126,6 +128,12 @@ namespace ZenStates.Core
                 throw new Exception($"Error initializing IO module: {ex.Message}");
             }
         }
+
+        public delegate ulong _DlPortReadPortUlong(ushort port);
+        public readonly _DlPortReadPortUlong DlPortReadPortUlong;
+
+        public delegate void _DlPortWritePortUlong(ushort port, ulong value);
+        public readonly _DlPortWritePortUlong DlPortWritePortUlong;
 
         public delegate bool _GetPhysLong(UIntPtr memAddress, out uint data);
         public readonly _GetPhysLong GetPhysLong;

@@ -415,6 +415,8 @@ namespace ZenStates.Core
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
 
+                // Wait 2 seconds to allow pmt settle before continuing, then refresh again.
+                System.Threading.Thread.Sleep(300);
                 powerTable.Refresh();
 
                 Status = IOModule.LibStatus.OK;
