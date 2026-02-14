@@ -89,14 +89,14 @@ namespace ZenStates.Core
         {
             if (addr > uint.MaxValue) return false;
 
-            return _ryzenSmu.SmuWriteReg(addr, data);
+            return _ryzenSmu.SmuWriteRegInternal(addr, data);
         }
 
         private bool SmuReadReg(uint addr, ref uint data)
         {
             if (addr > uint.MaxValue) return false;
 
-            return _ryzenSmu.SmuReadReg(addr, out data);
+            return _ryzenSmu.SmuReadRegInternal(addr, out data);
         }
 
         private bool SmuWaitDone(Mailbox mailbox)
@@ -130,7 +130,7 @@ namespace ZenStates.Core
             if (!ValidateMailbox(mailbox, msg))
                 return Status.UNKNOWN_CMD;
 
-            if (!Mutexes.WaitPciBus(10))
+            if (!Mutexes.WaitPciBus(5000))
                 return Status.TIMEOUT_MUTEX_LOCK;
 
             try
@@ -297,9 +297,12 @@ namespace ZenStates.Core
             { Cpu.CodeName.Phoenix2, new APUSettings1_Phoenix() },
             { Cpu.CodeName.HawkPoint, new APUSettings1_Phoenix() },
             { Cpu.CodeName.Mendocino, new APUSettings1_Phoenix() },
+
             { Cpu.CodeName.StrixPoint, new APUSettings1_Phoenix() },
             { Cpu.CodeName.StrixHalo, new APUSettings1_Phoenix() },
             { Cpu.CodeName.KrackanPoint, new APUSettings1_Phoenix() },
+
+            { Cpu.CodeName.KrackanPoint2, new Zen4Settings() },
 
             { Cpu.CodeName.Unsupported, new UnsupportedSettings() },
         };

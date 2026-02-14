@@ -213,7 +213,7 @@ namespace ZenStates.Core
             ThrowIfDisposed();
 
             if (!Mutexes.WaitPciBus(5000))
-                throw new TimeoutException("Timeout waiting for PCI bus mutex");
+                return (int)SMU.Status.TIMEOUT_MUTEX_LOCK;
 
             try
             {
@@ -227,7 +227,7 @@ namespace ZenStates.Core
         }
 
         /// <summary>
-        /// Send the SMU Command.
+        /// Send the SMU Command to RSMU. PawnIO module does not support other mailboxes.
         /// </summary>
         /// <returns>The SMU status converted to HR result.</returns>
         public int SendSmuCommand(uint command, ref uint[] args)
@@ -235,7 +235,7 @@ namespace ZenStates.Core
             ThrowIfDisposed();
 
             if (!Mutexes.WaitPciBus(5000))
-                throw new TimeoutException("Timeout waiting for PCI bus mutex");
+                return (int)SMU.Status.TIMEOUT_MUTEX_LOCK;
 
             try
             {
@@ -268,7 +268,24 @@ namespace ZenStates.Core
             ThrowIfDisposed();
 
             if (!Mutexes.WaitPciBus(5000))
-                throw new TimeoutException("Timeout waiting for PCI bus mutex");
+            {
+                value = 0;
+                return false;
+            }
+
+            try
+            {
+                return SmuReadRegInternal(register, out value);
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
+            }
+        }
+
+        internal bool SmuReadRegInternal(uint register, out uint value)
+        {
+            ThrowIfDisposed();
 
             try
             {
@@ -277,15 +294,12 @@ namespace ZenStates.Core
                 long[] outBuffer = new long[1];
                 int result = _pawnIo.ExecuteHr(IOCTL_READ_SMU_REGISTER, inputBuffer, 1, outBuffer, 1, out uint returnSize);
                 value = (uint)outBuffer[0];
-                if (result == 0)
-                {
-                    return true;
-                }
-                return false;
+                return result == 0;
             }
-            finally
+            catch
             {
-                Mutexes.ReleasePciBus();
+                value = 0;
+                return false;
             }
         }
 
@@ -293,12 +307,9 @@ namespace ZenStates.Core
         /// Write the SMU Register.
         /// </summary>
         /// <returns>Reading status: true - success, false - failed.</returns>
-        public bool SmuWriteReg(uint register, uint value)
+        internal bool SmuWriteRegInternal(uint register, uint value)
         {
             ThrowIfDisposed();
-
-            if (!Mutexes.WaitPciBus(5000))
-                throw new TimeoutException("Timeout waiting for PCI bus mutex");
 
             try
             {
@@ -307,11 +318,26 @@ namespace ZenStates.Core
                 inputBuffer[1] = value;
                 long[] outBuffer = new long[0];
                 int result = _pawnIo.ExecuteHr(IOCTL_WRITE_SMU_REGISTER, inputBuffer, 2, outBuffer, 0, out uint returnSize);
-                if (result == 0)
-                {
-                    return true;
-                }
+                return result == 0;
+            }
+            catch
+            {
                 return false;
+            }
+        }
+
+        public bool SmuWriteReg(uint register, uint value)
+        {
+            ThrowIfDisposed();
+
+            if (!Mutexes.WaitPciBus(5000))
+            {
+                return false;
+            }
+
+            try
+            {
+                return SmuWriteRegInternal(register, value);
             }
             finally
             {
@@ -451,18 +477,8 @@ namespace ZenStates.Core
 
         public long[] ReadPmTable(int size)
         {
-            if (!Mutexes.WaitPciBus(5000))
-                throw new TimeoutException("Timeout waiting for PCI bus mutex");
-
-            try
-            {
-                long[] outArray = _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[] { }, size);
-                return outArray;
-            }
-            finally
-            {
-                Mutexes.ReleasePciBus();
-            }
+            long[] outArray = _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[size], size);
+            return outArray;
         }
 
         public void UpdatePmTable()
@@ -472,7 +488,7 @@ namespace ZenStates.Core
 
             try
             {
-                _pawnIo.Execute(IOCTL_UPDATE_PM_TABLE, new long[] { }, 0);
+                _pawnIo.Execute(IOCTL_UPDATE_PM_TABLE, new long[0] { }, 0);
             }
             finally
             {
@@ -486,18 +502,13 @@ namespace ZenStates.Core
         /// <returns>An array of float values from the PM table.</returns>
         private float[] UpdateAndReadPmTable()
         {
+            float[] table = new float[_pmTableSize / 4];
+
             // Update the PM table
             UpdatePmTable();
-
             // Read the PM table
             long[] rawData = ReadPmTable((int)((_pmTableSize + 7) / 8));
-            // TODO: This should not be needed
-            int size = Math.Min(rawData.Length * 8, (int)_pmTableSize);
-            if (size > 0)
-                _pmTableSize = (uint)size;
-            float[] table = new float[size / 4];
-            if (size > 0)
-                Buffer.BlockCopy(rawData, 0, table, 0, size);
+            Buffer.BlockCopy(rawData, 0, table, 0, (int)_pmTableSize);
 
             return table;
         }

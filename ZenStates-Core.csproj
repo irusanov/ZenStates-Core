@@ -5,9 +5,9 @@
     <AssemblyTitle>ZenStates.Core</AssemblyTitle>
     <Company>irusanov</Company>
     <Product>ZenStates.Core</Product>
-    <Copyright>Copyright © 2025</Copyright>
-    <AssemblyVersion>1.80.0</AssemblyVersion>
-    <FileVersion>1.80.0</FileVersion>
+    <Copyright>Copyright © 2026</Copyright>
+    <AssemblyVersion>1.82.0</AssemblyVersion>
+    <FileVersion>1.82.0</FileVersion>
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <IsWindows Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true'">true</IsWindows> 
     <IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux> 

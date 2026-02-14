@@ -12,6 +12,7 @@ namespace ZenStates.Core
         private readonly PTDef tableDef;
         public readonly long DramBaseAddress;
         public readonly int TableSize;
+        private const int NUM_ELEMENTS_TO_COMPARE = 20;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -443,10 +444,23 @@ namespace ZenStates.Core
 
             try
             {
-                if (Table?.Length == 0)
-                    Table = new float[TableSize / 4];
+                if (Table == null || Table.Length == 0)
+                    Table = new float[(int)smu.PmTableSize / 4];
 
-                Table = smu.GetPmTable();
+                long[] rawTempTable = smu.ReadPmTable((NUM_ELEMENTS_TO_COMPARE * 4 + 7) / 8);
+                float[] tempTable = new float[NUM_ELEMENTS_TO_COMPARE];
+                Buffer.BlockCopy(rawTempTable, 0, tempTable, 0, NUM_ELEMENTS_TO_COMPARE * 4);
+
+                // Issue a refresh command if the table is empty or the first {NUM_ELEMENTS_TO_COMPARE} elements of both tables are equal,
+                // otherwise skip as some other app already refreshed the data.
+                // Checking for empty Table should issue a refresh on first load.
+                if (Utils.AllZero(Table) || Utils.AllZero(tempTable) || Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
+                {
+                    smu.UpdatePmTable();
+                }
+
+                long[] fullTable = smu.ReadPmTable(((int)smu.PmTableSize + 7) / 8);
+                Buffer.BlockCopy(fullTable, 0, Table, 0, (int)smu.PmTableSize);
 
                 if (Utils.AllZero(Table))
                     return SMU.Status.FAILED;

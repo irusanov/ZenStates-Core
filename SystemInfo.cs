@@ -1,6 +1,5 @@
-﻿using System;
-using System.Management;
-using System.ServiceProcess;
+﻿using OpenHardwareMonitor.Hardware;
+using System;
 using static ZenStates.Core.Cpu;
 
 namespace ZenStates.Core
@@ -15,38 +14,9 @@ namespace ZenStates.Core
             SmuVersion = smu.Version;
             SmuTableVersion = smu.TableVersion;
             AgesaVersion = agesaVersion;
-
-            try
-            {
-                ServiceController sc = new ServiceController("Winmgmt");
-                if (sc.Status != ServiceControllerStatus.Running)
-                    throw new ManagementException(@"Windows Management Instrumentation service is not running");
-
-                ManagementScope scope = new ManagementScope(@"root\cimv2");
-                scope.Connect();
-
-                if (!scope.IsConnected)
-                    throw new ManagementException(@"Failed to connect to root\cimv2");
-
-                ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BaseBoard");
-                foreach (ManagementBaseObject obj in searcher.Get())
-                {
-                    MbVendor = ((string)obj["Manufacturer"]).Trim();
-                    MbName = ((string)obj["Product"]).Trim();
-                }
-                searcher.Dispose();
-
-                searcher = new ManagementObjectSearcher("SELECT * FROM Win32_BIOS");
-                foreach (ManagementBaseObject obj in searcher.Get())
-                {
-                    BiosVersion = ((string)obj["SMBIOSBIOSVersion"]).Trim();
-                }
-                searcher.Dispose();
-            }
-            catch (ManagementException ex)
-            {
-                Console.WriteLine("WMI: {0}", ex.Message);
-            }
+            MbVendor = SMBiosSingleton.Instance.Board.ManufacturerName;
+            MbName = SMBiosSingleton.Instance.Board.ProductName;
+            BiosVersion = SMBiosSingleton.Instance.Bios.Version;
         }
 
         public string CpuName => cpuInfo.cpuName ?? "N/A";
@@ -77,6 +47,8 @@ namespace ZenStates.Core
         public string GetSmuVersionString() => SmuVersionToString(SmuVersion);
 
         public string GetCpuIdString() => CpuId.ToString("X8").TrimStart('0');
+
+        public static SMBios SMBios => SMBiosSingleton.Instance;
 
         private static string SmuVersionToString(uint ver)
         {

@@ -56,7 +56,7 @@ namespace ZenStates.Core
 
         public static PawnIo LoadModuleFromResource(Assembly assembly, string resourceName)
         {
-            IntPtr handle = CreateFile(@"\\.\PawnIO", FileAccess.GENERIC_READ | FileAccess.GENERIC_WRITE, 0x00000003, IntPtr.Zero, CreationDisposition.OPEN_EXISTING, 0, IntPtr.Zero);
+            IntPtr handle = CreateFile(@"\\?\GLOBALROOT\Device\PawnIO", FileAccess.GENERIC_READ | FileAccess.GENERIC_WRITE, 0x00000003, IntPtr.Zero, CreationDisposition.OPEN_EXISTING, 0, IntPtr.Zero);
             if (handle == IntPtr.Zero || handle.ToInt64() == -1)
                 return new PawnIo(null);
 
@@ -82,7 +82,7 @@ namespace ZenStates.Core
             if (!File.Exists(filePath))
                 throw new FileNotFoundException(@"PawnIO module not found.", filePath);
 
-            IntPtr handle = CreateFile(@"\\.\PawnIO", FileAccess.GENERIC_READ | FileAccess.GENERIC_WRITE, 0x00000003, IntPtr.Zero, CreationDisposition.OPEN_EXISTING, 0, IntPtr.Zero);
+            IntPtr handle = CreateFile(@"\\?\GLOBALROOT\Device\PawnIO", FileAccess.GENERIC_READ | FileAccess.GENERIC_WRITE, 0x00000003, IntPtr.Zero, CreationDisposition.OPEN_EXISTING, 0, IntPtr.Zero);
             if (handle == IntPtr.Zero || handle.ToInt64() == -1)
                 return new PawnIo(null);
 
