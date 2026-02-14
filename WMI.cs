@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Management;
 using System.ServiceProcess;
 using static System.Management.ManagementObjectCollection;
@@ -17,7 +18,7 @@ namespace ZenStates.Core
             }
             catch (ManagementException ex)
             {
-                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
             }
 
             return retval;
@@ -42,7 +43,7 @@ namespace ZenStates.Core
             }
             catch (ManagementException ex)
             {
-                Console.WriteLine(@"WMI: {0}", ex.Message);
+                Debug.WriteLine(@"WMI: {0}", ex.Message);
                 throw;
             }
         }
@@ -60,7 +61,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
             }
 
             return null;
@@ -85,7 +86,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
             }
 
             return namespaces;
@@ -112,7 +113,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
             }
 
             return classNames;
@@ -173,7 +174,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
                 return null;
             }
         }
@@ -205,7 +206,7 @@ namespace ZenStates.Core
             }
             catch (ManagementException ex)
             {
-                Console.WriteLine(ex.Message);
+                Debug.WriteLine(ex.Message);
                 return null;
             }
         }
