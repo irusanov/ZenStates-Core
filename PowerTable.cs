@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 
 namespace ZenStates.Core
 {
@@ -470,7 +471,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error occurred while reading table: {ex.Message}");
+                Debug.WriteLine($"Error occurred while reading table: {ex.Message}");
                 return SMU.Status.FAILED;
             }
         }

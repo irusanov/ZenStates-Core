@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Reflection;
 using static ZenStates.Core.AOD;
 
@@ -98,7 +99,7 @@ namespace ZenStates.Core
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(e.ToString(), e.Message);
+                    Debug.WriteLine(e.ToString(), e.Message);
                 }
             }
 

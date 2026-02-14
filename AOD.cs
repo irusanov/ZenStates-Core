@@ -172,7 +172,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error getting SSDT ACPI table from RSDT: {ex.Message}");
+                Debug.WriteLine($"Error getting SSDT ACPI table from RSDT: {ex.Message}");
             }
 
             return null;
@@ -193,7 +193,7 @@ namespace ZenStates.Core
                     string[] subkeyNames = acpiKey.GetSubKeyNames();
                     foreach (string subkeyName in subkeyNames)
                     {
-                        Console.WriteLine($"Subkey: {subkeyName}");
+                        Debug.WriteLine($"Subkey: {subkeyName}");
 
                         if (subkeyName.StartsWith("SSD"))
                         {
@@ -210,12 +210,12 @@ namespace ZenStates.Core
                 }
                 else
                 {
-                    Console.WriteLine("ACPI registry key not found.");
+                    Debug.WriteLine("ACPI registry key not found.");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error accessing ACPI registry: {ex.Message}");
+                Debug.WriteLine($"Error accessing ACPI registry: {ex.Message}");
             }
             finally
             {
