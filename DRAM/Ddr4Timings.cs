@@ -12,6 +12,7 @@ namespace ZenStates.Core.DRAM
 
         // Specific DDR4 timings
         public uint RFC4 { get; set; }
+        public new float RFCns { get; private set; }
 
         public override void Read(uint offset = 0)
         {
@@ -27,7 +28,30 @@ namespace ZenStates.Core.DRAM
             {
                 RFC = Utils.BitSlice(trfcRegValue, 10, 0);
                 RFC2 = Utils.BitSlice(trfcRegValue, 21, 11);
-                RFC4 = Utils.GetBits(trfcRegValue, 31, 22);
+                RFC4 = Utils.BitSlice(trfcRegValue, 31, 22);
+            }
+
+            // Refresh mode
+            uint refreshModeValue = cpu.ReadDword(offset | 0x5012C);
+            FGR = Utils.BitSlice(refreshModeValue, 18, 16);
+            //var allBankRefresh = Utils.GetBit(refreshModeValue, 19);
+
+            if (FGR < 2)
+            {
+                RefreshMode = BankRefreshMode.NORMAL;
+                RFCns = Utils.ToNanoseconds(RFC, Frequency);
+            }
+            else
+            {
+                RefreshMode = BankRefreshMode.FGR;
+                if (FGR == 2)
+                {
+                    RFCns = Utils.ToNanoseconds(RFC2, Frequency);
+                }
+                else if (FGR == 4)
+                {
+                    RFCns = Utils.ToNanoseconds(RFC4, Frequency);
+                }
             }
         }
     }

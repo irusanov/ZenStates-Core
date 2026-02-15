@@ -39,5 +39,7 @@
         public uint SMU_MSG_GetPerformanceData { get; set; } = 0x0;
         public uint SMU_MSG_GetEXPOProfileActive { get; set; } = 0x0;
         public uint SMU_MSG_SetBoostLimitFrequencyGpu { get; set; } = 0x0;
+
+        public uint SMU_MSG_SetMaxGfxClkFreq { get; set; } = 0x0;
     }
 }

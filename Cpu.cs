@@ -381,6 +381,13 @@ namespace ZenStates.Core
                 smu.Version = GetSmuVersion();
                 var tableVersionResult = GetTableVersion();
                 smu.TableVersion = tableVersionResult.TableVersion;
+                // Temporary workaround for pmt not refreshing with PawnIO module
+                // TODO: Fix in PawnIO RyzenSmu module and remove this
+                if (smu.SMU_TYPE <= SMU.SmuType.TYPE_CPU1)
+                {
+                    var result = new SMUCommands.CmdResult(6);
+                    smu.SendRsmuCommand(0xE, ref result.args);
+                }
             }
             else
             {

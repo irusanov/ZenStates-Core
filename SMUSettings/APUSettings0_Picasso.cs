@@ -42,6 +42,20 @@
             Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x5B;
             Mp1Smu.SMU_MSG_SetHTCLimit = 0x1F;
             Mp1Smu.SMU_MSG_SetPBOScalar = 0x57;
+
+            Mp1Smu.SMU_MSG_SetMaxPerformance = 0x18;
+            Mp1Smu.SMU_MSG_SetPowerSaving = 0x19;
+
+            Mp1Smu.SMU_MSG_SetStapmLimit = 0x1A;
+            Mp1Smu.SMU_MSG_SetFastLimit = 0x1B;
+            Mp1Smu.SMU_MSG_SetSlowLimit = 0x1C;
+            Mp1Smu.SMU_MSG_SetSlowTime = 0x1D;
+            Mp1Smu.SMU_MSG_SetStapmTime = 0x1E;
+
+            Mp1Smu.SMU_MSG_SetVrmCurrent = 0x20;
+            Mp1Smu.SMU_MSG_SetVrmSocCurrent = 0x21;
+            Mp1Smu.SMU_MSG_SetVrmMaxCurrent = 0x22;
+            Mp1Smu.SMU_MSG_SetVrmSocMaxCurrent = 0x23;
         }
     }
 }

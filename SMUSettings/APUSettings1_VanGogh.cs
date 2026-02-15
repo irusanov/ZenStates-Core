@@ -1,12 +1,13 @@
 ﻿namespace ZenStates.Core.SMUSettings
 {
-    public class APUSettings1_Cezanne : SMU
+
+    // VanGogh
+    public class APUSettings1_VanGogh : SMU
     {
-        public APUSettings1_Cezanne()
+        public APUSettings1_VanGogh()
         {
             SMU_TYPE = SmuType.TYPE_APU1;
 
-            // RSMU
             Rsmu.SMU_ADDR_MSG = 0x03B10A20;
             Rsmu.SMU_ADDR_RSP = 0x03B10A80;
             Rsmu.SMU_ADDR_ARG = 0x03B10A88;
@@ -29,12 +30,7 @@
             Rsmu.SMU_MSG_GetPBOScalar = 0xF;
             Rsmu.SMU_MSG_IsOverclockable = 0x82;
             Rsmu.SMU_MSG_GetBoostLimitFrequency = 0x42;
-
-            Rsmu.SMU_MSG_SetDldoPsmMargin = 0x52;
-            Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0xB1;
-            Rsmu.SMU_MSG_GetDldoPsmMargin = 0xC3;
-            Rsmu.SMU_MSG_SetGpuPsmMargin = 0x53;
-            Rsmu.SMU_MSG_GetGpuPsmMargin = 0xC6;
+            Rsmu.SMU_MSG_SetMaxGfxClkFreq = 0x89;
 
             // MP1
             Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
@@ -52,9 +48,9 @@
             Mp1Smu.SMU_MSG_SetHTCLimit = 0x19;
 
             Mp1Smu.SMU_MSG_SetVrmCurrent = 0x1A;
-            Mp1Smu.SMU_MSG_SetVrmSocCurrent = 0x1B;
-            Mp1Smu.SMU_MSG_SetVrmMaxCurrent = 0x1C;
-            Mp1Smu.SMU_MSG_SetVrmSocMaxCurrent = 0x1D;
+            Mp1Smu.SMU_MSG_SetVrmGfxCurrent = 0x1C;
+            Mp1Smu.SMU_MSG_SetVrmVipCurrent = 0x1D;
+            Mp1Smu.SMU_MSG_SetVrmMaxCurrent = 0x1E;
 
             Mp1Smu.SMU_MSG_EnableOcMode = 0x2F;
             Mp1Smu.SMU_MSG_DisableOcMode = 0x30;

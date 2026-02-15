@@ -193,6 +193,8 @@ namespace ZenStates.Core.DRAM
         public uint RDPRE { get; internal set; }
         public float RFCns { get => Utils.ToNanoseconds(RFC, Frequency); }
         public float REFIns { get => Utils.ToNanoseconds(REFI, Frequency); }
+        public uint FGR { get; internal set; }
+        public BankRefreshMode RefreshMode { get; internal set; } = BankRefreshMode.UNKNOWN;
 
         protected virtual void Dispose(bool disposing)
         {
