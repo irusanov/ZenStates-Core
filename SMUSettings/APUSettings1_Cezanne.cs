@@ -30,6 +30,12 @@
             Rsmu.SMU_MSG_IsOverclockable = 0x82;
             Rsmu.SMU_MSG_GetBoostLimitFrequency = 0x42;
 
+            Rsmu.SMU_MSG_SetDldoPsmMargin = 0x52;
+            Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0xB1;
+            Rsmu.SMU_MSG_GetDldoPsmMargin = 0xC3;
+            Rsmu.SMU_MSG_SetGpuPsmMargin = 0x53;
+            Rsmu.SMU_MSG_GetGpuPsmMargin = 0xC6;
+
             // MP1
             Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
             Mp1Smu.SMU_ADDR_RSP = 0x03B10564;
