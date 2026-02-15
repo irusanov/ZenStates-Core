@@ -33,8 +33,6 @@ namespace ZenStates.Core.DRAM
 
         public NitroSettings Nitro { get; private set; }
 
-        public BankRefreshMode RefreshMode { get; private set; } = BankRefreshMode.UNKNOWN;
-
         public new float RFCns
         {
             get
@@ -99,38 +97,27 @@ namespace ZenStates.Core.DRAM
             uint nitroSettings = Utils.BitSlice(cpu.ReadDword(offset | 0x50284), 11, 0);
             Nitro = new NitroSettings(nitroSettings);
 
+            // Refresh mode
             uint refreshModeValue = cpu.ReadDword(offset | 0x5012C);
-            var fgr = Utils.BitSlice(refreshModeValue, 18, 16);
+            FGR = Utils.BitSlice(refreshModeValue, 18, 16);
             //var allBankRefresh = Utils.GetBit(refreshModeValue, 19);
             var perBankRefresh = Utils.GetBit(refreshModeValue, 1);
 
 
             if (/*allBankRefresh == 1 && */perBankRefresh == 0)
             {
-                if (fgr == 0)
+                if (FGR == 0)
                     RefreshMode = BankRefreshMode.NORMAL;
                 else
                     RefreshMode = BankRefreshMode.FGR;
             }
             else if (/*allBankRefresh == 1 && */perBankRefresh == 1)
             {
-                if (fgr != 0)
+                if (FGR != 0)
                     RefreshMode = BankRefreshMode.MIXED;
                 else
                     RefreshMode = BankRefreshMode.PBONLY;
             }
-            //if (fgr == 0)
-            //{
-            //    RefreshMode = BankRefreshMode.NORMAL;
-            //}
-            //else if (fgr > 0 && perBankRefresh == 0)
-            //{
-            //    RefreshMode = BankRefreshMode.FGR;
-            //}
-            //else if (fgr > 0 && perBankRefresh == 1)
-            //{
-            //    RefreshMode = BankRefreshMode.MIXED;
-            //} 
         }
     }
 }

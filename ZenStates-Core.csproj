@@ -6,8 +6,8 @@
     <Company>irusanov</Company>
     <Product>ZenStates.Core</Product>
     <Copyright>Copyright © 2026</Copyright>
-    <AssemblyVersion>1.83.0</AssemblyVersion>
-    <FileVersion>1.83.0</FileVersion>
+    <AssemblyVersion>1.84.0</AssemblyVersion>
+    <FileVersion>1.84.0</FileVersion>
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <IsWindows Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true'">true</IsWindows> 
     <IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux> 
