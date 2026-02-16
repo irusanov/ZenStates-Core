@@ -22,7 +22,10 @@ namespace ZenStates.Core
         internal const uint SMBUS_BASE_ADDRESS_REG = 0x300;
         // internal const uint IOMUX_LPCCLK1 = IOMUX_BASE + 0x1F;
 
+        private static AMD_MMIO _instance;
         private readonly IOModule io;
+
+        public static AMD_MMIO Instance => _instance;
 
         public enum ClkGen : int
         {
@@ -34,6 +37,7 @@ namespace ZenStates.Core
         public AMD_MMIO(IOModule io)
         {
             this.io = io;
+            _instance = this;
         }
 
         private static int CalculateBclkIndex(int bclk)

@@ -9,7 +9,6 @@ namespace ZenStates.Core
     {
         private readonly Cpu.CodeName _codeName = Cpu.CodeName.Unsupported;
         private readonly RyzenSmu smu;
-        private readonly AMD_MMIO mmio;
         private readonly PTDef tableDef;
         public readonly long DramBaseAddress;
         public readonly int TableSize;
@@ -368,11 +367,10 @@ namespace ZenStates.Core
             return GetDefaultTableDef(tableVersion);
         }
 
-        public PowerTable(RyzenSmu smuInstance, AMD_MMIO mmio, Cpu.CodeName? codeName)
+        public PowerTable(RyzenSmu smuInstance, Cpu.CodeName? codeName)
         {
             this._codeName = codeName ?? Cpu.CodeName.Unsupported;
             this.smu = smuInstance ?? throw new ArgumentNullException(nameof(smuInstance));
-            this.mmio = mmio ?? throw new ArgumentNullException(nameof(mmio));
 
             DramBaseAddress = smu.DramBaseAddress;
 
@@ -404,7 +402,7 @@ namespace ZenStates.Core
                 return;
 
             float bclkCorrection = 1.0f;
-            double? bclk = mmio.GetBclk();
+            double? bclk = AMD_MMIO.Instance.GetBclk();
 
             if (bclk != null)
                 bclkCorrection = (float)bclk / 100.0f;

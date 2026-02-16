@@ -310,10 +310,10 @@ namespace ZenStates.Core
         // TODO: Make generic for all CPUs
         private BaseDictionary GetBaseDictionaryByFrequency()
         {
-            var frequency = (cpuInstance.memoryConfig?.Timings[0].Value as DRAM.BaseDramTimings)?.Frequency ?? 0;
-            if (frequency > 0)
+            var mclk = (cpuInstance.memoryConfig?.Timings[0].Value as DRAM.BaseDramTimings)?.Ratio * 100 ?? 0;
+            if (mclk > 0)
             {
-                var tableIndex = Utils.FindLastSequence(this.Table.RawAodTable, 0, Utils.ToBytes2(frequency / 2));
+                var tableIndex = Utils.FindLastSequence(this.Table.RawAodTable, 0, Utils.ToBytes2(mclk));
                 if (tableIndex > -1)
                 {
                     return new BaseDictionary()
