@@ -139,6 +139,12 @@ namespace ZenStates.Core.DRAM
         public float Frequency {
             get
             {
+                var mclk = PowerTable.Instance?.MCLK ?? 0;
+                if (mclk > 0)
+                {
+                    return mclk * 2;
+                }
+
                 double? bclk = AMD_MMIO.Instance.GetBclk() ?? 100;
                 return Ratio * (float)(bclk) * 2;
             }

@@ -14,6 +14,9 @@ namespace ZenStates.Core
         public readonly int TableSize;
         private const int NUM_ELEMENTS_TO_COMPARE = 20;
 
+        private static PowerTable _instance;
+        public static PowerTable Instance => _instance;
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         private void OnPropertyChanged(PropertyChangedEventArgs eventArgs)
@@ -371,6 +374,7 @@ namespace ZenStates.Core
         {
             this._codeName = codeName ?? Cpu.CodeName.Unsupported;
             this.smu = smuInstance ?? throw new ArgumentNullException(nameof(smuInstance));
+            _instance = this;
 
             DramBaseAddress = smu.DramBaseAddress;
 
