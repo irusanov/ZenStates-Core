@@ -6,7 +6,6 @@ using System.Diagnostics;
 using System.Globalization;
 #endif
 using System.Reflection;
-using System.Text;
 using System.Text.RegularExpressions;
 using ZenStates.Core.DRAM;
 

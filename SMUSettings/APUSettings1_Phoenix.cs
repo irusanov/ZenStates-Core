@@ -66,7 +66,7 @@
             Mp1Smu.SMU_MSG_SetOverclockFrequencyAllCores = 0x31;
             Mp1Smu.SMU_MSG_SetOverclockFrequencyPerCore = 0x32;
             Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x33;
-            
+
             Mp1Smu.SMU_MSG_SetPBOScalar = 0x49;
             Mp1Smu.SMU_MSG_SetDldoPsmMargin = 0x4B;
             Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0x4C;

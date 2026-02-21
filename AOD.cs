@@ -5,7 +5,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Management;
 using System.Text;
-using ZenStates.Core.DRAM;
 using static ZenStates.Core.ACPI;
 
 namespace ZenStates.Core
@@ -486,7 +485,7 @@ namespace ZenStates.Core
                                 { "DramDataDrvStren", lastOffset + 144 }
                             };
 
-                            
+
                             //if (isMDie && hasRMP)
                             if (!hasRMP)
                             {

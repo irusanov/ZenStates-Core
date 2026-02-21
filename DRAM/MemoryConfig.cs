@@ -1,8 +1,6 @@
 ﻿using OpenHardwareMonitor.Hardware;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Management;
 
 namespace ZenStates.Core.DRAM
 {
@@ -116,7 +114,7 @@ namespace ZenStates.Core.DRAM
                     item.Value.Read(offset);
                     break;
                 }
-             }
+            }
         }
 
         public void ReadTimings(uint offset = 0)

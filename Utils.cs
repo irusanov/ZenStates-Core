@@ -247,7 +247,6 @@ namespace ZenStates.Core
 
             if (array1.Length < numElements || array2.Length < numElements)
             {
-                // throw new ArgumentException("Arrays are not long enough to compare the specified number of elements.");
                 Console.WriteLine("Arrays are not long enough to compare the specified number of elements.");
                 return false;
             }

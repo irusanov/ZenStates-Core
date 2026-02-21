@@ -136,7 +136,8 @@ namespace ZenStates.Core.DRAM
         }
 
         //public MemType Type { get; set; } = MemType.UNKNOWN;
-        public float Frequency {
+        public float Frequency
+        {
             get
             {
                 var mclk = PowerTable.Instance?.MCLK ?? 0;
