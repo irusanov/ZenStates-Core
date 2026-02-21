@@ -363,10 +363,10 @@ namespace ZenStates.Core
 
             var baseDictionary = GetBaseDictionaryByFrequency();
             var lastOffset = baseDictionary.LastOffset;
-            var memModule = cpuInstance.memoryConfig?.Modules[0];
-            var isMDie = memModule?.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
-            var isDR = memModule?.Rank == DRAM.MemRank.DR;
-            var capacityGB = memModule?.Capacity.SizeInBytes / Math.Pow(1024, (int)memModule?.Capacity.Unit) ?? 0;
+            //var memModule = cpuInstance.memoryConfig?.Modules[0];
+            //var isMDie = memModule?.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
+            //var isDR = memModule?.Rank == DRAM.MemRank.DR;
+            //var capacityGB = memModule?.Capacity.SizeInBytes / Math.Pow(1024, (int)memModule?.Capacity.Unit) ?? 0;
 
             switch (codeName)
             {
@@ -395,15 +395,15 @@ namespace ZenStates.Core
                             { "RttParkDqs", lastOffset + 44 },
                         };
 
-                        //if (memModule.AddressConfig.NumRow > 16)
-                        //{
-                        //    lastOffset += 4;
-                        //}
+                        if ((codeName == Cpu.CodeName.Phoenix || codeName == Cpu.CodeName.Phoenix2) && cpuInstance.info.cpuName.ToLowerInvariant().Contains("radeon"))
+                        {
+                            lastOffset += 4;
+                        }
 
                         dict["MemVddio"] = lastOffset + 88;
                         dict["MemVddq"] = lastOffset + 92;
-                        dict["ApuVddio"] = lastOffset + 100;
                         dict["MemVpp"] = lastOffset + 96;
+                        dict["ApuVddio"] = lastOffset + 100;
 
                         return dict;
                     }
