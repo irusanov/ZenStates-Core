@@ -198,7 +198,7 @@ namespace ZenStates.Core.DRAM
         private void ReadChannels()
         {
             int dimmIndex = 0;
-            uint dimmsPerChannel = 1;
+            //uint dimmsPerChannel = 1;
 
             // Get the offset by probing the UMC0 to UMC7
             // It appears that offsets 0x80 and 0x84 are DIMM config registers
@@ -210,6 +210,9 @@ namespace ZenStates.Core.DRAM
             {
                 try
                 {
+                    if (dimmIndex >= Modules.Count)
+                        break;
+
                     uint offset = i << 20;
                     bool channel = Utils.GetBits(cpu.ReadDword(offset | 0x50DF0), 19, 1) == 0;
                     bool dimm1 = Utils.GetBits(cpu.ReadDword(offset | 0x50000), 0, 1) == 1;
@@ -226,20 +229,24 @@ namespace ZenStates.Core.DRAM
                     {
                         if (dimm1)
                         {
-                            MemoryModule module = Modules[dimmIndex++];
+                            var address = offset | ((Type == MemType.DDR4 || Type == MemType.LPDDR4) ? 0x50080u : 0x50020u);
+                            MemoryModule module = Modules[dimmIndex];
                             module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}1";
                             module.DctOffset = offset;
-                            module.Rank = (Type == MemType.DDR4 || Type == MemType.LPDDR4) ? GetRank(offset | 0x50080) : GetRank(offset | 0x50020);
+                            module.Rank = GetRank(address);
                             module.AddressConfig = GetAddressConfig(offset | 0x50040);
+                            dimmIndex += 1;
                         }
 
                         if (dimm2)
                         {
-                            MemoryModule module = Modules[dimmIndex++];
+                            var address = offset | ((Type == MemType.DDR4 || Type == MemType.LPDDR4) ? 0x50084u : 0x50028u);
+                            MemoryModule module = Modules[dimmIndex];
                             module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}2";
                             module.DctOffset = offset;
-                            module.Rank = (Type == MemType.DDR4 || Type == MemType.LPDDR4) ? GetRank(offset | 0x50084) : GetRank(offset | 0x50028);
+                            module.Rank = GetRank(address);
                             module.AddressConfig = GetAddressConfig(offset | 0x50048);
+                            dimmIndex += 1;
                         }
                     }
                 }
