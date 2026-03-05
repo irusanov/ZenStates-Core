@@ -46,6 +46,8 @@
             Mp1Smu.SMU_ADDR_RSP = 0x03B10578;
             Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
 
+            Mp1Smu.SMU_MSG_GetCpuName = 0x4;
+
             Mp1Smu.SMU_MSG_SetMaxPerformance = 0x11;
             Mp1Smu.SMU_MSG_SetPowerSaving = 0x12;
 
