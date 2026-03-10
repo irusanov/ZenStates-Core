@@ -50,6 +50,10 @@ namespace ZenStates.Core.DRAM
 
         public List<MemoryModule> Modules { get; protected set; }
 
+        public Dictionary<byte, Ddr5SpdInfo> SpdInfo { get; protected set; }
+
+        private long LastTelemetryRefreshTick;
+
         public MemoryConfig(Cpu cpuInstance)
         {
             cpu = cpuInstance;
@@ -85,6 +89,34 @@ namespace ZenStates.Core.DRAM
             finally
             {
                 Mutexes.ReleasePciBus();
+            }
+
+            try
+            {
+                if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
+                {
+                    SpdInfo = Ddr5SpdDecoder.ReadAndDecodeAll(SmbusPiix4.Instance);
+
+                    int moduleIndex = 0;
+                    foreach (var spdEntry in SpdInfo.Values)
+                    {
+                        if (moduleIndex < Modules.Count)
+                        {
+                            if (string.IsNullOrEmpty(Modules[moduleIndex].Manufacturer) ||
+                                Modules[moduleIndex].Manufacturer.StartsWith("Unknown") || 
+                                !spdEntry.ModuleManufacturer.StartsWith("Unknown"))
+                            {
+                                Modules[moduleIndex].Manufacturer = spdEntry.ModuleManufacturer;
+                            }
+                            moduleIndex++;
+                        }
+                    }
+                }
+
+            }
+            catch
+            {
+                // do nothing, SPD reading is best-effort
             }
         }
 
@@ -132,6 +164,44 @@ namespace ZenStates.Core.DRAM
             {
                 Mutexes.ReleasePciBus();
             }
+        }
+
+        public bool RefreshTelemetry(int uiRefreshIntervalMs = 2000)
+        {
+            bool updated = false;
+            int minHardwareRefreshMs;
+
+            if (uiRefreshIntervalMs >= 2000)
+                minHardwareRefreshMs = uiRefreshIntervalMs;
+            else
+                minHardwareRefreshMs = 2000;
+
+            long now = Environment.TickCount & Int32.MaxValue;
+
+            if (!Mutexes.WaitSmbus(5000))
+                throw new TimeoutException("Timeout waiting for PCI bus mutex.");
+
+            try
+            {
+                foreach (var info in SpdInfo)
+                {
+                    Ddr5PmicData pd = info.Value.PmicData;
+
+                    long elapsed = now - LastTelemetryRefreshTick;
+                    if (elapsed >= 0 && elapsed < minHardwareRefreshMs)
+                        continue;
+
+                    Ddr5PmicReader.ReadAllAdcVoltagesNoLock(SmbusPiix4.Instance, pd.I2cAddress, pd);
+                    LastTelemetryRefreshTick = now;
+                    updated = true;
+                }
+            }
+            finally
+            {
+                Mutexes.ReleaseSmbus();
+            }
+
+            return updated;
         }
 
         private void ReadModulesInfo()
