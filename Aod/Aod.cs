@@ -357,8 +357,8 @@ namespace ZenStates.Core
                                 { "ProcCsDs", lastOffset + 160 },
                                 { "ProcCkDs", lastOffset + 164 },
                                 { "ProcDataDrvStren", lastOffset + 168 },
-                                { "ProcDqDsPullUp", lastOffset + 172 },
-                                { "ProcDqDsPullDown", lastOffset +  176 },
+                                { "ProcDqDsPullUp", lastOffset + 168 },
+                                { "ProcDqDsPullDown", lastOffset +  172 },
                             };
 
                             // Why?
@@ -374,8 +374,8 @@ namespace ZenStates.Core
                                 dict["ProcCsDs"] = lastOffset + 144;
                                 dict["ProcCkDs"] = lastOffset + 148;
                                 dict["ProcDataDrvStren"] = lastOffset + 152;
-                                dict["ProcDqDsPullUp"] = lastOffset + 156;
-                                dict["ProcDqDsPullDown"] = lastOffset + 160;
+                                dict["ProcDqDsPullUp"] = lastOffset + 152;
+                                dict["ProcDqDsPullDown"] = lastOffset + 156;
                             }
 
                             return dict;
