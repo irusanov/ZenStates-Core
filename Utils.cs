@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
@@ -158,6 +159,55 @@ namespace ZenStates.Core
             return structure;
         }
 
+        public static T CreateFromByteArray<T>(byte[] byteArray, Dictionary<string, int> fieldDictionary) where T : new()
+        {
+            T data = new T();
+
+            if (byteArray == null)
+                return data;
+
+            foreach (var entry in fieldDictionary)
+            {
+                try
+                {
+                    string fieldName = entry.Key;
+                    int fieldOffset = entry.Value;
+
+                    PropertyInfo property = typeof(T).GetProperty(fieldName);
+                    if (property == null)
+                        continue;
+
+                    if (fieldOffset < 0 || fieldOffset > byteArray.Length - sizeof(int))
+                        continue;
+
+                    int rawValue = BitConverter.ToInt32(byteArray, fieldOffset);
+                    Type propertyType = property.PropertyType;
+                    object fieldValue;
+
+                    if (propertyType == typeof(string))
+                    {
+                        fieldValue = rawValue.ToString();
+                    }
+                    else if (!propertyType.IsValueType && propertyType != typeof(string))
+                    {
+                        fieldValue = Activator.CreateInstance(propertyType, rawValue);
+                    }
+                    else
+                    {
+                        fieldValue = Convert.ChangeType(rawValue, propertyType);
+                    }
+
+                    property.SetValue(data, fieldValue, null);
+                }
+                catch (Exception e)
+                {
+                    Debug.WriteLine(e.ToString(), e.Message);
+                }
+            }
+
+            return data;
+        }
+
         public static uint ReverseBytes(uint value)
         {
             return (value & 0x000000FFU) << 24 | (value & 0x0000FF00U) << 8 |
@@ -167,15 +217,13 @@ namespace ZenStates.Core
         public static string GetStringFromBytes(uint value)
         {
             byte[] bytes = BitConverter.GetBytes(value);
-            // Array.Reverse(bytes);
-            return System.Text.Encoding.ASCII.GetString(bytes).Replace("\0", " ");
+            return GetStringFromBytes(bytes);
         }
 
         public static string GetStringFromBytes(ulong value)
         {
             byte[] bytes = BitConverter.GetBytes(value);
-            // Array.Reverse(bytes);
-            return System.Text.Encoding.ASCII.GetString(bytes).Replace("\0", " ");
+            return GetStringFromBytes(bytes);
         }
 
         public static string GetStringFromBytes(byte[] value)

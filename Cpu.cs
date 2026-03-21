@@ -146,6 +146,7 @@ namespace ZenStates.Core
             public CpuTopology topology;
             public SVI2 svi2;
             public AOD aod;
+            public Apob apob;
         }
 
         public readonly IOModule io = new IOModule();
@@ -418,6 +419,7 @@ namespace ZenStates.Core
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
                 info.aod = new AOD(io, this);
+                info.apob = new Apob();
                 systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
                 powerTable = new PowerTable(_pawnRyzenSmu, info.codeName);
 

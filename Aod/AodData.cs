@@ -1,8 +1,4 @@
-using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Reflection;
-using static ZenStates.Core.AOD;
 
 namespace ZenStates.Core
 {
@@ -68,43 +64,7 @@ namespace ZenStates.Core
 
         public static AodData CreateFromByteArray(byte[] byteArray, Dictionary<string, int> fieldDictionary)
         {
-            AodData data = new AodData();
-
-            if (byteArray == null) return data;
-
-            foreach (var entry in fieldDictionary)
-            {
-                try
-                {
-                    string fieldName = entry.Key;
-                    int fieldOffset = entry.Value;
-
-                    PropertyInfo property = typeof(AodData).GetProperty(fieldName);
-                    if (fieldOffset > -1 && fieldOffset <= byteArray.Length - sizeof(int) && property != null)
-                    {
-                        Type propertyType = property.PropertyType;
-                        object fieldValue;
-
-                        if (propertyType.IsClass && propertyType != typeof(string))
-                        {
-                            fieldValue = Activator.CreateInstance(propertyType, BitConverter.ToInt32(byteArray, fieldOffset));
-                        }
-                        else
-                        {
-                            fieldValue = Convert.ChangeType(BitConverter.ToInt32(byteArray, fieldOffset), propertyType);
-                        }
-
-                        property.SetValue(data, fieldValue, null);
-                    }
-                }
-                catch (Exception e)
-                {
-                    Debug.WriteLine(e.ToString(), e.Message);
-                }
-            }
-
-            return data;
+            return Utils.CreateFromByteArray<AodData>(byteArray, fieldDictionary);
         }
-
     }
 }

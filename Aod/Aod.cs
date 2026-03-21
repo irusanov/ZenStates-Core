@@ -2,7 +2,6 @@ using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.Management;
 using System.Text;
 using static ZenStates.Core.ACPI;
@@ -18,87 +17,6 @@ namespace ZenStates.Core
         internal readonly uint patchLevel;
         internal readonly bool hasRMP;
         public AodTable Table;
-
-        public class AodEnumBase
-        {
-            protected int Value;
-
-            public AodEnumBase(int value)
-            {
-                Value = value;
-            }
-
-            public override string ToString()
-            {
-                return GetByKey(ValueDictionary, Value);
-            }
-
-            protected virtual Dictionary<int, string> ValueDictionary { get; } = new Dictionary<int, string>();
-
-            protected static string GetByKey(Dictionary<int, string> dictionary, int key)
-            {
-                return dictionary.TryGetValue(key, out string output) ? output : @"N/A";
-            }
-        }
-
-        public class ProcOdt : AodEnumBase
-        {
-            public ProcOdt(int value) : base(value) { }
-            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.ProcOdtDict;
-        }
-
-        public class ProcDataDrvStren : AodEnumBase
-        {
-            public ProcDataDrvStren(int value) : base(value) { }
-            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.ProcDataDrvStrenDict;
-        }
-
-        public class DramDataDrvStren : AodEnumBase
-        {
-            public DramDataDrvStren(int value) : base(value) { }
-            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.DramDataDrvStrenDict;
-        }
-
-        public class CadBusDrvStren : AodEnumBase
-        {
-            public CadBusDrvStren(int value) : base(value) { }
-            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.CadBusDrvStrenDict;
-        }
-
-        public class ProcOdtImpedance : AodEnumBase
-        {
-            public ProcOdtImpedance(int value) : base(value) { }
-            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.ProcOdtImpedanceDict;
-        }
-
-        public class Rtt : AodEnumBase
-        {
-            public Rtt(int value) : base(value) { }
-            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.RttDict;
-
-            public override string ToString()
-            {
-                string value = base.ToString();
-
-                if (this.Value > 0)
-                    return $"{value} ({240 / Value})";
-                return $"{value}";
-            }
-        }
-
-        public class Voltage
-        {
-            protected int Value;
-            public Voltage(int value)
-            {
-                Value = value;
-            }
-
-            public override string ToString()
-            {
-                return string.Format(CultureInfo.GetCultureInfo("en-US"), "{0:F4}V", Value / 1000.0);
-            }
-        }
 
         [Serializable]
         public class AodTable

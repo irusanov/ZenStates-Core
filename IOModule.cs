@@ -31,6 +31,10 @@ namespace ZenStates.Core
 
         private LibStatus WinIoStatus { get; } = LibStatus.INITIALIZE_ERROR;
 
+        private static IOModule _instance;
+
+        public static IOModule Instance => _instance;
+
         public bool IsInpOutDriverOpen()
         {
             if (Utils.Is64Bit)
@@ -122,6 +126,8 @@ namespace ZenStates.Core
                         WinIoStatus = LibStatus.OK;
                     }
                 }
+
+                _instance = this;
             }
             catch (Exception ex)
             {
