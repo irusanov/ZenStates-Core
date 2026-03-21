@@ -266,7 +266,7 @@ namespace ZenStates.Core
                     return 1024;
                 default:
                     return 0;
-            };
+            }
         }
 
         // ── Module type ──────────────────────────────────────────────────────

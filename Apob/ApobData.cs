@@ -29,7 +29,7 @@ namespace ZenStates.Core
 
         [FieldOffset(0x1A81)]
         private readonly byte _caOdtB;
-       
+
         /// <summary>
         /// Public fields
         /// </summary>

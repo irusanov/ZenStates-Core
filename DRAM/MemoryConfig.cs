@@ -103,7 +103,7 @@ namespace ZenStates.Core.DRAM
                         if (moduleIndex < Modules.Count)
                         {
                             if (string.IsNullOrEmpty(Modules[moduleIndex].Manufacturer) ||
-                                Modules[moduleIndex].Manufacturer.StartsWith("Unknown") || 
+                                Modules[moduleIndex].Manufacturer.StartsWith("Unknown") ||
                                 !spdEntry.ModuleManufacturer.StartsWith("Unknown"))
                             {
                                 Modules[moduleIndex].Manufacturer = spdEntry.ModuleManufacturer;
