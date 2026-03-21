@@ -89,14 +89,13 @@ namespace ZenStates.Core
         public static readonly Dictionary<int, string> GroupOdtImpedanceDict = new Dictionary<int, string>
         {
             {0, "Off"},
-            {1, "480"},
-            {2, "240"},
-            {3, "120"},
-            {4, "80"},
-            {5, "60"},
-            {6, "RFU"},
-            {7, "40"},
-            {8, "30"},
+            {1, "480.0 Ω"},
+            {2, "240.0 Ω"},
+            {3, "120.0 Ω"},
+            {4, "80.0 Ω"},
+            {5, "60.0 Ω"},
+            {6, "48.0 Ω"},
+            {7, "40.0 Ω"},
         };
     }
 }

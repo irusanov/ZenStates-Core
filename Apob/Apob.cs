@@ -13,6 +13,7 @@ namespace ZenStates.Core
         public bool IsAvailable => ApobAddress != 0;
 
         public ApobData Data { get; private set; }
+        public byte[] RawData { get; private set; }
 
         public Apob()
         {
@@ -32,8 +33,8 @@ namespace ZenStates.Core
 
             if (IsAvailable)
             {
-                byte[] data = io.ReadMemory(new IntPtr(ApobAddress), size);
-                Data = Utils.ByteArrayToStructure<ApobData>(data);
+                RawData = io.ReadMemory(new IntPtr(ApobAddress), size);
+                Data = Utils.ByteArrayToStructure<ApobData>(RawData);
             }
         }
     }
