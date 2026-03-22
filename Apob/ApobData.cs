@@ -7,61 +7,68 @@ namespace ZenStates.Core
     [StructLayout(LayoutKind.Explicit, Pack = 1)]
     public struct ApobData
     {
-        [FieldOffset(0)]
-        private readonly uint _signature;
-        [FieldOffset(0x4)]
-        private readonly byte _version;
-        [FieldOffset(0x1a7c)]
+        //[FieldOffset(0)]
+        //private readonly uint _signature;
+        //[FieldOffset(0x4)]
+        //private readonly byte _version;
+        [FieldOffset(0x8)]
         private readonly byte _ckOdtA;
-        [FieldOffset(0x1a7d)]
+        [FieldOffset(0x9)]
         private readonly byte _csOdtA;
-        [FieldOffset(0x1a7e)]
+        [FieldOffset(0xa)]
         private readonly byte _caOdtA;
-        [FieldOffset(0x1a7f)]
+        [FieldOffset(0xb)]
         private readonly byte _ckOdtB;
-        [FieldOffset(0x1a80)]
+        [FieldOffset(0xc)]
         private readonly byte _csOdtB;
-        [FieldOffset(0x1a81)]
+        [FieldOffset(0xd)]
         private readonly byte _caOdtB;
 
-        [FieldOffset(0x1a82)]
+        //[FieldOffset(0x1a82)]
+        //private readonly byte _procCaOdt;
+        //[FieldOffset(0x1a83)]
+        //private readonly byte _procCkOdt;
+        //[FieldOffset(0x1a84)]
+        //private readonly byte _procCsOdt;
+
+        [FieldOffset(0x11)]
         private readonly byte _procCaDs;
-        [FieldOffset(0x1a83)]
+        [FieldOffset(0x12)]
         private readonly byte _procCkDs;
-        [FieldOffset(0x1a84)]
+        [FieldOffset(0x13)]
         private readonly byte _procCsDs;
 
-        [FieldOffset(0x1a8e)]
+        [FieldOffset(0x1a)]
         private readonly byte _rttNomRdP0;
-        [FieldOffset(0x1a8f)]
+        [FieldOffset(0x1b)]
         private readonly byte _rttNomWrP0;
-        [FieldOffset(0x1a90)]
+        [FieldOffset(0x1c)]
         private readonly byte _rttWrP0;
-        [FieldOffset(0x1a91)]
+        [FieldOffset(0x1d)]
         private readonly byte _rttParkP0;
-        [FieldOffset(0x1a92)]
+        [FieldOffset(0x1e)]
         private readonly byte _rttParkDqsP0;
 
-        [FieldOffset(0x1a93)]
+        [FieldOffset(0x1f)]
         private readonly byte _dramDqDsPullUpP0;
-        [FieldOffset(0x1a94)]
+        [FieldOffset(0x20)]
         private readonly byte _dramDqDsPullDownP0;
 
-        [FieldOffset(0x1a95)]
+        [FieldOffset(0x21)]
         private readonly byte _procOdtPullUpP0;
-        [FieldOffset(0x1a96)]
+        [FieldOffset(0x22)]
         private readonly byte _procOdtPullDownP0;
-        [FieldOffset(0x1a97)]
+        [FieldOffset(0x23)]
         private readonly byte _procDqDsPullUpP0;
-        [FieldOffset(0x1a98)]
+        [FieldOffset(0x24)]
         private readonly byte _procDqDsPullDownP0;
 
         /// <summary>
         /// Public fields
         /// </summary>
-        public byte Version => _version;
-        public string Signature => System.Text.Encoding.ASCII.GetString(BitConverter.GetBytes(_signature));
-        
+        //public byte Version => _version;
+        //public string Signature => System.Text.Encoding.ASCII.GetString(BitConverter.GetBytes(_signature));
+
         // Group ODT
         public GroupOdtImpedance CkOdtA => new GroupOdtImpedance(_ckOdtA);
         public GroupOdtImpedance CsOdtA => new GroupOdtImpedance(_csOdtA);
@@ -70,10 +77,14 @@ namespace ZenStates.Core
         public GroupOdtImpedance CsOdtB => new GroupOdtImpedance(_csOdtB);
         public GroupOdtImpedance CaOdtB => new GroupOdtImpedance(_caOdtB);
 
+        //public ProcOdtImpedance ProcCkOdt => new ProcOdtImpedance(_procCkOdt);
+        //public ProcOdtImpedance ProcCsOdt => new ProcOdtImpedance(_procCsOdt);
+        //public ProcOdtImpedance ProcCaOdt => new ProcOdtImpedance(_procCaOdt);
+
         // Proc Drive Strengths
-        public ProcDataDrvStren ProcCkDs => new ProcDataDrvStren(_procCkDs);
-        public ProcDataDrvStren ProcCsDs => new ProcDataDrvStren(_procCsDs);
-        public ProcDataDrvStren ProcCaDs => new ProcDataDrvStren(_procCaDs);
+        public ProcOdtImpedance ProcCkDs => new ProcOdtImpedance(_procCkDs);
+        public ProcOdtImpedance ProcCsDs => new ProcOdtImpedance(_procCsDs);
+        public ProcOdtImpedance ProcCaDs => new ProcOdtImpedance(_procCaDs);
 
         // RTT
         public Rtt RttNomRdP0 => new Rtt(_rttNomRdP0);

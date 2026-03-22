@@ -203,7 +203,18 @@ namespace ZenStates.Core.DRAM
             get => _wrpre + 1;
             internal set => _wrpre = value;
         }
-        public uint RDPRE { get; internal set; }
+        private uint _rdpre;
+        public uint RDPRE
+        { 
+            get 
+            {
+                if (_rdpre < 2)
+                    return _rdpre + 1;
+                else
+                    return _rdpre;
+            }
+            internal set => _rdpre = value;
+        }
         public float RFCns { get => Utils.ToNanoseconds(RFC, Frequency); }
         public float REFIns { get => Utils.ToNanoseconds(REFI, Frequency); }
         public uint FGR { get; internal set; }
