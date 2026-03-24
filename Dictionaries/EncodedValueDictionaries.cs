@@ -50,7 +50,7 @@ namespace ZenStates.Core
             {2, "48.0 Ω"},
         };
 
-        // Proc Data Drive Strength
+        // Cad Bus Drive Strength
         public static readonly Dictionary<int, string> CadBusDrvStrenDict = new Dictionary<int, string>
         {
             {0, "Hi-Z" },
