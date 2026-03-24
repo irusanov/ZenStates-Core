@@ -5,7 +5,7 @@ namespace ZenStates.Core
 {
     public enum ApobLayoutVersion
     {
-        V1,
+        V1 = 1,
         V2
     }
 
@@ -34,29 +34,68 @@ namespace ZenStates.Core
 
         private static ApobData ReadV1(byte[] data, int offset)
         {
+            if (data == null)
+                throw new ArgumentNullException("data");
+
             int blockSize = Marshal.SizeOf(typeof(ApobDataV1));
-            if (data.Length < blockSize)
+            int totalSize = blockSize * MAX_CHANNELS;
+
+            if (offset < 0 || offset > data.Length)
+                throw new ArgumentOutOfRangeException("offset");
+
+            if (data.Length - offset < totalSize)
                 throw new ArgumentException("Buffer too small for Apob V1.", "data");
 
-            ApobDataV1 raw = Read<ApobDataV1>(data, blockSize, offset);
+            int endPatternIndex = Utils.FindSequence(data, offset, EndPattern);
 
-            return new ApobData(
-                raw.RttNomRd,
-                raw.RttNomWr,
-                raw.RttWr,
-                raw.RttPark,
-                raw.RttParkDqs,
-                raw.DramDataDs,
-                raw.CkOdtA,
-                raw.CsOdtA,
-                raw.CaOdtA,
-                raw.CkOdtB,
-                raw.CsOdtB,
-                raw.CaOdtB,
-                raw.ProcOdt,
-                raw.ProcDqDs,
-                raw.ProcCaDs
-            );
+            byte[] channelBuffer = new byte[blockSize];
+            byte[] sequence = new byte[15];
+
+            for (int i = 0; i < MAX_CHANNELS; i++)
+            {
+                int channelOffset = offset + (i * blockSize);
+
+                Buffer.BlockCopy(data, channelOffset, channelBuffer, 0, blockSize);
+
+                if (Utils.AllZero(channelBuffer))
+                    continue;
+
+                if (endPatternIndex > -1 && endPatternIndex >= channelOffset && endPatternIndex < offset + totalSize)
+                    break;
+
+                Buffer.BlockCopy(channelBuffer, 2, sequence, 0, sequence.Length);
+
+                // TODO: Find another way to get the block address and size. This is bruteforce and gets expensive with increased raw data block size (APOB table size from header)
+                int secondIndex = Utils.FindLastSequence(data, channelOffset + blockSize, sequence);
+                if (secondIndex > 1)
+                {
+                    Buffer.BlockCopy(data, secondIndex - 2, channelBuffer, 0, blockSize);
+                }
+
+                ApobDataV1 raw = Utils.ByteArrayToStructure<ApobDataV1>(channelBuffer);
+
+                return new ApobData(
+                    raw.RttNomRd,
+                    raw.RttNomWr,
+                    raw.RttWr,
+                    raw.RttPark,
+                    raw.RttParkDqs,
+                    raw.DramDataDs,
+                    raw.CkOdtA,
+                    raw.CsOdtA,
+                    raw.CaOdtA,
+                    raw.CkOdtB,
+                    raw.CsOdtB,
+                    raw.CaOdtB,
+                    raw.ProcOdt,
+                    raw.ProcDqDs,
+                    raw.ProcCaDs,
+                    raw.ProcCkDs,
+                    raw.ProcCsDs
+                );
+            }
+
+            return new ApobData();
         }
 
         private static ApobData ReadV2(byte[] data, int offset)

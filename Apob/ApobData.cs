@@ -121,7 +121,6 @@
         public ProcOdt ProcOdt => new ProcOdt(_procOdt);
         public ProcDataDrvStren ProcDqDs => new ProcDataDrvStren(_procDqDs);
         public ProcOdtImpedance ProcCaDs => new ProcOdtImpedance(_procCaDs);
-
         public ProcOdtImpedance ProcCkDs => _procCkDs.HasValue ? new ProcOdtImpedance(_procCkDs.Value) : null;
         public ProcOdtImpedance ProcCsDs => _procCsDs.HasValue ? new ProcOdtImpedance(_procCsDs.Value) : null;
 

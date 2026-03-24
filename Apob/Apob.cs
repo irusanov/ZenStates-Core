@@ -10,9 +10,7 @@ namespace ZenStates.Core
         private const uint ApobSignature = 0x424f5041; // "APOB"
         private static readonly byte[] DataOffsetPattern = new byte[8] { 0x01, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x0 };
         private readonly uint ApobAddress = 0;
-        private const int SizeToRead = 0x2000;
-        // TODO: Detect actual channel count, as otherwise it would read other data blocks as channel data, which will be garbage
-        //private const int MAX_CHANNELS = 12;
+        private const int SizeToRead = 0x5000;
 
         public bool IsAvailable => ApobAddress != 0;
 
@@ -38,16 +36,23 @@ namespace ZenStates.Core
 
             if (IsAvailable)
             {
-                RawData = io.ReadMemory(new IntPtr(ApobAddress), SizeToRead);
-                Header = Utils.ByteArrayToStructure<ApobHeader>(RawData);
+                var headerData = io.ReadMemory(new IntPtr(ApobAddress), 16);
+                Header = Utils.ByteArrayToStructure<ApobHeader>(headerData);
+                // TODO: Find the offset and size of the block to read
+                RawData = io.ReadMemory(new IntPtr(ApobAddress), SizeToRead/*(int)Header.TableSize*/);
 
                 // Supposedly the pattern is always the same. Easiest way to find the channel info.
                 var index = Utils.FindSequence(RawData, 0, DataOffsetPattern);
                 if (index > -1)
                 {
+                    ApobLayoutVersion layoutVersion;
+                    int startOffset = index + 48;
                     // TODO: Detect version in another way, if possible
-                    var layoutVersion = family == Family.FAMILY_1AH ? ApobLayoutVersion.V2 : ApobLayoutVersion.V1;
-                    Data = ApobDataReader.Read(RawData, layoutVersion, index + 48);
+                    if (family == Family.FAMILY_1AH)
+                        layoutVersion = ApobLayoutVersion.V2;
+                    else
+                        layoutVersion= ApobLayoutVersion.V1;
+                    Data = ApobDataReader.Read(RawData, layoutVersion, startOffset);
                 }
             }
         }
