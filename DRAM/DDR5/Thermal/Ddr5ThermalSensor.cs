@@ -5,8 +5,7 @@ namespace ZenStates.Core
 {
     public static class Ddr5ThermalSensor
     {
-        // ── SPD5118 Hub Register Addresses (Mode Registers) ─────────────────
-
+        // SPD5118 Hub Register Addresses (Mode Registers)
         /// <summary>MR0:MR1 – Device type identifier (reads 0x5118).</summary>
         public const byte REG_TYPE = 0x00;
 
@@ -60,8 +59,7 @@ namespace ZenStates.Core
         // Temperature unit: 0.25 C = 250 millidegrees
         private const int TEMP_UNIT_MC = 250;
 
-        // ── Temperature conversion ──────────────────────────────────────────
-
+        // Temperature conversion
         /// <summary>
         /// Convert a raw 16-bit SPD5118 temperature register value to
         /// millidegrees Celsius. The format is:
@@ -85,10 +83,8 @@ namespace ZenStates.Core
             return (val & 0x07FF) << 2;
         }
 
-        // ── SMBus read helpers ──────────────────────────────────────────────
-        //    Uses SmbusPiix4.SmbusReadByteData(addr7, command, out result)
-        //    which is an I2C_SMBUS_BYTE_DATA read — perfect for MR access.
-
+        // SMBus read helpers
+        // Uses SmbusPiix4.SmbusReadByteData(addr7, command, out result)
         private static bool ReadMR(SmbusPiix4 smbus, byte addr7, byte mr, out byte value)
         {
             return smbus.SmbusReadByteData(addr7, mr, out value);
@@ -107,8 +103,6 @@ namespace ZenStates.Core
             milliC = RawToMilliC((hi << 8) | lo);
             return true;
         }
-
-        // ── Detection ───────────────────────────────────────────────────────
 
         /// <summary>
         /// Detect whether the device at the given I2C address is an SPD5118
@@ -136,8 +130,6 @@ namespace ZenStates.Core
             }
         }
 
-        // ── Single temperature reading ──────────────────────────────────────
-
         /// <summary>
         /// Read the current temperature from the SPD5118 sensor.
         /// </summary>
@@ -160,8 +152,6 @@ namespace ZenStates.Core
             if (mc == int.MinValue) return double.NaN;
             return mc / 1000.0;
         }
-
-        // ── Full thermal data reading ───────────────────────────────────────
 
         /// <summary>
         /// Read all thermal sensor data: current temp, limits, and alarms.
@@ -226,8 +216,6 @@ namespace ZenStates.Core
 
             return td;
         }
-
-        // ── Convenience: read temperature for all DIMMs ─────────────────────
 
         /// <summary>
         /// Scan all standard DDR5 SPD addresses (0x50-0x57) and read

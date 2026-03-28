@@ -5,7 +5,7 @@ namespace ZenStates.Core
 {
     public class Ddr5SpdInfo
     {
-        // ── General ──────────────────────────────────────────────────────────
+        // General
 
         /// <summary>Raw 1024-byte SPD image.</summary>
         public byte[] RawSpd;
@@ -16,45 +16,53 @@ namespace ZenStates.Core
         public string SpdRevision;
         public byte DeviceType;
         public string DeviceTypeString;
+        public string MemoryFamily;
+        public bool IsLpddr5;
         public bool IsValid;
 
-        // ── Module type ──────────────────────────────────────────────────────
+        // Device information from common SPD bytes
+        public bool SpdDevicePresent;
+        public string SpdDeviceTypeString;
+        public bool Pmic0Present;
+        public string Pmic0TypeString;
+        public bool Pmic1Present;
+        public string Pmic1TypeString;
+        public bool Pmic2Present;
+        public string Pmic2TypeString;
+        public bool ThermalSensor0Present;
+        public bool ThermalSensor1Present;
 
+        // Module type
         public byte BaseModuleType;
         public string ModuleTypeString;
         public bool IsHybrid;
         public string HybridTypeString;
 
-        // ── SDRAM density & package ──────────────────────────────────────────
-
+        // SDRAM density & package
         public int FirstDieDensityMbit;
         public int FirstDieCount;
         public int SecondDieDensityMbit;
         public int SecondDieCount;
         public bool IsAsymmetric;
 
-        // ── SDRAM organisation ───────────────────────────────────────────────
-
+        // SDRAM organisation
         public int FirstDeviceWidthBits;
         public int FirstColumnBits;
         public int FirstRowBits;
         public int SecondColumnBits;
         public int SecondRowBits;
 
-        // ── Capacity ─────────────────────────────────────────────────────────
-
+        // Capacity
         public int ChannelCount;
         public int RanksPerChannel;
         public int SubChannelsPerDimm;
         public int PrimaryBusWidthBits;
         public long TotalCapacityMB;
 
-        // ── Voltage ──────────────────────────────────────────────────────────
-
+        // Voltage
         public string VddString;
 
-        // ── Timing (JEDEC base) ──────────────────────────────────────────────
-
+        // Timing (JEDEC base)
         public int tCKAVGminPs;
         public int tCKAVGmaxPs;
 
@@ -81,12 +89,10 @@ namespace ZenStates.Core
         public int tRP;
         public string TimingString;
 
-        // ── Thermal ──────────────────────────────────────────────────────────
-
+        // Thermal
         public bool HasThermalSensor;
 
-        // ── Manufacturing ────────────────────────────────────────────────────
-
+        // Manufacturing
         public byte ModuleMfgIdBank;
         public byte ModuleMfgIdMfr;
         public string ModuleManufacturer;
@@ -102,8 +108,7 @@ namespace ZenStates.Core
         public string DramManufacturer;
         public int DramStepping;
 
-        // ── XMP / EXPO ───────────────────────────────────────────────────────
-
+        // XMP / EXPO
         public bool HasXmp;
         public string XmpRevision;
         public Ddr5XmpProfile[] XmpProfiles;   // up to 5 (3 vendor + 2 user)
@@ -112,15 +117,14 @@ namespace ZenStates.Core
         public Ddr5ExpoProfile ExpoProfile1;
         public Ddr5ExpoProfile ExpoProfile2;
 
-        // ── Thermal sensor ──────────────────────────────────────────────────
-
+        // Thermal sensor─
         /// <summary>
         /// Live thermal sensor reading from SPD5118 hub (populated by
         /// ReadAndDecodeAll when SMBus is available, null for file-only decode).
         /// </summary>
         public Ddr5ThermalData ThermalData;
 
-        // ── PMIC ────────────────────────────────────────────────────────────
+        // PMIC─
 
         /// <summary>
         /// Live PMIC voltage/status data (populated by ReadAndDecodeAll
@@ -128,18 +132,17 @@ namespace ZenStates.Core
         /// </summary>
         public Ddr5PmicData PmicData;
 
-        // ── Pretty-print ─────────────────────────────────────────────────────
 
         public override string ToString()
         {
             StringBuilder sb = new StringBuilder();
             sb.AppendLine("===============================================");
-            sb.AppendLine("  DDR5 SPD Decoded Information");
+            sb.AppendLine("  DRAM SPD Decoded Information");
             sb.AppendLine("===============================================");
 
             if (!IsValid)
             {
-                sb.AppendLine("  *** INVALID OR NON-DDR5 SPD DATA ***");
+                sb.AppendLine("  *** INVALID OR UNSUPPORTED SPD DATA ***");
                 sb.AppendFormat("  Device type byte: 0x{0:X2}\n", DeviceType);
                 return sb.ToString();
             }
@@ -148,6 +151,7 @@ namespace ZenStates.Core
             sb.AppendLine("-- General ---------------------------------");
             sb.AppendFormat("  SPD Revision       : {0}\n", SpdRevision);
             sb.AppendFormat("  Device Type        : {0}\n", DeviceTypeString);
+            sb.AppendFormat("  Memory Family      : {0}\n", MemoryFamily);
             sb.AppendFormat("  Module Type        : {0}\n", ModuleTypeString);
             sb.AppendFormat("  SPD Bytes Total    : {0}\n", BytesTotal);
             if (IsHybrid)
@@ -163,7 +167,7 @@ namespace ZenStates.Core
             sb.AppendFormat("  Column Bits        : {0}\n", FirstColumnBits);
             sb.AppendFormat("  Row Bits           : {0}\n", FirstRowBits);
             sb.AppendFormat("  Ranks/Channel      : {0}\n", RanksPerChannel);
-            sb.AppendFormat("  Sub-Channels/DIMM  : {0}\n", SubChannelsPerDimm);
+            sb.AppendFormat("  Sub-Channels       : {0}\n", SubChannelsPerDimm);
             sb.AppendFormat("  Bus Width/Sub-Ch   : {0} bits\n", PrimaryBusWidthBits);
 
             sb.AppendLine();
@@ -202,6 +206,16 @@ namespace ZenStates.Core
             sb.AppendLine();
             sb.AppendLine("-- Thermal ---------------------------------");
             sb.AppendFormat("  Thermal Sensor     : {0}\n", HasThermalSensor ? "Present" : "Not present");
+
+            sb.AppendLine();
+            sb.AppendLine("-- Support Devices -------------------------");
+            sb.AppendFormat("  SPD Device         : {0}\n", SpdDevicePresent ? SpdDeviceTypeString : "Not listed");
+            sb.AppendFormat("  PMIC0              : {0}\n", Pmic0Present ? Pmic0TypeString : "Not listed");
+            sb.AppendFormat("  PMIC1              : {0}\n", Pmic1Present ? Pmic1TypeString : "Not listed");
+            sb.AppendFormat("  PMIC2              : {0}\n", Pmic2Present ? Pmic2TypeString : "Not listed");
+            sb.AppendFormat("  TS0 / TS1          : {0} / {1}\n",
+                ThermalSensor0Present ? "Present" : "Not listed",
+                ThermalSensor1Present ? "Present" : "Not listed");
 
             sb.AppendLine();
             sb.AppendLine("-- Manufacturing ---------------------------");
@@ -265,6 +279,12 @@ namespace ZenStates.Core
                 sb.AppendLine();
                 sb.AppendLine("-- PMIC (Power Management IC) ---------------");
                 sb.Append(PmicData.ToString());
+            }
+            else if (IsLpddr5 && (Pmic0Present || Pmic1Present || Pmic2Present))
+            {
+                sb.AppendLine();
+                sb.AppendLine("-- PMIC (Power Management IC) ---------------");
+                sb.AppendLine("  Listed in SPD support-device bytes, but not exposed via DDR5 DIMM PMIC path.");
             }
 
             sb.AppendLine("===============================================");

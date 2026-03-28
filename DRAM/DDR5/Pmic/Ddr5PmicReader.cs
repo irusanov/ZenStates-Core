@@ -6,13 +6,13 @@ namespace ZenStates.Core
 {
     public static class Ddr5PmicReader
     {
-        // ── PMIC I2C address range ──────────────────────────────────────────
+        // PMIC I2C address range
 
         public const byte PMIC_ADDR_BASE = 0x48;
         public const byte PMIC_ADDR_LAST = 0x4F;
         public const byte SPD_PMIC_OFFSET = 0x08; // SPD_addr - PMIC_addr
 
-        // ── PMIC5100 Register Offsets (JEDEC JESD301-2) ─────────────────────
+        // PMIC5100 Register Offsets (JEDEC JESD301-2)
 
         // Status
         public const byte REG_STATUS_0 = 0x08;
@@ -24,11 +24,11 @@ namespace ZenStates.Core
         public const byte REG_CURRENT_LIMIT = 0x20;  // SWA [7:6], SWB [3:2], SWC [1:0]
 
         // Voltage VID registers (bits [7:1] = 7-bit VID, bit [0] = PG low threshold)
-        public const byte REG_SWA_VID = 0x21;  // VDD  = 800 + VID[7:1] × 5 mV
+        public const byte REG_SWA_VID = 0x21;  // VDD  = 800 + VID[7:1] x 5 mV
         public const byte REG_SWA_THRESH = 0x22;  // SWA protection thresholds
-        public const byte REG_SWB_VID = 0x25;  // VDDQ = 800 + VID[7:1] × 5 mV
+        public const byte REG_SWB_VID = 0x25;  // VDDQ = 800 + VID[7:1] x 5 mV
         public const byte REG_SWB_THRESH = 0x26;  // SWB protection thresholds
-        public const byte REG_SWC_VID = 0x27;  // VPP  = 1500 + VID[7:1] × 5 mV
+        public const byte REG_SWC_VID = 0x27;  // VPP  = 1500 + VID[7:1] x 5 mV
         public const byte REG_SWC_THRESH = 0x28;  // SWC protection thresholds
 
         // Rail config / LDO / ADC
@@ -55,8 +55,7 @@ namespace ZenStates.Core
         // Persistent NVM settings
         public const byte REG_NVM_LDO_SETTINGS = 0x51;
 
-        // ── Voltage formulas (JEDEC JESD301-2) ─────────────────────────────
-
+        // Voltage formulas (JEDEC JESD301-2)────────
         private const int SWA_SWB_BASE = 800;   // mV base for VDD/VDDQ
         private const int SWC_BASE = 1500;      // mV base for VPP
         private const int VID_STEP = 5;         // mV per VID code
@@ -73,8 +72,7 @@ namespace ZenStates.Core
         /// <summary>Decode SWC VID to millivolts (OC 8-bit: full byte).</summary>
         public static int SwcVid8ToMv(byte reg) { return SWC_BASE + reg * VID_STEP; }
 
-        // ── Current limiter decode (R0x20) ──────────────────────────────────
-
+        // Current limiter decode (R0x20)─────────────
         private static int DecodeSwabCurrentLimit(int code)
         {
             switch (code)
@@ -97,8 +95,7 @@ namespace ZenStates.Core
             }
         }
 
-        // ── OV threshold decode (R0x22/R0x26/R0x28 [5:4]) ──────────────────
-
+        // OV threshold decode (R0x22/R0x26/R0x28 [5:4])
         private static string DecodeOvThreshold(int code)
         {
             switch (code)
@@ -110,8 +107,7 @@ namespace ZenStates.Core
             }
         }
 
-        // ── UV threshold decode (R0x22/R0x26/R0x28 [3:2]) ──────────────────
-
+        // UV threshold decode (R0x22/R0x26/R0x28 [3:2])
         private static string DecodeUvThreshold(int code)
         {
             switch (code)
@@ -123,8 +119,7 @@ namespace ZenStates.Core
             }
         }
 
-        // ── PMIC temperature decode (R0x33 [7:5]) ──────────────────────────
-
+        // PMIC temperature decode (R0x33 [7:5])
         private static string DecodePmicTemp(int code)
         {
             switch (code)
@@ -243,15 +238,13 @@ namespace ZenStates.Core
             }
         }
 
-        // ── PMIC vendor identification ──────────────────────────────────────
-
+        // PMIC vendor identification
         private static string LookupPmicVendor(byte bank, byte code)
         {
             return ManufacturerMapping.Lookup(bank, code);
         }
 
-        // ── SMBus helpers ───────────────────────────────────────────────────
-
+        // SMBus helpers
         private static bool ReadReg(SmbusPiix4 smbus, byte addr, byte reg, out byte val)
         {
             return smbus.SmbusReadByteData(addr, reg, out val);
@@ -335,7 +328,7 @@ namespace ZenStates.Core
             }
         }
 
-        // ── Detection ───────────────────────────────────────────────────────
+        // Detection
 
         /// <summary>Derive PMIC I2C address from SPD hub address.</summary>
         public static byte PmicAddrFromSpd(byte spdAddr)
@@ -358,7 +351,7 @@ namespace ZenStates.Core
             }
         }
 
-        // ── Full PMIC read ──────────────────────────────────────────────────
+        // Full PMIC read
 
         /// <summary>Read all accessible PMIC registers and decode per JEDEC JESD301-2.</summary>
         public static Ddr5PmicData ReadAll(SmbusPiix4 smbus, byte pmicAddr)
@@ -494,8 +487,6 @@ namespace ZenStates.Core
 
             return pd;
         }
-
-        // ── Convenience ─────────────────────────────────────────────────────
 
         /// <summary>Read PMIC data for all detected DIMMs by scanning 0x48-0x4F.</summary>
         public static Dictionary<byte, Ddr5PmicData> ReadAllDimms(SmbusPiix4 smbus)

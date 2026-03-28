@@ -7,7 +7,7 @@ namespace ZenStates.Core
 {
     public static class Ddr5SpdDecoder
     {
-        // ── SPD byte map (JESD400-5C, verified against hardware) ─────────────
+        // SPD byte map (JESD400-5C, verified against hardware)
         //
         // Block 0  (bytes   0- 63): Base Configuration & DRAM Parameters
         // Block 1  (bytes  64-127): Additional DRAM Timing Parameters
@@ -18,16 +18,14 @@ namespace ZenStates.Core
         // Block 8-9(bytes 640-767): End User / XMP 3.0 Profiles
         // Block 10+(bytes 768-1023): Reserved / EXPO Profiles
 
-        // ── General (Block 0) ────────────────────────────────────────────────
-
+        // General (Block 0)
         private const int SPD_BYTES_USED = 0;     // [3:0] beta level, [6:4] SPD bytes total
         private const int SPD_REVISION = 1;     // [7:4]=encoding, [3:0]=additions
         private const int SPD_DEVICE_TYPE = 2;     // 0x12 = DDR5
         private const int SPD_MODULE_TYPE = 3;     // [3:0]=base, [4]=hybrid, [6:5]=hybrid_type
 
-        // ── SDRAM Density, Addressing, I/O Width, Banks ────────────────────
-        //    Bytes 4-7 = first SDRAM, bytes 8-11 = second (asymmetric only)
-
+        // SDRAM Density, Addressing, I/O Width, Banks
+        // Bytes 4-7 = first SDRAM, bytes 8-11 = second (asymmetric only)
         private const int SPD_FIRST_DENSITY = 4;     // [4:0]=density, [7:5]=die_per_pkg
         private const int SPD_FIRST_ADDRESSING = 5;     // [2:0]=col_bits-10, [7:5]=row_bits-16
         private const int SPD_FIRST_IO_WIDTH = 6;     // [7:5]=device_width (0=x4,1=x8,2=x16)
@@ -37,14 +35,12 @@ namespace ZenStates.Core
         private const int SPD_SECOND_IO_WIDTH = 10;    // same format as byte 6
         private const int SPD_SECOND_BANKS = 11;    // same format as byte 7
 
-        // ── Voltage & Thermal ────────────────────────────────────────────────
-
+        // Voltage & Thermal
         private const int SPD_NOMINAL_VOLTAGE = 12;
         private const int SPD_THERMAL = 14;
 
-        // ── Timing (16-bit LE values, picoseconds unless noted) ──────────────
+        // Timing (16-bit LE values, picoseconds)
         // Verified offsets from real DDR5 hardware dumps.
-
         private const int SPD_TCKAVG_MIN_LSB = 20;
         private const int SPD_TCKAVG_MIN_MSB = 21;
         private const int SPD_TCKAVG_MAX_LSB = 22;
@@ -75,15 +71,41 @@ namespace ZenStates.Core
         private const int SPD_TRFCSB_LSB = 46;
         private const int SPD_TRFCSB_MSB = 47;
 
-        // ── Module organisation (Block 3) ────────────────────────────────────
-        //    byte 234: [5:3]=ranks_per_channel-1
-        //    byte 235: [2:0]=primary bus width per sub-ch, [5]=sub-channels (0=1, 1=2)
 
+        // LPDDR5/5X timing fields
+        // Minimum and maximum cycle time are located at bytes 18, 19, 124, and 125.
+        // The remaining base timing fields are not described in the uploaded DDR5 documents,
+        // so LPDDR5 decoding falls back to the shared DDR5-style positions when present.
+        private const int LPDDR5_TCKAVG_MIN = 18;
+        private const int LPDDR5_TCKAVG_MAX = 19;
+        private const int LPDDR5_TCKAVG_MAX_FINE = 124;
+        private const int LPDDR5_TCKAVG_MIN_FINE = 125;
+
+        // Common device information bytes
+        private const int SPD_COMMON_DEVICE_REV = 192;
+        private const int SPD_COMMON_SPD_MFG_ID_LSB = 194;
+        private const int SPD_COMMON_SPD_MFG_ID_MSB = 195;
+        private const int SPD_COMMON_SPD_DEVICE_TYPE = 196;
+        private const int SPD_COMMON_PMIC0_MFG_ID_LSB = 198;
+        private const int SPD_COMMON_PMIC0_MFG_ID_MSB = 199;
+        private const int SPD_COMMON_PMIC0_DEVICE_TYPE = 200;
+        private const int SPD_COMMON_PMIC1_MFG_ID_LSB = 202;
+        private const int SPD_COMMON_PMIC1_MFG_ID_MSB = 203;
+        private const int SPD_COMMON_PMIC1_DEVICE_TYPE = 204;
+        private const int SPD_COMMON_PMIC2_MFG_ID_LSB = 206;
+        private const int SPD_COMMON_PMIC2_MFG_ID_MSB = 207;
+        private const int SPD_COMMON_PMIC2_DEVICE_TYPE = 208;
+        private const int SPD_COMMON_TS_MFG_ID_LSB = 210;
+        private const int SPD_COMMON_TS_MFG_ID_MSB = 211;
+        private const int SPD_COMMON_TS_DEVICE_TYPE = 212;
+
+        // Module organisation (Block 3)
+        // byte 234: [5:3]=ranks_per_channel-1
+        // byte 235: [2:0]=primary bus width per sub-ch, [5]=sub-channels (0=1, 1=2)
         private const int SPD_MOD_ORG = 234;
         private const int SPD_BUS_WIDTH = 235;
 
-        // ── Manufacturing (Block 6-7, starting at byte 512) ──────────────────
-
+        // Manufacturing (Block 6-7, starting at byte 512)
         private const int SPD_MOD_MFG_ID_LSB = 512;
         private const int SPD_MOD_MFG_ID_MSB = 513;
         private const int SPD_MOD_MFG_LOC = 514;
@@ -96,11 +118,11 @@ namespace ZenStates.Core
         private const int SPD_DRAM_MFG_ID_MSB = 553;
         private const int SPD_DRAM_STEPPING = 554;
 
-        // ── XMP 3.0 header (Block 8, byte 640) ──────────────────────────────
-        //    Intel Extreme Memory Profile 3.0 for DDR5.
-        //    3 vendor (read-only) + 2 user (writable) profiles.
-        //    Bytes 640-767: header + 3 vendor profiles.
-        //    Bytes 768-895: 2 user profiles + profile names.
+        // XMP 3.0 header (Block 8, byte 640)
+        // Intel Extreme Memory Profile 3.0 for DDR5.
+        // 3 vendor (read-only) + 2 user (writable) profiles.
+        // Bytes 640-767: header + 3 vendor profiles.
+        // Bytes 768-895: 2 user profiles + profile names.
 
         private const int SPD_XMP_HEADER = 640;   // 0x0C 0x4A magic
         private const int SPD_XMP_REVISION = 642;   // [7:4]=encoding, [3:0]=additions
@@ -122,8 +144,8 @@ namespace ZenStates.Core
         // Profile name strings (15 chars each) at bytes 758-767 + 840-895
         // Name 1: 758-767 (partial, continued from overflow)
 
-        // ── XMP 3.0 per-profile offsets (relative to profile base) ──────
-        //    Each profile has identical layout, 36 bytes:
+        // XMP 3.0 per-profile offsets (relative to profile base)
+        // Each profile has identical layout, 36 bytes:
         private const int XMP_OFF_VDD = 0;    // VDD voltage code  (code*5 + 1100 mV)
         private const int XMP_OFF_VDDQ = 1;    // VDDQ voltage code (code*5 + 1100 mV)
         private const int XMP_OFF_VPP = 2;    // VPP voltage code  (code*5 + 1500 mV)
@@ -152,10 +174,9 @@ namespace ZenStates.Core
         private const int XMP_OFF_TRFCSB_MSB = 28;
         // Bytes 29-35: extended timings (tRRD_S, tRRD_L, tCCD_L, etc.)
 
-        // ── EXPO header (Block 10, byte 832 = 0x340) ─────────────────────────
-        //    Magic: ASCII "EXPO" (0x45 0x58 0x50 0x4F)
-        //    Verified from real AMD EXPO DDR5 DIMM dumps.
-
+        // EXPO header (Block 10, byte 832 = 0x340)
+        // Magic: ASCII "EXPO" (0x45 0x58 0x50 0x4F)
+        // Verified from real AMD EXPO DDR5 DIMM dumps.
         private const int SPD_EXPO_HEADER = 832;
         private const int SPD_EXPO_REVISION = 836;
         private const int SPD_EXPO_PROFILES = 837;   // [0]=profile1, [1]=profile2
@@ -186,9 +207,6 @@ namespace ZenStates.Core
         private const byte DDR5_DEVICE_TYPE = 0x12;
         private const byte LPDDR5_DEVICE_TYPE = 0x13;
 
-        // ══════════════════════════════════════════════════════════════════════
-        //  Main decode entry point
-        // ══════════════════════════════════════════════════════════════════════
 
         public static Ddr5SpdInfo Decode(List<byte> spd)
         {
@@ -219,12 +237,25 @@ namespace ZenStates.Core
             if (!info.IsValid)
             {
                 info.DeviceTypeString = string.Format("Unknown (0x{0:X2})", info.DeviceType);
+                info.MemoryFamily = "Unknown";
                 return info;
             }
 
-            info.DeviceTypeString = "DDR5 SDRAM";
+            info.IsLpddr5 = (info.DeviceType == LPDDR5_DEVICE_TYPE);
+            if (info.IsLpddr5)
+            {
+                info.DeviceTypeString = "LPDDR5 SDRAM";
+                info.MemoryFamily = "LPDDR5";
+            }
+            else
+            {
+                info.DeviceTypeString = "DDR5 SDRAM";
+                info.MemoryFamily = "DDR5";
+            }
+
             DecodeSizeAndRevision(spd, info);
             DecodeModuleType(spd, info);
+            DecodeSupportDevices(spd, info);
             DecodeDensityAndPackage(spd, info);
             DecodeAddressing(spd, info);
             DecodeVoltageAndThermal(spd, info);
@@ -238,10 +269,6 @@ namespace ZenStates.Core
 
             return info;
         }
-
-        // ══════════════════════════════════════════════════════════════════════
-        //  Sub-decoders
-        // ══════════════════════════════════════════════════════════════════════
 
         private static void DecodeSizeAndRevision(byte[] spd, Ddr5SpdInfo info)
         {
@@ -269,8 +296,6 @@ namespace ZenStates.Core
             }
         }
 
-        // ── Module type ──────────────────────────────────────────────────────
-
         private static void DecodeModuleType(byte[] spd, Ddr5SpdInfo info)
         {
             byte b = B(spd, SPD_MODULE_TYPE);
@@ -284,11 +309,12 @@ namespace ZenStates.Core
                 case 0x02: info.ModuleTypeString = "UDIMM"; break;
                 case 0x03: info.ModuleTypeString = "SO-DIMM"; break;
                 case 0x04: info.ModuleTypeString = "LRDIMM"; break;
-                case 0x07: info.ModuleTypeString = "Mini-RDIMM"; break;
-                case 0x09: info.ModuleTypeString = "Mini-UDIMM"; break;
+                case 0x05: info.ModuleTypeString = "CUDIMM"; break;
+                case 0x06: info.ModuleTypeString = "CSODIMM"; break;
+                case 0x07: info.ModuleTypeString = "MRDIMM"; break;
+                case 0x08: info.ModuleTypeString = "CAMM2"; break;
                 case 0x0A: info.ModuleTypeString = "DDIMM"; break;
                 case 0x0B: info.ModuleTypeString = "Solder-down"; break;
-                case 0x0C: info.ModuleTypeString = "CAMM2"; break;
                 default:
                     info.ModuleTypeString = string.Format("Unknown (0x{0:X2})", info.BaseModuleType);
                     break;
@@ -311,7 +337,55 @@ namespace ZenStates.Core
             }
         }
 
-        // ── Density & package ────────────────────────────────────────────────
+        private static void DecodeSupportDevices(byte[] spd, Ddr5SpdInfo info)
+        {
+            byte spdType = B(spd, SPD_COMMON_SPD_DEVICE_TYPE);
+            byte pmic0Type = B(spd, SPD_COMMON_PMIC0_DEVICE_TYPE);
+            byte pmic1Type = B(spd, SPD_COMMON_PMIC1_DEVICE_TYPE);
+            byte pmic2Type = B(spd, SPD_COMMON_PMIC2_DEVICE_TYPE);
+            byte tsType = B(spd, SPD_COMMON_TS_DEVICE_TYPE);
+
+            info.SpdDevicePresent = ((spdType & 0x80) != 0);
+            info.SpdDeviceTypeString = DecodeSupportDeviceType(spdType, true);
+
+            info.Pmic0Present = ((pmic0Type & 0x80) != 0);
+            info.Pmic0TypeString = DecodeSupportDeviceType(pmic0Type, false);
+
+            info.Pmic1Present = ((pmic1Type & 0x80) != 0);
+            info.Pmic1TypeString = DecodeSupportDeviceType(pmic1Type, false);
+
+            info.Pmic2Present = ((pmic2Type & 0x80) != 0);
+            info.Pmic2TypeString = DecodeSupportDeviceType(pmic2Type, false);
+
+            info.ThermalSensor0Present = ((tsType & 0x80) != 0);
+            info.ThermalSensor1Present = ((tsType & 0x40) != 0);
+        }
+
+        private static string DecodeSupportDeviceType(byte value, bool isSpdDevice)
+        {
+            int typeCode = value & 0x0F;
+            if (isSpdDevice)
+            {
+                switch (typeCode)
+                {
+                    case 0x00: return "SPD5118";
+                    case 0x01: return "ESPD5216";
+                    default: return string.Format("Unknown SPD device (0x{0:X2})", typeCode);
+                }
+            }
+
+            switch (typeCode)
+            {
+                case 0x00: return "PMIC5000";
+                case 0x01: return "PMIC5010";
+                case 0x02: return "PMIC5100";
+                case 0x03: return "PMIC5020";
+                case 0x04: return "PMIC5120";
+                case 0x05: return "PMIC5200";
+                case 0x06: return "PMIC5030";
+                default: return string.Format("Unknown PMIC (0x{0:X2})", typeCode);
+            }
+        }
 
         private static void DecodeDensityAndPackage(byte[] spd, Ddr5SpdInfo info)
         {
@@ -350,9 +424,6 @@ namespace ZenStates.Core
             return code + 1;
         }
 
-        // ── SDRAM Addressing ─────────────────────────────────────────────────
-        // Byte 5: [2:0] = column address bits - 10, [7:5] = row address bits - 16
-
         private static void DecodeAddressing(byte[] spd, Ddr5SpdInfo info)
         {
             byte bAddr1 = B(spd, SPD_FIRST_ADDRESSING);   // byte 5
@@ -365,51 +436,71 @@ namespace ZenStates.Core
             info.SecondRowBits = 16 + ((bAddr2 >> 5) & 0x07);
         }
 
-        // ── Voltage & Thermal ────────────────────────────────────────────────
-
         private static void DecodeVoltageAndThermal(byte[] spd, Ddr5SpdInfo info)
         {
-            // DDR5 standard nominal voltage is 1.1V
-            byte bv = B(spd, SPD_NOMINAL_VOLTAGE);
-            info.VddString = "1.1 V (nominal DDR5)";
-
             byte bt = B(spd, SPD_THERMAL);
-            info.HasThermalSensor = ((bt >> 3) & 0x01) != 0;
-        }
 
-        // ── Timing ───────────────────────────────────────────────────────────
+            if (info.IsLpddr5)
+            {
+                if (info.Pmic0Present || info.Pmic1Present || info.Pmic2Present)
+                    info.VddString = "Platform-managed rails (PMIC listed in common support-device bytes)";
+                else
+                    info.VddString = "Platform-managed rails";
+
+                info.HasThermalSensor = info.ThermalSensor0Present || info.ThermalSensor1Present;
+            }
+            else
+            {
+                info.VddString = "1.1 V (nominal DDR5)";
+                info.HasThermalSensor = ((bt >> 3) & 0x01) != 0;
+            }
+        }
 
         private static void DecodeTiming(byte[] spd, Ddr5SpdInfo info)
         {
-            info.tCKAVGminPs = U16LE(spd, SPD_TCKAVG_MIN_LSB);
-            info.tCKAVGmaxPs = U16LE(spd, SPD_TCKAVG_MAX_LSB);
+            if (info.IsLpddr5)
+            {
+                info.tCKAVGminPs = DecodeLpddr5TckMin(spd);
+                info.tCKAVGmaxPs = DecodeLpddr5TckMax(spd);
+            }
+            else
+            {
+                info.tCKAVGminPs = U16LE(spd, SPD_TCKAVG_MIN_LSB);
+                info.tCKAVGmaxPs = U16LE(spd, SPD_TCKAVG_MAX_LSB);
+            }
 
-            // Derive JEDEC speed grade
             if (info.tCKAVGminPs > 0)
             {
                 info.ClockMHz = 1000000.0 / (double)info.tCKAVGminPs;
                 info.SpeedMTs = (int)Math.Round(2.0 * info.ClockMHz);
-                info.SpeedMTs = RoundToJedecBin(info.SpeedMTs);
-                info.ClockMHz = info.SpeedMTs / 2.0;
-            }
-            info.SpeedGrade = string.Format("DDR5-{0}", info.SpeedMTs);
-
-            // CAS Latencies Supported: 5 bytes = 40 bits.
-            // DDR5 CL values start at 20, increment by 2.
-            for (int byteIdx = 0; byteIdx < 5; byteIdx++)
-            {
-                byte cb = B(spd, SPD_CAS_FIRST + byteIdx);
-                for (int bit = 0; bit < 8; bit++)
+                if (!info.IsLpddr5)
                 {
-                    if ((cb & (1 << bit)) != 0)
+                    info.SpeedMTs = RoundToJedecBin(info.SpeedMTs);
+                    info.ClockMHz = info.SpeedMTs / 2.0;
+                }
+            }
+
+            if (info.IsLpddr5)
+                info.SpeedGrade = string.Format("LPDDR5-{0}", info.SpeedMTs);
+            else
+                info.SpeedGrade = string.Format("DDR5-{0}", info.SpeedMTs);
+
+            if (!info.IsLpddr5)
+            {
+                for (int byteIdx = 0; byteIdx < 5; byteIdx++)
+                {
+                    byte cb = B(spd, SPD_CAS_FIRST + byteIdx);
+                    for (int bit = 0; bit < 8; bit++)
                     {
-                        int clValue = 20 + (byteIdx * 8 + bit) * 2;
-                        info.SupportedCLs.Add(clValue);
+                        if ((cb & (1 << bit)) != 0)
+                        {
+                            int clValue = 20 + (byteIdx * 8 + bit) * 2;
+                            info.SupportedCLs.Add(clValue);
+                        }
                     }
                 }
             }
 
-            // Core timing: 16-bit LE picoseconds
             info.tAAminPs = U16LE(spd, SPD_TAA_MIN_LSB);
             info.tRCDminPs = U16LE(spd, SPD_TRCD_MIN_LSB);
             info.tRPminPs = U16LE(spd, SPD_TRP_MIN_LSB);
@@ -417,17 +508,34 @@ namespace ZenStates.Core
             info.tRCminPs = U16LE(spd, SPD_TRC_MIN_LSB);
             info.tWRminPs = U16LE(spd, SPD_TWR_MIN_LSB);
 
-            // Refresh timing: stored as nanoseconds
             info.tRFC1minNs = U16LE(spd, SPD_TRFC1_LSB);
             info.tRFC2minNs = U16LE(spd, SPD_TRFC2_LSB);
             info.tRFCsbMinNs = U16LE(spd, SPD_TRFCSB_LSB);
+        }
+
+        private static int DecodeLpddr5TckMin(byte[] spd)
+        {
+            int coarse = B(spd, LPDDR5_TCKAVG_MIN);
+            int fine = (sbyte)B(spd, LPDDR5_TCKAVG_MIN_FINE);
+            if (coarse <= 0)
+                return 0;
+            return coarse * 125 + fine;
+        }
+
+        private static int DecodeLpddr5TckMax(byte[] spd)
+        {
+            int coarse = B(spd, LPDDR5_TCKAVG_MAX);
+            int fine = (sbyte)B(spd, LPDDR5_TCKAVG_MAX_FINE);
+            if (coarse <= 0)
+                return 0;
+            return coarse * 125 + fine;
         }
 
         private static int RoundToJedecBin(int mts)
         {
             int[] bins = new int[] {
                     3200, 3600, 4000, 4400, 4800, 5200, 5600,
-                    6000, 6400, 6800, 7200, 7600, 8000, 8400, 8800
+                    6000, 6400, 6800, 7200, 7600, 8000, 8400, 8800, 9200
                 };
             int best = bins[0];
             int bestDelta = Math.Abs(mts - bins[0]);
@@ -443,11 +551,10 @@ namespace ZenStates.Core
             return best;
         }
 
-        // ── Module organisation ──────────────────────────────────────────────
+        // Module organisation
         // Byte 234: [5:3] = ranks per channel - 1
         // Byte 235: [2:0] = primary bus width per sub-channel
         //           [5]   = sub-channels per DIMM (0=1, 1=2)
-
         private static void DecodeModuleOrganisation(byte[] spd, Ddr5SpdInfo info)
         {
             byte bOrg = B(spd, SPD_MOD_ORG);
@@ -475,10 +582,8 @@ namespace ZenStates.Core
             info.ChannelCount = info.SubChannelsPerDimm;
         }
 
-        // ── Device width derivation ──────────────────────────────────────────
-        // ── SDRAM I/O Width ──────────────────────────────────────────────────
+        // Device width
         // Byte 6: [7:5] = device width (0=x4, 1=x8, 2=x16, 3=x32)
-
         private static void DecodeDeviceWidth(byte[] spd, Ddr5SpdInfo info)
         {
             byte b6 = B(spd, SPD_FIRST_IO_WIDTH);
@@ -497,8 +602,6 @@ namespace ZenStates.Core
                     break;
             }
         }
-
-        // ── Capacity calculation ─────────────────────────────────────────────
 
         private static void CalculateCapacity(Ddr5SpdInfo info)
         {
@@ -522,26 +625,26 @@ namespace ZenStates.Core
                 * info.SubChannelsPerDimm;
         }
 
-        // ── Timing string ────────────────────────────────────────────────────
-
         private static void CalculateTimingString(Ddr5SpdInfo info)
         {
-            if (info.tCKAVGminPs > 0 && info.SpeedMTs > 0)
+            if (info.tCKAVGminPs > 0 && info.SpeedMTs > 0 && info.tAAminPs > 0)
             {
-                // Use ideal tCK from speed bin to avoid integer rounding artifacts.
-                // SPD stores tCK as truncated integer ps, causing ceil() to overshoot by 1.
                 double tCKideal = 1000000.0 / (info.SpeedMTs / 2.0);
                 info.CL = (int)Math.Ceiling((double)info.tAAminPs / tCKideal - 0.01);
                 info.tRCD = (int)Math.Ceiling((double)info.tRCDminPs / tCKideal - 0.01);
                 info.tRP = (int)Math.Ceiling((double)info.tRPminPs / tCKideal - 0.01);
             }
 
-            info.TimingString = string.Format("{0}-{1}-{2} @ {3}",
-                info.CL, info.tRCD, info.tRP, info.SpeedGrade);
+            if (info.CL > 0)
+            {
+                info.TimingString = string.Format("{0}-{1}-{2} @ {3}",
+                    info.CL, info.tRCD, info.tRP, info.SpeedGrade);
+            }
+            else
+            {
+                info.TimingString = info.SpeedGrade;
+            }
         }
-
-        // ── Manufacturing ────────────────────────────────────────────────────
-
         private static void DecodeManufacturing(byte[] spd, Ddr5SpdInfo info)
         {
             if (spd.Length < 555)
@@ -589,10 +692,20 @@ namespace ZenStates.Core
             info.DramStepping = B(spd, SPD_DRAM_STEPPING);
         }
 
-        // ── XMP / EXPO detection and decoding ────────────────────────────────
-
         private static void DetectAndDecodeProfiles(byte[] spd, Ddr5SpdInfo info)
         {
+            if (info.IsLpddr5)
+            {
+                info.HasExpo = false;
+                info.ExpoProfile1 = new Ddr5ExpoProfile();
+                info.ExpoProfile2 = new Ddr5ExpoProfile();
+                info.HasXmp = false;
+                info.XmpProfiles = new Ddr5XmpProfile[5];
+                for (int p = 0; p < 5; p++)
+                    info.XmpProfiles[p] = new Ddr5XmpProfile();
+                return;
+            }
+
             // ── EXPO: ASCII "EXPO" (0x45 0x58 0x50 0x4F) at byte 832 ──
             if (spd.Length > SPD_EXPO_HEADER + 4)
             {
@@ -628,7 +741,7 @@ namespace ZenStates.Core
                 info.ExpoProfile2 = new Ddr5ExpoProfile();
             }
 
-            // ── XMP 3.0: magic header at byte 640 ──
+            // XMP 3.0: magic header at byte 640
             if (spd.Length > SPD_XMP_HEADER + 2)
             {
                 byte xm0 = B(spd, SPD_XMP_HEADER);
@@ -726,8 +839,6 @@ namespace ZenStates.Core
             return p;
         }
 
-        // ── XMP 3.0 profile decoder ─────────────────────────────────────────
-
         private static Ddr5XmpProfile DecodeXmpProfile(byte[] spd,
             int profileNum, int baseOff)
         {
@@ -798,10 +909,6 @@ namespace ZenStates.Core
             return p;
         }
 
-        // ══════════════════════════════════════════════════════════════════════
-        //  Utility helpers
-        // ══════════════════════════════════════════════════════════════════════
-
         private static byte B(byte[] spd, int offset)
         {
             if (offset < 0 || offset >= spd.Length) return 0;
@@ -818,12 +925,8 @@ namespace ZenStates.Core
             return ((b >> 4) & 0x0F) * 10 + (b & 0x0F);
         }
 
-        // ══════════════════════════════════════════════════════════════════════
-        //  Convenience methods
-        // ══════════════════════════════════════════════════════════════════════
-
         /// <summary>
-        /// Read and decode SPD from all discovered DDR5 DIMMs.
+        /// Read and decode SPD from all discovered DDR5/LPDDR5 modules.
         /// Also reads live thermal sensor data from SPD5118 hubs.
         /// </summary>
         public static Dictionary<byte, Ddr5SpdInfo> ReadAndDecodeAll(SmbusPiix4 smbus)
@@ -838,27 +941,30 @@ namespace ZenStates.Core
             {
                 Ddr5SpdInfo info = Decode(kvp.Value);
 
-                // Read live temperature from SPD5118 hub if supported
-                try
+                if (!info.IsLpddr5)
                 {
-                    if (Ddr5ThermalSensor.Detect(smbus, kvp.Key))
-                        info.ThermalData = Ddr5ThermalSensor.ReadAll(smbus, kvp.Key);
-                }
-                catch
-                {
-                    // Thermal sensor not accessible – not critical
-                }
+                    // Read live temperature from SPD5118 hub if supported
+                    try
+                    {
+                        if (Ddr5ThermalSensor.Detect(smbus, kvp.Key))
+                            info.ThermalData = Ddr5ThermalSensor.ReadAll(smbus, kvp.Key);
+                    }
+                    catch
+                    {
+                        // Thermal sensor not accessible - not critical
+                    }
 
-                // Read PMIC data (PMIC addr = SPD addr - 0x08)
-                try
-                {
-                    byte pmicAddr = Ddr5PmicReader.PmicAddrFromSpd(kvp.Key);
-                    if (Ddr5PmicReader.Detect(smbus, pmicAddr))
-                        info.PmicData = Ddr5PmicReader.ReadAll(smbus, pmicAddr);
-                }
-                catch
-                {
-                    // PMIC not accessible – not critical
+                    // Read PMIC data (PMIC addr = SPD addr - 0x08)
+                    try
+                    {
+                        byte pmicAddr = Ddr5PmicReader.PmicAddrFromSpd(kvp.Key);
+                        if (Ddr5PmicReader.Detect(smbus, pmicAddr))
+                            info.PmicData = Ddr5PmicReader.ReadAll(smbus, pmicAddr);
+                    }
+                    catch
+                    {
+                        // PMIC not accessible - not critical
+                    }
                 }
 
                 results.Add(kvp.Key, info);
@@ -868,7 +974,7 @@ namespace ZenStates.Core
         }
 
         /// <summary>
-        /// Read, decode, and print SPD from all discovered DDR5 DIMMs.
+        /// Read, decode, and print SPD from all discovered DDR5/LPDDR5 modules.
         /// </summary>
         public static Dictionary<byte, Ddr5SpdInfo> ReadDecodeAndPrint(SmbusPiix4 smbus)
         {
@@ -876,7 +982,7 @@ namespace ZenStates.Core
 
             foreach (KeyValuePair<byte, Ddr5SpdInfo> kvp in results)
             {
-                Console.WriteLine("DIMM at I2C address 0x{0:X2}", kvp.Key);
+                Console.WriteLine("Module at I2C address 0x{0:X2}", kvp.Key);
                 Console.WriteLine(kvp.Value.ToString());
             }
 
@@ -900,10 +1006,25 @@ namespace ZenStates.Core
         /// <summary>Extract just the JEDEC speed grade without full decode.</summary>
         public static string GetSpeedGrade(byte[] spd)
         {
-            int tCK = U16LE(spd, SPD_TCKAVG_MIN_LSB);
+            if (spd == null || spd.Length < 3)
+                return "Unknown";
+
+            byte deviceType = spd[SPD_DEVICE_TYPE];
+            int tCK;
+            int mts;
+
+            if (deviceType == LPDDR5_DEVICE_TYPE)
+            {
+                tCK = DecodeLpddr5TckMin(spd);
+                if (tCK <= 0) return "Unknown";
+                mts = (int)Math.Round(2000000.0 / (double)tCK);
+                return string.Format("LPDDR5-{0}", mts);
+            }
+
+            tCK = U16LE(spd, SPD_TCKAVG_MIN_LSB);
             if (tCK <= 0) return "Unknown";
             double mhz = 1000000.0 / (double)tCK;
-            int mts = RoundToJedecBin((int)Math.Round(2.0 * mhz));
+            mts = RoundToJedecBin((int)Math.Round(2.0 * mhz));
             return string.Format("DDR5-{0}", mts);
         }
 
