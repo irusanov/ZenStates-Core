@@ -82,6 +82,7 @@ namespace ZenStates.Core
 
             { "CadBusDrvStren", 9024 },
             { "ProcDataDrvStren", 9028 },
+            { "ProcDataDrvStrenApu", 9028 },
             { "ProcOdt", 9032 },
             { "DramDataDrvStren", 9036 },
             { "RttNomWr", 9040 },

@@ -450,7 +450,7 @@ namespace ZenStates.Core
                 if (Table == null || Table.Length == 0)
                     Table = new float[(int)smu.PmTableSize / 4];
 
-                long[] rawTempTable = smu.ReadPmTable((NUM_ELEMENTS_TO_COMPARE * 4 + 7) / 8);
+                long[] rawTempTable = smu.ReadPmTable(NUM_ELEMENTS_TO_COMPARE * 4);
                 float[] tempTable = new float[NUM_ELEMENTS_TO_COMPARE];
                 Buffer.BlockCopy(rawTempTable, 0, tempTable, 0, NUM_ELEMENTS_TO_COMPARE * 4);
 

@@ -300,6 +300,7 @@ namespace ZenStates.Core
                         dict = new Dictionary<string, int>(baseDictionary.Dict)
                         {
                             { "ProcDataDrvStren", lastOffset + 4},
+                            { "ProcDataDrvStrenApu", lastOffset + 4},
                             { "ProcCaOdt", lastOffset + 8 },
                             { "ProcCkOdt", lastOffset + 12 },
                             { "ProcDqOdt", lastOffset + 16 },

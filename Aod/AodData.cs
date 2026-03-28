@@ -44,6 +44,7 @@ namespace ZenStates.Core
         public ProcOdtImpedance ProcCkOdt { get; set; }
         public ProcOdtImpedance ProcDqOdt { get; set; }
         public ProcOdtImpedance ProcDqsOdt { get; set; }
+        public CadBusDrvStren ProcDataDrvStrenApu { get; set; }
         // Phoenix: END
         public ProcOdtImpedance ProcCsDs { get; set; }
         public ProcOdtImpedance ProcCkDs { get; set; }

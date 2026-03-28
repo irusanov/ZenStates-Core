@@ -60,11 +60,11 @@ namespace ZenStates.Core
             {120, "120.0 Ω"},
         };
 
-        // Proc CA ODT impedance
-        // Proc CK ODT impedance
-        // Proc DQ ODT impedance
-        // Proc DQS ODT impedance
-        public static readonly Dictionary<int, string> ProcOdtImpedanceDict = new Dictionary<int, string>
+        // Proc CA ODT/DS impedance
+        // Proc CK ODT/DS impedance
+        // Proc DQ ODT/DS impedance
+        // Proc DQS ODT/DS impedance
+        public static readonly Dictionary<int, string> ProcImpedanceDict = new Dictionary<int, string>
         {
             {0, "Off" },
             {30, "30.0 Ω"},

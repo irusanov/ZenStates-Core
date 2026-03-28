@@ -205,8 +205,8 @@ namespace ZenStates.Core.DRAM
         }
         private uint _rdpre;
         public uint RDPRE
-        { 
-            get 
+        {
+            get
             {
                 if (_rdpre < 2)
                     return _rdpre + 1;
