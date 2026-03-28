@@ -30,7 +30,7 @@ namespace ZenStates.Core
     public class ProcOdtImpedance : EncodedValueBase
     {
         public ProcOdtImpedance(int value) : base(value) { }
-        protected override Dictionary<int, string> Lookup { get; } = EncodedValueDictionaries.ProcOdtImpedanceDict;
+        protected override Dictionary<int, string> Lookup { get; } = EncodedValueDictionaries.ProcImpedanceDict;
     }
 
     public class GroupOdtImpedance : EncodedValueBase
@@ -61,6 +61,8 @@ namespace ZenStates.Core
         {
             Value = value;
         }
+
+        public int RawValue { get { return Value; } }
 
         public override string ToString()
         {

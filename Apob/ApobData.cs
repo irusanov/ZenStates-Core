@@ -30,7 +30,12 @@
             byte? procOdtPullUpP0 = null,
             byte? procOdtPullDownP0 = null,
             byte? procDqDsPullUpP0 = null,
-            byte? procDqDsPullDownP0 = null)
+            byte? procDqDsPullDownP0 = null,
+            byte? procCaOdt = null,
+            byte? procCkOdt = null,
+            byte? procDqOdt = null,
+            byte? procDqsOdt = null,
+            byte? procDataDsApu = null)
         {
             _rttNomRd = rttNomRd;
             _rttNomWr = rttNomWr;
@@ -66,6 +71,12 @@
             _procOdtPullDownP0 = procOdtPullDownP0;
             _procDqDsPullUpP0 = procDqDsPullUpP0;
             _procDqDsPullDownP0 = procDqDsPullDownP0;
+
+            _procCaOdt = procCaOdt;
+            _procCkOdt = procCkOdt;
+            _procDqOdt = procDqOdt;
+            _procDqsOdt = procDqsOdt;
+            _procDataDsApu = procDataDsApu;
         }
 
         private readonly byte _rttNomRd;
@@ -103,6 +114,12 @@
         private readonly byte? _procDqDsPullUpP0;
         private readonly byte? _procDqDsPullDownP0;
 
+        private readonly byte? _procCaOdt;
+        private readonly byte? _procCkOdt;
+        private readonly byte? _procDqOdt;
+        private readonly byte? _procDqsOdt;
+        private readonly byte? _procDataDsApu;
+
         public Rtt RttNomRd => new Rtt(_rttNomRd);
         public Rtt RttNomWr => new Rtt(_rttNomWr);
         public Rtt RttWr => new Rtt(_rttWr);
@@ -137,5 +154,12 @@
         public ProcOdt ProcOdtPullDownP0 => _procOdtPullDownP0.HasValue ? new ProcOdt(_procOdtPullDownP0.Value) : null;
         public ProcDataDrvStren ProcDqDsPullUpP0 => _procDqDsPullUpP0.HasValue ? new ProcDataDrvStren(_procDqDsPullUpP0.Value) : null;
         public ProcDataDrvStren ProcDqDsPullDownP0 => _procDqDsPullDownP0.HasValue ? new ProcDataDrvStren(_procDqDsPullDownP0.Value) : null;
+
+        // AM5 APU
+        public ProcOdtImpedance ProcCaOdt => _procCaOdt.HasValue ? new ProcOdtImpedance(_procCaOdt.Value) : null;
+        public ProcOdtImpedance ProcCkOdt => _procCkOdt.HasValue ? new ProcOdtImpedance(_procCkOdt.Value) : null;
+        public ProcOdtImpedance ProcDqOdt => _procDqOdt.HasValue ? new ProcOdtImpedance(_procDqOdt.Value) : null;
+        public ProcOdtImpedance ProcDqsOdt => _procDqsOdt.HasValue ? new ProcOdtImpedance(_procDqsOdt.Value) : null;
+        public CadBusDrvStren ProcDataDsApu => _procDataDsApu.HasValue ? new CadBusDrvStren(_procDataDsApu.Value) : null;
     }
 }

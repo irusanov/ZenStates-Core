@@ -5,14 +5,15 @@ namespace ZenStates.Core
 {
     public enum ApobLayoutVersion
     {
-        V1 = 1,
-        V2
+        V60 = 1,
+        V90,
+        VA4,
     }
 
     public static class ApobDataReader
     {
-        private const int MAX_CHANNELS = 12;
-        private static readonly byte[] EndPattern = new byte[8] { 0xff, 0xff, 0x00, 0x00, 0x01, 0x00, 0xff, 0xff };
+        //private const int MAX_CHANNELS = 12;
+        //private static readonly byte[] EndPattern = new byte[6] { 0xff, 0xff, 0x01, 0x00, 0xff, 0xff };
 
         public static ApobData Read(byte[] data, ApobLayoutVersion version, int offset = 0)
         {
@@ -21,11 +22,14 @@ namespace ZenStates.Core
 
             switch (version)
             {
-                case ApobLayoutVersion.V1:
+                case ApobLayoutVersion.V60:
                     return ReadV1(data, offset);
 
-                case ApobLayoutVersion.V2:
+                case ApobLayoutVersion.V90:
                     return ReadV2(data, offset);
+
+                case ApobLayoutVersion.VA4:
+                    return ReadV3(data, offset);
 
                 default:
                     throw new ArgumentOutOfRangeException("version");
@@ -34,77 +38,40 @@ namespace ZenStates.Core
 
         private static ApobData ReadV1(byte[] data, int offset)
         {
-            if (data == null)
-                throw new ArgumentNullException("data");
-
-            int blockSize = Marshal.SizeOf(typeof(ApobDataV1));
-            int totalSize = blockSize * MAX_CHANNELS;
-
-            if (offset < 0 || offset > data.Length)
-                throw new ArgumentOutOfRangeException("offset");
-
-            if (data.Length - offset < totalSize)
+            int blockSize = Marshal.SizeOf(typeof(ApobData60));
+            if (data.Length < blockSize)
                 throw new ArgumentException("Buffer too small for Apob V1.", "data");
 
-            int endPatternIndex = Utils.FindSequence(data, offset, EndPattern);
+            ApobData60 raw = Read<ApobData60>(data, blockSize, offset);
 
-            byte[] channelBuffer = new byte[blockSize];
-            byte[] sequence = new byte[15];
-
-            for (int i = 0; i < MAX_CHANNELS; i++)
-            {
-                int channelOffset = offset + (i * blockSize);
-
-                Buffer.BlockCopy(data, channelOffset, channelBuffer, 0, blockSize);
-
-                if (Utils.AllZero(channelBuffer))
-                    continue;
-
-                if (endPatternIndex > -1 && endPatternIndex >= channelOffset && endPatternIndex < offset + totalSize)
-                    break;
-
-                Buffer.BlockCopy(channelBuffer, 2, sequence, 0, sequence.Length);
-
-                // TODO: Find another way to get the block address and size. This is bruteforce and gets expensive with increased raw data block size (APOB table size from header)
-                int secondIndex = Utils.FindLastSequence(data, channelOffset + blockSize, sequence);
-                if (secondIndex > 1)
-                {
-                    Buffer.BlockCopy(data, secondIndex - 2, channelBuffer, 0, blockSize);
-                }
-
-                ApobDataV1 raw = Utils.ByteArrayToStructure<ApobDataV1>(channelBuffer);
-
-                return new ApobData(
-                    raw.RttNomRd,
-                    raw.RttNomWr,
-                    raw.RttWr,
-                    raw.RttPark,
-                    raw.RttParkDqs,
-                    raw.DramDataDs,
-                    raw.CkOdtA,
-                    raw.CsOdtA,
-                    raw.CaOdtA,
-                    raw.CkOdtB,
-                    raw.CsOdtB,
-                    raw.CaOdtB,
-                    raw.ProcOdt,
-                    raw.ProcDqDs,
-                    raw.ProcCaDs,
-                    raw.ProcCkDs,
-                    raw.ProcCsDs
-                );
-            }
-
-            return new ApobData();
+            return new ApobData(
+                raw.RttNomRd,
+                raw.RttNomWr,
+                raw.RttWr,
+                raw.RttPark,
+                raw.RttParkDqs,
+                raw.DramDataDs,
+                raw.CkOdtA,
+                raw.CsOdtA,
+                raw.CaOdtA,
+                raw.CkOdtB,
+                raw.CsOdtB,
+                raw.CaOdtB,
+                raw.ProcOdt,
+                raw.ProcDqDs,
+                raw.ProcCaDs,
+                raw.ProcCkDs,
+                raw.ProcCsDs
+            );
         }
 
         private static ApobData ReadV2(byte[] data, int offset)
         {
-            int blockSize = Marshal.SizeOf(typeof(ApobDataV2));
+            int blockSize = Marshal.SizeOf(typeof(ApobData90));
             if (data.Length < blockSize)
                 throw new ArgumentException("Buffer too small for Apob V2.", "data");
 
-            ApobDataV2 raw = Read<ApobDataV2>(data, blockSize, offset);
+            ApobData90 raw = Read<ApobData90>(data, blockSize, offset);
 
             return new ApobData(
                 raw.RttNomRd,
@@ -138,32 +105,73 @@ namespace ZenStates.Core
             );
         }
 
+        private static ApobData ReadV3(byte[] data, int offset)
+        {
+            int blockSize = Marshal.SizeOf(typeof(ApobDataA4));
+            if (data.Length < blockSize)
+                throw new ArgumentException("Buffer too small for Apob V3.", "data");
+
+            ApobDataA4 raw = Read<ApobDataA4>(data, blockSize, offset);
+
+            return new ApobData(
+                raw.RttNomRd,
+                raw.RttNomWr,
+                raw.RttWr,
+                raw.RttPark,
+                raw.RttParkDqs,
+                raw.DramDataDs,
+                raw.CkOdtA,
+                raw.CsOdtA,
+                raw.CaOdtA,
+                raw.CkOdtB,
+                raw.CsOdtB,
+                raw.CaOdtB,
+                raw.ProcOdt,
+                raw.ProcDqDs,
+                raw.ProcCaDs,
+                null, null, null, null, null, null, null, null, null, null, null, null, null,
+                raw.ProcCaOdt,
+                raw.ProcCkOdt,
+                raw.ProcDqOdt,
+                raw.ProcDqsOdt,
+                raw.ProcDqDs
+            );
+        }
+
+        //private static T Read<T>(byte[] data, int blockSize, int offset) where T : struct
+        //{
+        //    byte[] buffer = new byte[blockSize * MAX_CHANNELS];
+
+        //    Buffer.BlockCopy(data, offset, buffer, 0, buffer.Length);
+
+        //    for (int i = 0; i < MAX_CHANNELS; i++)
+        //    {
+        //        byte[] channelBuffer = new byte[blockSize];
+        //        Buffer.BlockCopy(buffer, i * blockSize, channelBuffer, 0, blockSize);
+
+        //        if (Utils.AllZero(channelBuffer))
+        //        {
+        //            continue;
+        //        }
+
+        //        if (Utils.FindSequence(buffer, 0, EndPattern) > -1)
+        //        {
+        //            break;
+        //        }
+
+        //        // return first valid channel's data, as all channels should have the same values for these fields
+        //        return Utils.ByteArrayToStructure<T>(channelBuffer);
+        //    }
+
+        //    return new T();
+        //}
+
         private static T Read<T>(byte[] data, int blockSize, int offset) where T : struct
         {
-            byte[] buffer = new byte[blockSize * MAX_CHANNELS];
-
+            byte[] buffer = new byte[blockSize];
             Buffer.BlockCopy(data, offset, buffer, 0, buffer.Length);
 
-            for (int i = 0; i < MAX_CHANNELS; i++)
-            {
-                byte[] channelBuffer = new byte[blockSize];
-                Buffer.BlockCopy(buffer, i * blockSize, channelBuffer, 0, blockSize);
-
-                if (Utils.AllZero(channelBuffer))
-                {
-                    continue;
-                }
-
-                if (Utils.FindSequence(buffer, 0, EndPattern) > -1)
-                {
-                    break;
-                }
-
-                // return first valid channel's data, as all channels should have the same values for these fields
-                return Utils.ByteArrayToStructure<T>(channelBuffer);
-            }
-
-            return new T();
+            return Utils.ByteArrayToStructure<T>(buffer);
         }
     }
 }
