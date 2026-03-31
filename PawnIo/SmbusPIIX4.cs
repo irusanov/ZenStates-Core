@@ -5,7 +5,7 @@ using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core
 {
-    internal class SmbusPiix4: SmbusDriver
+    internal class SmbusPiix4: SmbusDriverBase
     {
         private static volatile SmbusPiix4 _instance;
         private static readonly object _instanceLock = new object();
@@ -160,7 +160,7 @@ namespace ZenStates.Core
         /// Switch to the given port. Pass -1 to query without changing.
         /// Returns the previous port number.
         /// </summary>
-        public bool ChangePort(int port, out int previousPort)
+        internal bool ChangePortNoLock(int port, out int previousPort)
         {
             previousPort = -1;
             if (!Execute(IOCTL_PIIX4_PORT_SEL, new long[] { port }, 1, out long[] result))
@@ -172,7 +172,23 @@ namespace ZenStates.Core
             return true;
         }
 
-        public bool ChangePort(int port) => ChangePort(port, out int _);
+        internal bool ChangePortNoLock(int port) => ChangePortNoLock(port, out int _);
+
+        public bool ChangePort(int port, out int previousPort)
+        {
+            using (new SmbusLock())
+            {
+                return ChangePortNoLock(port, out previousPort);
+            }
+        }
+
+        public bool ChangePort(int port)
+        {
+            using (new SmbusLock())
+            {
+                return ChangePortNoLock(port);
+            }
+        }
 
         /// <summary>
         /// Returns [0]=type identifier, [1]=IO base address, [2]=PCI vendor+device ID.
@@ -219,39 +235,13 @@ namespace ZenStates.Core
         /// <param name="addr7">7-bit I2C device address.</param>
         /// <param name="readWrite">I2C_SMBUS_READ (1) for read, I2C_SMBUS_WRITE (0) for write.</param>
         /// <returns>true if the device ACKs; false otherwise.</returns>
-        public bool SmbusQuick(byte addr7, byte readWrite)
+        internal override bool SmbusQuickNoLock(byte addr7, byte readWrite)
         {
             return Execute(IOCTL_SMBUS_XFER,
                            new long[4] { addr7, readWrite, 0L, I2C_SMBUS_QUICK },
                            0, out long[] result);
         }
 
-        // ??
-        ///// <summary>Read a single byte from a device without a register address.</summary>
-        ///// <param name="addr7">7-bit I2C device address.</param>
-        ///// <param name="result">The byte read from the device.</param>
-        ///// <returns>true if successful; false if the read failed.</returns>
-        //public bool ReadByteNoLock(byte addr7, out byte result)
-        //{
-        //    result = 0;
-        //    if (!Execute(IOCTL_SMBUS_XFER,
-        //                 new long[] { addr7, I2C_SMBUS_READ, 0L, I2C_SMBUS_BYTE },
-        //                 1, out long[] raw))
-        //        return false;
-        //    result = (byte)(raw[0] & 0xFF);
-        //    return true;
-        //}
-
-        ///// <summary>Write a single byte to a device without a register address.</summary>
-        ///// <param name="addr7">7-bit I2C device address.</param>
-        ///// <param name="command">The byte value to write.</param>
-        ///// <returns>true if successful; false if the write failed.</returns>
-        //public bool WriteByteNoLock(byte addr7, byte command)
-        //{
-        //    return Execute(IOCTL_SMBUS_XFER,
-        //                   new long[] { addr7, I2C_SMBUS_WRITE, command, I2C_SMBUS_BYTE },
-        //                   0, out long[] raw);
-        //}
 
         // BYTE data
         internal override bool ReadByteDataNoLock(byte addr7, byte command, out byte result)

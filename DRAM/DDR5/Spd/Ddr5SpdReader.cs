@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core.DRAM.DDR5.Spd
 {
     internal static class Ddr5SpdReader
     {
+        private static readonly SmbusPiix4 smbusDriver = SmbusPiix4.Instance;
         private const int PAGE_SIZE = 128; // in bytes, for DDR5 SPD
         private const int SPD_TOTAL_SIZE = 0x400; // 1024 bytes total (8 pages of 128 bytes)
 
@@ -33,7 +33,7 @@ namespace ZenStates.Core.DRAM.DDR5.Spd
 
         internal static bool SpdSwitchPage(byte addr7, byte page)
         {
-            return SmbusPiix4.Instance.WriteByteData(addr7, 0x0B, page);
+            return smbusDriver.WriteByteData(addr7, 0x0B, page);
         }
 
         /// <summary>
@@ -46,11 +46,11 @@ namespace ZenStates.Core.DRAM.DDR5.Spd
 
             for (int p = 0; p < ports.Length; p++)
             {
-                SmbusPiix4.Instance.ChangePort(ports[p]);
+                smbusDriver.ChangePortNoLock(ports[p]);
                 List<byte> found = new List<byte>();
                 for (int i = SPD_HUB_ADDR_FIRST; i <= SPD_HUB_ADDR_LAST; i++)
                 {
-                    if (SmbusPiix4.Instance.ReadByteData((byte)i, 0x00, out byte _))
+                    if (smbusDriver.ReadByteData((byte)i, 0x00, out byte _))
                         found.Add((byte)i);
                 }
                 if (found.Count > 0)
@@ -82,7 +82,7 @@ namespace ZenStates.Core.DRAM.DDR5.Spd
                 if (regOffset <= PAGE_SIZE - 2)
                 {
                     ushort word;
-                    if (SmbusPiix4.Instance.ReadWordDataNoLock(addr7, (byte)reg, out word))
+                    if (smbusDriver.ReadWordDataNoLock(addr7, (byte)reg, out word))
                     {
                         spd.Add((byte)(word & 0xFF));
                         spd.Add((byte)((word >> 8) & 0xFF));
@@ -91,7 +91,7 @@ namespace ZenStates.Core.DRAM.DDR5.Spd
                     }
                 }
 
-                if (!SmbusPiix4.Instance.ReadByteDataNoLock(addr7, (byte)reg, out byte b))
+                if (!smbusDriver.ReadByteDataNoLock(addr7, (byte)reg, out byte b))
                     b = 0xFF;
 
                 spd.Add(b);
@@ -154,7 +154,7 @@ namespace ZenStates.Core.DRAM.DDR5.Spd
                 if (!SpdSwitchPage(addr7, 0))
                     return null;
 
-                if (SmbusPiix4.Instance.ReadByteData(addr7, (byte)SpdCalculateReg(2), out b0))
+                if (smbusDriver.ReadByteData(addr7, (byte)SpdCalculateReg(2), out b0))
                 {
                     info.DeviceType = b0;
                     info.IsValid = (info.DeviceType == 0x12 || info.DeviceType == 0x13);
@@ -170,7 +170,7 @@ namespace ZenStates.Core.DRAM.DDR5.Spd
                     return null;
 
                 // Module manufacturer: bytes 512-513
-                if (SmbusPiix4.Instance.ReadWordDataNoLock(addr7, (byte)SpdCalculateReg(552), out w))
+                if (smbusDriver.ReadWordDataNoLock(addr7, (byte)SpdCalculateReg(552), out w))
                 {
                     b0 = (byte)(w & 0xFF);
                     b1 = (byte)((w >> 8) & 0xFF);
@@ -179,7 +179,7 @@ namespace ZenStates.Core.DRAM.DDR5.Spd
                     info.DramManufacturer = ManufacturerMapping.Lookup(info.DramMfgIdBank, info.DramMfgIdMfr);
                 }
 
-                ReadPmic(addr7, info, SmbusPiix4.Instance);
+                ReadPmic(addr7, info, smbusDriver);
 
                 return info;
             }
@@ -205,7 +205,7 @@ namespace ZenStates.Core.DRAM.DDR5.Spd
             return result;
         }
 
-        public static void ReadThermal(byte addr7, Ddr5SpdInfo info, SmbusPiix4 smbus)
+        public static void ReadThermal(byte addr7, Ddr5SpdInfo info, SmbusDriverBase smbus)
         {
             if (info == null || smbus == null || info.IsLpddr5)
                 return;
@@ -221,7 +221,7 @@ namespace ZenStates.Core.DRAM.DDR5.Spd
             }
         }
 
-        public static void ReadPmic(byte addr7, Ddr5SpdInfo info, SmbusPiix4 smbus)
+        public static void ReadPmic(byte addr7, Ddr5SpdInfo info, SmbusDriverBase smbus)
         {
             if (info == null || smbus == null || info.IsLpddr5)
                 return;
@@ -238,7 +238,7 @@ namespace ZenStates.Core.DRAM.DDR5.Spd
             }
         }
 
-        public static void ReadLiveDevices(byte addr7, Ddr5SpdInfo info, SmbusPiix4 smbus)
+        public static void ReadLiveDevices(byte addr7, Ddr5SpdInfo info, SmbusDriverBase smbus)
         {
             if (info == null || smbus == null)
                 return;

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace ZenStates.Core.Drivers
 {
-    public abstract class SmbusDriver: IDisposable
+    public abstract class SmbusDriverBase: ISmbusDriver, IDisposable
     {
         private bool disposedValue;
 
@@ -15,6 +15,16 @@ namespace ZenStates.Core.Drivers
         public const int I2C_SMBUS_BYTE_DATA = 2;
         public const int I2C_SMBUS_WORD_DATA = 3;
         public const int I2C_SMBUS_BLOCK_DATA = 5;
+
+        internal abstract bool SmbusQuickNoLock(byte addr7, byte readWrite);
+
+        public bool SmbusQuick(byte addr7, byte readWrite)
+        {
+            using (new SmbusLock())
+            {
+                return SmbusQuickNoLock(addr7, readWrite);
+            }
+        }
 
         internal abstract bool ReadByteDataNoLock(byte addr7, byte command, out byte value);
 

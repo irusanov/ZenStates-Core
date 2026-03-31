@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ZenStates.Core.DRAM;
+using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core
 {
@@ -245,22 +246,22 @@ namespace ZenStates.Core
         }
 
         // SMBus helpers
-        private static bool ReadReg(SmbusPiix4 smbus, byte addr, byte reg, out byte val)
+        private static bool ReadReg(SmbusDriverBase smbus, byte addr, byte reg, out byte val)
         {
             return smbus.ReadByteData(addr, reg, out val);
         }
 
-        private static bool ReadRegNoLock(SmbusPiix4 smbus, byte addr, byte reg, out byte val)
+        private static bool ReadRegNoLock(SmbusDriverBase smbus, byte addr, byte reg, out byte val)
         {
             return smbus.ReadByteDataNoLock(addr, reg, out val);
         }
 
-        private static bool WriteRegNoLock(SmbusPiix4 smbus, byte addr, byte reg, byte val)
+        private static bool WriteRegNoLock(SmbusDriverBase smbus, byte addr, byte reg, byte val)
         {
             return smbus.WriteByteDataNoLock(addr, reg, val);
         }
 
-        public static void ReadAdcVoltage(SmbusPiix4 smbus, byte pmicAddr, byte selectCode, out int mv)
+        public static void ReadAdcVoltage(SmbusDriverBase smbus, byte pmicAddr, byte selectCode, out int mv)
         {
             mv = 0;
 
@@ -280,7 +281,7 @@ namespace ZenStates.Core
             mv = DecodeAdcMv(selectCode, raw);
         }
 
-        private static bool ReadAdcVoltageNoLock(SmbusPiix4 smbus, byte pmicAddr, byte selectCode, out int mv)
+        private static bool ReadAdcVoltageNoLock(SmbusDriverBase smbus, byte pmicAddr, byte selectCode, out int mv)
         {
             mv = 0;
 
@@ -307,7 +308,7 @@ namespace ZenStates.Core
             return true;
         }
 
-        internal static void ReadAllAdcVoltagesNoLock(SmbusPiix4 smbus, byte pmicAddr, Ddr5PmicData pd)
+        internal static void ReadAllAdcVoltagesNoLock(SmbusDriverBase smbus, byte pmicAddr, Ddr5PmicData pd)
         {
             byte originalReg30 = 0;
 
@@ -337,7 +338,7 @@ namespace ZenStates.Core
         }
 
         /// <summary>Check if a PMIC responds at the given I2C address.</summary>
-        public static bool Detect(SmbusPiix4 smbus, byte pmicAddr)
+        public static bool Detect(SmbusDriverBase smbus, byte pmicAddr)
         {
             try
             {
@@ -354,7 +355,7 @@ namespace ZenStates.Core
         // Full PMIC read
 
         /// <summary>Read all accessible PMIC registers and decode per JEDEC JESD301-2.</summary>
-        public static Ddr5PmicData ReadAll(SmbusPiix4 smbus, byte pmicAddr)
+        public static Ddr5PmicData ReadAll(SmbusDriverBase smbus, byte pmicAddr)
         {
             Ddr5PmicData pd = new Ddr5PmicData();
             pd.I2cAddress = pmicAddr;
@@ -364,6 +365,7 @@ namespace ZenStates.Core
             {
                 // Dump first 0x52 registers so we can decode LDO NVM defaults too.
                 pd.RawRegisters = new byte[0x52];
+
                 if (!Mutexes.WaitSmbus(5000))
                     throw new TimeoutException("Timeout waiting for SMBus mutex.");
 
@@ -489,7 +491,7 @@ namespace ZenStates.Core
         }
 
         /// <summary>Read PMIC data for all detected DIMMs by scanning 0x48-0x4F.</summary>
-        public static Dictionary<byte, Ddr5PmicData> ReadAllDimms(SmbusPiix4 smbus)
+        public static Dictionary<byte, Ddr5PmicData> ReadAllDimms(SmbusDriverBase smbus)
         {
             Dictionary<byte, Ddr5PmicData> results = new Dictionary<byte, Ddr5PmicData>();
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using ZenStates.Core.DRAM;
 using ZenStates.Core.DRAM.DDR5.Spd;
+using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core
 {
@@ -976,7 +977,7 @@ namespace ZenStates.Core
         /// Read and decode SPD from all discovered DDR5/LPDDR5 modules.
         /// Also reads live thermal sensor data from SPD5118 hubs.
         /// </summary>
-        public static Dictionary<byte, Ddr5SpdInfo> ReadAndDecodeAll(SmbusPiix4 smbus)
+        public static Dictionary<byte, Ddr5SpdInfo> ReadAndDecodeAll(SmbusDriverBase smbus)
         {
             if (smbus == null)
                 throw new ArgumentNullException("smbus");
@@ -986,7 +987,7 @@ namespace ZenStates.Core
             return results;
         }
 
-        private static void ReadLiveDeviceData(Dictionary<byte, Ddr5SpdInfo> results, SmbusPiix4 smbus)
+        private static void ReadLiveDeviceData(Dictionary<byte, Ddr5SpdInfo> results, SmbusDriverBase smbus)
         {
             if (results == null)
                 return;

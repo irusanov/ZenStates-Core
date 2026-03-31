@@ -3,11 +3,14 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using ZenStates.Core.DRAM.DDR5.Spd;
+using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core.DRAM
 {
     public class MemoryConfig
     {
+        private readonly SmbusDriverBase smbusDriver = SmbusPiix4.Instance;
+
         private const int DRAM_TYPE_BIT_MASK = 0x3;
 
         private const uint DRAM_TYPE_REG_ADDR = 0x50100;
@@ -171,7 +174,7 @@ namespace ZenStates.Core.DRAM
 
         public Dictionary<byte, Ddr5SpdInfo> ReadAndDecodeAll()
         {
-           return Ddr5SpdDecoder.ReadAndDecodeAll(SmbusPiix4.Instance);
+           return Ddr5SpdDecoder.ReadAndDecodeAll(smbusDriver);
         }
 
         public bool RefreshTelemetry(int uiRefreshIntervalMs = 2000)
@@ -202,7 +205,7 @@ namespace ZenStates.Core.DRAM
                     if (elapsed >= 0 && elapsed < uiRefreshIntervalMs)
                         continue;
 
-                    Ddr5PmicReader.ReadAllAdcVoltagesNoLock(SmbusPiix4.Instance, pd.I2cAddress, pd);
+                    Ddr5PmicReader.ReadAllAdcVoltagesNoLock(smbusDriver, pd.I2cAddress, pd);
                     LastTelemetryRefreshTick = now;
                 }
                 updated = true;

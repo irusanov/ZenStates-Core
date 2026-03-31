@@ -3,11 +3,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
-using ZenStates.Core.Drivers;
 
-namespace ZenStates.Core
+namespace ZenStates.Core.Drivers
 {
-    internal sealed class SmbusPiix4InpOut : SmbusDriver
+    internal sealed class SmbusPiix4InpOut : SmbusDriverBase
     {
         private static volatile SmbusPiix4InpOut _instance;
         private static readonly object _instanceLock = new object();
@@ -56,6 +55,8 @@ namespace ZenStates.Core
 
         // Default SMBus IO base on KernCZ in your PawnIO driver
         private readonly ushort _smba;
+
+        private int _currentPort = -1;
 
         public static SmbusPiix4InpOut Instance
         {
@@ -229,7 +230,7 @@ namespace ZenStates.Core
             }
         }
 
-        private bool BusyCheck()
+        private bool IsBusyNoLock()
         {
             byte temp = IoIn8(SMBHSTSTS);
             if (temp != 0x00)
@@ -310,19 +311,44 @@ namespace ZenStates.Core
             return success;
         }
 
+        internal bool ChangePortNoLock(int port, out int previousPort)
+        {
+            previousPort = _currentPort;
+
+            // This backend has no explicit port-switch ioctl/register like the kernel driver.
+            // Treat it as a logical port change only.
+            if (port != -1)
+                _currentPort = port;
+
+            return true;
+        }
+
+        internal bool ChangePortNoLock(int port)
+        {
+            return ChangePortNoLock(port, out int _);
+        }
+
+        internal override bool SmbusQuickNoLock(byte addr7, byte readWrite)
+        {
+            if (!IsBusyNoLock())
+                return false;
+            IoOut8(SMBHSTADD, (byte)((addr7 << 1) | (readWrite & 0x01)));
+            IoOut8(SMBHSTCNT, PIIX4_QUICK);
+            return Transaction(I2C_SMBUS_QUICK + (readWrite & 0x01), out byte _);
+        }
+
         internal override bool ReadByteDataNoLock(byte addr7, byte command, out byte value)
         {
             value = 0;
 
-            if (!BusyCheck())
+            if (!IsBusyNoLock())
                 return false;
 
             IoOut8(SMBHSTADD, (byte)((addr7 << 1) | I2C_SMBUS_READ));
             IoOut8(SMBHSTCMD, command);
             IoOut8(SMBHSTCNT, PIIX4_BYTE_DATA);
 
-            byte st;
-            if (!Transaction(I2C_SMBUS_BYTE_DATA + I2C_SMBUS_READ, out st))
+            if (!Transaction(I2C_SMBUS_BYTE_DATA + I2C_SMBUS_READ, out byte st))
                 return false;
 
             value = IoIn8(SMBHSTDAT0);
@@ -331,7 +357,7 @@ namespace ZenStates.Core
 
         internal override bool WriteByteDataNoLock(byte addr7, byte command, byte value)
         {
-            if (!BusyCheck())
+            if (!IsBusyNoLock())
                 return false;
 
             IoOut8(SMBHSTADD, (byte)((addr7 << 1) | I2C_SMBUS_WRITE));
@@ -346,15 +372,14 @@ namespace ZenStates.Core
         {
             value = 0;
 
-            if (!BusyCheck())
+            if (!IsBusyNoLock())
                 return false;
 
             IoOut8(SMBHSTADD, (byte)((addr7 << 1) | I2C_SMBUS_READ));
             IoOut8(SMBHSTCMD, command);
             IoOut8(SMBHSTCNT, PIIX4_WORD_DATA);
 
-            byte st;
-            if (!Transaction(I2C_SMBUS_WORD_DATA + I2C_SMBUS_READ, out st))
+            if (!Transaction(I2C_SMBUS_WORD_DATA + I2C_SMBUS_READ, out byte st))
                 return false;
 
             value = (ushort)(IoIn8(SMBHSTDAT0) | (IoIn8(SMBHSTDAT1) << 8));
@@ -363,7 +388,7 @@ namespace ZenStates.Core
 
         internal override bool WriteWordDataNoLock(byte addr7, byte command, ushort value)
         {
-            if (!BusyCheck())
+            if (!IsBusyNoLock())
                 return false;
 
             IoOut8(SMBHSTADD, (byte)((addr7 << 1) | I2C_SMBUS_WRITE));
@@ -375,23 +400,21 @@ namespace ZenStates.Core
 
             IoOut8(SMBHSTCNT, PIIX4_WORD_DATA);
 
-            byte st;
-            return Transaction(I2C_SMBUS_WORD_DATA + I2C_SMBUS_WRITE, out st);
+            return Transaction(I2C_SMBUS_WORD_DATA + I2C_SMBUS_WRITE, out byte st);
         }
 
         internal override bool ReadBlockDataNoLock(byte addr7, byte command, out List<byte> data)
         {
             data = new List<byte>();
 
-            if (!BusyCheck())
+            if (!IsBusyNoLock())
                 return false;
 
             IoOut8(SMBHSTADD, (byte)((addr7 << 1) | I2C_SMBUS_READ));
             IoOut8(SMBHSTCMD, command);
             IoOut8(SMBHSTCNT, PIIX4_BLOCK_DATA);
 
-            byte st;
-            if (!Transaction(2 + I2C_SMBUS_READ, out st))
+            if (!Transaction(2 + I2C_SMBUS_READ, out byte st))
                 return false;
 
             int len = IoIn8(SMBHSTDAT0);
@@ -418,7 +441,7 @@ namespace ZenStates.Core
             if (len < 1 || len > I2C_SMBUS_BLOCK_MAX)
                 return false;
 
-            if (!BusyCheck())
+            if (!IsBusyNoLock())
                 return false;
 
             IoOut8(SMBHSTADD, (byte)((addr7 << 1) | I2C_SMBUS_WRITE));
@@ -434,151 +457,148 @@ namespace ZenStates.Core
             for (int i = 0; i < len; i++)
                 IoOut8(SMBBLKDAT, data[i]);
 
-            byte st;
-            return Transaction(2 + len + I2C_SMBUS_WRITE, out st);
+            return Transaction(2 + len + I2C_SMBUS_WRITE, out byte st);
         }
 
-        public List<byte> DumpDdr5SpdInBlocks(byte addr7)
-        {
-            const int totalSize = 0x400;
+        //public List<byte> DumpDdr5SpdInBlocks(byte addr7)
+        //{
+        //    const int totalSize = 0x400;
 
-            List<byte> spd = new List<byte>(totalSize);
-            int prevPage = -1;
+        //    List<byte> spd = new List<byte>(totalSize);
+        //    int prevPage = -1;
 
-            int offset = 0;
-            while (offset < totalSize)
-            {
-                int page = SpdGetPage(offset);
-                int reg = SpdGetReg(offset);
-                int regOffset = offset % 128;
+        //    int offset = 0;
+        //    while (offset < totalSize)
+        //    {
+        //        int page = SpdGetPage(offset);
+        //        int reg = SpdGetReg(offset);
+        //        int regOffset = offset % 128;
 
-                if (page != prevPage)
-                {
-                    if (!WriteByteDataNoLock(addr7, 0x0B, (byte)page))
-                    {
-                        spd.Add(0xFF);
-                        offset++;
-                        continue;
-                    }
+        //        if (page != prevPage)
+        //        {
+        //            if (!WriteByteDataNoLock(addr7, 0x0B, (byte)page))
+        //            {
+        //                spd.Add(0xFF);
+        //                offset++;
+        //                continue;
+        //            }
 
-                    prevPage = page;
-                }
+        //            prevPage = page;
+        //        }
 
-                int bytesLeftTotal = totalSize - offset;
-                int bytesLeftInPage = 128 - regOffset;
-                int maxUsable = Math.Min(bytesLeftTotal, bytesLeftInPage);
+        //        int bytesLeftTotal = totalSize - offset;
+        //        int bytesLeftInPage = 128 - regOffset;
+        //        int maxUsable = Math.Min(bytesLeftTotal, bytesLeftInPage);
 
-                List<byte> block;
-                if (ReadBlockDataNoLock(addr7, (byte)reg, out block) &&
-                    block != null &&
-                    block.Count > 0)
-                {
-                    int used = Math.Min(block.Count, maxUsable);
+        //        List<byte> block;
+        //        if (ReadBlockDataNoLock(addr7, (byte)reg, out block) &&
+        //            block != null &&
+        //            block.Count > 0)
+        //        {
+        //            int used = Math.Min(block.Count, maxUsable);
 
-                    for (int i = 0; i < used; i++)
-                        spd.Add(block[i]);
+        //            for (int i = 0; i < used; i++)
+        //                spd.Add(block[i]);
 
-                    offset += used;
-                }
-                else
-                {
-                    byte value;
-                    if (!ReadByteDataNoLock(addr7, (byte)reg, out value))
-                        value = 0xFF;
+        //            offset += used;
+        //        }
+        //        else
+        //        {
+        //            if (!ReadByteDataNoLock(addr7, (byte)reg, out byte value))
+        //                value = 0xFF;
 
-                    spd.Add(value);
-                    offset++;
-                }
-            }
+        //            spd.Add(value);
+        //            offset++;
+        //        }
+        //    }
 
-            return spd;
-        }
+        //    return spd;
+        //}
 
-        public List<byte> DumpDdr5Spd(byte addr7)
-        {
-            const int totalSize = 0x400;
+        //public List<byte> DumpDdr5Spd(byte addr7)
+        //{
+        //    const int totalSize = 0x400;
 
-            List<byte> spd = new List<byte>(totalSize);
-            int prevPage = -1;
+        //    List<byte> spd = new List<byte>(totalSize);
+        //    int prevPage = -1;
 
-            bool tryBlock = false;
+        //    bool tryBlock = false;
 
-            // One quick probe only
-            if (WriteByteDataNoLock(addr7, 0x0B, 0x00))
-            {
-                List<byte> probe;
-                if (ReadBlockDataNoLock(addr7, 0x80, out probe) && probe != null && probe.Count > 1)
-                    tryBlock = true;
-            }
+        //    // One quick probe only
+        //    if (WriteByteDataNoLock(addr7, 0x0B, 0x00))
+        //    {
+        //        List<byte> probe;
+        //        if (ReadBlockDataNoLock(addr7, 0x80, out probe) && probe != null && probe.Count > 1)
+        //            tryBlock = true;
+        //    }
 
-            int offset = 0;
-            while (offset < totalSize)
-            {
-                int page = SpdGetPage(offset);
-                int reg = SpdGetReg(offset);
-                int regOffset = offset % 128;
+        //    int offset = 0;
+        //    while (offset < totalSize)
+        //    {
+        //        int page = SpdGetPage(offset);
+        //        int reg = SpdGetReg(offset);
+        //        int regOffset = offset % 128;
 
-                if (page != prevPage)
-                {
-                    if (!WriteByteDataNoLock(addr7, 0x0B, (byte)page))
-                    {
-                        spd.Add(0xFF);
-                        offset++;
-                        continue;
-                    }
+        //        if (page != prevPage)
+        //        {
+        //            if (!WriteByteDataNoLock(addr7, 0x0B, (byte)page))
+        //            {
+        //                spd.Add(0xFF);
+        //                offset++;
+        //                continue;
+        //            }
 
-                    prevPage = page;
-                }
+        //            prevPage = page;
+        //        }
 
-                int bytesLeftTotal = totalSize - offset;
-                int bytesLeftInPage = 128 - regOffset;
-                int maxUsable = Math.Min(bytesLeftTotal, bytesLeftInPage);
+        //        int bytesLeftTotal = totalSize - offset;
+        //        int bytesLeftInPage = 128 - regOffset;
+        //        int maxUsable = Math.Min(bytesLeftTotal, bytesLeftInPage);
 
-                bool usedBlock = false;
+        //        bool usedBlock = false;
 
-                if (tryBlock)
-                {
-                    List<byte> block;
-                    if (ReadBlockDataNoLock(addr7, (byte)reg, out block) &&
-                        block != null &&
-                        block.Count > 1)
-                    {
-                        int used = Math.Min(block.Count, maxUsable);
+        //        if (tryBlock)
+        //        {
+        //            List<byte> block;
+        //            if (ReadBlockDataNoLock(addr7, (byte)reg, out block) &&
+        //                block != null &&
+        //                block.Count > 1)
+        //            {
+        //                int used = Math.Min(block.Count, maxUsable);
 
-                        for (int i = 0; i < used; i++)
-                            spd.Add(block[i]);
+        //                for (int i = 0; i < used; i++)
+        //                    spd.Add(block[i]);
 
-                        offset += used;
-                        usedBlock = true;
-                    }
-                    else
-                    {
-                        tryBlock = false;
-                    }
-                }
+        //                offset += used;
+        //                usedBlock = true;
+        //            }
+        //            else
+        //            {
+        //                tryBlock = false;
+        //            }
+        //        }
 
-                if (!usedBlock)
-                {
-                    byte value;
-                    if (!ReadByteDataNoLock(addr7, (byte)reg, out value))
-                        value = 0xFF;
+        //        if (!usedBlock)
+        //        {
+        //            if (!ReadByteDataNoLock(addr7, (byte)reg, out byte value))
+        //                value = 0xFF;
 
-                    spd.Add(value);
-                    offset++;
-                }
-            }
+        //            spd.Add(value);
+        //            offset++;
+        //        }
+        //    }
 
-            return spd;
-        }
+        //    return spd;
+        //}
 
-        private static int SpdGetPage(int offset)
-        {
-            return offset / 128;
-        }
+        //private static int SpdGetPage(int offset)
+        //{
+        //    return offset / 128;
+        //}
 
-        private static int SpdGetReg(int offset)
-        {
-            return 0x80 + (offset % 128);
-        }
+        //private static int SpdGetReg(int offset)
+        //{
+        //    return 0x80 + (offset % 128);
+        //}
     }
 }

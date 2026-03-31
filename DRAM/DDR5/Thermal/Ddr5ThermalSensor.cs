@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core
 {
@@ -85,12 +86,12 @@ namespace ZenStates.Core
 
         // SMBus read helpers
         // Uses SmbusPiix4.SmbusReadByteData(addr7, command, out result)
-        private static bool ReadMR(SmbusPiix4 smbus, byte addr7, byte mr, out byte value)
+        private static bool ReadMR(SmbusDriverBase smbus, byte addr7, byte mr, out byte value)
         {
             return smbus.ReadByteData(addr7, mr, out value);
         }
 
-        private static bool ReadMR16(SmbusPiix4 smbus, byte addr7, byte mr, out int milliC)
+        private static bool ReadMR16(SmbusDriverBase smbus, byte addr7, byte mr, out int milliC)
         {
             milliC = 0;
             byte lo, hi;
@@ -108,7 +109,7 @@ namespace ZenStates.Core
         /// Detect whether the device at the given I2C address is an SPD5118
         /// hub with temperature sensor support.
         /// </summary>
-        public static bool Detect(SmbusPiix4 smbus, byte i2cAddr)
+        public static bool Detect(SmbusDriverBase smbus, byte i2cAddr)
         {
             try
             {
@@ -134,7 +135,7 @@ namespace ZenStates.Core
         /// Read the current temperature from the SPD5118 sensor.
         /// </summary>
         /// <returns>Temperature in millidegrees Celsius, or int.MinValue on error.</returns>
-        public static int ReadTemperatureMilliC(SmbusPiix4 smbus, byte i2cAddr)
+        public static int ReadTemperatureMilliC(SmbusDriverBase smbus, byte i2cAddr)
         {
             int mc;
             if (!ReadMR16(smbus, i2cAddr, REG_TEMP, out mc))
@@ -146,7 +147,7 @@ namespace ZenStates.Core
         /// Read the current temperature from the SPD5118 sensor.
         /// </summary>
         /// <returns>Temperature in degrees Celsius, or double.NaN on error.</returns>
-        public static double ReadTemperatureC(SmbusPiix4 smbus, byte i2cAddr)
+        public static double ReadTemperatureC(SmbusDriverBase smbus, byte i2cAddr)
         {
             int mc = ReadTemperatureMilliC(smbus, i2cAddr);
             if (mc == int.MinValue) return double.NaN;
@@ -156,7 +157,7 @@ namespace ZenStates.Core
         /// <summary>
         /// Read all thermal sensor data: current temp, limits, and alarms.
         /// </summary>
-        public static Ddr5ThermalData ReadAll(SmbusPiix4 smbus, byte i2cAddr)
+        public static Ddr5ThermalData ReadAll(SmbusDriverBase smbus, byte i2cAddr)
         {
             Ddr5ThermalData td = new Ddr5ThermalData();
 
@@ -221,7 +222,7 @@ namespace ZenStates.Core
         /// Scan all standard DDR5 SPD addresses (0x50-0x57) and read
         /// thermal data from every DIMM that has an SPD5118 hub with TS.
         /// </summary>
-        public static Dictionary<byte, Ddr5ThermalData> ReadAllDimms(SmbusPiix4 smbus)
+        public static Dictionary<byte, Ddr5ThermalData> ReadAllDimms(SmbusDriverBase smbus)
         {
             Dictionary<byte, Ddr5ThermalData> results =
                 new Dictionary<byte, Ddr5ThermalData>();
@@ -238,7 +239,7 @@ namespace ZenStates.Core
         /// <summary>
         /// Print thermal sensor readings for all detected DDR5 DIMMs.
         /// </summary>
-        public static void PrintAllDimms(SmbusPiix4 smbus)
+        public static void PrintAllDimms(SmbusDriverBase smbus)
         {
             Dictionary<byte, Ddr5ThermalData> data = ReadAllDimms(smbus);
 
