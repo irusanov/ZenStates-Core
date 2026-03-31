@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core
@@ -11,7 +12,7 @@ namespace ZenStates.Core
         private static readonly byte[] DataOffsetPattern = new byte[8] { 0x01, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x0 };
         private static readonly byte[] EndPattern = new byte[6] { 0xff, 0xff, 0x01, 0x00, 0xff, 0xff };
         private readonly uint apobAddress = 0;
-        private const int HeaderSize = 16;
+        //private const int InitialHeaderSize = 16;
         private const int SizeToRead = 0x5000;
 
         public bool IsAvailable
@@ -77,16 +78,26 @@ namespace ZenStates.Core
 
         private static bool TryReadHeader(uint address, out ApobHeader header)
         {
-            byte[] headerData;
+            header = default;
+            try
+            {
+                byte headerSize = io.ReadMemory(new IntPtr(address + 0xC), 1)[0];
+                byte[] headerData = io.ReadMemory(new IntPtr(address), headerSize);
 
-            header = default(ApobHeader);
-            headerData = io.ReadMemory(new IntPtr(address), HeaderSize);
+                if (headerData == null || headerData.Length < headerSize)
+                {
+                    return false;
+                }
 
-            if (headerData == null || headerData.Length < HeaderSize)
-                return false;
+                header = Utils.ByteArrayToStructure<ApobHeader>(headerData);
 
-            header = Utils.ByteArrayToStructure<ApobHeader>(headerData);
-            return true;
+                return true;
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine(e, e.Message);
+            }
+            return false;
         }
 
         private static int GetReadSize(ApobHeader header)
@@ -98,16 +109,19 @@ namespace ZenStates.Core
         private void ParseRawData()
         {
             // TODO: Find the offset and size of the block to read
-            // Supposedly the pattern is always the same. Easiest way to find the channel info.
             /**
-             * 1. Find the pattern and (layout version?)
+             * 1. Find the start and (layout version?)
              * 2. Find end sequence
              * 3. From the start offset to end offset, find first non-zero value
              * 4. Skip 2 bytes and take next 5 bytes, those are the Rtts
              * 5. Search for first occurence of Rtts after end sequence
              * 6. Rewind the index by 2 and parse the Apob data
              */
-            Offset = Utils.FindSequence(RawData, 0, DataOffsetPattern);
+            byte[] buffer = new byte[2];
+            Buffer.BlockCopy(RawData, (int)(Header.ConfigStartAddress + 0xC), buffer, 0, buffer.Length);
+
+            //Offset = Utils.FindSequence(RawData, 0, DataOffsetPattern);
+            Offset = (int)Header.ConfigStartAddress + (buffer[1] << 8 | buffer[0]);
             if (Offset < 0)
                 return;
 
@@ -161,6 +175,7 @@ namespace ZenStates.Core
                     if (layoutVersion == ApobLayoutVersion.V90)
                     {
                         Data = ApobDataReader.Read(RawData, layoutVersion, i);
+                        // Skip additional RTT block parsing for V90 since the data is right there and the layout is different
                         break;
                     }
 

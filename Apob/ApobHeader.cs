@@ -13,11 +13,15 @@ namespace ZenStates.Core
         private readonly uint _tableSize;
         [FieldOffset(0xc)]
         private readonly uint _headerSize; // First entry offset?
+        [FieldOffset(0x30)]
+        private readonly uint _configStartAddress;
 
         // public
         public uint Signature => _signature;
         public uint Version => _version;
         public uint TableSize => _tableSize;
         public uint HeaderSize => _headerSize;
+
+        public uint ConfigStartAddress => _configStartAddress;
     }
 }
