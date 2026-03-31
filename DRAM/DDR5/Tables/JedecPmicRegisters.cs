@@ -4,7 +4,7 @@ namespace ZenStates.Core
     /// JEDEC JESD301-2 PMIC5100 register constants used by the expanded helper modules.
     /// This file intentionally keeps the original Ddr5PmicReader unchanged and adds a central map.
     /// </summary>
-    public static class JedecPmicRegisters
+    internal static class JedecPmicRegisters
     {
         public const byte STATUS_0 = 0x08;
         public const byte STATUS_1 = 0x09;
@@ -41,7 +41,6 @@ namespace ZenStates.Core
         public const byte VENDOR_BANK = 0x3C;
         public const byte VENDOR_CODE = 0x3D;
 
-        // Telemetry payload registers called out in the JESD301-2 text.
         public const byte SWA_CURRENT_OR_POWER = 0x0C;
         public const byte SWB_CURRENT_OR_POWER = 0x0E;
         public const byte SWC_CURRENT_OR_POWER = 0x0F;

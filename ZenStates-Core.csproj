@@ -99,9 +99,6 @@
       <Version>5.0.0</Version>
     </PackageReference>
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="DRAM\DDR5\" />
-  </ItemGroup>
   <Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="'$(isWindows)' == 'true'">
     <Exec Command="xcopy /s /d /y &quot;$(ProjectDir)External\InpOut\x64\inpoutx64.dll&quot; &quot;$(OutDir)..\&quot;&#xD;&#xA;xcopy /s /d /y &quot;$(ProjectDir)External\WinIo\WinIo32.dll&quot; &quot;$(OutDir)..\&quot;&#xD;&#xA;xcopy /s /d /y &quot;$(ProjectDir)External\WinIo\WinIo32.sys&quot; &quot;$(OutDir)..\&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\InpOut\license.txt&quot; &quot;$(OutDir)..\InpOut.LICENSE.txt&quot;&#xD;&#xA;copy &quot;$(ProjectDir)External\WinIo\LICENSE.txt&quot; &quot;$(OutDir)..\WinIo32.LICENSE.txt&quot;" />
   </Target>

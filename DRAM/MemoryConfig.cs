@@ -1,6 +1,8 @@
 ﻿using OpenHardwareMonitor.Hardware;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using ZenStates.Core.DRAM.DDR5.Spd;
 
 namespace ZenStates.Core.DRAM
 {
@@ -95,7 +97,8 @@ namespace ZenStates.Core.DRAM
             {
                 if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
                 {
-                    SpdInfo = Ddr5SpdDecoder.ReadAndDecodeAll(SmbusPiix4.Instance);
+                    SpdInfo = Ddr5SpdReader.ReadDdr5SpdInitInfoAll();
+                    //SpdInfo = SmbusPiix4.Instance.ReadDdr5SpdInitInfoAll();
 
                     int moduleIndex = 0;
                     foreach (var spdEntry in SpdInfo.Values)
@@ -166,20 +169,28 @@ namespace ZenStates.Core.DRAM
             }
         }
 
+        public Dictionary<byte, Ddr5SpdInfo> ReadAndDecodeAll()
+        {
+           return Ddr5SpdDecoder.ReadAndDecodeAll(SmbusPiix4.Instance);
+        }
+
         public bool RefreshTelemetry(int uiRefreshIntervalMs = 2000)
         {
             bool updated = false;
-            int minHardwareRefreshMs;
+            //int minHardwareRefreshMs;
 
-            if (uiRefreshIntervalMs >= 2000)
-                minHardwareRefreshMs = uiRefreshIntervalMs;
-            else
-                minHardwareRefreshMs = 2000;
+            //if (uiRefreshIntervalMs >= 2000)
+            //    minHardwareRefreshMs = uiRefreshIntervalMs;
+            //else
+            //    minHardwareRefreshMs = 2000;
 
             long now = Environment.TickCount & Int32.MaxValue;
 
             if (!Mutexes.WaitSmbus(5000))
-                throw new TimeoutException("Timeout waiting for PCI bus mutex.");
+            {
+                Debug.WriteLine("Timeout waiting for PCI bus mutex.");
+                return false;
+            }
 
             try
             {
@@ -188,13 +199,13 @@ namespace ZenStates.Core.DRAM
                     Ddr5PmicData pd = info.Value.PmicData;
 
                     long elapsed = now - LastTelemetryRefreshTick;
-                    if (elapsed >= 0 && elapsed < minHardwareRefreshMs)
+                    if (elapsed >= 0 && elapsed < uiRefreshIntervalMs)
                         continue;
 
                     Ddr5PmicReader.ReadAllAdcVoltagesNoLock(SmbusPiix4.Instance, pd.I2cAddress, pd);
                     LastTelemetryRefreshTick = now;
-                    updated = true;
                 }
+                updated = true;
             }
             finally
             {

@@ -3,7 +3,7 @@ namespace ZenStates.Core
     /// <summary>
     /// Shared JEDEC voltage conversion helpers used by the PMIC expansion modules.
     /// </summary>
-    public static class JedecVoltageTables
+    internal static class JedecVoltageTables
     {
         public const int SwaSwbBaseMv = 800;
         public const int SwcBaseMv = 1500;

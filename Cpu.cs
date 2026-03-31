@@ -23,7 +23,7 @@ namespace ZenStates.Core
         public readonly Version Version = Assembly.GetExecutingAssembly().GetName().Version;
 
         public RyzenSmu RyzenSmu => _pawnRyzenSmu;
-        public SmbusPiix4 SmbusPiix4 => _pawnSmbusPiix4;
+        //internal SmbusPiix4 SmbusPiix4 => _pawnSmbusPiix4;
 
         public enum Family
         {

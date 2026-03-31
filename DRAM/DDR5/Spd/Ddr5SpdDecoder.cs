@@ -2,10 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using ZenStates.Core.DRAM;
+using ZenStates.Core.DRAM.DDR5.Spd;
 
 namespace ZenStates.Core
 {
-    public static class Ddr5SpdDecoder
+    internal static class Ddr5SpdDecoder
     {
         // SPD byte map (JESD400-5C, verified against hardware)
         //
@@ -925,77 +926,6 @@ namespace ZenStates.Core
             return ((b >> 4) & 0x0F) * 10 + (b & 0x0F);
         }
 
-        /// <summary>
-        /// Read and decode SPD from all discovered DDR5/LPDDR5 modules.
-        /// Also reads live thermal sensor data from SPD5118 hubs.
-        /// </summary>
-        public static Dictionary<byte, Ddr5SpdInfo> ReadAndDecodeAll(SmbusPiix4 smbus)
-        {
-            if (smbus == null)
-                throw new ArgumentNullException("smbus");
-
-            Dictionary<byte, List<byte>> rawDumps = smbus.DumpDdr5Spd();
-            Dictionary<byte, Ddr5SpdInfo> results = new Dictionary<byte, Ddr5SpdInfo>();
-
-            foreach (KeyValuePair<byte, List<byte>> kvp in rawDumps)
-            {
-                Ddr5SpdInfo info = Decode(kvp.Value);
-
-                if (!info.IsLpddr5)
-                {
-                    // Read live temperature from SPD5118 hub if supported
-                    try
-                    {
-                        if (Ddr5ThermalSensor.Detect(smbus, kvp.Key))
-                            info.ThermalData = Ddr5ThermalSensor.ReadAll(smbus, kvp.Key);
-                    }
-                    catch
-                    {
-                        // Thermal sensor not accessible - not critical
-                    }
-
-                    // Read PMIC data (PMIC addr = SPD addr - 0x08)
-                    try
-                    {
-                        byte pmicAddr = Ddr5PmicReader.PmicAddrFromSpd(kvp.Key);
-                        if (Ddr5PmicReader.Detect(smbus, pmicAddr))
-                            info.PmicData = Ddr5PmicReader.ReadAll(smbus, pmicAddr);
-                    }
-                    catch
-                    {
-                        // PMIC not accessible - not critical
-                    }
-                }
-
-                results.Add(kvp.Key, info);
-            }
-
-            return results;
-        }
-
-        /// <summary>
-        /// Read, decode, and print SPD from all discovered DDR5/LPDDR5 modules.
-        /// </summary>
-        public static Dictionary<byte, Ddr5SpdInfo> ReadDecodeAndPrint(SmbusPiix4 smbus)
-        {
-            Dictionary<byte, Ddr5SpdInfo> results = ReadAndDecodeAll(smbus);
-
-            foreach (KeyValuePair<byte, Ddr5SpdInfo> kvp in results)
-            {
-                Console.WriteLine("Module at I2C address 0x{0:X2}", kvp.Key);
-                Console.WriteLine(kvp.Value.ToString());
-            }
-
-            return results;
-        }
-
-        /// <summary>Decode from a raw binary SPD file on disk.</summary>
-        public static Ddr5SpdInfo DecodeFromFile(string path)
-        {
-            byte[] data = System.IO.File.ReadAllBytes(path);
-            return Decode(data);
-        }
-
         /// <summary>Quick check: does this SPD identify as DDR5?</summary>
         public static bool IsDdr5(byte[] spd)
         {
@@ -1040,6 +970,36 @@ namespace ZenStates.Core
                     sb.Append((char)c);
             }
             return sb.ToString().Trim();
+        }
+
+        /// <summary>
+        /// Read and decode SPD from all discovered DDR5/LPDDR5 modules.
+        /// Also reads live thermal sensor data from SPD5118 hubs.
+        /// </summary>
+        public static Dictionary<byte, Ddr5SpdInfo> ReadAndDecodeAll(SmbusPiix4 smbus)
+        {
+            if (smbus == null)
+                throw new ArgumentNullException("smbus");
+
+            Dictionary<byte, Ddr5SpdInfo> results = Ddr5SpdReader.ReadAll();
+            ReadLiveDeviceData(results, smbus);
+            return results;
+        }
+
+        private static void ReadLiveDeviceData(Dictionary<byte, Ddr5SpdInfo> results, SmbusPiix4 smbus)
+        {
+            if (results == null)
+                return;
+
+            foreach (KeyValuePair<byte, Ddr5SpdInfo> kvp in results)
+                Ddr5SpdReader.ReadLiveDevices(kvp.Key, kvp.Value, smbus);
+        }
+
+        /// <summary>Decode from a raw binary SPD file on disk.</summary>
+        public static Ddr5SpdInfo DecodeFromFile(string path)
+        {
+            byte[] data = System.IO.File.ReadAllBytes(path);
+            return Decode(data);
         }
     }
 }

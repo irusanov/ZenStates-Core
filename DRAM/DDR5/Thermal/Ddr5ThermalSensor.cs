@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace ZenStates.Core
 {
-    public static class Ddr5ThermalSensor
+    internal static class Ddr5ThermalSensor
     {
         // SPD5118 Hub Register Addresses (Mode Registers)
         /// <summary>MR0:MR1 – Device type identifier (reads 0x5118).</summary>
@@ -87,7 +87,7 @@ namespace ZenStates.Core
         // Uses SmbusPiix4.SmbusReadByteData(addr7, command, out result)
         private static bool ReadMR(SmbusPiix4 smbus, byte addr7, byte mr, out byte value)
         {
-            return smbus.SmbusReadByteData(addr7, mr, out value);
+            return smbus.ReadByteData(addr7, mr, out value);
         }
 
         private static bool ReadMR16(SmbusPiix4 smbus, byte addr7, byte mr, out int milliC)

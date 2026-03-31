@@ -4,7 +4,7 @@ using ZenStates.Core.DRAM;
 
 namespace ZenStates.Core
 {
-    public static class Ddr5PmicReader
+    internal static class Ddr5PmicReader
     {
         // PMIC I2C address range
 
@@ -247,17 +247,17 @@ namespace ZenStates.Core
         // SMBus helpers
         private static bool ReadReg(SmbusPiix4 smbus, byte addr, byte reg, out byte val)
         {
-            return smbus.SmbusReadByteData(addr, reg, out val);
+            return smbus.ReadByteData(addr, reg, out val);
         }
 
         private static bool ReadRegNoLock(SmbusPiix4 smbus, byte addr, byte reg, out byte val)
         {
-            return smbus.SmbusReadByteDataNoLock(addr, reg, out val);
+            return smbus.ReadByteDataNoLock(addr, reg, out val);
         }
 
         private static bool WriteRegNoLock(SmbusPiix4 smbus, byte addr, byte reg, byte val)
         {
-            return smbus.SmbusWriteByteDataNoLock(addr, reg, val);
+            return smbus.WriteByteDataNoLock(addr, reg, val);
         }
 
         public static void ReadAdcVoltage(SmbusPiix4 smbus, byte pmicAddr, byte selectCode, out int mv)
@@ -269,7 +269,7 @@ namespace ZenStates.Core
             //if (!ReadReg(smbus, pmicAddr, REG_TELEMETRY_SELECT, out raw))
             //    return;
 
-            smbus.SmbusWriteByteData(pmicAddr, REG_TELEMETRY_SELECT, reg30);
+            smbus.WriteByteData(pmicAddr, REG_TELEMETRY_SELECT, reg30);
             // Program ADC select; host should wait 9 ms per JESD301-2.
             // Sleep is handled in the PawnIO module
             //System.Threading.Thread.Sleep(10);
@@ -287,10 +287,10 @@ namespace ZenStates.Core
             byte reg30 = (byte)(0x80 | ((selectCode & 0x0F) << 3));
             byte raw;
 
+            // Program ADC select; host should wait 9 ms per JESD301-2.
             if (!WriteRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, reg30))
                 return false;
 
-            // Program ADC select; host should wait 9 ms per JESD301-2.
             System.Threading.Thread.Sleep(10);
 
             // First read may still be previous/stale sample after mux switch.
@@ -331,7 +331,7 @@ namespace ZenStates.Core
         // Detection
 
         /// <summary>Derive PMIC I2C address from SPD hub address.</summary>
-        public static byte PmicAddrFromSpd(byte spdAddr)
+        public static byte CalculatePmicAddrFromSpd(byte spdAddr)
         {
             return (byte)(spdAddr - SPD_PMIC_OFFSET);
         }
