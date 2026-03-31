@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using ZenStates.Core.Drivers;
 
@@ -131,7 +131,7 @@ namespace ZenStates.Core.DRAM
             {
                 info.DeviceType = b0;
                 info.IsValid = (info.DeviceType == 0x12 || info.DeviceType == 0x13);
-                if (info.IsValid)
+                if (!info.IsValid)
                     return null;
                 info.IsLpddr5 = (info.DeviceType == 0x13);
             }
