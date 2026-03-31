@@ -36,8 +36,8 @@ namespace ZenStates.Core
                 new TimingDef { Name = "CL",        HiBit = 5   ,   LoBit = 0   },
             }},
             { 0x50208, new[] {
-                new TimingDef { Name = "RC",        HiBit = 7   ,   LoBit = 0   },
                 new TimingDef { Name = "RP",        HiBit = 21  ,   LoBit = 16  },
+                new TimingDef { Name = "RC",        HiBit = 7   ,   LoBit = 0   },
             }},
             { 0x5020C, new[] {
                 new TimingDef { Name = "RTP",       HiBit = 28  ,   LoBit = 24  },
@@ -97,7 +97,9 @@ namespace ZenStates.Core
                 new TimingDef { Name = "PHYWRL",    HiBit = 15  ,   LoBit = 8   },
             }},
             { 0x502A4, new[] {
+                new TimingDef { Name = "WRPOST",    HiBit = 14  ,   LoBit = 12  },
                 new TimingDef { Name = "WRPRE",     HiBit = 10  ,   LoBit = 8   },
+                new TimingDef { Name = "RDPOST",    HiBit = 6   ,   LoBit = 4   },
                 new TimingDef { Name = "RDPRE",     HiBit = 2   ,   LoBit = 0   },
             }},
             /*

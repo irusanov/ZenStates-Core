@@ -215,6 +215,8 @@ namespace ZenStates.Core.DRAM
             }
             internal set => _rdpre = value;
         }
+        public uint RDPOST { get; internal set; }
+        public uint WRPOST { get; internal set; }
         public float RFCns { get => Utils.ToNanoseconds(RFC, Frequency); }
         public float REFIns { get => Utils.ToNanoseconds(REFI, Frequency); }
         public uint FGR { get; internal set; }
