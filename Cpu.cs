@@ -8,6 +8,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using ZenStates.Core.DRAM;
+using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core
 {
@@ -149,7 +150,7 @@ namespace ZenStates.Core
             public Apob apob;
         }
 
-        public readonly IOModule io = new IOModule();
+        public readonly IODriver io = new IODriver();
         private readonly AMD_MMIO mmio;
         public readonly CPUInfo info;
         public readonly SystemInfo systemInfo;
@@ -157,7 +158,7 @@ namespace ZenStates.Core
         public readonly PowerTable powerTable;
         public readonly MemoryConfig memoryConfig;
 
-        public IOModule.LibStatus Status { get; }
+        public IODriver.LibStatus Status { get; }
         public Exception LastError { get; }
 
         /**
@@ -405,7 +406,7 @@ namespace ZenStates.Core
             catch (Exception ex)
             {
                 LastError = ex;
-                Status = IOModule.LibStatus.PARTIALLY_OK;
+                Status = IODriver.LibStatus.PARTIALLY_OK;
             }
 
             try
@@ -430,12 +431,12 @@ namespace ZenStates.Core
                 System.Threading.Thread.Sleep(300);
                 powerTable.Refresh();
 
-                Status = IOModule.LibStatus.OK;
+                Status = IODriver.LibStatus.OK;
             }
             catch (Exception ex)
             {
                 LastError = ex;
-                Status = IOModule.LibStatus.PARTIALLY_OK;
+                Status = IODriver.LibStatus.PARTIALLY_OK;
             }
         }
 

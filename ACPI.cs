@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core
 {
@@ -168,9 +169,9 @@ namespace ZenStates.Core
             public byte _unknown5;
         };
 
-        private readonly IOModule io;
+        private readonly IODriver io;
 
-        public ACPI(IOModule io)
+        public ACPI(IODriver io)
         {
             this.io = io ?? throw new ArgumentNullException(nameof(io));
         }

@@ -1,10 +1,11 @@
 ﻿using System;
+using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core
 {
     public sealed class Apob
     {
-        private static readonly IOModule io = IOModule.Instance;
+        private static readonly IODriver io = IODriver.Instance;
         private static readonly uint[] KnownAddresses = new uint[3] { 0xA200000, 0x9F00000, 0x4000000 };
         private const uint ApobSignature = 0x424f5041; // "APOB"
         private static readonly byte[] DataOffsetPattern = new byte[8] { 0x01, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x0 };

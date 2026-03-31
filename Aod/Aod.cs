@@ -4,13 +4,14 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Management;
 using System.Text;
+using ZenStates.Core.Drivers;
 using static ZenStates.Core.ACPI;
 
 namespace ZenStates.Core
 {
     public class AOD
     {
-        internal readonly IOModule io;
+        internal readonly IODriver io;
         internal readonly Cpu cpuInstance;
         public readonly ACPI acpi;
         internal readonly Cpu.CodeName codeName;
@@ -39,7 +40,7 @@ namespace ZenStates.Core
             }
         }
 
-        public AOD(IOModule io, Cpu cpuInstance)
+        public AOD(IODriver io, Cpu cpuInstance)
         {
             this.io = io;
             this.cpuInstance = cpuInstance;

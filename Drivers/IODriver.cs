@@ -7,9 +7,9 @@ using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.ServiceProcess;
 
-namespace ZenStates.Core
+namespace ZenStates.Core.Drivers
 {
-    public sealed class IOModule : IDisposable
+    public sealed class IODriver : IDisposable
     {
         [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Ansi)]
         private static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPStr)] string lpFileName);
@@ -31,9 +31,9 @@ namespace ZenStates.Core
 
         private LibStatus WinIoStatus { get; } = LibStatus.INITIALIZE_ERROR;
 
-        private static IOModule _instance;
+        private static IODriver _instance;
 
-        public static IOModule Instance => _instance;
+        public static IODriver Instance => _instance;
 
         public bool IsInpOutDriverOpen()
         {
@@ -84,7 +84,7 @@ namespace ZenStates.Core
             return dll;
         }
 
-        public IOModule()
+        public IODriver()
         {
             try
             {

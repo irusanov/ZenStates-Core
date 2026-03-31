@@ -1,4 +1,5 @@
 using System;
+using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core
 {
@@ -23,7 +24,7 @@ namespace ZenStates.Core
         // internal const uint IOMUX_LPCCLK1 = IOMUX_BASE + 0x1F;
 
         private static AMD_MMIO _instance;
-        private readonly IOModule io;
+        private readonly IODriver io;
 
         public static AMD_MMIO Instance => _instance;
 
@@ -34,7 +35,7 @@ namespace ZenStates.Core
             INTERNAL = 1,
         }
 
-        public AMD_MMIO(IOModule io)
+        public AMD_MMIO(IODriver io)
         {
             this.io = io;
             _instance = this;
