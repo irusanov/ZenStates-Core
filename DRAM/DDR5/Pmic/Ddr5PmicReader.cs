@@ -50,14 +50,13 @@ namespace ZenStates.Core
             if (!WriteRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, reg30))
                 return false;
 
-            System.Threading.Thread.Sleep(10);
+            Utils.DelayMicroseconds(2000);
 
             // First read may still be previous/stale sample after mux switch.
             if (!ReadRegNoLock(smbus, pmicAddr, REG_TELEMETRY_VALUE, out raw))
                 return false;
 
-            // Small extra delay and read again for the settled value.
-            System.Threading.Thread.Sleep(1);
+            Utils.DelayMicroseconds(200);
 
             if (!ReadRegNoLock(smbus, pmicAddr, REG_TELEMETRY_VALUE, out raw))
                 return false;

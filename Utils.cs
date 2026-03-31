@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 
 namespace ZenStates.Core
 {
@@ -539,6 +540,24 @@ namespace ZenStates.Core
             }
 
             return null;
+        }
+
+        public static void DelayMicroseconds(int microseconds)
+        {
+            if (microseconds <= 0)
+                return;
+
+            long waitTicks = (Stopwatch.Frequency * microseconds) / 1000000L;
+
+            if (waitTicks <= 0)
+                waitTicks = 1;
+
+            long start = Stopwatch.GetTimestamp();
+
+            while ((Stopwatch.GetTimestamp() - start) < waitTicks)
+            {
+                Thread.SpinWait(10);
+            }
         }
     }
 }

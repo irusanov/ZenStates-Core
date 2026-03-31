@@ -180,24 +180,6 @@ namespace ZenStates.Core.Drivers
             return (numerator + denominator - 1) / denominator;
         }
 
-        private static void DelayMicroseconds(int microseconds)
-        {
-            if (microseconds <= 0)
-                return;
-
-            long waitTicks = (Stopwatch.Frequency * microseconds) / 1000000L;
-
-            if (waitTicks <= 0)
-                waitTicks = 1;
-
-            long start = Stopwatch.GetTimestamp();
-
-            while ((Stopwatch.GetTimestamp() - start) < waitTicks)
-            {
-                Thread.SpinWait(10);
-            }
-        }
-
         public bool Initialize()
         {
             if (!Mutexes.WaitPciBus(5000))
@@ -278,7 +260,7 @@ namespace ZenStates.Core.Drivers
                 initialDelayUs = DivideRoundUp((10 + (9 * size)) * timing * 4, 66);
 
             if (initialDelayUs > 0)
-                DelayMicroseconds(initialDelayUs);
+                Utils.DelayMicroseconds(initialDelayUs);
 
             int perClockUs = 0;
             if (timing != 0)
@@ -295,7 +277,7 @@ namespace ZenStates.Core.Drivers
                     break;
 
                 if (perClockUs > 0)
-                    DelayMicroseconds(perClockUs);
+                    Utils.DelayMicroseconds(perClockUs);
             }
             while (true);
 

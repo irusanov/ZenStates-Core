@@ -198,10 +198,11 @@ namespace ZenStates.Core
 
         public static Ddr5PmicData Decode(byte pmicAddr, byte[] rawRegisters)
         {
-            if (rawRegisters != null || rawRegisters.Length == 0)
+            if (rawRegisters == null || rawRegisters.Length == 0)
                 return new Ddr5PmicData { IsValid = false };
 
             Ddr5PmicData pd = new Ddr5PmicData();
+            pd.IsValid = true;
             pd.I2cAddress = pmicAddr;
             pd.SpdHubAddress = (byte)(pmicAddr + SPD_PMIC_OFFSET);
             pd.RawRegisters = rawRegisters;
