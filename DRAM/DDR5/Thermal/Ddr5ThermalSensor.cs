@@ -1,5 +1,5 @@
-using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core
@@ -86,12 +86,12 @@ namespace ZenStates.Core
 
         // SMBus read helpers
         // Uses SmbusPiix4.SmbusReadByteData(addr7, command, out result)
-        private static bool ReadMR(SmbusDriverBase smbus, byte addr7, byte mr, out byte value)
+        private static bool ReadMRNoLock(SmbusDriverBase smbus, byte addr7, byte mr, out byte value)
         {
-            return smbus.ReadByteData(addr7, mr, out value);
+            return smbus.ReadByteDataNoLock(addr7, mr, out value);
         }
 
-        private static bool ReadMR16(SmbusDriverBase smbus, byte addr7, byte mr, out int milliC)
+        private static bool ReadMR16NoLock(SmbusDriverBase smbus, byte addr7, byte mr, out int milliC)
         {
             milliC = 0;
             byte lo, hi;
@@ -99,8 +99,8 @@ namespace ZenStates.Core
             //   MR_N = LSB, MR_N+1 = MSB
             // (Confirmed by Linux kernel spd5118.c: regmap_bulk_read + (regval[1]<<8)|regval[0])
             // NOTE: Device type at MR0:MR1 is big-endian — handled separately in Detect().
-            if (!ReadMR(smbus, addr7, mr, out lo)) return false;
-            if (!ReadMR(smbus, addr7, (byte)(mr + 1), out hi)) return false;
+            if (!ReadMRNoLock(smbus, addr7, mr, out lo)) return false;
+            if (!ReadMRNoLock(smbus, addr7, (byte)(mr + 1), out hi)) return false;
             milliC = RawToMilliC((hi << 8) | lo);
             return true;
         }
@@ -109,20 +109,20 @@ namespace ZenStates.Core
         /// Detect whether the device at the given I2C address is an SPD5118
         /// hub with temperature sensor support.
         /// </summary>
-        public static bool Detect(SmbusDriverBase smbus, byte i2cAddr)
+        internal static bool DetectNoLock(SmbusDriverBase smbus, byte i2cAddr)
         {
             try
             {
                 byte mr0, mr1;
-                if (!ReadMR(smbus, i2cAddr, REG_TYPE, out mr0)) return false;
-                if (!ReadMR(smbus, i2cAddr, (byte)(REG_TYPE + 1), out mr1)) return false;
+                if (!ReadMRNoLock(smbus, i2cAddr, REG_TYPE, out mr0)) return false;
+                if (!ReadMRNoLock(smbus, i2cAddr, (byte)(REG_TYPE + 1), out mr1)) return false;
                 // SPD5118 registers are big-endian: MR0 = MSB (0x51), MR1 = LSB (0x18)
                 int deviceType = (mr0 << 8) | mr1;
                 if (deviceType != 0x5118)
                     return false;
 
                 byte cap;
-                if (!ReadMR(smbus, i2cAddr, REG_CAPABILITY, out cap)) return false;
+                if (!ReadMRNoLock(smbus, i2cAddr, REG_CAPABILITY, out cap)) return false;
                 return (cap & CAP_TS_SUPPORT) != 0;
             }
             catch
@@ -135,10 +135,10 @@ namespace ZenStates.Core
         /// Read the current temperature from the SPD5118 sensor.
         /// </summary>
         /// <returns>Temperature in millidegrees Celsius, or int.MinValue on error.</returns>
-        public static int ReadTemperatureMilliC(SmbusDriverBase smbus, byte i2cAddr)
+        internal static int ReadTemperatureMilliC(SmbusDriverBase smbus, byte i2cAddr)
         {
             int mc;
-            if (!ReadMR16(smbus, i2cAddr, REG_TEMP, out mc))
+            if (!ReadMR16NoLock(smbus, i2cAddr, REG_TEMP, out mc))
                 return int.MinValue;
             return mc;
         }
@@ -147,7 +147,7 @@ namespace ZenStates.Core
         /// Read the current temperature from the SPD5118 sensor.
         /// </summary>
         /// <returns>Temperature in degrees Celsius, or double.NaN on error.</returns>
-        public static double ReadTemperatureC(SmbusDriverBase smbus, byte i2cAddr)
+        internal static double ReadTemperatureC(SmbusDriverBase smbus, byte i2cAddr)
         {
             int mc = ReadTemperatureMilliC(smbus, i2cAddr);
             if (mc == int.MinValue) return double.NaN;
@@ -157,28 +157,28 @@ namespace ZenStates.Core
         /// <summary>
         /// Read all thermal sensor data: current temp, limits, and alarms.
         /// </summary>
-        public static Ddr5ThermalData ReadAll(SmbusDriverBase smbus, byte i2cAddr)
+        internal static Ddr5ThermalData ReadAllNoLock(SmbusDriverBase smbus, byte i2cAddr)
         {
             Ddr5ThermalData td = new Ddr5ThermalData();
 
             try
             {
                 byte mr0, mr1;
-                if (!ReadMR(smbus, i2cAddr, REG_TYPE, out mr0)) return td;
-                if (!ReadMR(smbus, i2cAddr, (byte)(REG_TYPE + 1), out mr1)) return td;
+                if (!ReadMRNoLock(smbus, i2cAddr, REG_TYPE, out mr0)) return td;
+                if (!ReadMRNoLock(smbus, i2cAddr, (byte)(REG_TYPE + 1), out mr1)) return td;
                 // SPD5118 registers are big-endian: MR0 = MSB, MR1 = LSB
                 int deviceType = (mr0 << 8) | mr1;
                 if (deviceType != 0x5118)
                     return td;
 
                 byte cap;
-                if (!ReadMR(smbus, i2cAddr, REG_CAPABILITY, out cap)) return td;
+                if (!ReadMRNoLock(smbus, i2cAddr, REG_CAPABILITY, out cap)) return td;
                 td.TempSensorSupported = (cap & CAP_TS_SUPPORT) != 0;
                 if (!td.TempSensorSupported)
                     return td;
 
                 byte cfg;
-                if (!ReadMR(smbus, i2cAddr, REG_TEMP_CONFIG, out cfg)) return td;
+                if (!ReadMRNoLock(smbus, i2cAddr, REG_TEMP_CONFIG, out cfg)) return td;
                 td.TempSensorEnabled = (cfg & TS_DISABLE) == 0;
 
                 if (!td.TempSensorEnabled)
@@ -188,19 +188,19 @@ namespace ZenStates.Core
                 }
 
                 int mc;
-                if (ReadMR16(smbus, i2cAddr, REG_TEMP, out mc))
+                if (ReadMR16NoLock(smbus, i2cAddr, REG_TEMP, out mc))
                     td.TemperatureMilliC = mc;
-                if (ReadMR16(smbus, i2cAddr, REG_TEMP_MAX, out mc))
+                if (ReadMR16NoLock(smbus, i2cAddr, REG_TEMP_MAX, out mc))
                     td.TempMaxMilliC = mc;
-                if (ReadMR16(smbus, i2cAddr, REG_TEMP_MIN, out mc))
+                if (ReadMR16NoLock(smbus, i2cAddr, REG_TEMP_MIN, out mc))
                     td.TempMinMilliC = mc;
-                if (ReadMR16(smbus, i2cAddr, REG_TEMP_CRIT, out mc))
+                if (ReadMR16NoLock(smbus, i2cAddr, REG_TEMP_CRIT, out mc))
                     td.TempCritMilliC = mc;
-                if (ReadMR16(smbus, i2cAddr, REG_TEMP_LCRIT, out mc))
+                if (ReadMR16NoLock(smbus, i2cAddr, REG_TEMP_LCRIT, out mc))
                     td.TempLCritMilliC = mc;
 
                 byte status;
-                if (ReadMR(smbus, i2cAddr, REG_TEMP_STATUS, out status))
+                if (ReadMRNoLock(smbus, i2cAddr, REG_TEMP_STATUS, out status))
                 {
                     td.AlarmHigh = (status & STATUS_HIGH) != 0;
                     td.AlarmLow = (status & STATUS_LOW) != 0;
@@ -222,15 +222,15 @@ namespace ZenStates.Core
         /// Scan all standard DDR5 SPD addresses (0x50-0x57) and read
         /// thermal data from every DIMM that has an SPD5118 hub with TS.
         /// </summary>
-        public static Dictionary<byte, Ddr5ThermalData> ReadAllDimms(SmbusDriverBase smbus)
+        internal static Dictionary<byte, Ddr5ThermalData> ReadAllDimmsNoLock(SmbusDriverBase smbus)
         {
             Dictionary<byte, Ddr5ThermalData> results =
                 new Dictionary<byte, Ddr5ThermalData>();
 
             for (byte addr = 0x50; addr <= 0x57; addr++)
             {
-                if (Detect(smbus, addr))
-                    results[addr] = ReadAll(smbus, addr);
+                if (DetectNoLock(smbus, addr))
+                    results[addr] = ReadAllNoLock(smbus, addr);
             }
 
             return results;
@@ -241,12 +241,28 @@ namespace ZenStates.Core
         /// </summary>
         public static void PrintAllDimms(SmbusDriverBase smbus)
         {
-            Dictionary<byte, Ddr5ThermalData> data = ReadAllDimms(smbus);
+            if (!Mutexes.WaitSmbus(5000))
+            {
+                Debug.WriteLine("Failed to acquire SMBus mutex for reading DDR5 thermal sensors.");
+                return;
+            }
+
+            Dictionary<byte, Ddr5ThermalData> data = default;
+
+            try
+            {
+               data = ReadAllDimmsNoLock(smbus);
+
+            }
+            finally
+            {
+                Mutexes.ReleaseSmbus();
+            }
 
             foreach (KeyValuePair<byte, Ddr5ThermalData> kvp in data)
             {
-                Console.WriteLine("DIMM 0x{0:X2} Thermal Sensor:", kvp.Key);
-                Console.WriteLine(kvp.Value.ToString());
+                Debug.WriteLine($"DIMM 0x{0:X2} Thermal Sensor: {kvp.Key}");
+                Debug.WriteLine(kvp.Value.ToString());
             }
         }
     }

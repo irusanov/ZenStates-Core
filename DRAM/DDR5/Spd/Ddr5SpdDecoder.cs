@@ -976,23 +976,19 @@ namespace ZenStates.Core
         /// Read and decode SPD from all discovered DDR5/LPDDR5 modules.
         /// Also reads live thermal sensor data from SPD5118 hubs.
         /// </summary>
-        public static Dictionary<byte, Ddr5SpdInfo> ReadAndDecodeAll(SmbusDriverBase smbus)
+        internal static Dictionary<byte, Ddr5SpdInfo> ReadAndDecodeAll(SmbusDriverBase smbus)
         {
             if (smbus == null)
                 throw new ArgumentNullException("smbus");
 
-            Dictionary<byte, Ddr5SpdInfo> results = Ddr5SpdReader.ReadAll();
-            ReadLiveDeviceData(results, smbus);
+            Dictionary<byte, Ddr5SpdInfo> results = Ddr5SpdReader.ReadDdr5SpdAll();
+
+            if (results != null)
+            {
+                foreach (KeyValuePair<byte, Ddr5SpdInfo> kvp in results)
+                    Ddr5SpdReader.ReadLiveDevicesNoLock(kvp.Key, kvp.Value, smbus);
+            }
             return results;
-        }
-
-        private static void ReadLiveDeviceData(Dictionary<byte, Ddr5SpdInfo> results, SmbusDriverBase smbus)
-        {
-            if (results == null)
-                return;
-
-            foreach (KeyValuePair<byte, Ddr5SpdInfo> kvp in results)
-                Ddr5SpdReader.ReadLiveDevices(kvp.Key, kvp.Value, smbus);
         }
 
         /// <summary>Decode from a raw binary SPD file on disk.</summary>

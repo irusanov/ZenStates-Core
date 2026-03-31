@@ -1,7 +1,7 @@
 namespace ZenStates.Core
 {
     /// <summary>
-    /// Shared JEDEC voltage conversion helpers used by the PMIC expansion modules.
+    /// Shared JEDEC voltage conversion helpers
     /// </summary>
     internal static class JedecVoltageTables
     {

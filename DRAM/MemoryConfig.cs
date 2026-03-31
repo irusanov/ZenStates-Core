@@ -94,34 +94,40 @@ namespace ZenStates.Core.DRAM
                 Mutexes.ReleasePciBus();
             }
 
+            if (Type != MemType.DDR5 && Type != MemType.LPDDR5)
+                return;
+
+            if (!Mutexes.WaitSmbus(5000))
+            {
+                Debug.WriteLine("MemoryConfig: Timeout waiting for SMBus mutex.");
+                return;
+            }
+
             try
             {
-                if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
-                {
-                    // Only read partial info needed for initialization as reading whole SPD data is expensive
-                    SpdInfo = Ddr5SpdReader.ReadDdr5SpdInitInfoAll();
-                    //SpdInfo = Ddr5SpdDecoder.ReadAndDecodeAll(smbusDriver);
+                // Only read partial info needed for initialization as reading whole SPD data is expensive
+                SpdInfo = Ddr5SpdReader.ReadDdr5SpdInitInfoAllNoLock();
+                //SpdInfo = Ddr5SpdDecoder.ReadAndDecodeAllNoLock(smbusDriver);
 
-                    int moduleIndex = 0;
-                    foreach (var spdEntry in SpdInfo.Values)
+                int moduleIndex = 0;
+                foreach (var spdEntry in SpdInfo.Values)
+                {
+                    if (moduleIndex < Modules.Count)
                     {
-                        if (moduleIndex < Modules.Count)
+                        if (string.IsNullOrEmpty(Modules[moduleIndex].Manufacturer) ||
+                            Modules[moduleIndex].Manufacturer.StartsWith("Unknown") ||
+                            !spdEntry.ModuleManufacturer.StartsWith("Unknown"))
                         {
-                            if (string.IsNullOrEmpty(Modules[moduleIndex].Manufacturer) ||
-                                Modules[moduleIndex].Manufacturer.StartsWith("Unknown") ||
-                                !spdEntry.ModuleManufacturer.StartsWith("Unknown"))
-                            {
-                                Modules[moduleIndex].Manufacturer = spdEntry.ModuleManufacturer;
-                            }
-                            moduleIndex++;
+                            Modules[moduleIndex].Manufacturer = spdEntry.ModuleManufacturer;
                         }
+                        moduleIndex++;
                     }
                 }
 
             }
-            catch
+            finally
             {
-                // do nothing, SPD reading is best-effort
+                Mutexes.ReleaseSmbus();
             }
         }
 
@@ -173,7 +179,7 @@ namespace ZenStates.Core.DRAM
 
         public Dictionary<byte, Ddr5SpdInfo> ReadAndDecodeAll()
         {
-           return Ddr5SpdDecoder.ReadAndDecodeAll(smbusDriver);
+            return Ddr5SpdDecoder.ReadAndDecodeAll(smbusDriver);
         }
 
         public bool RefreshTelemetry(int uiRefreshIntervalMs = 2000)
@@ -198,7 +204,9 @@ namespace ZenStates.Core.DRAM
             {
                 foreach (var info in SpdInfo)
                 {
-                    Ddr5PmicData pd = info.Value.PmicData;
+                    Ddr5PmicData pd = info.Value?.PmicData;
+                    if (pd == null || !pd.IsValid)
+                        continue;
 
                     long elapsed = now - LastTelemetryRefreshTick;
                     if (elapsed >= 0 && elapsed < uiRefreshIntervalMs)
@@ -206,8 +214,8 @@ namespace ZenStates.Core.DRAM
 
                     Ddr5PmicReader.ReadAllAdcVoltagesNoLock(smbusDriver, pd.I2cAddress, pd);
                     LastTelemetryRefreshTick = now;
+                    updated = true;
                 }
-                updated = true;
             }
             finally
             {

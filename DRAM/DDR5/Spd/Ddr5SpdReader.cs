@@ -50,7 +50,7 @@ namespace ZenStates.Core.DRAM
                 List<byte> found = new List<byte>();
                 for (int i = SPD_HUB_ADDR_FIRST; i <= SPD_HUB_ADDR_LAST; i++)
                 {
-                    if (smbusDriver.ReadByteData((byte)i, 0x00, out byte _))
+                    if (smbusDriver.ReadByteDataNoLock((byte)i, 0x00, out byte _))
                         found.Add((byte)i);
                 }
                 if (found.Count > 0)
@@ -60,7 +60,8 @@ namespace ZenStates.Core.DRAM
             return new List<byte>();
         }
 
-        internal static Ddr5SpdInfo ReadNoLock(byte addr7)
+        // Read full SPD info without Mutex lock
+        internal static Ddr5SpdInfo ReadDdr5SpdNoLock(byte addr7)
         {
             List<byte> spd = new List<byte>(SPD_TOTAL_SIZE);
             int prevPage = -1;
@@ -101,13 +102,128 @@ namespace ZenStates.Core.DRAM
             return Ddr5SpdDecoder.Decode(spd);
         }
 
-        public static Ddr5SpdInfo Read(byte addr7)
+        internal static Dictionary<byte, Ddr5SpdInfo> ReadDdr5SpdAllNoLock()
+        {
+            Dictionary<byte, Ddr5SpdInfo> list = new Dictionary<byte, Ddr5SpdInfo>();
+            List<byte> addresses = ScanDdr5SpdHubsNoLock();
+            if (addresses.Count == 0)
+                throw new InvalidOperationException("No DDR5 DIMMs found on any SMBus port.");
+
+            for (int i = 0; i < addresses.Count; i++)
+                list.Add(addresses[i], ReadDdr5SpdNoLock(addresses[i]));
+
+            return list;
+        }
+
+        // Read minimal SPD info without Mutex lock
+        internal static Ddr5SpdInfo ReadDdr5SpdInitInfoNoLock(byte addr7)
+        {
+            byte[] spd = new byte[SPD_TOTAL_SIZE];
+            Ddr5SpdInfo info = new Ddr5SpdInfo();
+
+            byte b0, b1;
+            ushort w;
+
+            if (!SpdSwitchPage(addr7, 0))
+                return null;
+
+            if (smbusDriver.ReadByteDataNoLock(addr7, (byte)SpdCalculateReg(2), out b0))
+            {
+                info.DeviceType = b0;
+                info.IsValid = (info.DeviceType == 0x12 || info.DeviceType == 0x13);
+                if (info.IsValid)
+                    return null;
+                info.IsLpddr5 = (info.DeviceType == 0x13);
+            }
+
+            // -------------------------------------------------
+            // Page 4: module manufacturer / part number
+            // -------------------------------------------------
+            if (!SpdSwitchPage(addr7, 4))
+                return null;
+
+            // Module manufacturer: bytes 512-513
+            if (smbusDriver.ReadWordDataNoLock(addr7, (byte)SpdCalculateReg(552), out w))
+            {
+                b0 = (byte)(w & 0xFF);
+                b1 = (byte)((w >> 8) & 0xFF);
+                info.DramMfgIdBank = b0;
+                info.DramMfgIdMfr = b1;
+                info.DramManufacturer = ManufacturerMapping.Lookup(info.DramMfgIdBank, info.DramMfgIdMfr);
+            }
+
+            ReadPmicNoLock(addr7, info, smbusDriver);
+
+            return info;
+        }
+
+        internal static Dictionary<byte, Ddr5SpdInfo> ReadDdr5SpdInitInfoAllNoLock()
+        {
+            Dictionary<byte, Ddr5SpdInfo> result = new Dictionary<byte, Ddr5SpdInfo>();
+
+            List<byte> addresses = ScanDdr5SpdHubsNoLock();
+            for (int i = 0; i < addresses.Count; i++)
+            {
+                byte addr = addresses[i];
+                Ddr5SpdInfo info = ReadDdr5SpdInitInfoNoLock(addr);
+                if (info != null)
+                    result[addr] = info;
+            }
+
+            return result;
+        }
+
+        internal static void ReadThermalNoLock(byte addr7, Ddr5SpdInfo info, SmbusDriverBase smbus)
+        {
+            if (info == null || smbus == null || info.IsLpddr5)
+                return;
+
+            try
+            {
+                if (Ddr5ThermalSensor.DetectNoLock(smbus, addr7))
+                    info.ThermalData = Ddr5ThermalSensor.ReadAllNoLock(smbus, addr7);
+            }
+            catch
+            {
+                // Thermal sensor not accessible - not critical
+            }
+        }
+
+        internal static void ReadPmicNoLock(byte addr7, Ddr5SpdInfo info, SmbusDriverBase smbus)
+        {
+            if (info == null || smbus == null || info.IsLpddr5)
+                return;
+
+            try
+            {
+                byte pmicAddr = Ddr5PmicReader.CalculatePmicAddrFromSpd(addr7);
+                if (Ddr5PmicReader.DetectNoLock(smbus, pmicAddr))
+                    info.PmicData = Ddr5PmicReader.ReadPmic(smbus, pmicAddr);
+            }
+            catch
+            {
+                // PMIC not accessible - not critical
+            }
+        }
+
+        internal static void ReadLiveDevicesNoLock(byte addr7, Ddr5SpdInfo info, SmbusDriverBase smbus)
+        {
+            if (info == null || smbus == null)
+                return;
+
+            ReadThermalNoLock(addr7, info, smbus);
+            ReadPmicNoLock(addr7, info, smbus);
+        }
+
+        // Public methods with Mutex lock
+        // Read single DDR5 SPD full
+        public static Ddr5SpdInfo ReadDdr5Spd(byte addr7)
         {
             if (!Mutexes.WaitSmbus(5000))
                 return null;
             try
             {
-                return ReadNoLock(addr7);
+                return ReadDdr5SpdNoLock(addr7);
             }
             finally
             {
@@ -115,7 +231,23 @@ namespace ZenStates.Core.DRAM
             }
         }
 
-        public static Dictionary<byte, Ddr5SpdInfo> ReadAll()
+        // Read single DDR5 SPD minimal
+        public static Ddr5SpdInfo ReadDdr5SpdInitInfo(byte addr7)
+        {
+            if (!Mutexes.WaitSmbus(5000))
+                return null;
+            try
+            {
+                return ReadDdr5SpdInitInfoNoLock(addr7);
+            }
+            finally
+            {
+                Mutexes.ReleaseSmbus();
+            }
+        }
+
+        // Read all SPD
+        public static Dictionary<byte, Ddr5SpdInfo> ReadDdr5SpdAll()
         {
             Dictionary<byte, Ddr5SpdInfo> list = new Dictionary<byte, Ddr5SpdInfo>();
 
@@ -124,12 +256,7 @@ namespace ZenStates.Core.DRAM
 
             try
             {
-                List<byte> addresses = ScanDdr5SpdHubsNoLock();
-                if (addresses.Count == 0)
-                    throw new InvalidOperationException("No DDR5 DIMMs found on any SMBus port.");
-
-                for (int i = 0; i < addresses.Count; i++)
-                    list.Add(addresses[i], ReadNoLock(addresses[i]));
+                list = ReadDdr5SpdAllNoLock();
             }
             finally
             {
@@ -138,178 +265,23 @@ namespace ZenStates.Core.DRAM
             return list;
         }
 
-        public static Ddr5SpdInfo ReadDdr5SpdInitInfo(byte addr7)
+        public static Dictionary<byte, Ddr5SpdInfo> ReadDdr5SpdInitInfoAll()
         {
-            byte[] spd = new byte[SPD_TOTAL_SIZE];
-            Ddr5SpdInfo info = new Ddr5SpdInfo();
+            Dictionary<byte, Ddr5SpdInfo> list = new Dictionary<byte, Ddr5SpdInfo>();
 
             if (!Mutexes.WaitSmbus(5000))
-                return null;
+                return list;
 
             try
             {
-                byte b0, b1;
-                ushort w;
-
-                if (!SpdSwitchPage(addr7, 0))
-                    return null;
-
-                if (smbusDriver.ReadByteData(addr7, (byte)SpdCalculateReg(2), out b0))
-                {
-                    info.DeviceType = b0;
-                    info.IsValid = (info.DeviceType == 0x12 || info.DeviceType == 0x13);
-                    if (info.IsValid)
-                        return null;
-                    info.IsLpddr5 = (info.DeviceType == 0x13);
-                }
-
-                // -------------------------------------------------
-                // Page 4: module manufacturer / part number
-                // -------------------------------------------------
-                if (!SpdSwitchPage(addr7, 4))
-                    return null;
-
-                // Module manufacturer: bytes 512-513
-                if (smbusDriver.ReadWordDataNoLock(addr7, (byte)SpdCalculateReg(552), out w))
-                {
-                    b0 = (byte)(w & 0xFF);
-                    b1 = (byte)((w >> 8) & 0xFF);
-                    info.DramMfgIdBank = b0;
-                    info.DramMfgIdMfr = b1;
-                    info.DramManufacturer = ManufacturerMapping.Lookup(info.DramMfgIdBank, info.DramMfgIdMfr);
-                }
-
-                ReadPmic(addr7, info, smbusDriver);
-
-                return info;
+                list = ReadDdr5SpdInitInfoAllNoLock();
             }
             finally
             {
                 Mutexes.ReleaseSmbus();
             }
+            return list;
         }
-
-        public static Dictionary<byte, Ddr5SpdInfo> ReadDdr5SpdInitInfoAll()
-        {
-            Dictionary<byte, Ddr5SpdInfo> result = new Dictionary<byte, Ddr5SpdInfo>();
-
-            List<byte> addresses = ScanDdr5SpdHubsNoLock();
-            for (int i = 0; i < addresses.Count; i++)
-            {
-                byte addr = addresses[i];
-                Ddr5SpdInfo info = ReadDdr5SpdInitInfo(addr);
-                if (info != null)
-                    result[addr] = info;
-            }
-
-            return result;
-        }
-
-        public static void ReadThermal(byte addr7, Ddr5SpdInfo info, SmbusDriverBase smbus)
-        {
-            if (info == null || smbus == null || info.IsLpddr5)
-                return;
-
-            try
-            {
-                if (Ddr5ThermalSensor.Detect(smbus, addr7))
-                    info.ThermalData = Ddr5ThermalSensor.ReadAll(smbus, addr7);
-            }
-            catch
-            {
-                // Thermal sensor not accessible - not critical
-            }
-        }
-
-        public static void ReadPmic(byte addr7, Ddr5SpdInfo info, SmbusDriverBase smbus)
-        {
-            if (info == null || smbus == null || info.IsLpddr5)
-                return;
-
-            try
-            {
-                byte pmicAddr = Ddr5PmicReader.CalculatePmicAddrFromSpd(addr7);
-                if (Ddr5PmicReader.Detect(smbus, pmicAddr))
-                    info.PmicData = Ddr5PmicReader.ReadAll(smbus, pmicAddr);
-            }
-            catch
-            {
-                // PMIC not accessible - not critical
-            }
-        }
-
-        public static void ReadLiveDevices(byte addr7, Ddr5SpdInfo info, SmbusDriverBase smbus)
-        {
-            if (info == null || smbus == null)
-                return;
-
-            ReadThermal(addr7, info, smbus);
-            ReadPmic(addr7, info, smbus);
-        }
-
-        //public List<byte> DumpDdr5Spd(byte addr7)
-        //{
-        //    const int totalSize = 0x400;
-        //    const int blockSize = 32;
-
-        //    List<byte> spd = new List<byte>(totalSize);
-        //    int prevPage = -1;
-
-        //    if (!Mutexes.WaitSmbus(5000))
-        //        return spd;
-
-        //    long data = 0;
-        //    long[] output = new long[6];
-
-        //    int ret = _pawnIo.ExecuteHr(IOCTL_SMBUS_XFER,
-        //        new long[] { 0x50, I2C_SMBUS_READ, 0x80, I2C_SMBUS_BLOCK_DATA, data }, 5, output, 5, out uint oSize);
-
-        //    //SmbusReadBlockDataFixedNoLock(0x51, 0x80, 32, out byte[] data);
-
-        //    try
-        //    {
-        //        int offset = 0;
-
-        //        while (offset < totalSize)
-        //        {
-        //            int page = SpdGetPage(offset);
-        //            int reg = SpdGetReg(offset);
-        //            int regOffset = offset % PAGE_SIZE;
-
-        //            if (page != prevPage)
-        //            {
-        //                SpdSwitchPage(addr7, (byte)page);
-        //                prevPage = page;
-        //            }
-
-        //            int bytesLeftTotal = totalSize - offset;
-        //            int bytesLeftInPage = PAGE_SIZE - regOffset;
-        //            int count = Math.Min(blockSize, Math.Min(bytesLeftTotal, bytesLeftInPage));
-
-        //            if (SmbusReadBlockDataFixedNoLock(addr7, (byte)reg, count, out byte[] block))
-        //            {
-        //                spd.AddRange(block);
-        //            }
-        //            else
-        //            {
-        //                for (int i = 0; i < count; i++)
-        //                {
-        //                    if (!SmbusReadByteDataNoLock(addr7, (byte)(reg + i), out byte b))
-        //                        b = 0xFF;
-        //                    spd.Add(b);
-        //                }
-        //            }
-
-        //            offset += count;
-        //        }
-        //    }
-        //    finally
-        //    {
-        //        Mutexes.ReleaseSmbus();
-        //    }
-
-        //    return spd;
-        //}
 
         /// <summary>
         /// Write SPD data from all discovered DIMMs to binary files in the specified directory.
@@ -321,7 +293,7 @@ namespace ZenStates.Core.DRAM
                 if (!System.IO.Directory.Exists(outputDirectory))
                     System.IO.Directory.CreateDirectory(outputDirectory);
 
-                Dictionary<byte, Ddr5SpdInfo> list = ReadAll();
+                Dictionary<byte, Ddr5SpdInfo> list = ReadDdr5SpdAll();
 
                 if (list.Count == 0)
                     throw new InvalidOperationException("No DDR5 DIMMs found on any SMBus port.");

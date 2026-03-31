@@ -13,7 +13,7 @@ namespace ZenStates.Core
         /// <summary>Corresponding SPD hub address (I2cAddress + 0x08).</summary>
         public byte SpdHubAddress;
 
-        // ── Vendor identification (R0x3C:R0x3D, JEDEC JEP106) ──────────────
+        // Vendor identification (R0x3C:R0x3D, JEDEC JEP106)
 
         /// <summary>JEDEC JEP106 bank byte with parity (R0x3C).</summary>
         public byte VendorBank;
@@ -28,7 +28,7 @@ namespace ZenStates.Core
         public int RevisionMajor;
         public int RevisionMinor;
 
-        // ── Operating state ─────────────────────────────────────────────────
+        // Operating state
 
         /// <summary>VR Enable status (R0x32 bit[7]).</summary>
         public bool VrEnabled;
@@ -48,7 +48,7 @@ namespace ZenStates.Core
         /// <summary>Whether total power mode is selected (R0x1A [1]).</summary>
         public bool TelemetryReportsTotalPower;
 
-        // ── Voltage readings (JEDEC 7-bit VID) ─────────────────────────────
+        // Voltage readings (JEDEC 7-bit VID)
         //    SWA/SWB: Vout = 800 + R[7:1] × 5 mV  (range 800-1435 mV)
         //    SWC:     Vout = 1500 + R[7:1] × 5 mV  (range 1500-2135 mV)
 
@@ -70,7 +70,7 @@ namespace ZenStates.Core
         /// <summary>VPP 8-bit decode — should match VppMv for standard operation.</summary>
         public int VppMv8bit;
 
-        // ── ADC-measured voltages (JESD301-2 R0x30/R0x31) ──────────────────
+        // ADC-measured voltages (JESD301-2 R0x30/R0x31)
         public int VinBulkMv;
         public int SwaAdcMv;
         public int SwbAdcMv;
@@ -78,19 +78,19 @@ namespace ZenStates.Core
         public int Vout18AdcMv;
         public int Vout10AdcMv;
 
-        // ── LDO programmed voltages ─────────────────────────────────────────
+        // LDO programmed voltages
         public int Vout18SettingMv;
         public int Vout10SettingMv;
         public int Vout18SettingNvmMv;
         public int Vout10SettingNvmMv;
         public bool Vout10PowerGood;
 
-        // ── Current / power telemetry raw registers ─────────────────────────
+        // Current / power telemetry raw registers
         public int SwaTelemetryRaw;
         public int SwbTelemetryRaw;
         public int SwcTelemetryRaw;
 
-        // ── Current limiter settings (R0x20) ────────────────────────────────
+        // Current limiter settings (R0x20)
 
         /// <summary>SWA current limit in milliamps (R0x20 [7:6]).</summary>
         public int SwaCurrentLimitMa;
@@ -99,7 +99,7 @@ namespace ZenStates.Core
         /// <summary>SWC current limit in milliamps (R0x20 [1:0]).</summary>
         public int SwcCurrentLimitMa;
 
-        // ── Protection thresholds (R0x22, R0x26, R0x28) ────────────────────
+        // Protection thresholds (R0x22, R0x26, R0x28)
 
         /// <summary>SWA over-voltage threshold percentage (R0x22 [5:4]).</summary>
         public string VddOvThreshold;
@@ -114,11 +114,11 @@ namespace ZenStates.Core
         /// <summary>SWC under-voltage lockout percentage (R0x28 [3:2]).</summary>
         public string VppUvThreshold;
 
-        // ── PMIC temperature / thresholds ───────────────────────────────────
+        // PMIC temperature / thresholds
         public string PmicTemperature;
         public string ShutdownTemperatureThreshold;
 
-        // ── Regulator mode / frequency ──────────────────────────────────────
+        // Regulator mode / frequency
         public string SwaMode;
         public string SwbMode;
         public string SwcMode;
@@ -126,7 +126,7 @@ namespace ZenStates.Core
         public string SwbSwitchingFrequency;
         public string SwcSwitchingFrequency;
 
-        // ── Fault / status flags ────────────────────────────────────────────
+        // Fault / status flags
         public bool VinBulkOverVoltage;
         public bool SwaPowerGoodFault;
         public bool SwbPowerGoodFault;
@@ -136,7 +136,6 @@ namespace ZenStates.Core
         public bool PecError;
         public bool ParityError;
 
-        /// <summary>Raw first 64 bytes for advanced analysis.</summary>
         public byte[] RawRegisters;
 
         public override string ToString()
