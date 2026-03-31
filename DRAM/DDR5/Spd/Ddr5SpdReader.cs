@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using ZenStates.Core.Drivers;
 
-namespace ZenStates.Core.DRAM.DDR5.Spd
+namespace ZenStates.Core.DRAM
 {
     internal static class Ddr5SpdReader
     {

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace ZenStates.Core.Drivers
@@ -11,12 +10,7 @@ namespace ZenStates.Core.Drivers
         private static volatile SmbusPiix4InpOut _instance;
         private static readonly object _instanceLock = new object();
 
-        // InpOutx64 exports
-        [DllImport("InpOutx64.dll", EntryPoint = "Inp32")]
-        private static extern int Inp32(short portAddress);
-
-        [DllImport("InpOutx64.dll", EntryPoint = "Out32")]
-        private static extern void Out32(short portAddress, int data);
+        private static readonly IODriver ioDriver = IODriver.Instance;
 
         // PCI config mechanism #1
         private const ushort PCI_CONFIG_ADDRESS = 0xCF8;
@@ -93,20 +87,35 @@ namespace ZenStates.Core.Drivers
 
         private static byte IoIn8(ushort port)
         {
-            return unchecked((byte)(Inp32(unchecked((short)port)) & 0xFF));
+            return ioDriver.DlPortReadPortUchar(port);
         }
 
         private static void IoOut8(ushort port, byte value)
         {
-            Out32(unchecked((short)port), value);
+            ioDriver.DlPortWritePortUchar(port, value);
+        }
+
+        private static ushort IoIn16(ushort port)
+        {
+            return ioDriver.DlPortReadPortUshort(port);
+        }
+
+        private static void IoOut16(ushort port, ushort value)
+        {
+            ioDriver.DlPortWritePortUshort(port, value);
+        }
+
+        private static uint IoIn32(ushort port)
+        {
+            return ioDriver.DlPortReadPortUlong(port);
         }
 
         private static void IoOut32(ushort port, uint value)
         {
-            Out32(unchecked((short)port), unchecked((short)(value & 0xFFFF)));
-            Out32(unchecked((short)(port + 2)), unchecked((short)((value >> 16) & 0xFFFF)));
+            ioDriver.DlPortWritePortUlong(port, value);
         }
 
+        // TODO: Move back to IO Driver
         private static uint PciConfigAddress(byte bus, byte dev, byte func, byte offset)
         {
             return 0x80000000u
@@ -119,13 +128,7 @@ namespace ZenStates.Core.Drivers
         private static uint PciReadDword(byte bus, byte dev, byte func, byte offset)
         {
             IoOut32(PCI_CONFIG_ADDRESS, PciConfigAddress(bus, dev, func, offset));
-
-            byte b0 = IoIn8(PCI_CONFIG_DATA);
-            byte b1 = IoIn8((ushort)(PCI_CONFIG_DATA + 1));
-            byte b2 = IoIn8((ushort)(PCI_CONFIG_DATA + 2));
-            byte b3 = IoIn8((ushort)(PCI_CONFIG_DATA + 3));
-
-            return unchecked((uint)(b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)));
+            return IoIn32(PCI_CONFIG_DATA);
         }
 
         private static ushort PciReadWord(byte bus, byte dev, byte func, byte offset)

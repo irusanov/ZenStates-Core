@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using ZenStates.Core.DRAM;
-using ZenStates.Core.DRAM.DDR5.Spd;
 using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core

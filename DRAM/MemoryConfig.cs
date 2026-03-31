@@ -1,15 +1,13 @@
-﻿using OpenHardwareMonitor.Hardware;
+using OpenHardwareMonitor.Hardware;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using ZenStates.Core.DRAM.DDR5.Spd;
-using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core.DRAM
 {
     public class MemoryConfig
     {
-        private readonly SmbusDriverBase smbusDriver = SmbusPiix4.Instance;
+        private readonly SmbusPiix4 smbusDriver = SmbusPiix4.Instance;
 
         private const int DRAM_TYPE_BIT_MASK = 0x3;
 
@@ -100,8 +98,9 @@ namespace ZenStates.Core.DRAM
             {
                 if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
                 {
+                    // Only read partial info needed for initialization as reading whole SPD data is expensive
                     SpdInfo = Ddr5SpdReader.ReadDdr5SpdInitInfoAll();
-                    //SpdInfo = SmbusPiix4.Instance.ReadDdr5SpdInitInfoAll();
+                    //SpdInfo = Ddr5SpdDecoder.ReadAndDecodeAll(smbusDriver);
 
                     int moduleIndex = 0;
                     foreach (var spdEntry in SpdInfo.Values)
