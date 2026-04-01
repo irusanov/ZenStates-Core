@@ -40,7 +40,8 @@ namespace ZenStates.Core
 
             if (io == null)
             {
-                throw new InvalidOperationException("IOModule instance is not available.");
+                Debug.WriteLine("IOModule instance is not available.");
+                return;
             }
 
             apobAddress = FindApobAddress();
@@ -102,7 +103,7 @@ namespace ZenStates.Core
 
         private static int GetReadSize(ApobHeader header)
         {
-            int tableSize = (int)header.TableSize;
+            int tableSize = unchecked((int)header.TableSize);
             return tableSize > 0 ? tableSize : SizeToRead;
         }
 
