@@ -116,6 +116,7 @@ namespace ZenStates.Core.DRAM
         }
 
         // Read minimal SPD info without Mutex lock
+        // TODO: Add module organization
         internal static Ddr5SpdInfo ReadDdr5SpdInitInfoNoLock(byte addr7)
         {
             byte[] spd = new byte[SPD_TOTAL_SIZE];
@@ -143,16 +144,26 @@ namespace ZenStates.Core.DRAM
                 return null;
 
             // Module manufacturer: bytes 512-513
-            if (smbusDriver.ReadWordDataNoLock(addr7, (byte)SpdCalculateReg(552), out w))
+            if (smbusDriver.ReadWordDataNoLock(addr7, (byte)SpdCalculateReg(512), out w))
             {
                 b0 = (byte)(w & 0xFF);
                 b1 = (byte)((w >> 8) & 0xFF);
-                info.DramMfgIdBank = b0;
-                info.DramMfgIdMfr = b1;
-                info.DramManufacturer = ManufacturerMapping.Lookup(info.DramMfgIdBank, info.DramMfgIdMfr);
+                info.ModuleMfgIdBank = b0;
+                info.ModuleMfgIdMfr = b1;
+                info.ModuleManufacturer = ManufacturerMapping.Lookup(info.ModuleMfgIdBank, info.ModuleMfgIdMfr);
             }
 
             ReadPmicNoLock(addr7, info, smbusDriver);
+
+            //byte pmicAddr = Ddr5PmicReader.CalculatePmicAddrFromSpd(addr7);
+            //if (Ddr5PmicReader.DetectNoLock(smbusDriver, pmicAddr))
+            //{
+            //    info.PmicData = new Ddr5PmicData()
+            //    {
+            //        IsValid = true,
+            //        I2cAddress = pmicAddr,
+            //    };
+            //}
 
             return info;
         }
@@ -167,7 +178,7 @@ namespace ZenStates.Core.DRAM
                 byte addr = addresses[i];
                 Ddr5SpdInfo info = ReadDdr5SpdInitInfoNoLock(addr);
                 if (info != null)
-                    result[addr] = info;
+                    result.Add(addr, info);
             }
 
             return result;

@@ -202,8 +202,6 @@ namespace ZenStates.Core
 
         #endregion
 
-        #region Public Methods
-
         /// <summary>
         /// Gets the SMU version.
         /// </summary>
@@ -230,7 +228,7 @@ namespace ZenStates.Core
         /// Send the SMU Command to RSMU. PawnIO module does not support other mailboxes.
         /// </summary>
         /// <returns>The SMU status converted to HR result.</returns>
-        public int SendSmuCommand(uint command, ref uint[] args)
+        public int SendRsmuCommand(uint command, ref uint[] args)
         {
             ThrowIfDisposed();
 
@@ -263,27 +261,7 @@ namespace ZenStates.Core
         /// Read the SMU Register.
         /// </summary>
         /// <returns>Reading status: true - success, false - failed.</returns>
-        public bool SmuReadReg(uint register, out uint value)
-        {
-            ThrowIfDisposed();
-
-            if (!Mutexes.WaitPciBus(5000))
-            {
-                value = 0;
-                return false;
-            }
-
-            try
-            {
-                return SmuReadRegInternal(register, out value);
-            }
-            finally
-            {
-                Mutexes.ReleasePciBus();
-            }
-        }
-
-        internal bool SmuReadRegInternal(uint register, out uint value)
+        internal bool SmuReadRegNoLock(uint register, out uint value)
         {
             ThrowIfDisposed();
 
@@ -303,11 +281,21 @@ namespace ZenStates.Core
             }
         }
 
+        public bool SmuReadReg(uint register, out uint value)
+        {
+            ThrowIfDisposed();
+
+            using (new PciBusLock())
+            {
+                return SmuReadRegNoLock(register, out value);
+            }
+        }
+
         /// <summary>
         /// Write the SMU Register.
         /// </summary>
         /// <returns>Reading status: true - success, false - failed.</returns>
-        internal bool SmuWriteRegInternal(uint register, uint value)
+        internal bool SmuWriteRegNoLock(uint register, uint value)
         {
             ThrowIfDisposed();
 
@@ -330,18 +318,9 @@ namespace ZenStates.Core
         {
             ThrowIfDisposed();
 
-            if (!Mutexes.WaitPciBus(5000))
+            using (new PciBusLock())
             {
-                return false;
-            }
-
-            try
-            {
-                return SmuWriteRegInternal(register, value);
-            }
-            finally
-            {
-                Mutexes.ReleasePciBus();
+                return SmuWriteRegNoLock(register, value);
             }
         }
 
@@ -391,49 +370,6 @@ namespace ZenStates.Core
 
             return table?.Length == 0 ? new float[] { 0 } : table;
         }
-
-        /// <summary>
-        /// Generates a detailed report of the SMU status and PM table contents.
-        /// </summary>
-        /// <returns>A formatted string containing the SMU report.</returns>
-        public string GetReport()
-        {
-            ThrowIfDisposed();
-
-            StringBuilder report = new StringBuilder();
-
-            report.AppendLine("Ryzen SMU Report");
-            report.AppendLine(new string('=', 50));
-            report.AppendLine();
-            report.AppendFormat("CPU Code Name: {0}\n", _cpuCodeName);
-            report.AppendFormat("PM Table Version: 0x{0:X8}\n", _pmTableVersion);
-            report.AppendFormat("CPU Supported: {0}\n", _isSupported);
-            report.AppendFormat("PM Table Layout Defined: {0}\n", IsPmTableLayoutDefined);
-
-            if (_isSupported)
-            {
-                report.AppendFormat("PM Table Size: 0x{0:X}\n", _pmTableSize);
-                report.AppendFormat("PM Table Size (detected): 0x{0:X}\n", _detectedPmTableSize);
-                report.AppendFormat("PM Table Base Address: 0x{0:X16}\n", _dramBaseAddress);
-                report.AppendLine();
-
-                AppendPmTableDump(report);
-            }
-            else
-            {
-                report.AppendLine();
-                if (_initializationException != null)
-                    report.AppendFormat("Initialization Error: {0}\n", _initializationException.Message);
-                else
-                    report.AppendFormat("Initialization Error: {0}\n", "Unknown error");
-            }
-
-            return report.ToString();
-        }
-
-        #endregion
-
-        #region Private Methods
 
         /// <summary>
         /// Gets the CPU code name from the SMU.
@@ -514,6 +450,45 @@ namespace ZenStates.Core
         }
 
         /// <summary>
+        /// Generates a detailed report of the SMU status and PM table contents.
+        /// </summary>
+        /// <returns>A formatted string containing the SMU report.</returns>
+        public string GetReport()
+        {
+            ThrowIfDisposed();
+
+            StringBuilder report = new StringBuilder();
+
+            report.AppendLine("Ryzen SMU Report");
+            report.AppendLine(new string('=', 50));
+            report.AppendLine();
+            report.AppendFormat("CPU Code Name: {0}\n", _cpuCodeName);
+            report.AppendFormat("PM Table Version: 0x{0:X8}\n", _pmTableVersion);
+            report.AppendFormat("CPU Supported: {0}\n", _isSupported);
+            report.AppendFormat("PM Table Layout Defined: {0}\n", IsPmTableLayoutDefined);
+
+            if (_isSupported)
+            {
+                report.AppendFormat("PM Table Size: 0x{0:X}\n", _pmTableSize);
+                report.AppendFormat("PM Table Size (detected): 0x{0:X}\n", _detectedPmTableSize);
+                report.AppendFormat("PM Table Base Address: 0x{0:X16}\n", _dramBaseAddress);
+                report.AppendLine();
+
+                AppendPmTableDump(report);
+            }
+            else
+            {
+                report.AppendLine();
+                if (_initializationException != null)
+                    report.AppendFormat("Initialization Error: {0}\n", _initializationException.Message);
+                else
+                    report.AppendFormat("Initialization Error: {0}\n", "Unknown error");
+            }
+
+            return report.ToString();
+        }
+
+        /// <summary>
         /// Appends PM table dump information to the report.
         /// </summary>
         /// <param name="report">The StringBuilder to append to.</param>
@@ -553,8 +528,6 @@ namespace ZenStates.Core
             if (_disposed)
                 throw new ObjectDisposedException(nameof(RyzenSmu));
         }
-
-        #endregion
 
         #region PM Table Size Configuration Methods
 
@@ -726,7 +699,7 @@ namespace ZenStates.Core
     /// <summary>
     /// Represents a sensor definition in the PM table.
     /// </summary>
-    public struct SmuSensorDefinition
+    public readonly struct SmuSensorDefinition
     {
         /// <summary>
         /// The name of the sensor.

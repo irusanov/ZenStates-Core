@@ -18,13 +18,13 @@ namespace ZenStates.Core
             //_pawnIo = PawnIo.LoadModuleFromFile("AMDFamily17.amx");
         }
 
-        public uint ReadSmn(uint offset)
+        public uint ReadSmnNoLock(uint offset)
         {
             long[] result = _pawnIo.Execute("ioctl_read_smn", new long[1] { offset }, 1);
             return unchecked((uint)result[0]);
         }
 
-        public bool ReadSmn(uint offset, out uint data)
+        public bool ReadSmnNoLock(uint offset, out uint data)
         {
             var input = new long[] { offset };
             var output = new long[1];

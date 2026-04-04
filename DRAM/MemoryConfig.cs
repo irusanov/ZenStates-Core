@@ -2,6 +2,8 @@ using OpenHardwareMonitor.Hardware;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Text;
+using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core.DRAM
 {
@@ -77,7 +79,7 @@ namespace ZenStates.Core.DRAM
 
             try
             {
-                ReadChannels();
+                ReadChannelsNoLock();
 
                 foreach (MemoryModule module in Modules)
                 {
@@ -97,18 +99,11 @@ namespace ZenStates.Core.DRAM
             if (Type != MemType.DDR5 && Type != MemType.LPDDR5)
                 return;
 
-            if (!Mutexes.WaitSmbus(5000))
-            {
-                Debug.WriteLine("MemoryConfig: Timeout waiting for SMBus mutex.");
-                return;
-            }
+            // Only read partial info needed for initialization as reading whole SPD data is expensive
+            SpdInfo = Ddr5SpdReader.ReadDdr5SpdInitInfoAll();
 
             try
             {
-                // Only read partial info needed for initialization as reading whole SPD data is expensive
-                SpdInfo = Ddr5SpdReader.ReadDdr5SpdInitInfoAllNoLock();
-                //SpdInfo = Ddr5SpdDecoder.ReadAndDecodeAllNoLock(smbusDriver);
-
                 int moduleIndex = 0;
                 foreach (var spdEntry in SpdInfo.Values)
                 {
@@ -123,12 +118,14 @@ namespace ZenStates.Core.DRAM
                         moduleIndex++;
                     }
                 }
-
             }
-            finally
+            catch
             {
-                Mutexes.ReleaseSmbus();
+                // do nothing
             }
+
+            // Populate PMIC data for telemetry
+            //RefreshTelemetry();
         }
 
         internal static MemType SMBiosDramTypeToMemType(MemoryType type)
@@ -255,14 +252,14 @@ namespace ZenStates.Core.DRAM
         {
             if (Type == MemType.DDR4 || Type == MemType.LPDDR4)
             {
-                return (MemRank)Utils.GetBits(cpu.ReadDword(address), 0, 1);
+                return (MemRank)Utils.GetBits(cpu.ReadDwordNoLock(address), 0, 1);
             }
             else if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
             {
-                var value = cpu.ReadDword(address);
+                var value = cpu.ReadDwordNoLock(address);
                 if (value != 0 && (value == 0x07FFFBFE || Utils.GetBits(value, 9, 2) < 3))
                     return MemRank.DR;
-                value = cpu.ReadDword(address + 4);
+                value = cpu.ReadDwordNoLock(address + 4);
                 if (value != 0 && (value == 0x07FFFBFE || Utils.GetBits(value, 9, 2) < 3))
                     return MemRank.DR;
             }
@@ -272,7 +269,7 @@ namespace ZenStates.Core.DRAM
 
         private DramAddressConfig GetAddressConfig(uint address)
         {
-            var value = cpu.ReadDword(address);
+            var value = cpu.ReadDwordNoLock(address);
             var config = new DramAddressConfig();
             if (value != 0)
             {
@@ -286,7 +283,7 @@ namespace ZenStates.Core.DRAM
             return config;
         }
 
-        private void ReadChannels()
+        private void ReadChannelsNoLock()
         {
             int dimmIndex = 0;
             //uint dimmsPerChannel = 1;
@@ -305,9 +302,9 @@ namespace ZenStates.Core.DRAM
                         break;
 
                     uint offset = i << 20;
-                    bool channel = Utils.GetBits(cpu.ReadDword(offset | 0x50DF0), 19, 1) == 0;
-                    bool dimm1 = Utils.GetBits(cpu.ReadDword(offset | 0x50000), 0, 1) == 1;
-                    bool dimm2 = Utils.GetBits(cpu.ReadDword(offset | 0x50008), 0, 1) == 1;
+                    bool channel = Utils.GetBits(cpu.ReadDwordNoLock(offset | 0x50DF0), 19, 1) == 0;
+                    bool dimm1 = Utils.GetBits(cpu.ReadDwordNoLock(offset | 0x50000), 0, 1) == 1;
+                    bool dimm2 = Utils.GetBits(cpu.ReadDwordNoLock(offset | 0x50008), 0, 1) == 1;
                     bool enabled = channel && (dimm1 || dimm2);
 
                     Channels.Add(new Channel()

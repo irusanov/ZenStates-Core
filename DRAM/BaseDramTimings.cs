@@ -109,10 +109,10 @@ namespace ZenStates.Core.DRAM
 
         public virtual void ReadBankGroupSwap(uint offset = 0)
         {
-            uint bgsa0 = cpu.ReadDword(offset | 0x500D0);
-            uint bgsa1 = cpu.ReadDword(offset | 0x500D4);
-            uint bgs0 = cpu.ReadDword(offset | 0x50050);
-            uint bgs1 = cpu.ReadDword(offset | 0x50058);
+            uint bgsa0 = cpu.ReadDwordNoLock(offset | 0x500D0);
+            uint bgsa1 = cpu.ReadDwordNoLock(offset | 0x500D4);
+            uint bgs0 = cpu.ReadDwordNoLock(offset | 0x50050);
+            uint bgs1 = cpu.ReadDwordNoLock(offset | 0x50058);
 
             BGS = (bgs0 == 0x87654321 && bgs1 == 0x87654321) ? 0 : 1U;
             BGSAlt = (Utils.GetBits(bgsa0, 4, 7) > 0 || Utils.GetBits(bgsa1, 4, 7) > 0) ? 1U : 0;
@@ -128,7 +128,7 @@ namespace ZenStates.Core.DRAM
                 {
                     if (this[def.Name] != null)
                     {
-                        uint data = cpu.ReadDword(offset | entry.Key);
+                        uint data = cpu.ReadDwordNoLock(offset | entry.Key);
                         this[def.Name] = Utils.BitSlice(data, def.HiBit, def.LoBit);
                     }
                 }

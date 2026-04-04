@@ -85,21 +85,21 @@ namespace ZenStates.Core
             _ryzenSmu = ryzenSmu;
         }
 
-        private bool SmuWriteReg(uint addr, uint data)
+        private static bool SmuWriteRegNoLock(uint addr, uint data)
         {
             if (addr > uint.MaxValue) return false;
 
-            return _ryzenSmu.SmuWriteRegInternal(addr, data);
+            return _ryzenSmu.SmuWriteRegNoLock(addr, data);
         }
 
-        private bool SmuReadReg(uint addr, ref uint data)
+        private static bool SmuReadRegNoLock(uint addr, ref uint data)
         {
             if (addr > uint.MaxValue) return false;
 
-            return _ryzenSmu.SmuReadRegInternal(addr, out data);
+            return _ryzenSmu.SmuReadRegNoLock(addr, out data);
         }
 
-        private bool SmuWaitDone(Mailbox mailbox)
+        private static bool SmuWaitDoneNoLock(Mailbox mailbox)
         {
             bool res;
             ushort timeout = SMU_TIMEOUT;
@@ -107,7 +107,7 @@ namespace ZenStates.Core
 
             // Retry until response register is non-zero and reading RSP register is successful
             do
-                res = SmuReadReg(mailbox.SMU_ADDR_RSP, ref data);
+                res = SmuReadRegNoLock(mailbox.SMU_ADDR_RSP, ref data);
             while ((!res || data == 0) && --timeout > 0);
 
             return timeout != 0 && data > 0;
@@ -136,7 +136,7 @@ namespace ZenStates.Core
             try
             {
                 // Wait done
-                if (!SmuWaitDone(mailbox))
+                if (!SmuWaitDoneNoLock(mailbox))
                 {
                     // Initial probe failed, some other command is still being processed or the PCI read failed
                     return Status.TIMEOUT_MAILBOX_READY;
@@ -145,7 +145,7 @@ namespace ZenStates.Core
                 uint maxValidArgAddress = uint.MaxValue - mailbox.MAX_ARGS * 4;
 
                 // Clear response register
-                if (!SmuWriteReg(mailbox.SMU_ADDR_RSP, 0))
+                if (!SmuWriteRegNoLock(mailbox.SMU_ADDR_RSP, 0))
                 {
                     // PCI write failed
                     return Status.PCI_FAILED;
@@ -159,7 +159,7 @@ namespace ZenStates.Core
                     if (mailbox.SMU_ADDR_ARG > maxValidArgAddress)
                         continue;
 
-                    if (!SmuWriteReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]))
+                    if (!SmuWriteRegNoLock(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]))
                     {
                         // PCI write failed
                         return Status.PCI_FAILED;
@@ -167,14 +167,14 @@ namespace ZenStates.Core
                 }
 
                 // Send message
-                if (!SmuWriteReg(mailbox.SMU_ADDR_MSG, msg))
+                if (!SmuWriteRegNoLock(mailbox.SMU_ADDR_MSG, msg))
                 {
                     // PCI write failed
                     return Status.PCI_FAILED;
                 }
 
                 // Wait done
-                if (!SmuWaitDone(mailbox))
+                if (!SmuWaitDoneNoLock(mailbox))
                 {
                     // Timeout reached or PCI read failed
                     return Status.TIMEOUT_MAILBOX_MSG_WRITE;
@@ -182,7 +182,7 @@ namespace ZenStates.Core
 
                 uint status = 0;
                 // If we reach this stage, read final status
-                if (!SmuReadReg(mailbox.SMU_ADDR_RSP, ref status))
+                if (!SmuReadRegNoLock(mailbox.SMU_ADDR_RSP, ref status))
                 {
                     // PCI read failed
                     return Status.PCI_FAILED;
@@ -202,7 +202,7 @@ namespace ZenStates.Core
                         if (mailbox.SMU_ADDR_ARG > maxValidArgAddress)
                             continue;
 
-                        if (!SmuReadReg(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]))
+                        if (!SmuReadRegNoLock(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]))
                         {
                             // PCI read failed
                             return Status.PCI_FAILED;

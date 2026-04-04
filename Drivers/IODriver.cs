@@ -62,7 +62,7 @@ namespace ZenStates.Core.Drivers
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error reading memory: {ex.Message}");
+                Debug.WriteLine($"Error reading memory: {ex.Message}");
             }
 
             return null;

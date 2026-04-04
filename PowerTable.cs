@@ -13,6 +13,7 @@ namespace ZenStates.Core
         public readonly long DramBaseAddress;
         public readonly int TableSize;
         private const int NUM_ELEMENTS_TO_COMPARE = 20;
+        private const int MAX_REFRESH_RETRIES = 2;
 
         private static PowerTable _instance;
         public static PowerTable Instance => _instance;
@@ -441,41 +442,48 @@ namespace ZenStates.Core
         public SMU.Status Refresh()
         {
             if (DramBaseAddress == 0)
-            {
                 return SMU.Status.FAILED;
-            }
 
-            try
+            for (int retriesLeft = 2; retriesLeft > 0; retriesLeft--)
             {
-                if (Table == null || Table.Length == 0)
-                    Table = new float[(int)smu.PmTableSize / 4];
-
-                long[] rawTempTable = smu.ReadPmTable(NUM_ELEMENTS_TO_COMPARE * 4);
-                float[] tempTable = new float[NUM_ELEMENTS_TO_COMPARE];
-                Buffer.BlockCopy(rawTempTable, 0, tempTable, 0, NUM_ELEMENTS_TO_COMPARE * 4);
-
-                // Issue a refresh command if the table is empty or the first {NUM_ELEMENTS_TO_COMPARE} elements of both tables are equal,
-                // otherwise skip as some other app already refreshed the data.
-                // Checking for empty Table should issue a refresh on first load.
-                if (Utils.AllZero(Table) || Utils.AllZero(tempTable) || Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
+                try
                 {
-                    smu.UpdatePmTable();
+                    if (TryRefreshOnce())
+                        return SMU.Status.OK;
                 }
-
-                long[] fullTable = smu.ReadPmTable(((int)smu.PmTableSize + 7) / 8);
-                Buffer.BlockCopy(fullTable, 0, Table, 0, (int)smu.PmTableSize);
-
-                if (Utils.AllZero(Table))
-                    return SMU.Status.FAILED;
-
-                ParseTable(Table);
-                return SMU.Status.OK;
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Refresh attempt failed: {ex.Message}");
+                }
             }
-            catch (Exception ex)
+
+            return SMU.Status.FAILED;
+        }
+
+        private bool TryRefreshOnce()
+        {
+            if (Table == null || Table.Length == 0)
+                Table = new float[(int)smu.PmTableSize / 4];
+
+            long[] rawTempTable = smu.ReadPmTable(NUM_ELEMENTS_TO_COMPARE * 4);
+            float[] tempTable = new float[NUM_ELEMENTS_TO_COMPARE];
+            Buffer.BlockCopy(rawTempTable, 0, tempTable, 0, NUM_ELEMENTS_TO_COMPARE * 4);
+
+            if (Utils.AllZero(Table) ||
+                Utils.AllZero(tempTable) ||
+                Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
             {
-                Debug.WriteLine($"Error occurred while reading table: {ex.Message}");
-                return SMU.Status.FAILED;
+                smu.UpdatePmTable();
             }
+
+            long[] fullTable = smu.ReadPmTable(((int)smu.PmTableSize + 7) / 8);
+            Buffer.BlockCopy(fullTable, 0, Table, 0, (int)smu.PmTableSize);
+
+            if (Utils.AllZero(Table))
+                return false;
+
+            ParseTable(Table);
+            return true;
         }
 
         // Static one-time properties

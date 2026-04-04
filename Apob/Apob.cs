@@ -128,11 +128,11 @@ namespace ZenStates.Core
              */
 
             uint dataOffset = BitConverter.ToUInt32(RawData, (int)Header.ConfigStartOffset + 0xC);
+            if (dataOffset < 0)
+                return;
 
             //Offset = Utils.FindSequence(RawData, 0, DataOffsetPattern);
             Offset = (int)(Header.ConfigStartOffset + dataOffset);
-            if (Offset < 0)
-                return;
 
             // 1.
             ApobLayoutVersion layoutVersion;

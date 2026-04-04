@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using ZenStates.Core.Drivers;
 using static ZenStates.Core.JedecPmicRegisters;
 
@@ -46,17 +47,17 @@ namespace ZenStates.Core
             byte reg30 = (byte)(0x80 | ((selectCode & 0x0F) << 3));
             byte raw;
 
-            // Program ADC select; host should wait 9 ms per JESD301-2.
             if (!WriteRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, reg30))
                 return false;
 
-            Utils.DelayMicroseconds(2000);
+            // JESD301-2: The host shall wait minimum of 9 ms delay after the input selection for ADC readout and the actual readout from Table 137, "Register 0x31" to get the latest reading
+            Thread.Sleep(9);
 
             // First read may still be previous/stale sample after mux switch.
-            if (!ReadRegNoLock(smbus, pmicAddr, REG_TELEMETRY_VALUE, out raw))
-                return false;
+            //if (!ReadRegNoLock(smbus, pmicAddr, REG_TELEMETRY_VALUE, out raw))
+            //    return false;
 
-            Utils.DelayMicroseconds(200);
+            //Utils.DelayMicroseconds(200);
 
             if (!ReadRegNoLock(smbus, pmicAddr, REG_TELEMETRY_VALUE, out raw))
                 return false;
@@ -67,9 +68,8 @@ namespace ZenStates.Core
 
         internal static void ReadAllAdcVoltagesNoLock(SmbusDriverBase smbus, byte pmicAddr, Ddr5PmicData pd)
         {
-            byte originalReg30 = 0;
 
-            ReadRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, out originalReg30);
+            ReadRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, out byte originalReg30);
 
             try
             {
