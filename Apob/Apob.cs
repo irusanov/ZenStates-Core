@@ -127,7 +127,12 @@ namespace ZenStates.Core
              * 6. Rewind the index by 2 and parse the Apob data
              */
 
-            uint dataOffset = BitConverter.ToUInt32(RawData, (int)Header.ConfigStartOffset + 0xC);
+            // TODO: Fix for AM4 table structures
+            uint rawDataOffset = Header.ConfigStartOffset + 0xC;
+            if (rawDataOffset >= RawData.Length)
+                return;
+
+            uint dataOffset = BitConverter.ToUInt32(RawData, unchecked((int)rawDataOffset));
             if (dataOffset < 0)
                 return;
 
