@@ -3,46 +3,54 @@ using System.Runtime.InteropServices;
 
 namespace ZenStates.Core
 {
-    public enum ApobLayoutVersion
-    {
-        V60 = 1,
-        V90,
-        VA4,
-    }
-
     public static class ApobDataReader
     {
-        //private const int MAX_CHANNELS = 12;
-        //private static readonly byte[] EndPattern = new byte[6] { 0xff, 0xff, 0x01, 0x00, 0xff, 0xff };
-
-        public static ApobData Read(byte[] data, ApobLayoutVersion version, int offset = 0)
+        public static ApobData Read(byte[] data, Cpu.CodeName codeName, uint offset = 0)
         {
             if (data == null)
                 throw new ArgumentNullException("data");
 
-            switch (version)
+            // TODO: This should be the other way around - initialize everything in a centralized place/struct based on code name
+            switch (codeName)
             {
-                case ApobLayoutVersion.V60:
+                // 19H
+                case Cpu.CodeName.Milan:
+                case Cpu.CodeName.Chagall:
+                case Cpu.CodeName.Genoa:
+                case Cpu.CodeName.StormPeak:
+                case Cpu.CodeName.Vermeer:
+                case Cpu.CodeName.Raphael:
                     return ReadV1(data, offset);
-
-                case ApobLayoutVersion.V90:
+                // 1AH
+                case Cpu.CodeName.Turin:
+                case Cpu.CodeName.TurinD:
+                case Cpu.CodeName.ShimadaPeak:
+                case Cpu.CodeName.StrixPoint:
+                case Cpu.CodeName.StrixHalo:
+                case Cpu.CodeName.KrackanPoint:
+                case Cpu.CodeName.KrackanPoint2:
+                case Cpu.CodeName.GraniteRidge:
+                case Cpu.CodeName.Bergamo:
                     return ReadV2(data, offset);
-
-                case ApobLayoutVersion.VA4:
+                // AM5 APU
+                case Cpu.CodeName.Rembrandt:
+                case Cpu.CodeName.DragonRange:
+                case Cpu.CodeName.HawkPoint:
+                case Cpu.CodeName.Phoenix:
+                case Cpu.CodeName.Phoenix2:
                     return ReadV3(data, offset);
-
                 default:
-                    throw new ArgumentOutOfRangeException("version");
+                    return ReadV2(data, offset);
             }
         }
 
-        private static ApobData ReadV1(byte[] data, int offset)
+        private static ApobData ReadV1(byte[] data, uint offset)
         {
-            int blockSize = Marshal.SizeOf(typeof(ApobData60));
+            int blockSize = Marshal.SizeOf(typeof(ApobData19h));
             if (data.Length < blockSize)
                 throw new ArgumentException("Buffer too small for Apob V1.", "data");
 
-            ApobData60 raw = Read<ApobData60>(data, blockSize, offset);
+            ApobData19h raw = Read<ApobData19h>(data, blockSize, offset);
 
             return new ApobData(
                 raw.RttNomRd,
@@ -65,13 +73,13 @@ namespace ZenStates.Core
             );
         }
 
-        private static ApobData ReadV2(byte[] data, int offset)
+        private static ApobData ReadV2(byte[] data, uint offset)
         {
-            int blockSize = Marshal.SizeOf(typeof(ApobData90));
+            int blockSize = Marshal.SizeOf(typeof(ApobData1Ah));
             if (data.Length < blockSize)
                 throw new ArgumentException("Buffer too small for Apob V2.", "data");
 
-            ApobData90 raw = Read<ApobData90>(data, blockSize, offset);
+            ApobData1Ah raw = Read<ApobData1Ah>(data, blockSize, offset);
 
             return new ApobData(
                 raw.RttNomRd,
@@ -105,13 +113,13 @@ namespace ZenStates.Core
             );
         }
 
-        private static ApobData ReadV3(byte[] data, int offset)
+        private static ApobData ReadV3(byte[] data, uint offset)
         {
-            int blockSize = Marshal.SizeOf(typeof(ApobDataA4));
+            int blockSize = Marshal.SizeOf(typeof(ApobData19h_8000));
             if (data.Length < blockSize)
                 throw new ArgumentException("Buffer too small for Apob V3.", "data");
 
-            ApobDataA4 raw = Read<ApobDataA4>(data, blockSize, offset);
+            ApobData19h_8000 raw = Read<ApobData19h_8000>(data, blockSize, offset);
 
             return new ApobData(
                 raw.RttNomRd,
@@ -138,38 +146,10 @@ namespace ZenStates.Core
             );
         }
 
-        //private static T Read<T>(byte[] data, int blockSize, int offset) where T : struct
-        //{
-        //    byte[] buffer = new byte[blockSize * MAX_CHANNELS];
-
-        //    Buffer.BlockCopy(data, offset, buffer, 0, buffer.Length);
-
-        //    for (int i = 0; i < MAX_CHANNELS; i++)
-        //    {
-        //        byte[] channelBuffer = new byte[blockSize];
-        //        Buffer.BlockCopy(buffer, i * blockSize, channelBuffer, 0, blockSize);
-
-        //        if (Utils.AllZero(channelBuffer))
-        //        {
-        //            continue;
-        //        }
-
-        //        if (Utils.FindSequence(buffer, 0, EndPattern) > -1)
-        //        {
-        //            break;
-        //        }
-
-        //        // return first valid channel's data, as all channels should have the same values for these fields
-        //        return Utils.ByteArrayToStructure<T>(channelBuffer);
-        //    }
-
-        //    return new T();
-        //}
-
-        private static T Read<T>(byte[] data, int blockSize, int offset) where T : struct
+        private static T Read<T>(byte[] data, int blockSize, uint offset) where T : struct
         {
             byte[] buffer = new byte[blockSize];
-            Buffer.BlockCopy(data, offset, buffer, 0, buffer.Length);
+            Buffer.BlockCopy(data, (int)offset, buffer, 0, buffer.Length);
 
             return Utils.ByteArrayToStructure<T>(buffer);
         }

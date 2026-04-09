@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using ZenStates.Core.Drivers;
 
@@ -8,12 +9,13 @@ namespace ZenStates.Core
     {
         private static readonly IODriver io = IODriver.Instance;
         private static readonly uint[] KnownAddresses = new uint[3] { 0xA200000, 0x9F00000, 0x4000000 };
-        private const uint ApobSignature = 0x424f5041; // "APOB"
-        //private static readonly byte[] DataOffsetPattern = new byte[8] { 0x01, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x0 };
-        //private static readonly byte[] EndPattern = new byte[6] { 0xff, 0xff, 0x01, 0x00, 0xff, 0xff };
+        private const uint APOB_SIGNATURE = 0x424f5041; // "APOB"
+        private const uint HASH_SIZE = 32;
         private readonly uint ApobAddress = 0;
-        //private const int InitialHeaderSize = 16;
-        private const int DefaultSizeToRead = 0x5000;
+        private readonly Cpu.CodeName CodeName;
+
+        private static readonly byte[] CONFIG1_PATTERN = new byte[8] { 0x01, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00, 0x00 };
+        private static readonly byte[] CONFIG2_PATTERN = new byte[8] { 0x07, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00 };
 
         public bool IsAvailable
         {
@@ -25,23 +27,29 @@ namespace ZenStates.Core
             get { return ApobAddress; }
         }
 
-        public int Offset { get; private set; }
-        public int SecondOffset { get; private set; }
-        public int LayoutVersion { get; private set; }
+        public uint DataOffset { get; private set; }
+        public uint ExtendedDataOffset { get; private set; }
         public ApobHeader Header { get; private set; }
         public ApobData Data { get; private set; }
+        public ApobData ExtendedData { get; private set; }
+        public List<uint> ConfigOffsets { get; private set; }
+        public byte[] RawTable { get; private set; }
         public byte[] RawData { get; private set; }
+        public byte[] RawExtendedData { get; private set; }
 
         /**
          * 1. Find the APOB address by checking known addresses for the signature
          * 2. Read and parse the APOB header
-         * 3. Read the raw data from CongigStartAddress to Config3StartAddress
+         * 3. Read whole table?
+         * 4. Get all config addresses starting from offset 0x30 up to the start of the hash (header size - hash size (32))
+         * 5. First offset should be first config, get its size and jump to next offset, which should be matching pattern '01 00 00 00 19 00 00 00'
+         * 6. (Optional) Find extended config by checking offsets or searching for pattern '07 00 00 00 03 00 00 00', on 7950X it contains additional values
+         * 7. Parse the config
          */
-        public Apob()
+        public Apob(Cpu.CodeName codeName)
         {
-            Offset = -1;
-            SecondOffset = -1;
-            LayoutVersion = -1;
+            DataOffset = 0;
+            CodeName = codeName;
 
             if (io == null)
             {
@@ -54,16 +62,31 @@ namespace ZenStates.Core
 
             if (!IsAvailable)
                 return;
+
             // 2.
-            if (!TryReadHeader(ApobAddress, out ApobHeader header))
+            if (!TryParseHeader(ApobAddress, out ApobHeader header))
                 return;
 
             Header = header;
-            RawData = io.ReadMemory(new IntPtr(ApobAddress), GetReadSize());
 
+            // 3.
+            RawTable = io.ReadMemory(new IntPtr(ApobAddress), unchecked((int)Header.TableSize));
+            if (RawTable == null || RawTable.Length == 0)
+                return;
+
+            // 4.
+            ConfigOffsets = GetConfigOffsets(RawTable, Header);
+            if (ConfigOffsets.Count == 0)
+                return;
+
+            // 4.
+            RawData = GetMainConfigData();
             if (RawData == null || RawData.Length == 0)
                 return;
 
+            RawExtendedData = GetExtendedConfigData();
+
+            // 5.
             ParseRawData();
         }
 
@@ -71,7 +94,7 @@ namespace ZenStates.Core
         {
             for (int i = 0; i < KnownAddresses.Length; i++)
             {
-                if (io.GetPhysLong(new UIntPtr(KnownAddresses[i]), out uint data) && data == ApobSignature)
+                if (io.GetPhysLong(new UIntPtr(KnownAddresses[i]), out uint data) && data == APOB_SIGNATURE)
                     return KnownAddresses[i];
             }
 
@@ -83,7 +106,7 @@ namespace ZenStates.Core
          * 2. Read the entire header based on the header size
          * 3. Convert the byte array to the ApobHeader structure
          */
-        private static bool TryReadHeader(uint address, out ApobHeader header)
+        private static bool TryParseHeader(uint address, out ApobHeader header)
         {
             header = default;
             try
@@ -107,93 +130,99 @@ namespace ZenStates.Core
             return false;
         }
 
-        private int GetReadSize()
+        private static List<uint> GetConfigOffsets(byte[] table, ApobHeader header)
         {
-            int startAddress = (int)(ApobAddress);
-            int endAddress = (int)(ApobAddress + Header.Config3StartOffset);
-            int tableSize = endAddress - startAddress;
-            return tableSize > 0 ? tableSize : DefaultSizeToRead;
+            var list = new List<uint>();
+
+            if (table == null || header.TableSize == 0)
+                return list;
+
+            //var configs = io.ReadMemory(new IntPtr(ApobAddress + 0x30), unchecked((int)(Header.HeaderSize - 0x30 - HASH_SIZE)));
+            var buffer = new byte[header.HeaderSize - 0x30 - HASH_SIZE];
+            
+            Buffer.BlockCopy(table, 0x30, buffer, 0, buffer.Length);
+
+            if (!Utils.AllZero(buffer))
+            {
+                for (int i = 0; i < buffer.Length; i += 4)
+                {
+                    uint offset = BitConverter.ToUInt32(buffer, i);
+                    if (offset == 0)
+                        break;
+
+                    list.Add(offset);
+                }
+            }
+
+            return list;
+        }
+
+        private byte[] GetMainConfigData()
+        {
+            var buffer = new byte[4];
+            Buffer.BlockCopy(RawTable, (int)(ConfigOffsets[0] + 0xC), buffer, 0, buffer.Length);
+            uint size = BitConverter.ToUInt32(buffer, 0);
+            DataOffset = ConfigOffsets[0] + size;
+
+            buffer = new byte[4];
+            Buffer.BlockCopy(RawTable, (int)(DataOffset + 0xC), buffer, 0, buffer.Length);
+            size = BitConverter.ToUInt32(buffer, 0);
+
+            var data = new byte[size];
+            Buffer.BlockCopy(RawTable, (int)(DataOffset), data, 0, (int)size);
+
+            if (Utils.FindSequence(data, 0, CONFIG1_PATTERN) != 0)
+                return null;
+
+            return data;
+        }
+
+        private byte[] GetExtendedConfigData()
+        {
+            var buffer = new byte[8];
+            foreach (var offset in ConfigOffsets)
+            {
+                Buffer.BlockCopy(RawTable, (int)offset, buffer, 0, buffer.Length);
+                if (Utils.FindSequence(buffer, 0, CONFIG2_PATTERN) == 0)
+                {
+                    ExtendedDataOffset = offset;
+                    break;
+                }
+            }
+
+            if (ExtendedDataOffset == 0)
+                return null;
+
+            buffer = new byte[4];
+            Buffer.BlockCopy(RawTable, (int)(ExtendedDataOffset + 0xC), buffer, 0, buffer.Length);
+            var size = BitConverter.ToUInt32(buffer, 0);
+
+            buffer = new byte[size];
+            Buffer.BlockCopy(RawTable, (int)ExtendedDataOffset, buffer, 0, buffer.Length);
+            return buffer;
         }
 
         private void ParseRawData()
         {
-            // TODO: Find the offset and size of the block to read
-            /**
-             * 1. Find the data block offset from uint at offset 0xC from the start of the config data
-             * 1. Find the (layout version?)
-             * 3. From the start offset to Header.ConfigEndAddress, find first non-zero value
-             * 4. Skip 2 bytes and take next 5 bytes, those are the Rtts
-             * 5. Search for first occurence of Rtts after end sequence
-             * 6. Rewind the index by 2 and parse the Apob data
-             */
-
-            // TODO: Fix for AM4 table structures
-            uint rawDataOffset = Header.ConfigStartOffset + 0xC;
-            if (rawDataOffset >= RawData.Length)
-                return;
-
-            uint dataOffset = BitConverter.ToUInt32(RawData, unchecked((int)rawDataOffset));
-            if (dataOffset < 0)
-                return;
-
-            //Offset = Utils.FindSequence(RawData, 0, DataOffsetPattern);
-            Offset = (int)(Header.ConfigStartOffset + dataOffset);
-
-            // 1.
-            ApobLayoutVersion layoutVersion;
-            int layoutVersionIndex = Offset + 0xC;
-
-            if (layoutVersionIndex >= RawData.Length)
-                return;
-
-            LayoutVersion = RawData[layoutVersionIndex];
-
-            switch (LayoutVersion)
-            {
-                case 0x90:
-                    layoutVersion = ApobLayoutVersion.V90;
-                    break;
-                case 0x60:
-                    layoutVersion = ApobLayoutVersion.V60;
-                    break;
-                case 0xA4:
-                    layoutVersion = ApobLayoutVersion.VA4;
-                    break;
-                default:
-                    layoutVersion = ApobLayoutVersion.V60;
-                    break;
-            }
-
-            // 2.
-            int startOffset = Offset + 48;
+            uint startOffset = 48;
             if (startOffset >= RawData.Length)
                 return;
 
-            //int endOffset = Utils.FindSequence(RawData, startOffset, EndPattern);
-            int endOffset = (int)Header.ConfigEndOffset;
-            if (endOffset < 0 || endOffset <= startOffset)
-                return;
-
-            // 3.
             byte[] rttBlock = new byte[5];
             bool foundRttBlock = false;
 
-            int i;
-            for (i = startOffset; i < endOffset; i++)
+            uint i;
+            for (i = startOffset; i < RawData.Length; i++)
             {
                 if (RawData[i] != 0)
                 {
-                    if (i + 2 + 5 > RawData.Length)
+                    // 4. Skip 2 bytes and take next 5 bytes, those are the Rtts
+                    if (i + 2 + rttBlock.Length > RawData.Length)
                         return;
 
-                    if (layoutVersion == ApobLayoutVersion.V90)
-                    {
-                        Data = ApobDataReader.Read(RawData, layoutVersion, i);
-                        // Skip additional RTT block parsing for V90 since the data is right there and the layout is different
-                        break;
-                    }
+                    Data = ApobDataReader.Read(RawData, CodeName, i);
 
-                    Buffer.BlockCopy(RawData, i + 2, rttBlock, 0, 5);
+                    Buffer.BlockCopy(RawData, (int)i + 2, rttBlock, 0, rttBlock.Length);
                     foundRttBlock = true;
 
                     break;
@@ -203,17 +232,16 @@ namespace ZenStates.Core
             if (!foundRttBlock || Utils.AllZero(rttBlock))
                 return;
 
-            // 4.
-            SecondOffset = Utils.FindSequence(RawData, endOffset, rttBlock);
-            if (SecondOffset > -1)
-                SecondOffset -= 2;
+            int extendedOffset = Utils.FindSequence(RawExtendedData, 0, rttBlock);
+            if (extendedOffset > -1)
+                extendedOffset -= 2;
             else
                 return;
 
-            if (SecondOffset < 0)
+            if (extendedOffset < 0)
                 return;
 
-            Data = ApobDataReader.Read(RawData, layoutVersion, SecondOffset);
+            ExtendedData = ApobDataReader.Read(RawExtendedData, CodeName, (uint)extendedOffset);
         }
     }
 }

@@ -3,21 +3,21 @@
     public readonly struct ApobData
     {
         public ApobData(
-            byte rttNomRd,
-            byte rttNomWr,
-            byte rttWr,
-            byte rttPark,
-            byte rttParkDqs,
-            byte dramDataDs,
-            byte ckOdtA,
-            byte csOdtA,
-            byte caOdtA,
-            byte ckOdtB,
-            byte csOdtB,
-            byte caOdtB,
-            byte procOdt,
-            byte procDqDs,
-            byte procCaDs,
+            byte? rttNomRd = null,
+            byte? rttNomWr = null,
+            byte? rttWr = null,
+            byte? rttPark = null,
+            byte? rttParkDqs = null,
+            byte? dramDataDs = null,
+            byte? ckOdtA = null,
+            byte? csOdtA = null,
+            byte? caOdtA = null,
+            byte? ckOdtB = null,
+            byte? csOdtB = null,
+            byte? caOdtB = null,
+            byte? procOdt = null,
+            byte? procDqDs = null,
+            byte? procCaDs = null,
             byte? procCkDs = null,
             byte? procCsDs = null,
             byte? rttNomRdP0 = null,
@@ -79,23 +79,23 @@
             _procDataDsApu = procDataDsApu;
         }
 
-        private readonly byte _rttNomRd;
-        private readonly byte _rttNomWr;
-        private readonly byte _rttWr;
-        private readonly byte _rttPark;
-        private readonly byte _rttParkDqs;
-        private readonly byte _dramDataDs;
+        private readonly byte? _rttNomRd;
+        private readonly byte? _rttNomWr;
+        private readonly byte? _rttWr;
+        private readonly byte? _rttPark;
+        private readonly byte? _rttParkDqs;
+        private readonly byte? _dramDataDs;
 
-        private readonly byte _ckOdtA;
-        private readonly byte _csOdtA;
-        private readonly byte _caOdtA;
-        private readonly byte _ckOdtB;
-        private readonly byte _csOdtB;
-        private readonly byte _caOdtB;
+        private readonly byte? _ckOdtA;
+        private readonly byte? _csOdtA;
+        private readonly byte? _caOdtA;
+        private readonly byte? _ckOdtB;
+        private readonly byte? _csOdtB;
+        private readonly byte? _caOdtB;
 
-        private readonly byte _procOdt;
-        private readonly byte _procDqDs;
-        private readonly byte _procCaDs;
+        private readonly byte? _procOdt;
+        private readonly byte? _procDqDs;
+        private readonly byte? _procCaDs;
 
         private readonly byte? _procCkDs;
         private readonly byte? _procCsDs;
@@ -120,24 +120,24 @@
         private readonly byte? _procDqsOdt;
         private readonly byte? _procDataDsApu;
 
-        public Rtt RttNomRd => new Rtt(_rttNomRd);
-        public Rtt RttNomWr => new Rtt(_rttNomWr);
-        public Rtt RttWr => new Rtt(_rttWr);
-        public Rtt RttPark => new Rtt(_rttPark);
-        public Rtt RttParkDqs => new Rtt(_rttParkDqs);
+        public Rtt RttNomRd => _rttNomRd.HasValue ? new Rtt(_rttNomRd.Value) : null;
+        public Rtt RttNomWr => _rttNomWr.HasValue ? new Rtt(_rttNomWr.Value) : null;
+        public Rtt RttWr => _rttWr.HasValue ? new Rtt(_rttWr.Value) : null;
+        public Rtt RttPark => _rttPark.HasValue ? new Rtt(_rttPark.Value) : null;
+        public Rtt RttParkDqs => _rttParkDqs.HasValue ? new Rtt(_rttParkDqs.Value) : null;
 
-        public DramDataDrvStren DramDataDs => new DramDataDrvStren(_dramDataDs);
+        public DramDataDrvStren DramDataDs => _dramDataDs.HasValue ? new DramDataDrvStren(_dramDataDs.Value) : null;
 
-        public GroupOdtImpedance CkOdtA => new GroupOdtImpedance(_ckOdtA);
-        public GroupOdtImpedance CsOdtA => new GroupOdtImpedance(_csOdtA);
-        public GroupOdtImpedance CaOdtA => new GroupOdtImpedance(_caOdtA);
-        public GroupOdtImpedance CkOdtB => new GroupOdtImpedance(_ckOdtB);
-        public GroupOdtImpedance CsOdtB => new GroupOdtImpedance(_csOdtB);
-        public GroupOdtImpedance CaOdtB => new GroupOdtImpedance(_caOdtB);
+        public GroupOdtImpedance CkOdtA => _ckOdtA.HasValue ? new GroupOdtImpedance(_ckOdtA.Value) : null;
+        public GroupOdtImpedance CsOdtA => _csOdtA.HasValue ? new GroupOdtImpedance(_csOdtA.Value) : null;
+        public GroupOdtImpedance CaOdtA => _caOdtA.HasValue ? new GroupOdtImpedance(_caOdtA.Value) : null;
+        public GroupOdtImpedance CkOdtB => _ckOdtB.HasValue ? new GroupOdtImpedance(_ckOdtB.Value) : null;
+        public GroupOdtImpedance CsOdtB => _csOdtB.HasValue ? new GroupOdtImpedance(_csOdtB.Value) : null;
+        public GroupOdtImpedance CaOdtB => _caOdtB.HasValue ? new GroupOdtImpedance(_caOdtB.Value) : null;
 
-        public ProcOdt ProcOdt => new ProcOdt(_procOdt);
-        public ProcDataDrvStren ProcDqDs => new ProcDataDrvStren(_procDqDs);
-        public ProcOdtImpedance ProcCaDs => new ProcOdtImpedance(_procCaDs);
+        public ProcOdt ProcOdt => _procOdt.HasValue ? new ProcOdt(_procOdt.Value) : null;
+        public ProcDataDrvStren ProcDqDs => _procDqDs.HasValue ? new ProcDataDrvStren(_procDqDs.Value) : null;
+        public ProcOdtImpedance ProcCaDs => _procCaDs.HasValue ? new ProcOdtImpedance(_procCaDs.Value) : null;
         public ProcOdtImpedance ProcCkDs => _procCkDs.HasValue ? new ProcOdtImpedance(_procCkDs.Value) : null;
         public ProcOdtImpedance ProcCsDs => _procCsDs.HasValue ? new ProcOdtImpedance(_procCsDs.Value) : null;
 
