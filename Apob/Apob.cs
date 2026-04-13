@@ -111,8 +111,8 @@ namespace ZenStates.Core
             header = default;
             try
             {
-                byte headerSize = io.ReadMemory(new IntPtr(address + 0xC), 1)[0];
-                byte[] headerData = io.ReadMemory(new IntPtr(address), headerSize);
+                io.GetPhysLong(new UIntPtr(address + 0xC), out uint headerSize);
+                byte[] headerData = io.ReadMemory(new IntPtr(address), (int)headerSize);
 
                 if (headerData == null || headerData.Length < headerSize)
                 {
@@ -147,10 +147,7 @@ namespace ZenStates.Core
                 for (int i = 0; i < buffer.Length; i += 4)
                 {
                     uint offset = BitConverter.ToUInt32(buffer, i);
-                    if (offset == 0)
-                        break;
-
-                    list.Add(offset);
+                    if (offset > 0) list.Add(offset);
                 }
             }
 
