@@ -471,7 +471,7 @@ namespace ZenStates.Core
 
             if (Utils.AllZero(Table) ||
                 Utils.AllZero(tempTable) ||
-                Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE) ||
+                Utils.ArrayMembersEqual(Table, tempTable, tempTable.Length) ||
                 tempTable[0] < 0 || tempTable[1] < 0 || tempTable[2] < 0 || tempTable[3] < 0)
             {
                 smu.UpdatePmTable();
