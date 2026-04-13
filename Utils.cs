@@ -97,8 +97,15 @@ namespace ZenStates.Core
 
             foreach (var value in typedArray)
             {
-                if (Convert.ToUInt32(value) != 0)
-                    return false;
+                try
+                {
+                    if (Convert.ToInt32(value) != 0)
+                        return false;
+                }
+                catch
+                {
+                    return true;
+                }
             }
 
             return true;

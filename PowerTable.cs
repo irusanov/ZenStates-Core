@@ -13,7 +13,7 @@ namespace ZenStates.Core
         public readonly long DramBaseAddress;
         public readonly int TableSize;
         private const int NUM_ELEMENTS_TO_COMPARE = 20;
-        private const int MAX_REFRESH_RETRIES = 2;
+        private const int MAX_REFRESH_RETRIES = 5;
 
         private static PowerTable _instance;
         public static PowerTable Instance => _instance;
@@ -444,7 +444,7 @@ namespace ZenStates.Core
             if (DramBaseAddress == 0)
                 return SMU.Status.FAILED;
 
-            for (int retriesLeft = 2; retriesLeft > 0; retriesLeft--)
+            for (int retriesLeft = MAX_REFRESH_RETRIES; retriesLeft > 0; retriesLeft--)
             {
                 try
                 {
@@ -465,14 +465,14 @@ namespace ZenStates.Core
             if (Table == null || Table.Length == 0)
                 Table = new float[(int)smu.PmTableSize / 4];
 
-            long[] rawTempTable = smu.ReadPmTable(NUM_ELEMENTS_TO_COMPARE * 4);
+            long[] rawTempTable = smu.ReadPmTable(NUM_ELEMENTS_TO_COMPARE / 2);
             float[] tempTable = new float[NUM_ELEMENTS_TO_COMPARE];
             Buffer.BlockCopy(rawTempTable, 0, tempTable, 0, NUM_ELEMENTS_TO_COMPARE * 4);
 
             if (Utils.AllZero(Table) ||
                 Utils.AllZero(tempTable) ||
                 Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE) ||
-                tempTable[0] < 0)
+                tempTable[0] < 0 || tempTable[1] < 0 || tempTable[2] < 0 || tempTable[3] < 0)
             {
                 smu.UpdatePmTable();
             }
