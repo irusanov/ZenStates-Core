@@ -1,4 +1,5 @@
 using System;
+using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core
 {
@@ -22,7 +23,10 @@ namespace ZenStates.Core
         internal const uint SMBUS_BASE_ADDRESS_REG = 0x300;
         // internal const uint IOMUX_LPCCLK1 = IOMUX_BASE + 0x1F;
 
-        private readonly IOModule io;
+        private static AMD_MMIO _instance;
+        private readonly IODriver io;
+
+        public static AMD_MMIO Instance => _instance;
 
         public enum ClkGen : int
         {
@@ -31,9 +35,10 @@ namespace ZenStates.Core
             INTERNAL = 1,
         }
 
-        public AMD_MMIO(IOModule io)
+        public AMD_MMIO(IODriver io)
         {
             this.io = io;
+            _instance = this;
         }
 
         private static int CalculateBclkIndex(int bclk)
@@ -50,7 +55,7 @@ namespace ZenStates.Core
 
         private uint GetSmbusBaseAddress()
         {
-            io.GetPhysLong(new UIntPtr(SMBUS_BASE_ADDRESS_REG), out uint data);
+            io.GetPhysLong(new UIntPtr(AMD_MMIO_BASE_ADDRESS + SMBUS_BASE_ADDRESS_REG), out uint data);
             if (data != 0)
             {
                 uint value = (data >> 8) & 0x7F;

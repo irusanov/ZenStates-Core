@@ -6,9 +6,9 @@ using System.Diagnostics;
 using System.Globalization;
 #endif
 using System.Reflection;
-using System.Text;
 using System.Text.RegularExpressions;
 using ZenStates.Core.DRAM;
+using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core
 {
@@ -17,12 +17,14 @@ namespace ZenStates.Core
         private readonly CpuInitSettings _settings;
         private readonly AmdFamily17 _pawnAmd;
         private readonly RyzenSmu _pawnRyzenSmu;
+        private readonly SmbusPiix4 _pawnSmbusPiix4;
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
 
         public readonly Version Version = Assembly.GetExecutingAssembly().GetName().Version;
 
         public RyzenSmu RyzenSmu => _pawnRyzenSmu;
+        //internal SmbusPiix4 SmbusPiix4 => _pawnSmbusPiix4;
 
         public enum Family
         {
@@ -145,9 +147,10 @@ namespace ZenStates.Core
             public CpuTopology topology;
             public SVI2 svi2;
             public AOD aod;
+            public Apob apob;
         }
 
-        public readonly IOModule io = new IOModule();
+        public readonly IODriver io = new IODriver();
         private readonly AMD_MMIO mmio;
         public readonly CPUInfo info;
         public readonly SystemInfo systemInfo;
@@ -155,7 +158,7 @@ namespace ZenStates.Core
         public readonly PowerTable powerTable;
         public readonly MemoryConfig memoryConfig;
 
-        public IOModule.LibStatus Status { get; }
+        public IODriver.LibStatus Status { get; }
         public Exception LastError { get; }
 
         /**
@@ -260,7 +263,7 @@ namespace ZenStates.Core
             {
                 try
                 {
-                    if (ReadDwordEx(fuse1, ref ccdsPresent) && ReadDwordEx(fuse2, ref ccdsDown))
+                    if (ReadDwordExNoLock(fuse1, ref ccdsPresent) && ReadDwordExNoLock(fuse2, ref ccdsDown))
                     {
                         uint ccdEnableMap = Utils.BitSlice(ccdsPresent, 23, 22);
                         uint ccdDisableMap = Utils.BitSlice(ccdsPresent, 31, 30) | (Utils.BitSlice(ccdsDown, 5, 0) << 2);
@@ -277,7 +280,7 @@ namespace ZenStates.Core
                         topology.ccdsPresent = ccdsPresent;
                         topology.ccdsDown = ccdsDown;
 
-                        if (ReadDwordEx(coreDisableMapAddress, ref coreFuse))
+                        if (ReadDwordExNoLock(coreDisableMapAddress, ref coreFuse))
                         {
                             var coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
                             if (coresPerCcx > 0)
@@ -296,7 +299,7 @@ namespace ZenStates.Core
                         {
                             if (Utils.GetBits(ccdEnableMap, i, 1) == 1)
                             {
-                                if (ReadDwordEx(((uint)i << 25) + coreDisableMapAddress, ref coreFuse))
+                                if (ReadDwordExNoLock(((uint)i << 25) + coreDisableMapAddress, ref coreFuse))
                                     topology.coreDisableMap[i] = coreFuse & 0xff;
                                 else
                                     Console.WriteLine($"Could not read core fuse for CCD{i}!");
@@ -345,6 +348,7 @@ namespace ZenStates.Core
             {
                 _pawnAmd = new AmdFamily17();
                 _pawnRyzenSmu = new RyzenSmu();
+                _pawnSmbusPiix4 = SmbusPiix4.Instance;
             }
             catch (Exception ex)
             {
@@ -402,7 +406,7 @@ namespace ZenStates.Core
             catch (Exception ex)
             {
                 LastError = ex;
-                Status = IOModule.LibStatus.PARTIALLY_OK;
+                Status = IODriver.LibStatus.PARTIALLY_OK;
             }
 
             try
@@ -416,22 +420,21 @@ namespace ZenStates.Core
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
                 info.aod = new AOD(io, this);
+                info.apob = new Apob(info.codeName);
                 systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
-                powerTable = new PowerTable(_pawnRyzenSmu, mmio, info.codeName);
+                powerTable = new PowerTable(_pawnRyzenSmu, info.codeName);
 
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
 
-                // Wait 2 seconds to allow pmt settle before continuing, then refresh again.
-                System.Threading.Thread.Sleep(300);
                 powerTable.Refresh();
 
-                Status = IOModule.LibStatus.OK;
+                Status = IODriver.LibStatus.OK;
             }
             catch (Exception ex)
             {
                 LastError = ex;
-                Status = IOModule.LibStatus.PARTIALLY_OK;
+                Status = IODriver.LibStatus.PARTIALLY_OK;
             }
         }
 
@@ -448,18 +451,26 @@ namespace ZenStates.Core
             return (ccd << 28) | ((ccx % 2) << 24) | ((core % 4) << 20);
         }
 
-        public bool ReadDwordEx(uint addr, ref uint data, int maxRetries = 10)
+        public bool ReadDwordExNoLock(uint addr, ref uint data, int maxRetries = 10)
         {
             for (int retry = 0; retry < maxRetries; retry++)
             {
                 try
                 {
-                    return _pawnAmd.ReadSmn(addr, out data);
+                    return _pawnAmd.ReadSmnNoLock(addr, out data);
                 }
                 catch { }
             }
 
             return false;
+        }
+
+        public bool ReadDwordEx(uint addr, ref uint data, int maxRetries = 10)
+        {
+            using (new PciBusLock())
+            {
+                return ReadDwordExNoLock(addr, ref data, maxRetries);
+            }
         }
 
         public bool IoReadDwordEx(uint addr, ref uint data, int maxRetries = 10)
@@ -481,16 +492,19 @@ namespace ZenStates.Core
             }
         }
 
-        public bool ReadDword(uint addr, ref uint data, int maxRetries = 10)
+        public uint ReadDwordNoLock(uint addr, int maxRetries = 10)
         {
-            return ReadDwordEx(addr, ref data, maxRetries);
+            uint data = 0;
+            ReadDwordExNoLock(addr, ref data, maxRetries);
+            return data;
         }
 
         public uint ReadDword(uint addr, int maxRetries = 10)
         {
-            uint data = 0;
-            ReadDword(addr, ref data, maxRetries);
-            return data;
+            using (new PciBusLock())
+            {
+                return ReadDwordNoLock(addr, maxRetries);
+            }
         }
 
         public bool WriteDwordEx(uint addr, uint data, int maxRetries = 10)
@@ -1090,7 +1104,7 @@ namespace ZenStates.Core
                     address = 0x6F05C;
                     if (smu.SMU_TYPE == SMU.SmuType.TYPE_APU2)
                     {
-                        if (ReadDwordEx(address, ref data))
+                        if (ReadDwordExNoLock(address, ref data))
                             return (int)((data >> 6) & 0x1FF);
                     }
                 }
@@ -1101,11 +1115,11 @@ namespace ZenStates.Core
                 else if (info.family > Family.FAMILY_17H)
                 {
                     address = 0x73014;
-                    if (ReadDwordEx(address, ref data))
+                    if (ReadDwordExNoLock(address, ref data))
                         return (int)((data >> 6) & 0x1FF);
                 }
 
-                if (address != 0 && ReadDwordEx(address, ref data))
+                if (address != 0 && ReadDwordExNoLock(address, ref data))
                     return (int)(data >> 24);
             }
             finally
@@ -1125,7 +1139,7 @@ namespace ZenStates.Core
 
             try
             {
-                uint data = ReadDword(0x59804);
+                uint data = ReadDwordNoLock(0x59804);
                 return (data & 1) == 1;
             }
             finally
@@ -1146,7 +1160,7 @@ namespace ZenStates.Core
             {
                 uint thmData = 0;
 
-                if (ReadDwordEx(Constants.THM_CUR_TEMP, ref thmData))
+                if (ReadDwordExNoLock(Constants.THM_CUR_TEMP, ref thmData))
                 {
                     float offset = 0.0f;
 
@@ -1191,7 +1205,7 @@ namespace ZenStates.Core
                 uint thmData = 0;
                 uint register = this.info.family >= Family.FAMILY_19H ? Constants.F19H_CCD_TEMP : Constants.F17H_CCD_TEMP;
 
-                if (ReadDwordEx(register + (ccd * 0x4), ref thmData))
+                if (ReadDwordExNoLock(register + (ccd * 0x4), ref thmData))
                 {
                     float ccdTemp = (thmData & 0xfff) * 0.125f - 305.0f;
                     if (ccdTemp > 0 && ccdTemp < 125) // Zen 2 reports 95 degrees C max, but it might exceed that.
@@ -1235,6 +1249,7 @@ namespace ZenStates.Core
                     Opcode.Close();
                     _pawnAmd?.Close();
                     _pawnRyzenSmu?.Dispose();
+                    _pawnSmbusPiix4?.Dispose();
                 }
 
                 disposedValue = true;

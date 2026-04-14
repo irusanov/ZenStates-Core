@@ -109,10 +109,10 @@ namespace ZenStates.Core.DRAM
 
         public virtual void ReadBankGroupSwap(uint offset = 0)
         {
-            uint bgsa0 = cpu.ReadDword(offset | 0x500D0);
-            uint bgsa1 = cpu.ReadDword(offset | 0x500D4);
-            uint bgs0 = cpu.ReadDword(offset | 0x50050);
-            uint bgs1 = cpu.ReadDword(offset | 0x50058);
+            uint bgsa0 = cpu.ReadDwordNoLock(offset | 0x500D0);
+            uint bgsa1 = cpu.ReadDwordNoLock(offset | 0x500D4);
+            uint bgs0 = cpu.ReadDwordNoLock(offset | 0x50050);
+            uint bgs1 = cpu.ReadDwordNoLock(offset | 0x50058);
 
             BGS = (bgs0 == 0x87654321 && bgs1 == 0x87654321) ? 0 : 1U;
             BGSAlt = (Utils.GetBits(bgsa0, 4, 7) > 0 || Utils.GetBits(bgsa1, 4, 7) > 0) ? 1U : 0;
@@ -128,7 +128,7 @@ namespace ZenStates.Core.DRAM
                 {
                     if (this[def.Name] != null)
                     {
-                        uint data = cpu.ReadDword(offset | entry.Key);
+                        uint data = cpu.ReadDwordNoLock(offset | entry.Key);
                         this[def.Name] = Utils.BitSlice(data, def.HiBit, def.LoBit);
                     }
                 }
@@ -136,7 +136,20 @@ namespace ZenStates.Core.DRAM
         }
 
         //public MemType Type { get; set; } = MemType.UNKNOWN;
-        public float Frequency => Ratio * 200;
+        public float Frequency
+        {
+            get
+            {
+                var mclk = PowerTable.Instance?.MCLK ?? 0;
+                if (mclk > 0)
+                {
+                    return mclk * 2;
+                }
+
+                double? bclk = AMD_MMIO.Instance.GetBclk() ?? 100;
+                return Ratio * (float)(bclk) * 2;
+            }
+        }
         public float Ratio { get; internal set; }
         // public string TotalCapacity { get; internal set; }
         public BooleanProp BGS { get; internal set; }
@@ -190,7 +203,20 @@ namespace ZenStates.Core.DRAM
             get => _wrpre + 1;
             internal set => _wrpre = value;
         }
-        public uint RDPRE { get; internal set; }
+        private uint _rdpre;
+        public uint RDPRE
+        {
+            get
+            {
+                if (_rdpre < 2)
+                    return _rdpre + 1;
+                else
+                    return _rdpre;
+            }
+            internal set => _rdpre = value;
+        }
+        public uint RDPOST { get; internal set; }
+        public uint WRPOST { get; internal set; }
         public float RFCns { get => Utils.ToNanoseconds(RFC, Frequency); }
         public float REFIns { get => Utils.ToNanoseconds(REFI, Frequency); }
         public uint FGR { get; internal set; }

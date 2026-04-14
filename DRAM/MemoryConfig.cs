@@ -1,13 +1,16 @@
-﻿using OpenHardwareMonitor.Hardware;
+using OpenHardwareMonitor.Hardware;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Management;
+using System.Text;
+using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core.DRAM
 {
     public class MemoryConfig
     {
+        private readonly SmbusPiix4 smbusDriver = SmbusPiix4.Instance;
+
         private const int DRAM_TYPE_BIT_MASK = 0x3;
 
         private const uint DRAM_TYPE_REG_ADDR = 0x50100;
@@ -52,6 +55,10 @@ namespace ZenStates.Core.DRAM
 
         public List<MemoryModule> Modules { get; protected set; }
 
+        public Dictionary<byte, Ddr5SpdInfo> SpdInfo { get; protected set; }
+
+        private long LastTelemetryRefreshTick;
+
         public MemoryConfig(Cpu cpuInstance)
         {
             cpu = cpuInstance;
@@ -72,7 +79,7 @@ namespace ZenStates.Core.DRAM
 
             try
             {
-                ReadChannels();
+                ReadChannelsNoLock();
 
                 foreach (MemoryModule module in Modules)
                 {
@@ -88,6 +95,37 @@ namespace ZenStates.Core.DRAM
             {
                 Mutexes.ReleasePciBus();
             }
+
+            if (Type != MemType.DDR5 && Type != MemType.LPDDR5)
+                return;
+
+            // Only read partial info needed for initialization as reading whole SPD data is expensive
+            SpdInfo = Ddr5SpdReader.ReadDdr5SpdInitInfoAll();
+
+            try
+            {
+                int moduleIndex = 0;
+                foreach (var spdEntry in SpdInfo.Values)
+                {
+                    if (moduleIndex < Modules.Count)
+                    {
+                        if (string.IsNullOrEmpty(Modules[moduleIndex].Manufacturer) ||
+                            Modules[moduleIndex].Manufacturer.StartsWith("Unknown") ||
+                            !spdEntry.ModuleManufacturer.StartsWith("Unknown"))
+                        {
+                            Modules[moduleIndex].Manufacturer = spdEntry.ModuleManufacturer;
+                        }
+                        moduleIndex++;
+                    }
+                }
+            }
+            catch
+            {
+                // do nothing
+            }
+
+            // Populate PMIC data for telemetry
+            //RefreshTelemetry();
         }
 
         internal static MemType SMBiosDramTypeToMemType(MemoryType type)
@@ -116,7 +154,7 @@ namespace ZenStates.Core.DRAM
                     item.Value.Read(offset);
                     break;
                 }
-             }
+            }
         }
 
         public void ReadTimings(uint offset = 0)
@@ -134,6 +172,78 @@ namespace ZenStates.Core.DRAM
             {
                 Mutexes.ReleasePciBus();
             }
+        }
+
+        public Dictionary<byte, Ddr5SpdInfo> ReadAndDecodeAll()
+        {
+            return Ddr5SpdDecoder.ReadAndDecodeAll(smbusDriver);
+        }
+
+        public bool RefreshSpdInfo()
+        {
+            try
+            {
+                Dictionary<byte, Ddr5SpdInfo> info = ReadAndDecodeAll();
+                foreach (var entry in info)
+                {
+                    if (SpdInfo.ContainsKey(entry.Key))
+                    {
+                        SpdInfo[entry.Key] = entry.Value;
+                    }
+                    else
+                    {
+                        SpdInfo.Add(entry.Key, entry.Value);
+                    }
+                }
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public bool RefreshTelemetry(int uiRefreshIntervalMs = 2000)
+        {
+            bool updated = false;
+            //int minHardwareRefreshMs;
+
+            //if (uiRefreshIntervalMs >= 2000)
+            //    minHardwareRefreshMs = uiRefreshIntervalMs;
+            //else
+            //    minHardwareRefreshMs = 2000;
+
+            long now = Environment.TickCount & Int32.MaxValue;
+
+            if (!Mutexes.WaitSmbus(5000))
+            {
+                Debug.WriteLine("Timeout waiting for PCI bus mutex.");
+                return false;
+            }
+
+            try
+            {
+                foreach (var info in SpdInfo)
+                {
+                    Ddr5PmicData pd = info.Value?.PmicData;
+                    if (pd == null || !pd.IsValid)
+                        continue;
+
+                    long elapsed = now - LastTelemetryRefreshTick;
+                    if (elapsed >= 0 && elapsed < uiRefreshIntervalMs)
+                        continue;
+
+                    Ddr5PmicReader.ReadAllAdcVoltagesNoLock(smbusDriver, pd.I2cAddress, pd);
+                    LastTelemetryRefreshTick = now;
+                    updated = true;
+                }
+            }
+            finally
+            {
+                Mutexes.ReleaseSmbus();
+            }
+
+            return updated;
         }
 
         private void ReadModulesInfo()
@@ -166,14 +276,14 @@ namespace ZenStates.Core.DRAM
         {
             if (Type == MemType.DDR4 || Type == MemType.LPDDR4)
             {
-                return (MemRank)Utils.GetBits(cpu.ReadDword(address), 0, 1);
+                return (MemRank)Utils.GetBits(cpu.ReadDwordNoLock(address), 0, 1);
             }
             else if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
             {
-                var value = cpu.ReadDword(address);
+                var value = cpu.ReadDwordNoLock(address);
                 if (value != 0 && (value == 0x07FFFBFE || Utils.GetBits(value, 9, 2) < 3))
                     return MemRank.DR;
-                value = cpu.ReadDword(address + 4);
+                value = cpu.ReadDwordNoLock(address + 4);
                 if (value != 0 && (value == 0x07FFFBFE || Utils.GetBits(value, 9, 2) < 3))
                     return MemRank.DR;
             }
@@ -183,7 +293,7 @@ namespace ZenStates.Core.DRAM
 
         private DramAddressConfig GetAddressConfig(uint address)
         {
-            var value = cpu.ReadDword(address);
+            var value = cpu.ReadDwordNoLock(address);
             var config = new DramAddressConfig();
             if (value != 0)
             {
@@ -197,10 +307,10 @@ namespace ZenStates.Core.DRAM
             return config;
         }
 
-        private void ReadChannels()
+        private void ReadChannelsNoLock()
         {
             int dimmIndex = 0;
-            uint dimmsPerChannel = 1;
+            //uint dimmsPerChannel = 1;
 
             // Get the offset by probing the UMC0 to UMC7
             // It appears that offsets 0x80 and 0x84 are DIMM config registers
@@ -212,10 +322,13 @@ namespace ZenStates.Core.DRAM
             {
                 try
                 {
+                    if (dimmIndex >= Modules.Count)
+                        break;
+
                     uint offset = i << 20;
-                    bool channel = Utils.GetBits(cpu.ReadDword(offset | 0x50DF0), 19, 1) == 0;
-                    bool dimm1 = Utils.GetBits(cpu.ReadDword(offset | 0x50000), 0, 1) == 1;
-                    bool dimm2 = Utils.GetBits(cpu.ReadDword(offset | 0x50008), 0, 1) == 1;
+                    bool channel = Utils.GetBits(cpu.ReadDwordNoLock(offset | 0x50DF0), 19, 1) == 0;
+                    bool dimm1 = Utils.GetBits(cpu.ReadDwordNoLock(offset | 0x50000), 0, 1) == 1;
+                    bool dimm2 = Utils.GetBits(cpu.ReadDwordNoLock(offset | 0x50008), 0, 1) == 1;
                     bool enabled = channel && (dimm1 || dimm2);
 
                     Channels.Add(new Channel()
@@ -228,20 +341,24 @@ namespace ZenStates.Core.DRAM
                     {
                         if (dimm1)
                         {
-                            MemoryModule module = Modules[dimmIndex++];
+                            var address = offset | ((Type == MemType.DDR4 || Type == MemType.LPDDR4) ? 0x50080u : 0x50020u);
+                            MemoryModule module = Modules[dimmIndex];
                             module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}1";
                             module.DctOffset = offset;
-                            module.Rank = (Type == MemType.DDR4 || Type == MemType.LPDDR4) ? GetRank(offset | 0x50080) : GetRank(offset | 0x50020);
+                            module.Rank = GetRank(address);
                             module.AddressConfig = GetAddressConfig(offset | 0x50040);
+                            dimmIndex += 1;
                         }
 
                         if (dimm2)
                         {
-                            MemoryModule module = Modules[dimmIndex++];
+                            var address = offset | ((Type == MemType.DDR4 || Type == MemType.LPDDR4) ? 0x50084u : 0x50028u);
+                            MemoryModule module = Modules[dimmIndex];
                             module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}2";
                             module.DctOffset = offset;
-                            module.Rank = (Type == MemType.DDR4 || Type == MemType.LPDDR4) ? GetRank(offset | 0x50084) : GetRank(offset | 0x50028);
+                            module.Rank = GetRank(address);
                             module.AddressConfig = GetAddressConfig(offset | 0x50048);
+                            dimmIndex += 1;
                         }
                     }
                 }

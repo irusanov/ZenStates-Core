@@ -2,104 +2,22 @@ using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.Management;
 using System.Text;
-using ZenStates.Core.DRAM;
+using ZenStates.Core.Drivers;
 using static ZenStates.Core.ACPI;
 
 namespace ZenStates.Core
 {
     public class AOD
     {
-        internal readonly IOModule io;
+        internal readonly IODriver io;
         internal readonly Cpu cpuInstance;
         public readonly ACPI acpi;
         internal readonly Cpu.CodeName codeName;
         internal readonly uint patchLevel;
         internal readonly bool hasRMP;
         public AodTable Table;
-
-        public class AodEnumBase
-        {
-            protected int Value;
-
-            public AodEnumBase(int value)
-            {
-                Value = value;
-            }
-
-            public override string ToString()
-            {
-                return GetByKey(ValueDictionary, Value);
-            }
-
-            protected virtual Dictionary<int, string> ValueDictionary { get; } = new Dictionary<int, string>();
-
-            protected static string GetByKey(Dictionary<int, string> dictionary, int key)
-            {
-                return dictionary.TryGetValue(key, out string output) ? output : @"N/A";
-            }
-        }
-
-        public class ProcOdt : AodEnumBase
-        {
-            public ProcOdt(int value) : base(value) { }
-            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.ProcOdtDict;
-        }
-
-        public class ProcDataDrvStren : AodEnumBase
-        {
-            public ProcDataDrvStren(int value) : base(value) { }
-            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.ProcDataDrvStrenDict;
-        }
-
-        public class DramDataDrvStren : AodEnumBase
-        {
-            public DramDataDrvStren(int value) : base(value) { }
-            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.DramDataDrvStrenDict;
-        }
-
-        public class CadBusDrvStren : AodEnumBase
-        {
-            public CadBusDrvStren(int value) : base(value) { }
-            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.CadBusDrvStrenDict;
-        }
-
-        public class ProcOdtImpedance : AodEnumBase
-        {
-            public ProcOdtImpedance(int value) : base(value) { }
-            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.ProcOdtImpedanceDict;
-        }
-
-        public class Rtt : AodEnumBase
-        {
-            public Rtt(int value) : base(value) { }
-            protected override Dictionary<int, string> ValueDictionary { get; } = AodDictionaries.RttDict;
-
-            public override string ToString()
-            {
-                string value = base.ToString();
-
-                if (this.Value > 0)
-                    return $"{value} ({240 / Value})";
-                return $"{value}";
-            }
-        }
-
-        public class Voltage
-        {
-            protected int Value;
-            public Voltage(int value)
-            {
-                Value = value;
-            }
-
-            public override string ToString()
-            {
-                return string.Format(CultureInfo.GetCultureInfo("en-US"), "{0:F4}V", Value / 1000.0);
-            }
-        }
 
         [Serializable]
         public class AodTable
@@ -122,7 +40,7 @@ namespace ZenStates.Core
             }
         }
 
-        public AOD(IOModule io, Cpu cpuInstance)
+        public AOD(IODriver io, Cpu cpuInstance)
         {
             this.io = io;
             this.cpuInstance = cpuInstance;
@@ -310,10 +228,10 @@ namespace ZenStates.Core
         // TODO: Make generic for all CPUs
         private BaseDictionary GetBaseDictionaryByFrequency()
         {
-            var frequency = (cpuInstance.memoryConfig?.Timings[0].Value as DRAM.BaseDramTimings)?.Frequency ?? 0;
-            if (frequency > 0)
+            var mclk = (cpuInstance.memoryConfig?.Timings[0].Value as DRAM.BaseDramTimings)?.Ratio * 100 ?? 0;
+            if (mclk > 0)
             {
-                var tableIndex = Utils.FindLastSequence(this.Table.RawAodTable, 0, Utils.ToBytes2(frequency / 2));
+                var tableIndex = Utils.FindLastSequence(this.Table.RawAodTable, 0, Utils.ToBytes2(mclk));
                 if (tableIndex > -1)
                 {
                     return new BaseDictionary()
@@ -363,10 +281,10 @@ namespace ZenStates.Core
 
             var baseDictionary = GetBaseDictionaryByFrequency();
             var lastOffset = baseDictionary.LastOffset;
-            var memModule = cpuInstance.memoryConfig?.Modules[0];
-            var isMDie = memModule?.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
-            var isDR = memModule?.Rank == DRAM.MemRank.DR;
-            var capacityGB = memModule?.Capacity.SizeInBytes / Math.Pow(1024, (int)memModule?.Capacity.Unit) ?? 0;
+            //var memModule = cpuInstance.memoryConfig?.Modules[0];
+            //var isMDie = memModule?.Rank == DRAM.MemRank.SR && memModule.AddressConfig.NumRow > 16;
+            //var isDR = memModule?.Rank == DRAM.MemRank.DR;
+            //var capacityGB = memModule?.Capacity.SizeInBytes / Math.Pow(1024, (int)memModule?.Capacity.Unit) ?? 0;
 
             switch (codeName)
             {
@@ -383,6 +301,7 @@ namespace ZenStates.Core
                         dict = new Dictionary<string, int>(baseDictionary.Dict)
                         {
                             { "ProcDataDrvStren", lastOffset + 4},
+                            { "ProcDataDrvStrenApu", lastOffset + 4},
                             { "ProcCaOdt", lastOffset + 8 },
                             { "ProcCkOdt", lastOffset + 12 },
                             { "ProcDqOdt", lastOffset + 16 },
@@ -395,15 +314,15 @@ namespace ZenStates.Core
                             { "RttParkDqs", lastOffset + 44 },
                         };
 
-                        //if (memModule.AddressConfig.NumRow > 16)
-                        //{
-                        //    lastOffset += 4;
-                        //}
+                        if ((codeName == Cpu.CodeName.Phoenix || codeName == Cpu.CodeName.Phoenix2) && cpuInstance.info.cpuName.ToLowerInvariant().Contains("radeon"))
+                        {
+                            lastOffset += 4;
+                        }
 
                         dict["MemVddio"] = lastOffset + 88;
                         dict["MemVddq"] = lastOffset + 92;
-                        dict["ApuVddio"] = lastOffset + 100;
                         dict["MemVpp"] = lastOffset + 96;
+                        dict["ApuVddio"] = lastOffset + 100;
 
                         return dict;
                     }
@@ -440,8 +359,8 @@ namespace ZenStates.Core
                                 { "ProcCsDs", lastOffset + 160 },
                                 { "ProcCkDs", lastOffset + 164 },
                                 { "ProcDataDrvStren", lastOffset + 168 },
-                                { "ProcDqDsPullUp", lastOffset + 172 },
-                                { "ProcDqDsPullDown", lastOffset +  176 },
+                                { "ProcDqDsPullUp", lastOffset + 168 },
+                                { "ProcDqDsPullDown", lastOffset +  172 },
                             };
 
                             // Why?
@@ -457,8 +376,8 @@ namespace ZenStates.Core
                                 dict["ProcCsDs"] = lastOffset + 144;
                                 dict["ProcCkDs"] = lastOffset + 148;
                                 dict["ProcDataDrvStren"] = lastOffset + 152;
-                                dict["ProcDqDsPullUp"] = lastOffset + 156;
-                                dict["ProcDqDsPullDown"] = lastOffset + 160;
+                                dict["ProcDqDsPullUp"] = lastOffset + 152;
+                                dict["ProcDqDsPullDown"] = lastOffset + 156;
                             }
 
                             return dict;
@@ -486,7 +405,7 @@ namespace ZenStates.Core
                                 { "DramDataDrvStren", lastOffset + 144 }
                             };
 
-                            
+
                             //if (isMDie && hasRMP)
                             if (!hasRMP)
                             {

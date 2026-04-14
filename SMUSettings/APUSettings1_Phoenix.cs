@@ -46,6 +46,8 @@
             Mp1Smu.SMU_ADDR_RSP = 0x03B10578;
             Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
 
+            Mp1Smu.SMU_MSG_GetCpuName = 0x4;
+
             Mp1Smu.SMU_MSG_SetMaxPerformance = 0x11;
             Mp1Smu.SMU_MSG_SetPowerSaving = 0x12;
 
@@ -66,7 +68,7 @@
             Mp1Smu.SMU_MSG_SetOverclockFrequencyAllCores = 0x31;
             Mp1Smu.SMU_MSG_SetOverclockFrequencyPerCore = 0x32;
             Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x33;
-            
+
             Mp1Smu.SMU_MSG_SetPBOScalar = 0x49;
             Mp1Smu.SMU_MSG_SetDldoPsmMargin = 0x4B;
             Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0x4C;

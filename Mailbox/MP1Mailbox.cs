@@ -4,6 +4,8 @@
     {
         // Configurable commands
         public uint SMU_MSG_GetBiosIfVersion { get; set; } = 0x3;
+
+        public uint SMU_MSG_GetCpuName { get; set; } = 0x0;
         public uint SMU_MSG_SetToolsDramAddress { get; set; } = 0x0;
         public uint SMU_MSG_EnableOcMode { get; set; } = 0x0;
         public uint SMU_MSG_DisableOcMode { get; set; } = 0x0;

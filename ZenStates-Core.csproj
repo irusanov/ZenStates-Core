@@ -6,8 +6,8 @@
     <Company>irusanov</Company>
     <Product>ZenStates.Core</Product>
     <Copyright>Copyright © 2026</Copyright>
-    <AssemblyVersion>1.84.0</AssemblyVersion>
-    <FileVersion>1.84.0</FileVersion>
+    <AssemblyVersion>1.85.0</AssemblyVersion>
+    <FileVersion>1.85.0</FileVersion>
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <IsWindows Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true'">true</IsWindows> 
     <IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux> 
@@ -72,6 +72,7 @@
     <None Include="External\WinIo\LICENSE.txt" />
     <EmbeddedResource Include="Resources\PawnIo\AMDFamily17.bin" />
     <EmbeddedResource Include="Resources\PawnIo\RyzenSMU.bin" />
+    <EmbeddedResource Include="Resources\PawnIo\SmbusPIIX4.bin" />
   </ItemGroup>
   <ItemGroup>
     <None Include="External\InpOut\Win32\inpout32.lib" />

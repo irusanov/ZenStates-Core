@@ -1179,7 +1179,7 @@ namespace OpenHardwareMonitor.Hardware
                 string biosDate = ReadSysFs("/sys/class/dmi/id/bios_date");
                 Bios = new BiosInformation(biosVendor, biosVersion, biosDate);
 
-                MemoryDevices = new MemoryDevice[] {};
+                MemoryDevices = new MemoryDevice[] { };
                 ProcessorCaches = new CacheInformation[] { };
             }
             else

@@ -7,9 +7,9 @@ using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.ServiceProcess;
 
-namespace ZenStates.Core
+namespace ZenStates.Core.Drivers
 {
-    public sealed class IOModule : IDisposable
+    public sealed class IODriver : IDisposable
     {
         [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Ansi)]
         private static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPStr)] string lpFileName);
@@ -30,6 +30,10 @@ namespace ZenStates.Core
         }
 
         private LibStatus WinIoStatus { get; } = LibStatus.INITIALIZE_ERROR;
+
+        private static IODriver _instance;
+
+        public static IODriver Instance => _instance;
 
         public bool IsInpOutDriverOpen()
         {
@@ -58,7 +62,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error reading memory: {ex.Message}");
+                Debug.WriteLine($"Error reading memory: {ex.Message}");
             }
 
             return null;
@@ -80,7 +84,7 @@ namespace ZenStates.Core
             return dll;
         }
 
-        public IOModule()
+        public IODriver()
         {
             try
             {
@@ -104,8 +108,18 @@ namespace ZenStates.Core
                 SetPhysLong = (_SetPhysLong)GetDelegate(ioModule, "SetPhysLong", typeof(_SetPhysLong));
                 MapPhysToLin = (_MapPhysToLin)GetDelegate(ioModule, "MapPhysToLin", typeof(_MapPhysToLin));
                 UnmapPhysicalMemory = (_UnmapPhysicalMemory)GetDelegate(ioModule, "UnmapPhysicalMemory", typeof(_UnmapPhysicalMemory));
+
+                DlPortReadPortUchar = (_DlPortReadPortUchar)GetDelegate(ioModule, "DlPortReadPortUchar", typeof(_DlPortReadPortUchar));
+                DlPortWritePortUchar = (_DlPortWritePortUchar)GetDelegate(ioModule, "DlPortWritePortUchar", typeof(_DlPortWritePortUchar));
+
+                DlPortReadPortUshort = (_DlPortReadPortUshort)GetDelegate(ioModule, "DlPortReadPortUshort", typeof(_DlPortReadPortUshort));
+                DlPortWritePortUshort = (_DlPortWritePortUshort)GetDelegate(ioModule, "DlPortWritePortUshort", typeof(_DlPortWritePortUshort));
+
                 DlPortReadPortUlong = (_DlPortReadPortUlong)GetDelegate(ioModule, "DlPortReadPortUlong", typeof(_DlPortReadPortUlong));
                 DlPortWritePortUlong = (_DlPortWritePortUlong)GetDelegate(ioModule, "DlPortWritePortUlong", typeof(_DlPortWritePortUlong));
+
+                Inp32 = (_Inp32)GetDelegate(ioModule, "Inp32", typeof(_Inp32));
+                Out32 = (_Out32)GetDelegate(ioModule, "Out32", typeof(_Out32));
 
                 // 64bit only
                 if (Utils.Is64Bit)
@@ -122,6 +136,8 @@ namespace ZenStates.Core
                         WinIoStatus = LibStatus.OK;
                     }
                 }
+
+                _instance = this;
             }
             catch (Exception ex)
             {
@@ -129,10 +145,31 @@ namespace ZenStates.Core
             }
         }
 
-        public delegate ulong _DlPortReadPortUlong(ushort port);
+        internal delegate byte _Inp32(short port);
+        internal readonly _Inp32 Inp32;
+
+        internal delegate void _Out32(short port, short value);
+        internal readonly _Out32 Out32;
+
+        // 8-bit
+        public delegate byte _DlPortReadPortUchar(ushort port);
+        public readonly _DlPortReadPortUchar DlPortReadPortUchar;
+
+        public delegate void _DlPortWritePortUchar(ushort port, byte value);
+        public readonly _DlPortWritePortUchar DlPortWritePortUchar;
+
+        // 16-bit
+        public delegate ushort _DlPortReadPortUshort(ushort port);
+        public readonly _DlPortReadPortUshort DlPortReadPortUshort;
+
+        public delegate void _DlPortWritePortUshort(ushort port, ushort value);
+        public readonly _DlPortWritePortUshort DlPortWritePortUshort;
+
+        // 32-bit
+        public delegate uint _DlPortReadPortUlong(uint port);
         public readonly _DlPortReadPortUlong DlPortReadPortUlong;
 
-        public delegate void _DlPortWritePortUlong(ushort port, ulong value);
+        public delegate void _DlPortWritePortUlong(uint port, uint value);
         public readonly _DlPortWritePortUlong DlPortWritePortUlong;
 
         public delegate bool _GetPhysLong(UIntPtr memAddress, out uint data);

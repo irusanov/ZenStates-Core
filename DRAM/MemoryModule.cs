@@ -1,5 +1,4 @@
 ﻿using System.Collections;
-using System.Reflection;
 
 namespace ZenStates.Core.DRAM
 {
@@ -145,6 +144,7 @@ namespace ZenStates.Core.DRAM
         public string Slot { get; set; } = "";
         public uint DctOffset { get; set; } = 0;
         public DramAddressConfig AddressConfig { get; set; }
+        //public Ddr5SpdInfo SpdInfo { get; set; }
 
         public MemoryModule()
         {

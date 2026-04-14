@@ -50,16 +50,16 @@ namespace ZenStates.Core.DRAM
 
         public override void Read(uint offset = 0)
         {
-            Ratio = Utils.BitSlice(cpu.ReadDword(offset | 0x50200), 15, 0) / 100.0f;
+            Ratio = Utils.BitSlice(cpu.ReadDwordNoLock(offset | 0x50200), 15, 0) / 100.0f;
 
             base.Read(offset);
 
             // TRFC
             // define as separate variables to avoid false-positives on virus scans
-            uint trfcTimings0 = cpu.ReadDword(offset | 0x50260);
-            uint trfcTimings1 = cpu.ReadDword(offset | 0x50264);
-            uint trfcTimings2 = cpu.ReadDword(offset | 0x50268);
-            uint trfcTimings3 = cpu.ReadDword(offset | 0x5026C);
+            uint trfcTimings0 = cpu.ReadDwordNoLock(offset | 0x50260);
+            uint trfcTimings1 = cpu.ReadDwordNoLock(offset | 0x50264);
+            uint trfcTimings2 = cpu.ReadDwordNoLock(offset | 0x50268);
+            uint trfcTimings3 = cpu.ReadDwordNoLock(offset | 0x5026C);
             uint trfcRegValue = 0;
 
             uint[] ddr5Regs = new[] { trfcTimings0, trfcTimings1, trfcTimings2, trfcTimings3 };
@@ -79,10 +79,10 @@ namespace ZenStates.Core.DRAM
             }
 
             // TRFCsb
-            trfcTimings0 = Utils.BitSlice(cpu.ReadDword(offset | 0x502c0), 10, 0);
-            trfcTimings1 = Utils.BitSlice(cpu.ReadDword(offset | 0x502c4), 10, 0);
-            trfcTimings2 = Utils.BitSlice(cpu.ReadDword(offset | 0x502c8), 10, 0);
-            trfcTimings3 = Utils.BitSlice(cpu.ReadDword(offset | 0x502cc), 10, 0);
+            trfcTimings0 = Utils.BitSlice(cpu.ReadDwordNoLock(offset | 0x502c0), 10, 0);
+            trfcTimings1 = Utils.BitSlice(cpu.ReadDwordNoLock(offset | 0x502c4), 10, 0);
+            trfcTimings2 = Utils.BitSlice(cpu.ReadDwordNoLock(offset | 0x502c8), 10, 0);
+            trfcTimings3 = Utils.BitSlice(cpu.ReadDwordNoLock(offset | 0x502cc), 10, 0);
             ddr5Regs = new[] { trfcTimings0, trfcTimings1, trfcTimings2, trfcTimings3 };
 
             foreach (uint value in ddr5Regs)
@@ -94,11 +94,11 @@ namespace ZenStates.Core.DRAM
                 }
             }
 
-            uint nitroSettings = Utils.BitSlice(cpu.ReadDword(offset | 0x50284), 11, 0);
+            uint nitroSettings = Utils.BitSlice(cpu.ReadDwordNoLock(offset | 0x50284), 11, 0);
             Nitro = new NitroSettings(nitroSettings);
 
             // Refresh mode
-            uint refreshModeValue = cpu.ReadDword(offset | 0x5012C);
+            uint refreshModeValue = cpu.ReadDwordNoLock(offset | 0x5012C);
             FGR = Utils.BitSlice(refreshModeValue, 18, 16);
             //var allBankRefresh = Utils.GetBit(refreshModeValue, 19);
             var perBankRefresh = Utils.GetBit(refreshModeValue, 1);

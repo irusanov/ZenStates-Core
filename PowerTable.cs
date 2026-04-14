@@ -9,11 +9,14 @@ namespace ZenStates.Core
     {
         private readonly Cpu.CodeName _codeName = Cpu.CodeName.Unsupported;
         private readonly RyzenSmu smu;
-        private readonly AMD_MMIO mmio;
         private readonly PTDef tableDef;
         public readonly long DramBaseAddress;
         public readonly int TableSize;
         private const int NUM_ELEMENTS_TO_COMPARE = 20;
+        private const int MAX_REFRESH_RETRIES = 5;
+
+        private static PowerTable _instance;
+        public static PowerTable Instance => _instance;
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -368,11 +371,11 @@ namespace ZenStates.Core
             return GetDefaultTableDef(tableVersion);
         }
 
-        public PowerTable(RyzenSmu smuInstance, AMD_MMIO mmio, Cpu.CodeName? codeName)
+        public PowerTable(RyzenSmu smuInstance, Cpu.CodeName? codeName)
         {
             this._codeName = codeName ?? Cpu.CodeName.Unsupported;
             this.smu = smuInstance ?? throw new ArgumentNullException(nameof(smuInstance));
-            this.mmio = mmio ?? throw new ArgumentNullException(nameof(mmio));
+            _instance = this;
 
             DramBaseAddress = smu.DramBaseAddress;
 
@@ -404,7 +407,7 @@ namespace ZenStates.Core
                 return;
 
             float bclkCorrection = 1.0f;
-            double? bclk = mmio.GetBclk();
+            double? bclk = AMD_MMIO.Instance.GetBclk();
 
             if (bclk != null)
                 bclkCorrection = (float)bclk / 100.0f;
@@ -439,41 +442,49 @@ namespace ZenStates.Core
         public SMU.Status Refresh()
         {
             if (DramBaseAddress == 0)
-            {
                 return SMU.Status.FAILED;
-            }
 
-            try
+            for (int retriesLeft = MAX_REFRESH_RETRIES; retriesLeft > 0; retriesLeft--)
             {
-                if (Table == null || Table.Length == 0)
-                    Table = new float[(int)smu.PmTableSize / 4];
-
-                long[] rawTempTable = smu.ReadPmTable((NUM_ELEMENTS_TO_COMPARE * 4 + 7) / 8);
-                float[] tempTable = new float[NUM_ELEMENTS_TO_COMPARE];
-                Buffer.BlockCopy(rawTempTable, 0, tempTable, 0, NUM_ELEMENTS_TO_COMPARE * 4);
-
-                // Issue a refresh command if the table is empty or the first {NUM_ELEMENTS_TO_COMPARE} elements of both tables are equal,
-                // otherwise skip as some other app already refreshed the data.
-                // Checking for empty Table should issue a refresh on first load.
-                if (Utils.AllZero(Table) || Utils.AllZero(tempTable) || Utils.ArrayMembersEqual(Table, tempTable, NUM_ELEMENTS_TO_COMPARE))
+                try
                 {
-                    smu.UpdatePmTable();
+                    if (TryRefreshOnce())
+                        return SMU.Status.OK;
                 }
-
-                long[] fullTable = smu.ReadPmTable(((int)smu.PmTableSize + 7) / 8);
-                Buffer.BlockCopy(fullTable, 0, Table, 0, (int)smu.PmTableSize);
-
-                if (Utils.AllZero(Table))
-                    return SMU.Status.FAILED;
-
-                ParseTable(Table);
-                return SMU.Status.OK;
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Refresh attempt failed: {ex.Message}");
+                }
             }
-            catch (Exception ex)
+
+            return SMU.Status.FAILED;
+        }
+
+        private bool TryRefreshOnce()
+        {
+            if (Table == null || Table.Length == 0)
+                Table = new float[(int)smu.PmTableSize / 4];
+
+            long[] rawTempTable = smu.ReadPmTable(NUM_ELEMENTS_TO_COMPARE / 2);
+            float[] tempTable = new float[NUM_ELEMENTS_TO_COMPARE];
+            Buffer.BlockCopy(rawTempTable, 0, tempTable, 0, NUM_ELEMENTS_TO_COMPARE * 4);
+
+            if (Utils.AllZero(Table) ||
+                Utils.AllZero(tempTable) ||
+                Utils.ArrayMembersEqual(Table, tempTable, tempTable.Length) ||
+                tempTable[0] < 0 || tempTable[1] < 0 || tempTable[2] < 0 || tempTable[3] < 0)
             {
-                Debug.WriteLine($"Error occurred while reading table: {ex.Message}");
-                return SMU.Status.FAILED;
+                smu.UpdatePmTable();
             }
+
+            long[] fullTable = smu.ReadPmTable(((int)smu.PmTableSize + 7) / 8);
+            Buffer.BlockCopy(fullTable, 0, Table, 0, (int)smu.PmTableSize);
+
+            if (Utils.AllZero(Table))
+                return false;
+
+            ParseTable(Table);
+            return true;
         }
 
         // Static one-time properties

@@ -9,6 +9,7 @@ namespace ZenStates.Core
     {
         private static Mutex _isaBusMutex;
         private static Mutex _pciBusMutex;
+        private static Mutex _smbusMutex;
 
         /// <summary>
         /// Opens the mutexes.
@@ -16,6 +17,7 @@ namespace ZenStates.Core
         public static void Open()
         {
             _isaBusMutex = CreateOrOpenExistingMutex("Global\\Access_ISABUS.HTP.Method");
+            _smbusMutex = CreateOrOpenExistingMutex("Global\\Access_SMBUS.HTP.Method");
             _pciBusMutex = CreateOrOpenExistingMutex("Global\\Access_PCI");
 
             Mutex CreateOrOpenExistingMutex(string name)
@@ -54,6 +56,7 @@ namespace ZenStates.Core
         {
             _isaBusMutex?.Close();
             _pciBusMutex?.Close();
+            _smbusMutex?.Close();
         }
 
         public static bool WaitIsaBus(int millisecondsTimeout)
@@ -74,6 +77,16 @@ namespace ZenStates.Core
         public static void ReleasePciBus()
         {
             _pciBusMutex?.ReleaseMutex();
+        }
+
+        public static bool WaitSmbus(int millisecondsTimeout)
+        {
+            return WaitMutex(_smbusMutex, millisecondsTimeout);
+        }
+
+        public static void ReleaseSmbus()
+        {
+            _smbusMutex?.ReleaseMutex();
         }
 
         private static bool WaitMutex(Mutex mutex, int millisecondsTimeout = 5000)
