@@ -19,6 +19,7 @@ namespace ZenStates.Core
         public string MemoryFamily;
         public bool IsLpddr5;
         public bool IsValid;
+        public bool IsPartial;
 
         // Device information from common SPD bytes
         public bool SpdDevicePresent;

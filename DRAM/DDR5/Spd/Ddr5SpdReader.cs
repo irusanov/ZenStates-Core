@@ -153,6 +153,8 @@ namespace ZenStates.Core.DRAM
                 info.ModuleManufacturer = ManufacturerMapping.Lookup(info.ModuleMfgIdBank, info.ModuleMfgIdMfr);
             }
 
+            info.IsPartial = true;
+
             ReadPmicNoLock(addr7, info, smbusDriver);
 
             //byte pmicAddr = Ddr5PmicReader.CalculatePmicAddrFromSpd(addr7);

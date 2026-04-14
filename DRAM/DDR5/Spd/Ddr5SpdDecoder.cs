@@ -254,6 +254,8 @@ namespace ZenStates.Core
                 info.MemoryFamily = "DDR5";
             }
 
+            info.IsPartial = false;
+
             DecodeSizeAndRevision(spd, info);
             DecodeModuleType(spd, info);
             DecodeSupportDevices(spd, info);
@@ -981,14 +983,27 @@ namespace ZenStates.Core
             if (smbus == null)
                 throw new ArgumentNullException("smbus");
 
-            Dictionary<byte, Ddr5SpdInfo> results = Ddr5SpdReader.ReadDdr5SpdAll();
+            Dictionary<byte, Ddr5SpdInfo> result = new Dictionary<byte, Ddr5SpdInfo>();
 
-            if (results != null)
+            if (!Mutexes.WaitSmbus(5000))
+                return result;
+
+            try
             {
-                foreach (KeyValuePair<byte, Ddr5SpdInfo> kvp in results)
-                    Ddr5SpdReader.ReadLiveDevicesNoLock(kvp.Key, kvp.Value, smbus);
+                result = Ddr5SpdReader.ReadDdr5SpdAllNoLock();
+
+                if (result != null)
+                {
+                    foreach (KeyValuePair<byte, Ddr5SpdInfo> kvp in result)
+                        Ddr5SpdReader.ReadLiveDevicesNoLock(kvp.Key, kvp.Value, smbus);
+                }
             }
-            return results;
+            finally
+            {
+                Mutexes.ReleaseSmbus();
+            }
+
+            return result;
         }
 
         /// <summary>Decode from a raw binary SPD file on disk.</summary>

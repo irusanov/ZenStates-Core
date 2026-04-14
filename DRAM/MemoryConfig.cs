@@ -179,6 +179,30 @@ namespace ZenStates.Core.DRAM
             return Ddr5SpdDecoder.ReadAndDecodeAll(smbusDriver);
         }
 
+        public bool RefreshSpdInfo()
+        {
+            try
+            {
+                Dictionary<byte, Ddr5SpdInfo> info = ReadAndDecodeAll();
+                foreach (var entry in info)
+                {
+                    if (SpdInfo.ContainsKey(entry.Key))
+                    {
+                        SpdInfo[entry.Key] = entry.Value;
+                    }
+                    else
+                    {
+                        SpdInfo.Add(entry.Key, entry.Value);
+                    }
+                }
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         public bool RefreshTelemetry(int uiRefreshIntervalMs = 2000)
         {
             bool updated = false;
