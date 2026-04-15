@@ -301,5 +301,63 @@ namespace ZenStates.Core
 
             return pd;
         }
+
+        /// <summary>
+        /// Calculate power in watts from the raw telemetry registers and write the results to
+        /// <see cref="Ddr5PmicData.SwaW"/>, <see cref="Ddr5PmicData.SwbW"/>,
+        /// <see cref="Ddr5PmicData.SwcW"/> and <see cref="Ddr5PmicData.TotalW"/>.
+        /// <para>
+        /// Power mode (<see cref="Ddr5PmicData.TelemetryReportsPower"/> = true):
+        /// each register LSB = 0.125 W (JESD301-2: SWA 8-bit max 31.875 W, SWB/SWC 6-bit max 7.875 W).
+        /// When total power mode is also active, the SWA register holds the combined total
+        /// and <see cref="Ddr5PmicData.SwaW"/> is set to zero.
+        /// </para>
+        /// <para>
+        /// Current mode (<see cref="Ddr5PmicData.TelemetryReportsPower"/> = false):
+        /// the raw code is scaled by the programmed current limit (SWA 8-bit / 256, SWB+SWC 6-bit / 64)
+        /// and multiplied by the ADC-measured voltage, falling back to the programmed VID if ADC is unavailable.
+        /// </para>
+        /// </summary>
+        public static void DecodeTelemetryWatts(Ddr5PmicData pd)
+        {
+            const double POWER_STEP_W = 0.125; // JESD301-2: 125 mW per LSB
+
+            if (pd.TelemetryReportsPower)
+            {
+                // Power mode: R0x0C / R0x0E / R0x0F report power directly, 0.125 W per LSB
+                pd.SwbW = pd.SwbTelemetryRaw * POWER_STEP_W;
+                pd.SwcW = pd.SwcTelemetryRaw * POWER_STEP_W;
+
+                if (pd.TelemetryReportsTotalPower)
+                {
+                    // R0x0C holds total power (SWA + SWB + SWC); individual SWA power is not available
+                    pd.TotalW = pd.SwaTelemetryRaw * POWER_STEP_W;
+                    pd.SwaW = 0.0;
+                }
+                else
+                {
+                    pd.SwaW = pd.SwaTelemetryRaw * POWER_STEP_W;
+                    pd.TotalW = pd.SwaW + pd.SwbW + pd.SwcW;
+                }
+            }
+            else
+            {
+                // Current mode: raw code is proportional to the programmed current limit
+                // SWA register is 8-bit (256 full-scale steps); SWB/SWC are 6-bit (64 steps)
+                double swaCurrentA = pd.SwaTelemetryRaw * (pd.SwaCurrentLimitMa / 1000.0) / 256.0;
+                double swbCurrentA = pd.SwbTelemetryRaw * (pd.SwbCurrentLimitMa / 1000.0) / 64.0;
+                double swcCurrentA = pd.SwcTelemetryRaw * (pd.SwcCurrentLimitMa / 1000.0) / 64.0;
+
+                // Prefer ADC-measured voltage; fall back to programmed VID
+                double vddV  = (pd.SwaAdcMv > 0 ? pd.SwaAdcMv : pd.VddMv)  / 1000.0;
+                double vddqV = (pd.SwbAdcMv > 0 ? pd.SwbAdcMv : pd.VddqMv) / 1000.0;
+                double vppV  = (pd.SwcAdcMv > 0 ? pd.SwcAdcMv : pd.VppMv)  / 1000.0;
+
+                pd.SwaW   = swaCurrentA * vddV;
+                pd.SwbW   = swbCurrentA * vddqV;
+                pd.SwcW   = swcCurrentA * vppV;
+                pd.TotalW = pd.SwaW + pd.SwbW + pd.SwcW;
+            }
+        }
     }
 }

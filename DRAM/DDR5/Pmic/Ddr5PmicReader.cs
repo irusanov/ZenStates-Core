@@ -86,6 +86,50 @@ namespace ZenStates.Core
             }
         }
 
+        /// <summary>
+        /// Read the live PMIC temperature register and update <see cref="Ddr5PmicData.PmicTemperature"/>
+        /// and <see cref="Ddr5PmicData.HighTemperatureWarning"/>.
+        /// High-temperature is determined by comparing the temperature code from R0x33 [7:5]
+        /// against the shutdown threshold code from R0x2E [2:0].
+        /// Temperature codes: 0=<85°C, 1=85°C, 2=95°C, 3=105°C, 4=115°C, 5=125°C, 6=135°C, 7=>140°C.
+        /// Shutdown threshold codes: 0=>105°C (+3), 1=>115°C (+4), 2=>125°C (+5), 3=>135°C (+6), 4=>145°C (+7).
+        /// </summary>
+        internal static void ReadPmicTemperatureNoLock(SmbusDriverBase smbus, byte pmicAddr, Ddr5PmicData pd)
+        {
+            if (!ReadRegNoLock(smbus, pmicAddr, REG_PMIC_TEMP, out byte reg33))
+                return;
+
+            int tempCode = (reg33 >> 5) & 0x07;
+            pd.PmicTemperature = Ddr5PmicDecoder.DecodePmicTemp(tempCode);
+
+            if (ReadRegNoLock(smbus, pmicAddr, REG_SHUTDOWN_TEMP, out byte reg2E))
+            {
+                int shutdownCode = reg2E & 0x07;
+                pd.HighTemperatureWarning = tempCode >= shutdownCode + 3;
+            }
+        }
+
+        /// <summary>
+        /// Read the live current/power telemetry registers (R0x0C, R0x0E, R0x0F), update
+        /// <see cref="Ddr5PmicData.SwaTelemetryRaw"/>, <see cref="Ddr5PmicData.SwbTelemetryRaw"/>,
+        /// <see cref="Ddr5PmicData.SwcTelemetryRaw"/> and recalculate
+        /// <see cref="Ddr5PmicData.SwaW"/>, <see cref="Ddr5PmicData.SwbW"/>,
+        /// <see cref="Ddr5PmicData.SwcW"/> and <see cref="Ddr5PmicData.TotalW"/>.
+        /// ADC voltages should be refreshed before calling this method so that
+        /// current-mode power calculations use up-to-date measured voltages.
+        /// </summary>
+        internal static void ReadPmicTelemetryNoLock(SmbusDriverBase smbus, byte pmicAddr, Ddr5PmicData pd)
+        {
+            if (ReadRegNoLock(smbus, pmicAddr, REG_SWA_CURRENT_OR_POWER, out byte swa))
+                pd.SwaTelemetryRaw = swa;
+            if (ReadRegNoLock(smbus, pmicAddr, REG_SWB_CURRENT_OR_POWER, out byte swb))
+                pd.SwbTelemetryRaw = swb & 0x3F;
+            if (ReadRegNoLock(smbus, pmicAddr, REG_SWC_CURRENT_OR_POWER, out byte swc))
+                pd.SwcTelemetryRaw = swc & 0x3F;
+
+            Ddr5PmicDecoder.DecodeTelemetryWatts(pd);
+        }
+
         // Detection
 
         /// <summary>Derive PMIC I2C address from SPD hub address.</summary>
@@ -124,6 +168,7 @@ namespace ZenStates.Core
 
             Ddr5PmicData pd = Ddr5PmicDecoder.Decode(pmicAddr, rawRegisters);
             ReadAllAdcVoltagesNoLock(smbus, pmicAddr, pd);
+            Ddr5PmicDecoder.DecodeTelemetryWatts(pd);
 
             return pd;
         }
