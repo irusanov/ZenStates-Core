@@ -90,6 +90,21 @@ namespace ZenStates.Core
         public int SwbTelemetryRaw;
         public int SwcTelemetryRaw;
 
+        // Decoded power telemetry (watts)
+
+        /// <summary>SWA (VDD) power in watts. Zero when total power mode is active.</summary>
+        public double SwaW;
+        /// <summary>SWB (VDDQ) power in watts.</summary>
+        public double SwbW;
+        /// <summary>SWC (VPP) power in watts.</summary>
+        public double SwcW;
+        /// <summary>
+        /// Total DRAM power in watts.
+        /// In total power mode this is read directly from the SWA telemetry register;
+        /// otherwise it is the sum of SwaW + SwbW + SwcW.
+        /// </summary>
+        public double TotalW;
+
         // Current limiter settings (R0x20)
 
         /// <summary>SWA current limit in milliamps (R0x20 [7:6]).</summary>
@@ -211,6 +226,24 @@ namespace ZenStates.Core
             sb.AppendFormat("  SWA telemetry raw  : 0x{0:X2}\n", SwaTelemetryRaw);
             sb.AppendFormat("  SWB telemetry raw  : 0x{0:X2}\n", SwbTelemetryRaw);
             sb.AppendFormat("  SWC telemetry raw  : 0x{0:X2}\n", SwcTelemetryRaw);
+
+            if (TotalW > 0)
+            {
+                sb.AppendLine();
+                if (TelemetryReportsTotalPower)
+                {
+                    sb.AppendFormat("  Total power        : {0:F2} W\n", TotalW);
+                    sb.AppendFormat("  SWB power          : {0:F2} W\n", SwbW);
+                    sb.AppendFormat("  SWC power          : {0:F2} W\n", SwcW);
+                }
+                else
+                {
+                    sb.AppendFormat("  SWA power          : {0:F2} W\n", SwaW);
+                    sb.AppendFormat("  SWB power          : {0:F2} W\n", SwbW);
+                    sb.AppendFormat("  SWC power          : {0:F2} W\n", SwcW);
+                    sb.AppendFormat("  Total power        : {0:F2} W\n", TotalW);
+                }
+            }
 
             sb.AppendLine();
             sb.AppendFormat("  SWA current limit  : {0} mA\n", SwaCurrentLimitMa);

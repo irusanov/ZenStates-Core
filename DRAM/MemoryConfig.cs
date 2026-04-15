@@ -234,9 +234,26 @@ namespace ZenStates.Core.DRAM
                         continue;
 
                     Ddr5PmicReader.ReadAllAdcVoltagesNoLock(smbusDriver, pd.I2cAddress, pd);
+                    Ddr5PmicReader.ReadPmicTemperatureNoLock(smbusDriver, pd.I2cAddress, pd);
+                    Ddr5PmicReader.ReadPmicTelemetryNoLock(smbusDriver, pd.I2cAddress, pd);
+
+                    Ddr5ThermalData td = info.Value?.ThermalData;
+                    if (td != null && td.IsValid && td.TempSensorEnabled)
+                    {
+                        int mc = Ddr5ThermalSensor.ReadTemperatureMilliC(smbusDriver, pd.SpdHubAddress);
+                        if (mc != int.MinValue)
+                        {
+                            info.Value.ThermalData.TemperatureMilliC = mc;
+                        }
+                    }
+
                     LastTelemetryRefreshTick = now;
                     updated = true;
                 }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
             }
             finally
             {
@@ -272,6 +289,7 @@ namespace ZenStates.Core.DRAM
             }
         }
 
+        // TODO: Use rank from spd with priority over register value
         private MemRank GetRank(uint address)
         {
             if (Type == MemType.DDR4 || Type == MemType.LPDDR4)
