@@ -1,0 +1,33 @@
+<Project>
+  <Target Name="ComputeVersionFromGit" BeforeTargets="PrepareForBuild;GenerateNuspec">
+    <!-- Get Git commit count as the build number -->
+    <Exec Command="git -C &quot;$(MSBuildThisFileDirectory).&quot; rev-list --count HEAD"
+          ConsoleToMsBuild="true"
+          StandardOutputImportance="low"
+          IgnoreExitCode="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="BuildNumber" />
+    </Exec>
+
+    <!-- Get Git short SHA for informational version -->
+    <Exec Command="git -C &quot;$(MSBuildThisFileDirectory).&quot; rev-parse --short HEAD"
+          ConsoleToMsBuild="true"
+          StandardOutputImportance="low"
+          IgnoreExitCode="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="GitShortSha" />
+    </Exec>
+
+    <!-- Fallback when Git is unavailable -->
+    <PropertyGroup>
+      <BuildNumber Condition="'$(BuildNumber)' == ''">0</BuildNumber>
+      <GitShortSha Condition="'$(GitShortSha)' == ''">unknown</GitShortSha>
+    </PropertyGroup>
+
+    <!-- Compose final version strings: Major.Minor.BuildNumber -->
+    <PropertyGroup>
+      <Version>$(VersionBase).$(BuildNumber)</Version>
+      <AssemblyVersion>$(VersionBase).$(BuildNumber)</AssemblyVersion>
+      <FileVersion>$(VersionBase).$(BuildNumber)</FileVersion>
+      <InformationalVersion>$(VersionBase).$(BuildNumber)+$(GitShortSha)</InformationalVersion>
+    </PropertyGroup>
+  </Target>
+</Project>
