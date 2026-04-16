@@ -295,15 +295,49 @@ namespace ZenStates.Core.Drivers
             return success;
         }
 
+        // FCH PM register for port MUX (same as PawnIO driver)
+        private const uint SB800_PIIX4_FCH_PM_ADDR = 0xFED80300;
+        private const int SB800_PIIX4_PORT_IDX_KERNCZ = 0x02;
+        private const byte SB800_PIIX4_PORT_IDX_MASK_KERNCZ = 0x18;
+        private const int SB800_PIIX4_PORT_IDX_SHIFT_KERNCZ = 3;
+
+        // port_to_reg[] = [0b00, 0b00, 0b01, 0b10, 0b11]
+        private static readonly byte[] PortToReg = { 0x00, 0x00, 0x01, 0x02, 0x03 };
+        // reg_to_port[] = [0, 2, 3, 4]
+        private static readonly int[] RegToPort = { 0, 2, 3, 4 };
+
         internal bool ChangePortNoLock(int port, out int previousPort)
         {
-            previousPort = _currentPort;
+            previousPort = -1;
 
-            // This backend has no explicit port-switch ioctl/register like the kernel driver.
-            // Treat it as a logical port change only.
-            if (port != -1)
-                _currentPort = port;
+            UIntPtr pmAddr = new UIntPtr(SB800_PIIX4_FCH_PM_ADDR);
+            if (!ioDriver.GetPhysLong(pmAddr, out uint pmDword))
+                return false;
 
+            // Port index is in byte offset 2, bits [4:3]
+            byte regVal = (byte)((pmDword >> (SB800_PIIX4_PORT_IDX_KERNCZ * 8)) & 0xFF);
+            int reg = (regVal & SB800_PIIX4_PORT_IDX_MASK_KERNCZ) >> SB800_PIIX4_PORT_IDX_SHIFT_KERNCZ;
+            previousPort = (reg >= 0 && reg < RegToPort.Length) ? RegToPort[reg] : 0;
+
+            if (port == -1 || port == previousPort)
+                return true;
+
+            if (port < 0 || port >= PortToReg.Length)
+                return false;
+
+            byte newRegVal = (byte)((regVal & ~SB800_PIIX4_PORT_IDX_MASK_KERNCZ)
+                | (PortToReg[port] << SB800_PIIX4_PORT_IDX_SHIFT_KERNCZ));
+
+            if (newRegVal != regVal)
+            {
+                // Replace only the target byte within the dword
+                uint mask = (uint)0xFF << (SB800_PIIX4_PORT_IDX_KERNCZ * 8);
+                uint newDword = (pmDword & ~mask) | ((uint)newRegVal << (SB800_PIIX4_PORT_IDX_KERNCZ * 8));
+                if (!ioDriver.SetPhysLong(pmAddr, newDword))
+                    return false;
+            }
+
+            _currentPort = port;
             return true;
         }
 
