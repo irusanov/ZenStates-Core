@@ -29,9 +29,11 @@ namespace ZenStates.Core
         {
             try
             {
-                var sc = new ServiceController("Winmgmt");
-                if (sc.Status != ServiceControllerStatus.Running)
-                    throw new ManagementException(@"Windows Management Instrumentation service is not running");
+                using (var sc = new ServiceController("Winmgmt"))
+                {
+                    if (sc.Status != ServiceControllerStatus.Running)
+                        throw new ManagementException(@"Windows Management Instrumentation service is not running");
+                }
 
                 ManagementScope mScope = new ManagementScope($@"{scope}");
                 mScope.Connect();
@@ -54,9 +56,11 @@ namespace ZenStates.Core
             {
                 using (var searcher = new ManagementObjectSearcher($"{scope}", $"SELECT * FROM {wmiClass}"))
                 {
-                    ManagementObjectEnumerator enumerator = searcher.Get().GetEnumerator();
-                    if (enumerator.MoveNext())
-                        return enumerator.Current as ManagementObject;
+                    using (ManagementObjectEnumerator enumerator = searcher.Get().GetEnumerator())
+                    {
+                        if (enumerator.MoveNext())
+                            return enumerator.Current as ManagementObject;
+                    }
                 }
             }
             catch (Exception ex)
@@ -97,16 +101,18 @@ namespace ZenStates.Core
             List<string> classNames = new List<string>();
             try
             {
-                ManagementObjectSearcher searcher = new ManagementObjectSearcher
+                using (ManagementObjectSearcher searcher = new ManagementObjectSearcher
                 (new ManagementScope(wmiNamespaceName),
-                    new WqlObjectQuery("SELECT * FROM meta_class"));
-                ManagementObjectCollection objectCollection = searcher.Get();
-                foreach (var obj in objectCollection)
+                    new WqlObjectQuery("SELECT * FROM meta_class")))
                 {
-                    var wmiClass = (ManagementClass)obj;
-                    string stringified = wmiClass.ToString();
-                    string[] parts = stringified.Split(':');
-                    classNames.Add(parts[1]);
+                    ManagementObjectCollection objectCollection = searcher.Get();
+                    foreach (var obj in objectCollection)
+                    {
+                        var wmiClass = (ManagementClass)obj;
+                        string stringified = wmiClass.ToString();
+                        string[] parts = stringified.Split(':');
+                        classNames.Add(parts[1]);
+                    }
                 }
 
                 classNames.Sort(StringComparer.OrdinalIgnoreCase);

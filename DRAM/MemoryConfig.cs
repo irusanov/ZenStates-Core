@@ -2,8 +2,6 @@ using OpenHardwareMonitor.Hardware;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Text;
-using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core.DRAM
 {

@@ -286,11 +286,13 @@ namespace ZenStates.Core
         public static int FindLastSequence(byte[] source, int start, byte[] pattern)
         {
             var lastIndex = -1;
-            for (int i = start; i <= source.Length; i++)
+            for (int i = start; i < source.Length; i++)
             {
-                if (FindSequence(source, i, pattern) != -1)
+                int found = FindSequence(source, i, pattern);
+                if (found != -1)
                 {
-                    lastIndex = i;
+                    lastIndex = found;
+                    i = found;
                 }
             }
             return lastIndex;

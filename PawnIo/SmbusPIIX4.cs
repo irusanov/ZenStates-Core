@@ -5,7 +5,7 @@ using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core
 {
-    internal class SmbusPiix4: SmbusDriverBase
+    internal class SmbusPiix4 : SmbusDriverBase
     {
         private static volatile SmbusPiix4 _instance;
         private static readonly object _instanceLock = new object();
@@ -253,7 +253,7 @@ namespace ZenStates.Core
                 return false;
 
             result = (byte)(raw[0] & 0xFF);
-            
+
             return true;
         }
 

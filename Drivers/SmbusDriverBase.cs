@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace ZenStates.Core.Drivers
 {
-    public abstract class SmbusDriverBase: ISmbusDriver, IDisposable
+    public abstract class SmbusDriverBase : ISmbusDriver, IDisposable
     {
         private bool disposedValue;
 

@@ -20,7 +20,7 @@ namespace ZenStates.Core
         public const byte REG_CLEAR_2 = 0x12;
         public const byte REG_CLEAR_3 = 0x13;
         public const byte REG_GLOBAL_CLEAR = 0x14;
-        
+
         public const byte REG_CURRENT_LIMIT = 0x20;  // SWA [7:6], SWB [3:2], SWC [1:0]
 
         // Voltage VID registers (bits [7:1] = 7-bit VID, bit [0] = PG low threshold)

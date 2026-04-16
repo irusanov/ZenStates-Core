@@ -21,7 +21,8 @@ namespace ZenStates.Core
 
         public void Dispose()
         {
-            ((IDisposable)instance).Dispose();
+            if (instance != null)
+                ((IDisposable)instance).Dispose();
         }
 
         ~SMBiosSingleton()

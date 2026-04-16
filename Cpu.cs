@@ -475,7 +475,9 @@ namespace ZenStates.Core
 
         public bool IoReadDwordEx(uint addr, ref uint data, int maxRetries = 10)
         {
-            Mutexes.WaitPciBus(5000);
+            if (!Mutexes.WaitPciBus(5000))
+                return false;
+
             try
             {
                 io.DlPortWritePortUlong(0x0CF8, addr);
@@ -613,7 +615,7 @@ namespace ZenStates.Core
 
             for (var i = 0; i < info.topology.logicalCores; i++)
             {
-                res = _pawnAmd.WriteMsrTx(msr, eax, edx, GroupAffinity.Single(0, i));
+                res &= _pawnAmd.WriteMsrTx(msr, eax, edx, GroupAffinity.Single(0, i));
             }
 
             return res;
@@ -1084,14 +1086,14 @@ namespace ZenStates.Core
 
         public int GetCurrentHwVid()
         {
+            if (!Mutexes.WaitPciBus(5000))
+            {
+                Console.WriteLine("GetCurrentHwVid: Timeout waiting for PCI bus mutex");
+                return -1;
+            }
+
             try
             {
-                if (!Mutexes.WaitPciBus(5000))
-                {
-                    Console.WriteLine("GetCurrentHwVid: Timeout waiting for PCI bus mutex");
-                    return -1;
-                }
-
                 uint data = 0;
                 uint address = 0;
 
