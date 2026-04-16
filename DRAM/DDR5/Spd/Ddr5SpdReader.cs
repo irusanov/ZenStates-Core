@@ -33,7 +33,7 @@ namespace ZenStates.Core.DRAM
 
         internal static bool SpdSwitchPage(byte addr7, byte page)
         {
-            return smbusDriver.WriteByteData(addr7, 0x0B, page);
+            return smbusDriver.WriteByteDataNoLock(addr7, 0x0B, page);
         }
 
         /// <summary>
@@ -115,11 +115,9 @@ namespace ZenStates.Core.DRAM
             return list;
         }
 
-        // Read minimal SPD info without Mutex lock
-        // TODO: Add module organization
+         // Read minimal SPD info without Mutex lock
         internal static Ddr5SpdInfo ReadDdr5SpdInitInfoNoLock(byte addr7)
         {
-            byte[] spd = new byte[SPD_TOTAL_SIZE];
             Ddr5SpdInfo info = new Ddr5SpdInfo();
 
             byte b0, b1;
@@ -137,8 +135,73 @@ namespace ZenStates.Core.DRAM
                 info.IsLpddr5 = (info.DeviceType == 0x13);
             }
 
+            // Byte 4: density and die count
+            if (smbusDriver.ReadByteDataNoLock(addr7, (byte)SpdCalculateReg(4), out b0))
+            {
+                info.FirstDieDensityMbit = Ddr5SpdDecoder.DecodeDieDensity(b0 & 0x1F);
+                info.FirstDieCount = (((b0 >> 5) & 0x07) + 1);
+            }
+
+            // Byte 6: device width
+            if (smbusDriver.ReadByteDataNoLock(addr7, (byte)SpdCalculateReg(6), out b0))
+            {
+                int widthCode = (b0 >> 5) & 0x07;
+                switch (widthCode)
+                {
+                    case 0: info.FirstDeviceWidthBits = 4; break;
+                    case 1: info.FirstDeviceWidthBits = 8; break;
+                    case 2: info.FirstDeviceWidthBits = 16; break;
+                    case 3: info.FirstDeviceWidthBits = 32; break;
+                    default: info.FirstDeviceWidthBits = 8; break;
+                }
+            }
+
             // -------------------------------------------------
-            // Page 4: module manufacturer / part number
+            // Page 1: module organization (bytes 234-235)
+            // -------------------------------------------------
+            if (SpdSwitchPage(addr7, 1))
+            {
+                // Byte 234: ranks per channel
+                if (smbusDriver.ReadByteDataNoLock(addr7, (byte)SpdCalculateReg(234), out b0))
+                {
+                    int rankCode = (b0 >> 3) & 0x07;
+                    info.RanksPerChannel = rankCode + 1;
+                }
+
+                // Byte 235: bus width and sub-channels
+                if (smbusDriver.ReadByteDataNoLock(addr7, (byte)SpdCalculateReg(235), out b0))
+                {
+                    int subChBit = (b0 >> 5) & 0x01;
+                    info.SubChannelsPerDimm = (subChBit == 1) ? 2 : 1;
+
+                    int busCode = b0 & 0x07;
+                    switch (busCode)
+                    {
+                        case 0x00: info.PrimaryBusWidthBits = 8; break;
+                        case 0x01: info.PrimaryBusWidthBits = 16; break;
+                        case 0x02: info.PrimaryBusWidthBits = 32; break;
+                        case 0x03: info.PrimaryBusWidthBits = 64; break;
+                        default: info.PrimaryBusWidthBits = 32; break;
+                    }
+
+                    info.ChannelCount = info.SubChannelsPerDimm;
+                }
+            }
+
+            // Calculate capacity from the gathered fields
+            if (info.FirstDieDensityMbit > 0 && info.FirstDeviceWidthBits > 0 && info.PrimaryBusWidthBits > 0)
+            {
+                long densityMB = (long)info.FirstDieDensityMbit / 8;
+                int devicesPerSubCh = info.PrimaryBusWidthBits / info.FirstDeviceWidthBits;
+                info.TotalCapacityMB = densityMB
+                    * info.FirstDieCount
+                    * devicesPerSubCh
+                    * info.RanksPerChannel
+                    * info.SubChannelsPerDimm;
+            }
+
+            // -------------------------------------------------
+            // Page 4: module manufacturer / part number / DRAM manufacturer
             // -------------------------------------------------
             if (!SpdSwitchPage(addr7, 4))
                 return null;
@@ -153,9 +216,38 @@ namespace ZenStates.Core.DRAM
                 info.ModuleManufacturer = ManufacturerMapping.Lookup(info.ModuleMfgIdBank, info.ModuleMfgIdMfr);
             }
 
+            // Module part number: bytes 521-550 (30 bytes, read as 15 words)
+            {
+                var partno = new System.Text.StringBuilder();
+                for (int i = 0; i < 30; i += 2)
+                {
+                    if (smbusDriver.ReadWordDataNoLock(addr7, (byte)SpdCalculateReg(521 + i), out w))
+                    {
+                        byte lo = (byte)(w & 0xFF);
+                        byte hi = (byte)((w >> 8) & 0xFF);
+                        if (lo >= 0x20 && lo <= 0x7E) partno.Append((char)lo);
+                        if (hi >= 0x20 && hi <= 0x7E) partno.Append((char)hi);
+                    }
+                }
+                info.ModulePartNumber = partno.ToString().Trim();
+            }
+
+            // DRAM manufacturer: bytes 552-553, stepping: byte 554
+            if (smbusDriver.ReadWordDataNoLock(addr7, (byte)SpdCalculateReg(552), out w))
+            {
+                info.DramMfgIdBank = (byte)(w & 0xFF);
+                info.DramMfgIdMfr = (byte)((w >> 8) & 0xFF);
+                info.DramManufacturer = ManufacturerMapping.Lookup(info.DramMfgIdBank, info.DramMfgIdMfr);
+            }
+
+            if (smbusDriver.ReadByteDataNoLock(addr7, (byte)SpdCalculateReg(554), out b0))
+            {
+                info.DramStepping = b0;
+            }
+
             info.IsPartial = true;
 
-            ReadPmicNoLock(addr7, info, smbusDriver);
+            ReadLiveDevicesNoLock(addr7, info, smbusDriver);
 
             //byte pmicAddr = Ddr5PmicReader.CalculatePmicAddrFromSpd(addr7);
             //if (Ddr5PmicReader.DetectNoLock(smbusDriver, pmicAddr))
@@ -211,7 +303,7 @@ namespace ZenStates.Core.DRAM
             {
                 byte pmicAddr = Ddr5PmicReader.CalculatePmicAddrFromSpd(addr7);
                 if (Ddr5PmicReader.DetectNoLock(smbus, pmicAddr))
-                    info.PmicData = Ddr5PmicReader.ReadPmic(smbus, pmicAddr);
+                    info.PmicData = Ddr5PmicReader.ReadPmicNoLock(smbus, pmicAddr);
             }
             catch
             {

@@ -2,7 +2,7 @@
 
 namespace ZenStates.Core.Drivers
 {
-    internal interface ISmbusDriver: IDisposable
+    internal interface ISmbusDriver : IDisposable
     {
         bool SmbusQuick(byte addr7, byte readWrite);
 

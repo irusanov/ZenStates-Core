@@ -251,8 +251,7 @@ namespace ZenStates.Core
 
             try
             {
-               data = ReadAllDimmsNoLock(smbus);
-
+                data = ReadAllDimmsNoLock(smbus);
             }
             finally
             {

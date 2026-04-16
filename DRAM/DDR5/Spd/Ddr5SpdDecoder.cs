@@ -405,7 +405,7 @@ namespace ZenStates.Core
             info.IsAsymmetric = (bDen2 != 0) && (bDen1 != bDen2);
         }
 
-        private static int DecodeDieDensity(int code)
+        internal static int DecodeDieDensity(int code)
         {
             switch (code)
             {

@@ -139,7 +139,7 @@ namespace ZenStates.Core
 
             //var configs = io.ReadMemory(new IntPtr(ApobAddress + 0x30), unchecked((int)(Header.HeaderSize - 0x30 - HASH_SIZE)));
             var buffer = new byte[header.HeaderSize - 0x30 - HASH_SIZE];
-            
+
             Buffer.BlockCopy(table, 0x30, buffer, 0, buffer.Length);
 
             if (!Utils.AllZero(buffer))

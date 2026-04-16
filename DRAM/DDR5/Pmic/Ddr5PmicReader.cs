@@ -73,12 +73,13 @@ namespace ZenStates.Core
 
             try
             {
-                ReadAdcVoltageNoLock(smbus, pmicAddr, 0x5, out pd.VinBulkMv);
-                ReadAdcVoltageNoLock(smbus, pmicAddr, 0x0, out pd.SwaAdcMv);
-                ReadAdcVoltageNoLock(smbus, pmicAddr, 0x2, out pd.SwbAdcMv);
-                ReadAdcVoltageNoLock(smbus, pmicAddr, 0x3, out pd.SwcAdcMv);
-                ReadAdcVoltageNoLock(smbus, pmicAddr, 0x8, out pd.Vout18AdcMv);
-                ReadAdcVoltageNoLock(smbus, pmicAddr, 0x9, out pd.Vout10AdcMv);
+                int mv;
+                if (ReadAdcVoltageNoLock(smbus, pmicAddr, 0x5, out mv)) pd.VinBulkMv = mv;
+                if (ReadAdcVoltageNoLock(smbus, pmicAddr, 0x0, out mv)) pd.SwaAdcMv = mv;
+                if (ReadAdcVoltageNoLock(smbus, pmicAddr, 0x2, out mv)) pd.SwbAdcMv = mv;
+                if (ReadAdcVoltageNoLock(smbus, pmicAddr, 0x3, out mv)) pd.SwcAdcMv = mv;
+                if (ReadAdcVoltageNoLock(smbus, pmicAddr, 0x8, out mv)) pd.Vout18AdcMv = mv;
+                if (ReadAdcVoltageNoLock(smbus, pmicAddr, 0x9, out mv)) pd.Vout10AdcMv = mv;
             }
             finally
             {

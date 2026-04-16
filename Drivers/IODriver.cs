@@ -232,21 +232,23 @@ namespace ZenStates.Core.Drivers
 
 
                 // Remove the registry key using the regedit command-line tool
-                Process regeditProcess = new Process();
-                regeditProcess.StartInfo.FileName = "regedit";
-                regeditProcess.StartInfo.Arguments = $"/s /f \"{registryKeyPath}\"";
-                regeditProcess.StartInfo.UseShellExecute = false;
-                regeditProcess.Start();
-
-                regeditProcess.WaitForExit();
-
-                if (regeditProcess.ExitCode == 0)
+                using (Process regeditProcess = new Process())
                 {
-                    Console.WriteLine("Registry key removed successfully.");
-                }
-                else
-                {
-                    Console.WriteLine("Failed to remove the registry key.");
+                    regeditProcess.StartInfo.FileName = "regedit";
+                    regeditProcess.StartInfo.Arguments = $"/s /f \"{registryKeyPath}\"";
+                    regeditProcess.StartInfo.UseShellExecute = false;
+                    regeditProcess.Start();
+
+                    regeditProcess.WaitForExit();
+
+                    if (regeditProcess.ExitCode == 0)
+                    {
+                        Console.WriteLine("Registry key removed successfully.");
+                    }
+                    else
+                    {
+                        Console.WriteLine("Failed to remove the registry key.");
+                    }
                 }
 
                 // Delete the driver file
