@@ -397,7 +397,7 @@ namespace ZenStates.Core
         private void ResolvePmTable(out uint version, out long baseAddress)
         {
             if (!Mutexes.WaitPciBus(5000))
-                throw new TimeoutException("Timeout waiting for PCI bus mutex");
+                throw new TimeoutException("ResolvePmTable: Timeout waiting for PCI bus mutex");
 
             try
             {
@@ -420,7 +420,7 @@ namespace ZenStates.Core
         public void UpdatePmTable()
         {
             if (!Mutexes.WaitPciBus(5000))
-                throw new TimeoutException("Timeout waiting for PCI bus mutex");
+                throw new TimeoutException("UpdatePmTable: Timeout waiting for PCI bus mutex");
 
             try
             {

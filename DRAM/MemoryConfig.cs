@@ -159,7 +159,7 @@ namespace ZenStates.Core.DRAM
         {
             if (!Mutexes.WaitPciBus(5000))
             {
-                throw new TimeoutException("Timeout waiting for PCI bus mutex.");
+                throw new TimeoutException("ReadTimings: Timeout waiting for PCI bus mutex.");
             }
 
             try
@@ -211,24 +211,24 @@ namespace ZenStates.Core.DRAM
             //else
             //    minHardwareRefreshMs = 2000;
 
-            long now = Environment.TickCount & Int32.MaxValue;
-
             if (!Mutexes.WaitSmbus(5000))
             {
-                Debug.WriteLine("Timeout waiting for PCI bus mutex.");
+                Debug.WriteLine("RefreshTelemetry: Timeout waiting for SMBus bus mutex.");
                 return false;
             }
 
             try
             {
+                long now = Environment.TickCount & Int32.MaxValue;
+                long elapsed = now - LastTelemetryRefreshTick;
+
+                if (elapsed >= 0 && elapsed < uiRefreshIntervalMs)
+                    return false;
+
                 foreach (var info in SpdInfo)
                 {
                     Ddr5PmicData pd = info.Value?.PmicData;
                     if (pd == null || !pd.IsValid)
-                        continue;
-
-                    long elapsed = now - LastTelemetryRefreshTick;
-                    if (elapsed >= 0 && elapsed < uiRefreshIntervalMs)
                         continue;
 
                     Ddr5PmicReader.ReadAllAdcVoltagesNoLock(smbusDriver, pd.I2cAddress, pd);
@@ -245,9 +245,11 @@ namespace ZenStates.Core.DRAM
                         }
                     }
 
-                    LastTelemetryRefreshTick = now;
                     updated = true;
                 }
+
+                if (updated)
+                    LastTelemetryRefreshTick = now;
             }
             catch (Exception ex)
             {

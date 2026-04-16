@@ -33,7 +33,7 @@ namespace ZenStates.Core.DRAM
 
         internal static bool SpdSwitchPage(byte addr7, byte page)
         {
-            return smbusDriver.WriteByteData(addr7, 0x0B, page);
+            return smbusDriver.WriteByteDataNoLock(addr7, 0x0B, page);
         }
 
         /// <summary>
@@ -211,7 +211,7 @@ namespace ZenStates.Core.DRAM
             {
                 byte pmicAddr = Ddr5PmicReader.CalculatePmicAddrFromSpd(addr7);
                 if (Ddr5PmicReader.DetectNoLock(smbus, pmicAddr))
-                    info.PmicData = Ddr5PmicReader.ReadPmic(smbus, pmicAddr);
+                    info.PmicData = Ddr5PmicReader.ReadPmicNoLock(smbus, pmicAddr);
             }
             catch
             {
