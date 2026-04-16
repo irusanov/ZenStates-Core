@@ -247,7 +247,7 @@ namespace ZenStates.Core.DRAM
 
             info.IsPartial = true;
 
-            ReadPmicNoLock(addr7, info, smbusDriver);
+            ReadLiveDevicesNoLock(addr7, info, smbusDriver);
 
             //byte pmicAddr = Ddr5PmicReader.CalculatePmicAddrFromSpd(addr7);
             //if (Ddr5PmicReader.DetectNoLock(smbusDriver, pmicAddr))
