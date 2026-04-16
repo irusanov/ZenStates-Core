@@ -86,6 +86,13 @@ namespace ZenStates.Core.Drivers
             }
         }
 
+        internal abstract bool ChangePortNoLock(int port, out int previousPort);
+
+        internal bool ChangePortNoLock(int port)
+        {
+            return ChangePortNoLock(port, out int _);
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)

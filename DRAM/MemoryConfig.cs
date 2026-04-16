@@ -2,12 +2,13 @@ using OpenHardwareMonitor.Hardware;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core.DRAM
 {
     public class MemoryConfig
     {
-        private readonly SmbusPiix4 smbusDriver = SmbusPiix4.Instance;
+        private readonly SmbusDriverBase smbusDriver = SmbusProvider.Instance;
 
         private const int DRAM_TYPE_BIT_MASK = 0x3;
 

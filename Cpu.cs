@@ -17,14 +17,13 @@ namespace ZenStates.Core
         private readonly CpuInitSettings _settings;
         private readonly AmdFamily17 _pawnAmd;
         private readonly RyzenSmu _pawnRyzenSmu;
-        private readonly SmbusPiix4 _pawnSmbusPiix4;
+        private readonly SmbusDriverBase _smbusPiix4;
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
 
         public readonly Version Version = Assembly.GetExecutingAssembly().GetName().Version;
 
         public RyzenSmu RyzenSmu => _pawnRyzenSmu;
-        //internal SmbusPiix4 SmbusPiix4 => _pawnSmbusPiix4;
 
         public enum Family
         {
@@ -348,7 +347,7 @@ namespace ZenStates.Core
             {
                 _pawnAmd = new AmdFamily17();
                 _pawnRyzenSmu = new RyzenSmu();
-                _pawnSmbusPiix4 = SmbusPiix4.Instance;
+                _smbusPiix4 = SmbusProvider.Instance;
             }
             catch (Exception ex)
             {
@@ -1251,7 +1250,7 @@ namespace ZenStates.Core
                     Opcode.Close();
                     _pawnAmd?.Close();
                     _pawnRyzenSmu?.Dispose();
-                    _pawnSmbusPiix4?.Dispose();
+                    _smbusPiix4?.Dispose();
                 }
 
                 disposedValue = true;

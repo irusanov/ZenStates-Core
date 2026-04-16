@@ -7,7 +7,6 @@ namespace ZenStates.Core.Drivers
         bool SmbusQuick(byte addr7, byte readWrite);
 
         // Byte functions
-
         bool ReadByteData(byte addr7, byte command, out byte value);
         bool WriteByteData(byte addr7, byte command, byte value);
 

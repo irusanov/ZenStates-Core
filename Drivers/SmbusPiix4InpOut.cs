@@ -306,7 +306,7 @@ namespace ZenStates.Core.Drivers
         // reg_to_port[] = [0, 2, 3, 4]
         private static readonly int[] RegToPort = { 0, 2, 3, 4 };
 
-        internal bool ChangePortNoLock(int port, out int previousPort)
+        internal override bool ChangePortNoLock(int port, out int previousPort)
         {
             previousPort = -1;
 
@@ -339,11 +339,6 @@ namespace ZenStates.Core.Drivers
 
             _currentPort = port;
             return true;
-        }
-
-        internal bool ChangePortNoLock(int port)
-        {
-            return ChangePortNoLock(port, out int _);
         }
 
         internal override bool SmbusQuickNoLock(byte addr7, byte readWrite)

@@ -6,7 +6,7 @@ namespace ZenStates.Core.DRAM
 {
     internal static class Ddr5SpdReader
     {
-        private static readonly SmbusPiix4 smbusDriver = SmbusPiix4.Instance;
+        private static readonly SmbusDriverBase smbusDriver = SmbusProvider.Instance;
         private const int PAGE_SIZE = 128; // in bytes, for DDR5 SPD
         private const int SPD_TOTAL_SIZE = 0x400; // 1024 bytes total (8 pages of 128 bytes)
 

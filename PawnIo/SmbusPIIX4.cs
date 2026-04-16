@@ -160,7 +160,7 @@ namespace ZenStates.Core
         /// Switch to the given port. Pass -1 to query without changing.
         /// Returns the previous port number.
         /// </summary>
-        internal bool ChangePortNoLock(int port, out int previousPort)
+        internal override bool ChangePortNoLock(int port, out int previousPort)
         {
             previousPort = -1;
             if (!Execute(IOCTL_PIIX4_PORT_SEL, new long[] { port }, 1, out long[] result))
@@ -171,8 +171,6 @@ namespace ZenStates.Core
             if (port != -1) _currentPort = port;
             return true;
         }
-
-        internal bool ChangePortNoLock(int port) => ChangePortNoLock(port, out int _);
 
         public bool ChangePort(int port, out int previousPort)
         {
