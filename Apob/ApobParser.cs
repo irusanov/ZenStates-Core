@@ -20,6 +20,7 @@ namespace ZenStates.Core
                 case Cpu.CodeName.StormPeak:
                 case Cpu.CodeName.Vermeer:
                 case Cpu.CodeName.Raphael:
+                case Cpu.CodeName.DragonRange:
                     return ReadV1(data, offset);
                 // 1AH
                 case Cpu.CodeName.Turin:
@@ -34,7 +35,6 @@ namespace ZenStates.Core
                     return ReadV2(data, offset);
                 // AM5 APU
                 case Cpu.CodeName.Rembrandt:
-                case Cpu.CodeName.DragonRange:
                 case Cpu.CodeName.HawkPoint:
                 case Cpu.CodeName.Phoenix:
                 case Cpu.CodeName.Phoenix2:
