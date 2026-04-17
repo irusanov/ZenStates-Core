@@ -33,7 +33,11 @@ namespace ZenStates.Core.DRAM
 
         internal static bool SpdSwitchPage(byte addr7, byte page)
         {
-            return smbusDriver.WriteByteDataNoLock(addr7, 0x0B, page);
+            // JESD406 MR11: bit[3] = I2C addressing mode (set by BIOS, must be preserved),
+            // bits[2:0] = page select. Read-modify-write to avoid clearing the addressing mode bit.
+            if (!smbusDriver.ReadByteDataNoLock(addr7, 0x0B, out byte mr11))
+                return false;
+            return smbusDriver.WriteByteDataNoLock(addr7, 0x0B, (byte)((mr11 & 0x08) | (page & 0x07)));
         }
 
         /// <summary>
