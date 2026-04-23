@@ -80,10 +80,12 @@ namespace ZenStates.Core
                 return;
 
             // 4.
-            RawData = GetMainConfigData();
-            if (RawData == null || RawData.Length == 0)
-                return;
+            bool dataFound = GetMainConfigData(out byte[] rawData);
+            RawData = rawData;
 
+            if (!dataFound)
+                return;
+            
             RawExtendedData = GetExtendedConfigData();
 
             // 5.
@@ -154,7 +156,7 @@ namespace ZenStates.Core
             return list;
         }
 
-        private byte[] GetMainConfigData()
+        private bool GetMainConfigData(out byte[] data)
         {
             var buffer = new byte[4];
             Buffer.BlockCopy(RawTable, (int)(ConfigOffsets[0] + 0xC), buffer, 0, buffer.Length);
@@ -165,13 +167,14 @@ namespace ZenStates.Core
             Buffer.BlockCopy(RawTable, (int)(DataOffset + 0xC), buffer, 0, buffer.Length);
             size = BitConverter.ToUInt32(buffer, 0);
 
-            var data = new byte[size];
+            data = new byte[size];
             Buffer.BlockCopy(RawTable, (int)(DataOffset), data, 0, (int)size);
 
-            if (Utils.FindSequence(data, 0, CONFIG1_PATTERN) != 0)
-                return null;
+            if (data[0] == 0x1 && data[4] == 0x19)
+                return true;
+            //if (Utils.FindSequence(data, 0, CONFIG1_PATTERN) < 0 && Utils.FindLastSequence(data, 0, CONFIG1_PATTERN_ALT) < 0)
 
-            return data;
+            return false;
         }
 
         private byte[] GetExtendedConfigData()
@@ -180,7 +183,8 @@ namespace ZenStates.Core
             foreach (var offset in ConfigOffsets)
             {
                 Buffer.BlockCopy(RawTable, (int)offset, buffer, 0, buffer.Length);
-                if (Utils.FindSequence(buffer, 0, CONFIG2_PATTERN) == 0)
+                if (buffer[0] == 0x7 &&  buffer[4] == 0x3)
+                //if (Utils.FindSequence(buffer, 0, CONFIG2_PATTERN) == 0)
                 {
                     ExtendedDataOffset = offset;
                     break;
@@ -208,8 +212,7 @@ namespace ZenStates.Core
             byte[] rttBlock = new byte[5];
             bool foundRttBlock = false;
 
-            uint i;
-            for (i = startOffset; i < RawData.Length; i++)
+            for (uint i = startOffset; i < RawData.Length; i++)
             {
                 if (RawData[i] != 0)
                 {
