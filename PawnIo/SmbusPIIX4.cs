@@ -59,7 +59,7 @@ namespace ZenStates.Core
         /// Releases the unmanaged resources used by the SmbusPiix4 and optionally releases the managed resources.
         /// </summary>
         /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
-        protected new virtual void Dispose(bool disposing)
+        protected override void Dispose(bool disposing)
         {
             if (_disposed)
                 return;
@@ -83,7 +83,7 @@ namespace ZenStates.Core
         /// </summary>
         ~SmbusPiix4()
         {
-            Dispose(true);
+            Dispose(false);
         }
 
         #endregion
@@ -193,7 +193,7 @@ namespace ZenStates.Core
         /// </summary>
         public bool GetIdentity(out long[] identity)
         {
-            return Execute(IOCTL_IDENTITY, new long[] { }, 3, out identity);
+            return Execute(IOCTL_IDENTITY, new long[0], 3, out identity);
         }
 
         public bool GetIoBase(out int ioBase)
@@ -339,7 +339,6 @@ namespace ZenStates.Core
 
             // in: [addr, rw, cmd, protocol, packed_data(5 cells)]
             // pack_bytes_le expects [count, data[0]..data[N]] → 5 cells
-            byte[] raw = data.ToArray();
             int cells = (data.Count + 1 + 7) / 8; // +1 for count byte
             long[] packed = new long[cells];
 
@@ -347,7 +346,7 @@ namespace ZenStates.Core
             byte[] blob = new byte[data.Count + 1];
             blob[0] = (byte)data.Count;
             for (int i = 0; i < data.Count; i++)
-                blob[i + 1] = raw[i];
+                blob[i + 1] = data[i];
 
             for (int i = 0; i < cells; i++)
                 packed[i] = PackBytes(blob, i * 8, Math.Min(8, blob.Length - i * 8));

@@ -25,15 +25,16 @@ namespace ZenStates.Core
         static PawnIo()
         {
             // .NET 2.0 framework defaults to system architecture (x86 or x64)
-            RegistryKey subKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\PawnIO");
-            if (subKey != null)
+            using (RegistryKey subKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\PawnIO"))
             {
-                object val = subKey.GetValue("DisplayVersion");
-                if (!TryParseVersion(val, out _version))
+                if (subKey != null)
                 {
-                    _version = null;
+                    object val = subKey.GetValue("DisplayVersion");
+                    if (!TryParseVersion(val, out _version))
+                    {
+                        _version = null;
+                    }
                 }
-                subKey.Close();
             }
         }
 
@@ -60,11 +61,14 @@ namespace ZenStates.Core
             if (handle == IntPtr.Zero || handle.ToInt64() == -1)
                 return new PawnIo(null);
 
-            Stream stream = assembly.GetManifestResourceStream(resourceName);
-            MemoryStream memory = new MemoryStream();
-            // Use manual copy for .NET 2.0 compatibility
-            StreamCopyTo(stream, memory);
-            byte[] bin = memory.ToArray();
+            byte[] bin;
+            using (Stream stream = assembly.GetManifestResourceStream(resourceName))
+            {
+                MemoryStream memory = new MemoryStream();
+                // Use manual copy for .NET 2.0 compatibility
+                StreamCopyTo(stream, memory);
+                bin = memory.ToArray();
+            }
 
             if (DeviceIoControl(handle, ControlCode.LoadBinary, bin, (uint)bin.Length, null, 0, out uint read, IntPtr.Zero))
                 return new PawnIo(new SafeFileHandle(handle, true));
@@ -256,7 +260,7 @@ namespace ZenStates.Core
         // Helper for .NET 2.0: Stream.CopyTo replacement
         private static void StreamCopyTo(Stream srcStream, Stream dstStream, int bufferSize = 4096)
         {
-            var buffer = new byte[bufferSize];
+            byte[] buffer = new byte[bufferSize];
             int bytesRead;
             while ((bytesRead = srcStream.Read(buffer, 0, buffer.Length)) != 0)
             {

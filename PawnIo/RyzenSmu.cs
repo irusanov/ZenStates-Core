@@ -211,7 +211,7 @@ namespace ZenStates.Core
             ThrowIfDisposed();
 
             if (!Mutexes.WaitPciBus(5000))
-                return (int)SMU.Status.TIMEOUT_MUTEX_LOCK;
+                return (uint)SMU.Status.TIMEOUT_MUTEX_LOCK;
 
             try
             {
@@ -368,7 +368,7 @@ namespace ZenStates.Core
                 }
             }
 
-            return table?.Length == 0 ? new float[] { 0 } : table;
+            return table == null || table.Length == 0 ? new float[] { 0 } : table;
         }
 
         /// <summary>
@@ -424,7 +424,7 @@ namespace ZenStates.Core
 
             try
             {
-                _pawnIo.Execute(IOCTL_UPDATE_PM_TABLE, new long[0] { }, 0);
+                _pawnIo.Execute(IOCTL_UPDATE_PM_TABLE, new long[0], 0);
             }
             finally
             {

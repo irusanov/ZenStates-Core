@@ -87,15 +87,11 @@ namespace ZenStates.Core
 
         private static bool SmuWriteRegNoLock(uint addr, uint data)
         {
-            if (addr > uint.MaxValue) return false;
-
             return _ryzenSmu.SmuWriteRegNoLock(addr, data);
         }
 
-        private static bool SmuReadRegNoLock(uint addr, ref uint data)
+        private static bool SmuReadRegNoLock(uint addr, out uint data)
         {
-            if (addr > uint.MaxValue) return false;
-
             return _ryzenSmu.SmuReadRegNoLock(addr, out data);
         }
 
@@ -107,7 +103,7 @@ namespace ZenStates.Core
 
             // Retry until response register is non-zero and reading RSP register is successful
             do
-                res = SmuReadRegNoLock(mailbox.SMU_ADDR_RSP, ref data);
+                res = SmuReadRegNoLock(mailbox.SMU_ADDR_RSP, out data);
             while ((!res || data == 0) && --timeout > 0);
 
             return timeout != 0 && data > 0;
@@ -180,9 +176,8 @@ namespace ZenStates.Core
                     return Status.TIMEOUT_MAILBOX_MSG_WRITE;
                 }
 
-                uint status = 0;
                 // If we reach this stage, read final status
-                if (!SmuReadRegNoLock(mailbox.SMU_ADDR_RSP, ref status))
+                if (!SmuReadRegNoLock(mailbox.SMU_ADDR_RSP, out uint status))
                 {
                     // PCI read failed
                     return Status.PCI_FAILED;
@@ -202,11 +197,12 @@ namespace ZenStates.Core
                         if (mailbox.SMU_ADDR_ARG > maxValidArgAddress)
                             continue;
 
-                        if (!SmuReadRegNoLock(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]))
+                        if (!SmuReadRegNoLock(mailbox.SMU_ADDR_ARG + (uint)(i * 4), out uint argVal))
                         {
                             // PCI read failed
                             return Status.PCI_FAILED;
                         }
+                        args[i] = argVal;
                     }
                 }
                 return unchecked((Status)status);

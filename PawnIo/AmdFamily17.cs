@@ -26,8 +26,8 @@ namespace ZenStates.Core
 
         public bool ReadSmnNoLock(uint offset, out uint data)
         {
-            var input = new long[] { offset };
-            var output = new long[1];
+            long[] input = new long[] { offset };
+            long[] output = new long[1];
 
             int status = _pawnIo.ExecuteHr("ioctl_read_smn", input, 1, output, 1, out uint returnSize);
             // NTSTATUS_SUCCESS (0)
@@ -46,7 +46,7 @@ namespace ZenStates.Core
         {
             try
             {
-                var output = new long[1];
+                long[] output = new long[1];
                 int status = _pawnIo.ExecuteHr("ioctl_read_msr", new long[] { index }, 1, output, 1, out uint returnSize);
                 System.Diagnostics.Debug.WriteLine($"ReadMsr: index=0x{index:X}, status=0x{status:X}, returnSize={returnSize}");
                 if (status == 0 && returnSize > 0)
@@ -102,9 +102,7 @@ namespace ZenStates.Core
             try
             {
                 int status = _pawnIo.ExecuteHr("ioctl_write_msr", new long[] { index, unchecked((long)eaxedx) }, 2, new long[0], 0, out uint _);
-                if (status != 0)
-                    return false;
-                return true;
+                return status == 0;
             }
             catch
             {
