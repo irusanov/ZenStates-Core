@@ -239,6 +239,17 @@ namespace ZenStates.Core
             return System.Text.Encoding.ASCII.GetString(value).Replace("\0", " ");
         }
 
+        public static uint ReadUInt32(byte[] data, int offset)
+        {
+            if (data == null || data.Length < offset)
+                return 0;
+
+            return (uint)(data[offset]
+                | (data[offset + 1] << 8)
+                | (data[offset + 2] << 16)
+                | (data[offset + 3] << 24));
+        }
+
         /// <summary>Looks for the next occurrence of a sequence in a byte array</summary>
         /// <param name="source">Array that will be scanned</param>
         /// <param name="start">Index in the array at which scanning will begin</param>
