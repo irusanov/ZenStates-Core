@@ -19,6 +19,9 @@ namespace ZenStates.Core
 
             int versionStart = markerOffset + marker.Length;
             versionStart = FindFirstAllowed(source, versionStart);
+            if (versionStart == -1)
+                return string.Empty;
+
             int versionEnd = FindFirstInvalid(source, versionStart);
 
             if (versionEnd > versionStart)
