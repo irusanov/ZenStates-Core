@@ -143,11 +143,13 @@ namespace ZenStates.Core
             { 0x650004, 0xB74, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
             { 0x650005, 0xB78, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
             { 0x650006, 0xB80, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+            { 0x000650, 0xB80, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
 
             // StrixPoint
             { 0x5D0008, 0xD54, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
             { 0x5D0009, 0xD58, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
             { 0x5D000A, 0xD60, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+            { 0x0005D0, 0xD60, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
 
             // StrixHalo
             { 0x640107, 0xDC0, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
@@ -160,6 +162,7 @@ namespace ZenStates.Core
             { 0x640209, 0x1020, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
             { 0x64020A, 0x1020, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
             { 0x64020C, 0x1028, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+            { 0x000640, 0x1028, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
 
             // Zen CPU
             { 0x000100, 0x7E4, 0x84, 0x84, 0x84, 0x68, 0x44, -1, -1, -1, -1 },
@@ -350,11 +353,19 @@ namespace ZenStates.Core
                 case Cpu.CodeName.HawkPoint:
                 case Cpu.CodeName.Mendocino:
                 case Cpu.CodeName.StrixPoint:
+                case Cpu.CodeName.KrackanPoint:
+                case Cpu.CodeName.KrackanPoint2:
                 case Cpu.CodeName.StrixHalo:
                     if ((tableVersion >> 16) == 0x37)
                         version = 0x11;
                     else if ((tableVersion >> 16) == 0x4c)
                         version = 0x4c0;
+                    else if ((tableVersion >> 16) == 0x5d)
+                        version = 0x5d0;
+                    else if ((tableVersion >> 16) == 0x65)
+                        version = 0x650;
+                    else if ((tableVersion >> 16) == 0x64)
+                        version = 0x640;
                     else
                         version = 0x12;
                     break;
