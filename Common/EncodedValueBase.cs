@@ -7,7 +7,7 @@ namespace ZenStates.Core
     {
         private readonly int? _rawValue;
 
-        protected int? RawValue
+        public int? RawValue
         {
             get { return _rawValue; }
         }
