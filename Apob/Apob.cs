@@ -32,6 +32,9 @@ namespace ZenStates.Core
         /// <summary>Gets a value indicating whether a valid APOB was located in physical memory.</summary>
         public bool IsAvailable { get { return Address != 0; } }
 
+        /// <summary>Human-readable reason why APOB initialisation failed, or <c>null</c> on success.</summary>
+        public string ErrorReason { get; private set; }
+
         /// <summary>Physical base address of the APOB table.</summary>
         public uint Address { get; private set; }
         public uint DataOffset { get; private set; }
@@ -65,33 +68,49 @@ namespace ZenStates.Core
 
             if (io == null)
             {
-                Debug.WriteLine("IODriver instance is not available.");
+                ErrorReason = "IODriver instance is not available.";
+                Debug.WriteLine(ErrorReason);
                 return;
             }
 
             // 1. Scan known physical addresses for the "APOB" signature.
             Address = FindApobAddress();
             if (!IsAvailable)
+            {
+                ErrorReason = "APOB signature not found at any known physical address.";
                 return;
+            }
 
             // 2. Read the table header.
             if (!TryParseHeader(Address, out ApobHeader header))
+            {
+                ErrorReason = $"Failed to read or parse APOB header at address 0x{Address:X8}.";
                 return;
+            }
             Header = header;
 
             // 3. Read the entire table
             RawTable = io.ReadMemory(new IntPtr(Address), unchecked((int)Header.TableSize));
             if (RawTable == null || RawTable.Length == 0)
+            {
+                ErrorReason = $"Failed to read APOB table body ({Header.TableSize} bytes) at address 0x{Address:X8}.";
                 return;
+            }
 
             // 4. Collect non-zero config entry offsets from the header region.
             ConfigOffsets = GetConfigOffsets(RawTable, Header);
             if (ConfigOffsets.Count == 0)
+            {
+                ErrorReason = "No valid config entry offsets found in APOB header region.";
                 return;
+            }
 
             // 5. Locate and validate the primary config block.
             if (!TryGetMainConfig())
+            {
+                ErrorReason = "Failed to locate or validate the primary APOB config block.";
                 return;
+            }
 
             // 6. Optionally locate the extended config block, which may contain more data on some SKUs
             TryGetExtendedConfig();

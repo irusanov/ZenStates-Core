@@ -25,7 +25,7 @@ namespace ZenStates.Core
         static PawnIo()
         {
             // .NET 2.0 framework defaults to system architecture (x86 or x64)
-            using (RegistryKey subKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\PawnIO"))
+            using (RegistryKey subKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO"))
             {
                 if (subKey != null)
                 {
@@ -48,22 +48,28 @@ namespace ZenStates.Core
         /// <summary>
         /// Retrieves the version information for the installed PawnIO.
         /// </summary>
-        public static Version Version { get => _version; }
+        public static Version Version => _version;
 
         /// <summary>
         /// Gets a value indicating whether the underlying handle is currently valid and open.
         /// </summary>
-        public bool IsLoaded => _handle != null && _handle.IsInvalid == false && _handle.IsClosed == false;
+        public bool IsLoaded => _handle != null && !_handle.IsInvalid && !_handle.IsClosed;
 
         public static PawnIo LoadModuleFromResource(Assembly assembly, string resourceName)
         {
-            IntPtr handle = CreateFile(@"\\?\GLOBALROOT\Device\PawnIO", FileAccess.GENERIC_READ | FileAccess.GENERIC_WRITE, 0x00000003, IntPtr.Zero, CreationDisposition.OPEN_EXISTING, 0, IntPtr.Zero);
+            IntPtr handle = CreateFile(@"\\?\GLOBALROOT\Device\PawnIO", FileAccess.GENERIC_READ | FileAccess.GENERIC_WRITE, 0x00000003, IntPtr.Zero, CreationDisposition.OPEN_EXISTING, FileAttributes.None, IntPtr.Zero);
             if (handle == IntPtr.Zero || handle.ToInt64() == -1)
                 return new PawnIo(null);
 
             byte[] bin;
             using (Stream stream = assembly.GetManifestResourceStream(resourceName))
             {
+                if (stream == null)
+                {
+                    CloseRawHandle(handle);
+                    throw new InvalidOperationException($"Embedded resource '{resourceName}' not found in assembly '{assembly.FullName}'.");
+                }
+
                 MemoryStream memory = new MemoryStream();
                 // Use manual copy for .NET 2.0 compatibility
                 StreamCopyTo(stream, memory);
@@ -73,6 +79,7 @@ namespace ZenStates.Core
             if (DeviceIoControl(handle, ControlCode.LoadBinary, bin, (uint)bin.Length, null, 0, out uint read, IntPtr.Zero))
                 return new PawnIo(new SafeFileHandle(handle, true));
 
+            CloseRawHandle(handle);
             return new PawnIo(null);
         }
 
@@ -86,7 +93,7 @@ namespace ZenStates.Core
             if (!File.Exists(filePath))
                 throw new FileNotFoundException(@"PawnIO module not found.", filePath);
 
-            IntPtr handle = CreateFile(@"\\?\GLOBALROOT\Device\PawnIO", FileAccess.GENERIC_READ | FileAccess.GENERIC_WRITE, 0x00000003, IntPtr.Zero, CreationDisposition.OPEN_EXISTING, 0, IntPtr.Zero);
+            IntPtr handle = CreateFile(@"\\?\GLOBALROOT\Device\PawnIO", FileAccess.GENERIC_READ | FileAccess.GENERIC_WRITE, 0x00000003, IntPtr.Zero, CreationDisposition.OPEN_EXISTING, FileAttributes.None, IntPtr.Zero);
             if (handle == IntPtr.Zero || handle.ToInt64() == -1)
                 return new PawnIo(null);
 
@@ -95,6 +102,7 @@ namespace ZenStates.Core
             if (DeviceIoControl(handle, ControlCode.LoadBinary, bin, (uint)bin.Length, null, 0, out uint read, IntPtr.Zero))
                 return new PawnIo(new SafeFileHandle(handle, true));
 
+            CloseRawHandle(handle);
             return new PawnIo(null);
         }
 
@@ -140,7 +148,7 @@ namespace ZenStates.Core
             if (!IsLoaded)
             {
                 returnSize = 0;
-                return 0;
+                return unchecked((int)0x80070006); // E_HANDLE
             }
 
             byte[] output = new byte[outSize * 8]; // 8 bytes per long
@@ -150,7 +158,6 @@ namespace ZenStates.Core
 
             Buffer.BlockCopy(nameBytes, 0, totalInput, 0, nameLen);
             Buffer.BlockCopy(inBuffer, 0, totalInput, FN_NAME_LENGTH, (int)inSize * 8);
-
 
             bool success = DeviceIoControl(
                 _handle,
@@ -177,11 +184,12 @@ namespace ZenStates.Core
         }
 
         /// <summary>
-        /// .NET2.0 compatible Version parser
+        /// Attempts to parse a version string from a registry value object.
+        /// Compatible with .NET 2.0.
         /// </summary>
-        /// <param name="val"></param>
-        /// <param name="version"></param>
-        /// <returns></returns>
+        /// <param name="val">The registry value, expected to be a version string.</param>
+        /// <param name="version">When successful, contains the parsed <see cref="Version"/>; otherwise <c>null</c>.</param>
+        /// <returns><c>true</c> if parsing succeeded; otherwise <c>false</c>.</returns>
         private static bool TryParseVersion(object val, out Version version)
         {
             version = null;
@@ -222,10 +230,11 @@ namespace ZenStates.Core
 
         private enum FileAttributes : uint
         {
+            None = 0,
             FILE_ATTRIBUTE_NORMAL = 0x80
         }
 
-        [DllImport("kernel32.dll", CallingConvention = CallingConvention.Winapi)]
+        [DllImport("kernel32.dll", SetLastError = true, CallingConvention = CallingConvention.Winapi)]
         private static extern bool DeviceIoControl(
             SafeFileHandle device,
             ControlCode ioControlCode,
@@ -247,7 +256,7 @@ namespace ZenStates.Core
             out uint lpBytesReturned,
             IntPtr lpOverlapped);
 
-        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
         private static extern IntPtr CreateFile(
             string lpFileName,
             FileAccess dwDesiredAccess,
@@ -256,6 +265,12 @@ namespace ZenStates.Core
             CreationDisposition dwCreationDisposition,
             FileAttributes dwFlagsAndAttributes,
             IntPtr hTemplateFile);
+
+        // Closes a raw IntPtr handle obtained from CreateFile before it is wrapped in a SafeFileHandle.
+        private static void CloseRawHandle(IntPtr handle)
+        {
+            using (new SafeFileHandle(handle, true)) { }
+        }
 
         // Helper for .NET 2.0: Stream.CopyTo replacement
         private static void StreamCopyTo(Stream srcStream, Stream dstStream, int bufferSize = 4096)

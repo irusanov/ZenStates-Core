@@ -15,5 +15,11 @@ namespace ZenStates.Core.Drivers
         bool WriteWordData(byte addr7, byte command, ushort value);
 
         // Block functions
+        bool ReadBlockData(byte addr7, byte command, out System.Collections.Generic.List<byte> data);
+        bool WriteBlockData(byte addr7, byte command, System.Collections.Generic.List<byte> data);
+
+        // Port selection
+        bool ChangePort(int port, out int previousPort);
+        bool ChangePort(int port);
     }
 }

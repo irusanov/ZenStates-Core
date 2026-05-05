@@ -118,10 +118,12 @@ namespace ZenStates.Core.DRAM
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // do nothing
+                Debug.WriteLine($"MemoryConfig: Failed to update manufacturer info from SPD: {ex.Message}");
             }
+
+            //Ddr5SpdReader.DumpDdr5SpdToFiles(Directory.GetCurrentDirectory());
 
             // Populate PMIC data for telemetry
             //RefreshTelemetry();
@@ -196,21 +198,23 @@ namespace ZenStates.Core.DRAM
                 }
                 return true;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"RefreshSpdInfo: {ex.Message}");
                 return false;
             }
         }
 
         public bool RefreshTelemetry(int uiRefreshIntervalMs = 2000)
         {
-            bool updated = false;
-            //int minHardwareRefreshMs;
+            // Mask off the sign bit to handle TickCount wrap-around safely.
+            long now = Environment.TickCount & int.MaxValue;
+            long elapsed = now - LastTelemetryRefreshTick;
 
-            //if (uiRefreshIntervalMs >= 2000)
-            //    minHardwareRefreshMs = uiRefreshIntervalMs;
-            //else
-            //    minHardwareRefreshMs = 2000;
+            if (elapsed >= 0 && elapsed < uiRefreshIntervalMs)
+                return false;
+
+            bool updated = false;
 
             if (!Mutexes.WaitSmbus(5000))
             {
@@ -220,11 +224,6 @@ namespace ZenStates.Core.DRAM
 
             try
             {
-                long now = Environment.TickCount & Int32.MaxValue;
-                long elapsed = now - LastTelemetryRefreshTick;
-
-                if (elapsed >= 0 && elapsed < uiRefreshIntervalMs)
-                    return false;
 
                 foreach (var info in SpdInfo)
                 {
@@ -254,7 +253,7 @@ namespace ZenStates.Core.DRAM
             }
             catch (Exception ex)
             {
-                Debug.WriteLine(ex.Message);
+                Debug.WriteLine($"RefreshTelemetry: {ex.Message}");
             }
             finally
             {
@@ -278,7 +277,7 @@ namespace ZenStates.Core.DRAM
                 }
             }
 
-            if (Modules?.Count > 0)
+            if (Modules.Count > 0)
             {
                 ulong totalCapacity = 0UL;
                 foreach (MemoryModule module in Modules)
@@ -297,7 +296,7 @@ namespace ZenStates.Core.DRAM
             {
                 return (MemRank)Utils.GetBits(cpu.ReadDwordNoLock(address), 0, 1);
             }
-            else if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
+            if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
             {
                 var value = cpu.ReadDwordNoLock(address);
                 if (value != 0 && (value == 0x07FFFBFE || Utils.GetBits(value, 9, 2) < 3))
@@ -381,9 +380,9 @@ namespace ZenStates.Core.DRAM
                         }
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // do nothing
+                    Debug.WriteLine($"ReadChannelsNoLock: channel {i} skipped ({ex.GetType().Name}): {ex.Message}");
                 }
             }
         }

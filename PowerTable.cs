@@ -41,7 +41,7 @@ namespace ZenStates.Core
         // Power table definition
         private struct PTDef
         {
-            public int tableVersion;
+            public uint tableVersion;
             public int tableSize; // in bytes
             public int offsetFclk;
             public int offsetUclk;
@@ -59,7 +59,7 @@ namespace ZenStates.Core
         {
             public void Add
             (
-                int tableVersion,
+                uint tableVersion,
                 int tableSize,
                 int offsetFclk,
                 int offsetUclk,
@@ -92,7 +92,7 @@ namespace ZenStates.Core
 
         /// <summary>
         /// List of power table definitions for the different table versions found.
-        /// If the sepcific detected version isn't found in the list, a generic one
+        /// If the specific detected version isn't found in the list, a generic one
         /// (usually the newest known) is selected.
         /// 
         /// Generic tables are defined with a faux version.
@@ -266,7 +266,6 @@ namespace ZenStates.Core
             { 0x730A04, 0x1EBC, 0x20C, 0x21C, 0x22C, 0x23C, 0x5CC, 0x714, 0x71C, -1, 0x1B4 },
             { 0x730C04, 0x23A4, 0x20C, 0x21C, 0x22C, 0x23C, 0x5CC, 0x714, 0x71C, -1, 0x1B4 },
             { 0x730E04, 0x288C, 0x20C, 0x21C, 0x22C, 0x23C, 0x5CC, 0x714, 0x71C, -1, 0x1B4 },
-            { 0x730E04, 0x288C, 0x20C, 0x21C, 0x22C, 0x23C, 0x5CC, 0x714, 0x71C, -1, 0x1B4 },
             { 0x731004, 0x2D74, 0x20C, 0x21C, 0x22C, 0x23C, 0x5CC, 0x714, 0x71C, -1, 0x1B4 },
             // Generic ShimadaPeak
             { 0x000730, 0xAFC, 0x20C, 0x21C, 0x22C, 0x23C, 0x5CC, -1, -1, -1, 0x1B4 },
@@ -374,7 +373,7 @@ namespace ZenStates.Core
             return GetDefByVersion(version);
         }
 
-        private /*static*/ PTDef? GetPowerTableDef(uint tableVersion)
+        private PTDef? GetPowerTableDef(uint tableVersion)
         {
             PTDef temp = GetDefByVersion(tableVersion);
             if (temp.tableSize != 0)
@@ -395,7 +394,7 @@ namespace ZenStates.Core
                 throw new ApplicationException("Invalid table size.");
 
             TableSize = tableDef.tableSize;
-            // TODO: Move defitions to RyzenSMU.
+            // TODO: Move definitions to RyzenSMU.
             // Temporary update the table size in RyzenSMU as it only has very few defined table sizes
             if (TableSize > smu.PmTableSize)
             {

@@ -75,6 +75,7 @@ namespace ZenStates.Core
                 }
 
                 _disposed = true;
+                base.Dispose(disposing);
             }
         }
 
@@ -99,17 +100,18 @@ namespace ZenStates.Core
         private bool Execute(string fn, long[] inParams, int outCount, out long[] result)
         {
             result = new long[outCount];
+            if (_pawnIo == null || !_pawnIo.IsLoaded)
+                return false;
+
             int hr = _pawnIo.ExecuteHr(
                 fn,
                 inParams,
-                unchecked((uint)inParams.Length),
+                (uint)inParams.Length,
                 result,
                 (uint)outCount,
-                out uint returnSize);
-
+                out uint _);
 
             // hr < 0 = NTSTATUS failure (device not present, timeout, etc.)
-            // returnSize == 0 on reads means no data came back
             return hr == 0;
         }
 
@@ -170,22 +172,6 @@ namespace ZenStates.Core
             previousPort = (int)result[0];
             if (port != -1) _currentPort = port;
             return true;
-        }
-
-        public bool ChangePort(int port, out int previousPort)
-        {
-            using (new SmbusLock())
-            {
-                return ChangePortNoLock(port, out previousPort);
-            }
-        }
-
-        public bool ChangePort(int port)
-        {
-            using (new SmbusLock())
-            {
-                return ChangePortNoLock(port);
-            }
         }
 
         /// <summary>

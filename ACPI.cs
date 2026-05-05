@@ -114,7 +114,16 @@ namespace ZenStates.Core
         {
             public SDTHeader Header;
             [MarshalAs(UnmanagedType.ByValArray)]
-            public uint[] Data;
+            public uint[] Data; // 32-bit physical addresses (RSDT)
+        };
+
+        [Serializable]
+        [StructLayout(LayoutKind.Sequential)]
+        public struct XSDT
+        {
+            public SDTHeader Header;
+            [MarshalAs(UnmanagedType.ByValArray)]
+            public ulong[] Data; // 64-bit physical addresses (XSDT)
         };
 
         // 5.2.9 Fixed ACPI Description Table (FADT)
@@ -200,7 +209,7 @@ namespace ZenStates.Core
 
             for (int i = 0; i < length; i++)
             {
-                val |= (uint)ascii[i] << i * 8;
+                val |= (uint)ascii[i] << (i * 8);
             }
             return val;
         }
@@ -212,7 +221,7 @@ namespace ZenStates.Core
 
             for (int i = 0; i < length; i++)
             {
-                val |= (ulong)ascii[i] << i * 8;
+                val |= (ulong)ascii[i] << (i * 8);
             }
             return val;
         }
@@ -240,59 +249,105 @@ namespace ZenStates.Core
             if (rsdpOffset < 0)
                 throw new SystemException("ACPI: Could not find RSDP signature");
 
-            return Utils.ByteArrayToStructure<RSDP>(io.ReadMemory(new IntPtr(RSDP_REGION_BASE_ADDRESS + rsdpOffset), 36));
+            RSDP rsdp = Utils.ByteArrayToStructure<RSDP>(
+                io.ReadMemory(new IntPtr(RSDP_REGION_BASE_ADDRESS + rsdpOffset), Marshal.SizeOf(typeof(RSDP))));
+
+            if (!VerifyChecksum(bytes, rsdpOffset, 20))
+                throw new SystemException("ACPI: RSDP checksum validation failed");
+
+            return rsdp;
+        }
+
+        /// <summary>
+        /// Returns true when the byte sum of <paramref name="length"/> bytes
+        /// starting at <paramref name="offset"/> equals zero (ACPI checksum rule).
+        /// </summary>
+        public static bool VerifyChecksum(byte[] data, int offset, int length)
+        {
+            if (data == null) throw new ArgumentNullException(nameof(data));
+            if (offset < 0 || offset + length > data.Length) throw new ArgumentOutOfRangeException(nameof(offset));
+
+            byte sum = 0;
+            for (int i = offset; i < offset + length; i++)
+                sum += data[i];
+            return sum == 0;
         }
 
         public RSDT GetRsdt()
         {
-            RSDT rsdtTable;
             RSDP rsdp = GetRsdp();
-            SDTHeader rsdtHeader = GetHeader<SDTHeader>(rsdp.RsdtAddress > 0 ? rsdp.RsdtAddress : rsdp.XsdtAddress);
-            byte[] rawTable = io.ReadMemory(new IntPtr(rsdp.RsdtAddress > 0 ? rsdp.RsdtAddress : (long)rsdp.XsdtAddress), (int)rsdtHeader.Length);
+            uint rsdtAddress = rsdp.RsdtAddress;
+
+            if (rsdtAddress == 0)
+                return new RSDT();
+
+            SDTHeader rsdtHeader = GetHeader<SDTHeader>(rsdtAddress);
+            byte[] rawTable = io.ReadMemory(new IntPtr(rsdtAddress), (int)rsdtHeader.Length);
 
             if (rawTable == null)
                 return new RSDT();
 
-            GCHandle handle = GCHandle.Alloc(rawTable, GCHandleType.Pinned);
-            try
+            int headerSize = Marshal.SizeOf(typeof(SDTHeader));
+            int dataSize = (int)rsdtHeader.Length - headerSize;
+            RSDT rsdtTable = new RSDT
             {
-                int headerSize = Marshal.SizeOf(rsdtHeader);
-                int dataSize = (int)rsdtHeader.Length - headerSize;
-                rsdtTable = new RSDT()
-                {
-                    Header = rsdtHeader,
-                    Data = new uint[dataSize],
-                };
-                Buffer.BlockCopy(rawTable, headerSize, rsdtTable.Data, 0, dataSize);
-            }
-            finally
-            {
-                handle.Free();
-            }
+                Header = rsdtHeader,
+                Data = new uint[dataSize / sizeof(uint)],
+            };
+            Buffer.BlockCopy(rawTable, headerSize, rsdtTable.Data, 0, dataSize);
             return rsdtTable;
+        }
+
+        public XSDT GetXsdt()
+        {
+            RSDP rsdp = GetRsdp();
+            ulong xsdtAddress = rsdp.XsdtAddress;
+
+            if (xsdtAddress == 0)
+                return new XSDT();
+
+            SDTHeader xsdtHeader = GetHeader<SDTHeader>(xsdtAddress);
+            byte[] rawTable = io.ReadMemory(new IntPtr((long)xsdtAddress), (int)xsdtHeader.Length);
+
+            if (rawTable == null)
+                return new XSDT();
+
+            int headerSize = Marshal.SizeOf(typeof(SDTHeader));
+            int dataSize = (int)xsdtHeader.Length - headerSize;
+            XSDT xsdtTable = new XSDT
+            {
+                Header = xsdtHeader,
+                Data = new ulong[dataSize / sizeof(ulong)],
+            };
+            Buffer.BlockCopy(rawTable, headerSize, xsdtTable.Data, 0, dataSize);
+            return xsdtTable;
         }
 
         public static ACPITable ParseSdtTable(byte[] rawTable)
         {
-            ACPITable acpiTable;
+            if (rawTable == null) throw new ArgumentNullException(nameof(rawTable));
+
             GCHandle handle = GCHandle.Alloc(rawTable, GCHandleType.Pinned);
+            SDTHeader rawHeader;
             try
             {
-                SDTHeader rawHeader = (SDTHeader)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(SDTHeader));
-                int headerSize = Marshal.SizeOf(rawHeader);
-                int dataSize = (int)rawHeader.Length - headerSize;
-                acpiTable = new ACPITable()
-                {
-                    RawHeader = rawHeader,
-                    Header = ParseRawHeader(rawHeader),
-                    Data = new byte[dataSize],
-                };
-                Buffer.BlockCopy(rawTable, headerSize, acpiTable.Data, 0, dataSize);
+                rawHeader = (SDTHeader)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(SDTHeader));
             }
             finally
             {
                 handle.Free();
             }
+
+            int headerSize = Marshal.SizeOf(typeof(SDTHeader));
+            int dataSize = Math.Max(0, (int)rawHeader.Length - headerSize);
+            ACPITable acpiTable = new ACPITable
+            {
+                RawHeader = rawHeader,
+                Header = ParseRawHeader(rawHeader),
+                Data = new byte[dataSize],
+            };
+            if (dataSize > 0)
+                Buffer.BlockCopy(rawTable, headerSize, acpiTable.Data, 0, dataSize);
             return acpiTable;
         }
 
