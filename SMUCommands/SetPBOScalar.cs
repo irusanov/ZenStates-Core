@@ -9,7 +9,12 @@
             if (CanExecute())
             {
                 result.args[0] = arg * 100;
-                result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetPBOScalar, ref result.args);
+                var status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetPBOScalar, ref result.args);
+                if (status != SMU.Status.OK)
+                {
+                    status = smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetPBOScalar, ref result.args);
+                }
+                result.status = status;
             }
 
             return base.Execute();

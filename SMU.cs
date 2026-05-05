@@ -264,7 +264,7 @@ namespace ZenStates.Core
             { Cpu.CodeName.Raphael, new Zen4Settings() },
             { Cpu.CodeName.Genoa, new Zen4Settings() },
             { Cpu.CodeName.StormPeak, new Zen4Settings() },
-            { Cpu.CodeName.DragonRange, new DragonRangeSettings() },
+            { Cpu.CodeName.DragonRange, new Zen4Settings() },
 
             // Zen5
             { Cpu.CodeName.GraniteRidge, new Zen5Settings() },
@@ -286,19 +286,18 @@ namespace ZenStates.Core
 
             { Cpu.CodeName.Mero, new APUSettings1_VanGogh() }, // unknown, presumably based on VanGogh
             { Cpu.CodeName.VanGogh, new APUSettings1_VanGogh() },
-            { Cpu.CodeName.Rembrandt, new APUSettings1_Phoenix() },
+            { Cpu.CodeName.Rembrandt, new APUSettings1_Rembrandt() },
             // https://github.com/coreboot/coreboot/blob/master/src/soc/amd/mendocino/include/soc/smu.h
+            { Cpu.CodeName.Mendocino, new APUSettings1_Rembrandt() },
             // https://github.com/coreboot/coreboot/blob/master/src/soc/amd/phoenix/include/soc/smu.h
             { Cpu.CodeName.Phoenix, new APUSettings1_Phoenix() },
             { Cpu.CodeName.Phoenix2, new APUSettings1_Phoenix() },
             { Cpu.CodeName.HawkPoint, new APUSettings1_Phoenix() },
-            { Cpu.CodeName.Mendocino, new APUSettings1_Phoenix() },
 
-            { Cpu.CodeName.StrixPoint, new APUSettings1_Phoenix() },
-            { Cpu.CodeName.StrixHalo, new APUSettings1_Phoenix() },
-            { Cpu.CodeName.KrackanPoint, new APUSettings1_Phoenix() },
-
-            { Cpu.CodeName.KrackanPoint2, new DragonRangeSettings() },
+            { Cpu.CodeName.StrixPoint, new APUSettings1_Strix() },
+            { Cpu.CodeName.StrixHalo, new APUSettings1_Strix() },
+            { Cpu.CodeName.KrackanPoint, new APUSettings1_Strix() },
+            { Cpu.CodeName.KrackanPoint2, new APUSettings1_Strix() },
 
             { Cpu.CodeName.Unsupported, new UnsupportedSettings() },
         };

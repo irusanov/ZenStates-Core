@@ -1,10 +1,9 @@
-﻿using System;
-
-namespace ZenStates.Core.SMUCommands
+﻿namespace ZenStates.Core.SMUCommands
 {
     internal class GetIsOverclockable : BaseSMUCommand
     {
-        public bool IsOverclockable { get; protected set; }
+        public Cpu.OcCaps Capabilities { get; protected set; }
+       
         public GetIsOverclockable(SMU smu) : base(smu) { }
         public override CmdResult Execute()
         {
@@ -14,7 +13,7 @@ namespace ZenStates.Core.SMUCommands
 
                 if (result.Success)
                 {
-                    IsOverclockable = Convert.ToBoolean(result.args[0] & 1);
+                    Capabilities = new Cpu.OcCaps(result.args[0]);
                 }
             }
 

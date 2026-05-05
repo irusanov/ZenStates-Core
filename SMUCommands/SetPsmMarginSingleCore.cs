@@ -1,8 +1,8 @@
 ﻿namespace ZenStates.Core.SMUCommands
 {
     // Set DLDO Psm margin for a single core
-    // CO margin range seems to be from -30 to 30
-    // Margin arg seems to be 16 bits (lowest 16 bits of the command arg)
+    // CO margin range from -30 to 30 before Zen 4, and from -50 to 50 on Zen 4 and newer
+    // Margin arg 16 bits (lowest 16 bits of the command arg)
     // [31-28] ccd index
     // [27-24] ccx index (always 0 for Zen3 where each ccd has just one ccx)
     // [23-20] core index
