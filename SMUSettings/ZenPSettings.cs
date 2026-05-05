@@ -22,10 +22,10 @@
             Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x6D;
             Rsmu.SMU_MSG_SetOverclockCpuVid = 0x6E;
 
-            Rsmu.SMU_MSG_SetPPTLimit = 0x64; // ?
+            Rsmu.SMU_MSG_SetFastLimit = 0x64; // ?
             Rsmu.SMU_MSG_SetTDCVDDLimit = 0x65; // ?
             Rsmu.SMU_MSG_SetEDCVDDLimit = 0x66;
-            Rsmu.SMU_MSG_SetHTCLimit = 0x68;
+            Rsmu.SMU_MSG_SetTctlMax = 0x68;
 
             Rsmu.SMU_MSG_SetPBOScalar = 0x6A;
             Rsmu.SMU_MSG_GetPBOScalar = 0x6F;

@@ -18,10 +18,10 @@
             Rsmu.SMU_MSG_SetDldoPsmMargin = 0x6;
             Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0x7;
 
-            Rsmu.SMU_MSG_SetPPTLimit = 0x56;
+            Rsmu.SMU_MSG_SetFastLimit = 0x56;
             Rsmu.SMU_MSG_SetTDCVDDLimit = 0x57;
             Rsmu.SMU_MSG_SetEDCVDDLimit = 0x58;
-            Rsmu.SMU_MSG_SetHTCLimit = 0x59;
+            Rsmu.SMU_MSG_SetTctlMax = 0x59;
             Rsmu.SMU_MSG_EnableOcMode = 0x5D;
             Rsmu.SMU_MSG_DisableOcMode = 0x5E;
             Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x5F;
