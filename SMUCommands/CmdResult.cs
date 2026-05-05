@@ -9,7 +9,7 @@
         public CmdResult(uint maxArgs)
         {
             args = Utils.MakeCmdArgs(maxArgs: maxArgs);
-            status = SMU.Status.FAILED;
+            status = SMU.Status.UNKNOWN_CMD;
         }
     }
 }
