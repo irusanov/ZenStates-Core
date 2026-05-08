@@ -63,6 +63,7 @@
             Mp1Smu.SMU_MSG_SetOverclockFrequencyAllCores = 0x26;
             Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x28;
             Mp1Smu.SMU_MSG_SetPBOScalar = 0x2F;
+            Mp1Smu.SMU_MSG_SetPBO_EN = 0x33;
             
             // Curve Optimizer
             Mp1Smu.SMU_MSG_SetDldoPsmMargin = 0x34;

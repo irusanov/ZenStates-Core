@@ -40,7 +40,7 @@
             Rsmu.SMU_MSG_GetGpuPsmMargin = 0xD7;
             
             // Debug
-            Rsmu.SMC_MSG_GetPboFusedPowerLimit = 0xDC; // Can be locked on some motherboards, AGESA bug
+            Rsmu.SMC_MSG_GetPboFusedPowerLimit = 0xDC; // Can be locked on some Zen 4 motherboards, Zen 5 not affected
             Rsmu.SMC_MSG_GetPboFusedApuSlowLimit = 0xDA;
             Rsmu.SMC_MSG_GetPboFusedVrmVddTdcCurrent = 0xDB;
             Rsmu.SMC_MSG_GetPboFusedVrmSocTdcCurrent = 0xD9;

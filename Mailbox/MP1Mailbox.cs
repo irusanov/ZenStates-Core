@@ -70,8 +70,6 @@
         
         public uint SMU_MSG_SetBoostLimitFrequencyAllCores { get; set; } = 0x0;
         
-        public uint SMU_MSG_SetBoostLimitFrequency { get; set; } = 0x0;
-        
         public uint SMU_MSG_SetOverclockCpuVid { get; set; } = 0x0;
         
         public uint SMU_MSG_SetPBO_EN { get; set; } = 0x0;
