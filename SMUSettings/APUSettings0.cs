@@ -94,6 +94,24 @@
             
             // Debug
             Mp1Smu.SMC_MSG_GetSustainedPowerAndThmLimit = 0x43;
+            
+            
+            // AmdGpu
+            GpuMb.SMU_ADDR_MSG = 0x3B10A08;
+            GpuMb.SMU_ADDR_RSP = 0x3B10A68;
+            GpuMb.SMU_ADDR_ARG = 0x3B10A48;
+            
+            // Subsystem frequencies
+            GpuMb.SMU_MSG_SetMaxSocClkFreq = 0x32;
+            GpuMb.SMU_MSG_SetMinSocClkFreq = 0x21;
+            GpuMb.SMU_MSG_SetMaxFclkFreq = 0x33;
+            GpuMb.SMU_MSG_SetMinFclkFreq = 0x12;
+            GpuMb.SMU_MSG_SetMaxVcn = 0x34;
+            GpuMb.SMU_MSG_SetMinVcn = 0x28;
+            GpuMb.SMU_MSG_SetMaxLclk = 0x14;
+            GpuMb.SMU_MSG_SetMinLclk = 0x23;
+            GpuMb.SMU_MSG_SetMaxGfxClkFreq = 0x30;
+            GpuMb.SMU_MSG_SetMinGfxClkFreq = 0x31;
         }
     }
 }

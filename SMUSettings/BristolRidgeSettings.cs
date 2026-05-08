@@ -26,7 +26,6 @@
             Mp1Smu.SMU_MSG_SetStapmTime = 0x6C; // Arg 3
             Mp1Smu.SMU_MSG_SetFastLimit = 0x69;
             Mp1Smu.SMU_MSG_SetSlowLimit = 0x6A; // Arg 0 AC, Arg 1 DC
-            Mp1Smu.SMU_MSG_SetSlowTime = 0x1D;
             Mp1Smu.SMU_MSG_SetTctlMax = 0x7C; // Temp * 1000
             Mp1Smu.SMU_MSG_SetTDCVDDLimit = 0x67; // Arg 0
             Mp1Smu.SMU_MSG_SetTDCSocLimit = 0x67; // Arg 1
