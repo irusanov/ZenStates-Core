@@ -55,6 +55,7 @@ namespace ZenStates.Core
         public RSMUMailbox Rsmu { get; protected set; }
         public MP1Mailbox Mp1Smu { get; protected set; }
         public HSMPMailbox Hsmp { get; protected set; }
+        public GpuMailbox GpuMb { get; protected set; }
 
         protected SMU()
         {
@@ -76,6 +77,7 @@ namespace ZenStates.Core
             Rsmu = new RSMUMailbox();
             Mp1Smu = new MP1Mailbox();
             Hsmp = new HSMPMailbox();
+            GpuMb = new GpuMailbox();
         }
 
         private static RyzenSmu _ryzenSmu;
@@ -227,6 +229,7 @@ namespace ZenStates.Core
 
         public Status SendMp1Command(uint msg, ref uint[] args) => SendSmuCommand(Mp1Smu, msg, ref args);
         public Status SendRsmuCommand(uint msg, ref uint[] args) => SendSmuCommand(Rsmu, msg, ref args);
+        public Status SendGpuMbCommand(uint msg, ref uint[] args) => SendSmuCommand(GpuMb, msg, ref args);
         public Status SendHsmpCommand(uint msg, ref uint[] args)
         {
             if (Hsmp.IsSupported && msg <= Hsmp.HighestSupportedFunction)
