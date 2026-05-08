@@ -1002,8 +1002,6 @@ namespace ZenStates.Core
 
         public TableVersionResult GetTableVersion()
         {
-            //var cmd = new SMUCommands.GetTableVersion(smu);
-            //cmd.Execute();
             return new TableVersionResult { TableVersion = _pawnRyzenSmu.PmTableVersion, TableSize = _pawnRyzenSmu.PmTableSize };
         }
         
@@ -1029,9 +1027,23 @@ namespace ZenStates.Core
 
         public SMU.Status SetFastLimit(uint arg = 0U) => SetPPTLimit(arg);
         
-        public SMU.Status SetSlowLimit(uint arg = 0U) => new SetSmuLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetSlowLimit, 
-                smu.Mp1Smu.SMU_MSG_SetSlowLimit, arg).status;
+        public SMU.Status SetSlowLimit(uint arg = 0U)
+        {
+            SMU.Status status;
+            if (smu.SMU_TYPE == SMU.SmuType.TYPE_CPU9)
+            {
+                status = new SetBristolSmuLimit(smu)
+                    .Execute(smu.Mp1Smu.SMU_MSG_SetSlowLimit, arg, arg).status;
+            }
+            else
+            {
+                status = new SetSmuLimit(smu)
+                    .Execute(smu.Rsmu.SMU_MSG_SetSlowLimit, 
+                        smu.Mp1Smu.SMU_MSG_SetSlowLimit, arg).status;
+            }
+
+            return status;
+        } 
         
         public SMU.Status SetSlowTime(uint arg = 0U) => new SetSmuLimit(smu)
             .Execute(smu.Rsmu.SMU_MSG_SetSlowTime, 
@@ -1045,11 +1057,11 @@ namespace ZenStates.Core
             .Execute(smu.Rsmu.SMU_MSG_SetSkinTempPowerLimit, 
                 smu.Mp1Smu.SMU_MSG_SetSkinTempPowerLimit, arg).status;
         
-        public SMU.Status SetApuSkinTempLimit(uint arg = 0U) => new SetSmuLimit(smu)
+        public SMU.Status SetApuSkinTempLimit(uint arg = 0U) => new SetGpuSttLimit(smu)
             .Execute(smu.Rsmu.SMU_MSG_SetApuSkinTempLimit, 
                 smu.Mp1Smu.SMU_MSG_SetApuSkinTempLimit, arg).status;
         
-        public SMU.Status SetGpuSkinTempLimit(uint arg = 0U) => new SetSmuLimit(smu)
+        public SMU.Status SetGpuSkinTempLimit(uint arg = 0U) => new SetGpuSttLimit(smu)
             .Execute(smu.Rsmu.SMU_MSG_SetDgpuSkinTempLimit, 
                 smu.Mp1Smu.SMU_MSG_SetDgpuSkinTempLimit, arg).status;
         
@@ -1057,9 +1069,8 @@ namespace ZenStates.Core
             .Execute(smu.Rsmu.SMU_MSG_SetApuSlowLimit, 
                 smu.Mp1Smu.SMU_MSG_SetApuSlowLimit, arg).status;
         
-        public SMU.Status SetTctlMax(uint arg = 0U) => new SetSmuLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetTctlMax, 
-                smu.Mp1Smu.SMU_MSG_SetTctlMax, arg).status;
+        public SMU.Status SetTctlMax(uint arg = 0U) => new SetTctlMax(smu)
+            .Execute(arg).status;
         
         public SMU.Status SetPPTLimit(uint arg = 0U) => new SetSmuLimit(smu)
             .Execute(smu.Rsmu.SMU_MSG_SetFastLimit, 
@@ -1097,9 +1108,21 @@ namespace ZenStates.Core
             .Execute(smu.Rsmu.SMU_MSG_SetPsi3GfxCurrent, 
                 smu.Mp1Smu.SMU_MSG_SetPsi3GfxCurrent, arg).status;
         
-        public SMU.Status SetProchotDeassertionRamp(uint arg = 0U) => new SetSmuLimit(smu)
+        public SMU.Status SetProchotDeassertionRamp(uint arg = 0U) => new SetProchotDeassertionRamp(smu)
             .Execute(smu.Rsmu.SMU_MSG_SetProchotDeassertionRamp, 
                 smu.Mp1Smu.SMU_MSG_SetProchotDeassertionRamp, arg).status;
+
+        public SMU.Status SetBristolStapmLimit(uint stapmLimit, uint stapmTime) => new SetBristolSustainPowerLimit(smu)
+            .Execute(smu.Mp1Smu.SMU_MSG_SetStapmLimit, stapmLimit, stapmTime).status;
+        
+        public SMU.Status SetBristolTdcLimit(uint vddCurrent, uint socCurrent) => new SetBristolSmuLimit(smu)
+            .Execute(smu.Mp1Smu.SMU_MSG_SetTDCVDDLimit, vddCurrent, socCurrent).status;
+        
+        public SMU.Status SetBristolEdcLimit(uint vddCurrent, uint socCurrent) => new SetBristolSmuLimit(smu)
+            .Execute(smu.Mp1Smu.SMU_MSG_SetEDCVDDLimit, vddCurrent, socCurrent).status;
+        
+        public SMU.Status SetBristolPsi0Limit(uint vddCurrent, uint socCurrent) => new SetBristolSmuLimit(smu)
+            .Execute(smu.Mp1Smu.SMU_MSG_SetPsi0Current, vddCurrent, socCurrent).status;
         
         public SMU.Status SetFixedGfxClkFreq(uint arg) => new SetFixedGfxClk(smu).Execute(arg).status;
         
@@ -1115,19 +1138,23 @@ namespace ZenStates.Core
         
         public SMU.Status StopBtcMode() => new SetBtcMode(smu).Execute(false).status;
         
+        public SMU.Status ManageSmuFeatureState(bool enabled, int bit = 0) => new SetSmuFeature(smu).Execute(enabled, bit).status;
+        
+        public SMU.Status SetPowerSavingMode(bool maxPerformance) => new SetPowerSavingMode(smu).Execute(maxPerformance).status;
+        
         public SMU.Status SetPBOScalar(uint scalar) => new SetPBOScalar(smu).Execute(scalar).status;
         
         public SMU.Status RefreshPowerTable() => powerTable != null ? powerTable.Refresh() : SMU.Status.FAILED;
         
         public int GetCorePerformanceData(uint index)
-                {
-                    CmdResult result = new GetCorePerformanceData(smu).Execute(index);
-                    if (result.Success)
-                    {
-                        return (int)result.args[0];
-                    }
-                    return -1;
-                }
+        {
+            CmdResult result = new GetCorePerformanceData(smu).Execute(index);
+            if (result.Success)
+            {
+                return (int)result.args[0];
+            }
+            return -1;
+        }
         
         [Flags]
         public enum OcCapabilities : uint
@@ -1201,6 +1228,18 @@ namespace ZenStates.Core
 
             return null;
         }
+        
+        public enum CpuSubsystem
+        {
+            Cpu,
+            Gpu,
+            Soc,
+            Fclk,
+            Vcn,
+            Lclk
+        }
+        
+        public SMU.Status SetCpuSubsystemFrequencyLimit(CpuSubsystem subsystem, uint freq, bool maximum = true) => new SetCpuSubsystemFrequency(smu).Execute(subsystem, freq, maximum).status;
         
         public uint? GetGpuPsmMargin(uint coreMask)
         {
