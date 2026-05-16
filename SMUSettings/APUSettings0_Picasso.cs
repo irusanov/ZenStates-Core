@@ -1,61 +1,67 @@
 ﻿namespace ZenStates.Core.SMUSettings
 {
-    public class APUSettings0_Picasso : SMU
+    public class APUSettings0_Picasso : APUSettings0
     {
         public APUSettings0_Picasso()
         {
-            SMU_TYPE = SmuType.TYPE_APU0;
-
-            Rsmu.SMU_ADDR_MSG = 0x03B10A20;
-            Rsmu.SMU_ADDR_RSP = 0x03B10A80;
-            Rsmu.SMU_ADDR_ARG = 0x03B10A88;
-
-            Rsmu.SMU_MSG_GetDramBaseAddress = 0xB;
-            Rsmu.SMU_MSG_GetTableVersion = 0xC;
-            Rsmu.SMU_MSG_TransferTableToDram = 0x3D;
-            Rsmu.SMU_MSG_SetDldoPsmMargin = 0x58;
-            Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0x59;
-            Rsmu.SMU_MSG_EnableOcMode = 0x63;
-            Rsmu.SMU_MSG_DisableOcMode = 0x5E;
+            // DPTC interface
+            Rsmu.SMU_MSG_SetApuSlowLimit = 0x75;
+            
+            // Overclock Options
+            Rsmu.SMU_MSG_EnableOcMode = 0x78; 
             Rsmu.SMU_MSG_SetOverclockFrequencyAllCores = 0x79;
-            Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x7A;
+            Rsmu.SMU_MSG_SetOverclockFrequencyPerCore = 0x7A; 
             Rsmu.SMU_MSG_SetOverclockCpuVid = 0x7B;
-            Rsmu.SMU_MSG_SetPPTLimit = 0x2F;
-            Rsmu.SMU_MSG_SetHTCLimit = 0x33;
-            Rsmu.SMU_MSG_SetTDCVDDLimit = 0x34;
-            Rsmu.SMU_MSG_SetTDCSOCLimit = 0x35;
-            Rsmu.SMU_MSG_SetEDCVDDLimit = 0x36;
-            Rsmu.SMU_MSG_SetEDCSOCLimit = 0x37;
-            Rsmu.SMU_MSG_SetPBOScalar = 0x7C;
-            Rsmu.SMU_MSG_GetPBOScalar = 0x62;
+            Rsmu.SMU_MSG_SetPBOScalar = 0x7C; 
             Rsmu.SMU_MSG_IsOverclockable = 0x87;
             Rsmu.SMU_MSG_GetBoostLimitFrequency = 0x86;
+            
+            // Subsystem frequencies
+            Rsmu.SMU_MSG_SetMaxCpuFreq = 0x66;
+            Rsmu.SMU_MSG_SetMinCpuFreq = 0x67;
+            Rsmu.SMU_MSG_SetMaxGfxClkFreq = 0x68;
+            Rsmu.SMU_MSG_SetMinGfxClkFreq = 0x69;
+            Rsmu.SMU_MSG_SetMaxSocClkFreq = 0x6A;
+            Rsmu.SMU_MSG_SetMinSocClkFreq = 0x6B;
+            Rsmu.SMU_MSG_SetMaxFclkFreq = 0x6C;
+            Rsmu.SMU_MSG_SetMinFclkFreq = 0x6D;
+            Rsmu.SMU_MSG_SetMaxVcn = 0x6E;
+            Rsmu.SMU_MSG_SetMinVcn = 0x6F;
+            Rsmu.SMU_MSG_SetMaxLclk = 0x70;
+            Rsmu.SMU_MSG_SetMinLclk = 0x71;
+            
+            // Debug
+            Rsmu.SMC_MSG_GetPboFusedPowerLimit = 0x7F;
+            Rsmu.SMC_MSG_GetPboFusedSlowLimit = 0x80;
+            Rsmu.SMC_MSG_GetPboFusedFastLimit = 0x81;
+            Rsmu.SMC_MSG_GetPboFusedApuSlowLimit = 0x82;
+            Rsmu.SMC_MSG_GetPboFusedVrmVddTdcCurrent = 0x83;
+            Rsmu.SMC_MSG_GetPboFusedVrmSocTdcCurrent = 0x84;
 
             // MP1
-            Mp1Smu.SMU_ADDR_MSG = 0x03B10528;
-            Mp1Smu.SMU_ADDR_RSP = 0x03B10564;
-            Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
+            // DPTC interface
+            Mp1Smu.SMU_MSG_SetApuSlowLimit = 0x54;
+            
+            // Overclock Options
             Mp1Smu.SMU_MSG_EnableOcMode = 0x58;
-            Mp1Smu.SMU_MSG_DisableOcMode = 0x3F;
             Mp1Smu.SMU_MSG_SetOverclockFrequencyAllCores = 0x59;
             Mp1Smu.SMU_MSG_SetOverclockFrequencyPerCore = 0x5A;
             Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x5B;
-            Mp1Smu.SMU_MSG_SetHTCLimit = 0x1F;
             Mp1Smu.SMU_MSG_SetPBOScalar = 0x57;
-
-            Mp1Smu.SMU_MSG_SetMaxPerformance = 0x18;
-            Mp1Smu.SMU_MSG_SetPowerSaving = 0x19;
-
-            Mp1Smu.SMU_MSG_SetStapmLimit = 0x1A;
-            Mp1Smu.SMU_MSG_SetFastLimit = 0x1B;
-            Mp1Smu.SMU_MSG_SetSlowLimit = 0x1C;
-            Mp1Smu.SMU_MSG_SetSlowTime = 0x1D;
-            Mp1Smu.SMU_MSG_SetStapmTime = 0x1E;
-
-            Mp1Smu.SMU_MSG_SetVrmCurrent = 0x20;
-            Mp1Smu.SMU_MSG_SetVrmSocCurrent = 0x21;
-            Mp1Smu.SMU_MSG_SetVrmMaxCurrent = 0x22;
-            Mp1Smu.SMU_MSG_SetVrmSocMaxCurrent = 0x23;
+            
+            // Subsystem frequencies
+            Mp1Smu.SMU_MSG_SetMaxCpuFreq = 0x44;
+            Mp1Smu.SMU_MSG_SetMinCpuFreq = 0x45;
+            Mp1Smu.SMU_MSG_SetMaxGfxClkFreq = 0x46;
+            Mp1Smu.SMU_MSG_SetMinGfxClkFreq = 0x47;
+            Mp1Smu.SMU_MSG_SetMaxSocClkFreq = 0x48;
+            Mp1Smu.SMU_MSG_SetMinSocClkFreq = 0x49;
+            Mp1Smu.SMU_MSG_SetMaxFclkFreq = 0x4A;
+            Mp1Smu.SMU_MSG_SetMinFclkFreq = 0x4B;
+            Mp1Smu.SMU_MSG_SetMaxVcn = 0x4C;
+            Mp1Smu.SMU_MSG_SetMinVcn = 0x4D;
+            Mp1Smu.SMU_MSG_SetMaxLclk = 0x4E;
+            Mp1Smu.SMU_MSG_SetMinLclk = 0x4F;
         }
     }
 }

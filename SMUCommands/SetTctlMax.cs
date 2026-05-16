@@ -1,21 +1,22 @@
 ﻿namespace ZenStates.Core.SMUCommands
 {
-    internal class SetSmuLimit : BaseSMUCommand
+    internal class SetTctlMax : BaseSMUCommand
     {
-        public SetSmuLimit(SMU smu) : base(smu) { }
-        public CmdResult Execute(uint cmdRsmu, uint cmdMp1 = 0, uint arg = 0U)
+        public SetTctlMax(SMU smu) : base(smu) { }
+        public CmdResult Execute(uint arg = 0U)
         {
-            // Smu limits are different on Bristol, but SetFastLimit works as on Ryzen
-            if (CanExecute() && (smu.SMU_TYPE != SMU.SmuType.TYPE_CPU9 || cmdMp1 == smu.Mp1Smu.SMU_MSG_SetFastLimit)) 
+            if (CanExecute())
             {
-                result.args[0] = arg * 1000;
+                result.args[0] = smu.SMU_TYPE == SMU.SmuType.TYPE_CPU9 ? 
+                    arg * 1000 : arg; // Value * 1000 on Bristol
                 
                 // Fix for some mobile APUs, firstly apply MP1 variant
-                var olderSmu = smu.SMU_TYPE == SMU.SmuType.TYPE_APU0 ||
-                                    smu.SMU_TYPE == SMU.SmuType.TYPE_APU1 || 
-                                    smu.SMU_TYPE == SMU.SmuType.TYPE_CPU9;
+                var olderSmu = smu.SMU_TYPE == SMU.SmuType.TYPE_APU0 ||  smu.SMU_TYPE == SMU.SmuType.TYPE_APU1;
                 
                 SMU.Status status;
+                uint cmdMp1 = smu.Mp1Smu.SMU_MSG_SetTctlMax;
+                uint cmdRsmu = smu.Rsmu.SMU_MSG_SetTctlMax;
+                
                 if (olderSmu)
                 {
                     status = cmdMp1 != 0 ? smu.SendMp1Command(cmdMp1, ref result.args) 

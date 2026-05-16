@@ -125,18 +125,34 @@ namespace ZenStates.Core
             return MakeCmdArgs(new uint[] { arg }, maxArgs);
         }
 
-        // CO margin range seems to be from -30 to 30
-        // Margin arg seems to be 16 bits (lowest 16 bits of the command arg)
-        // Update 01 Nov 2022 - the range is different on Raphael, -40 is successfully set
+        // CO margin range from -30 to 30 before Zen 4, and from -50 to 50 on Zen 4 and newer
+        // Margin arg 16 bits (lowest 16 bits of the command arg)
         public static uint MakePsmMarginArg(int margin)
         {
-            // if (margin > 30)
-            //     margin = 30;
-            // else if (margin < -30)
-            //     margin = -30;
-
             int offset = margin < 0 ? 0x100000 : 0;
             return (uint)(offset + margin) & 0xffff;
+        }
+        
+        public static uint CurveOptimizerToVid(int co)
+        {
+            if (co < -50) co = -50;
+            if (co > 50)  co = 50;
+
+            const double baseVoltage = 1.30;
+            const double maxOffset   = 0.200;
+            const double gamma       = 1.7;
+
+            double normalized = Math.Abs(co) / 50.0;
+            double curve = Math.Pow(normalized, gamma);
+
+            double delta = curve * maxOffset;
+
+            if (co < 0)
+                delta = -delta;
+
+            double targetVoltage = baseVoltage + delta;
+
+            return VoltageToVidSVI3(targetVoltage);
         }
 
         public static T ByteArrayToStructure<T>(byte[] byteArray) where T : new()

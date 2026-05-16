@@ -24,7 +24,7 @@
 
             Rsmu.SMU_MSG_SetTDCVDDLimit = 0x6B; // ?
             Rsmu.SMU_MSG_SetEDCVDDLimit = 0x6C; // ?
-            Rsmu.SMU_MSG_SetHTCLimit = 0x6E;
+            Rsmu.SMU_MSG_SetTctlMax = 0x6E;
 
             Rsmu.SMU_MSG_SetPBOScalar = 0x6F;
             Rsmu.SMU_MSG_GetPBOScalar = 0x70;
