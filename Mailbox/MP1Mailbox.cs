@@ -5,9 +5,9 @@
         
         // Smu Features
         
-        public uint SMC_MSG_EnableSmuFeatures { get; set; } = 0x0;
+        public uint SMU_MSG_EnableSmuFeatures { get; set; } = 0x0;
         
-        public uint SMC_MSG_DisableSmuFeatures { get; set; } = 0x0;
+        public uint SMU_MSG_DisableSmuFeatures { get; set; } = 0x0;
         
         
         // DPTC interface
@@ -76,7 +76,7 @@
         
         public uint SMU_MSG_SetPBOScalar { get; set; } = 0x0;
         
-        public uint SMC_MSG_SetGfxclkOverdriveByFreqVid { get; set; } = 0x0;
+        public uint SMU_MSG_SetGfxclkOverdriveByFreqVid { get; set; } = 0x0;
        
 
         // Subsystem frequencies
@@ -115,15 +115,15 @@
         
         // Boot Time Calibration
         
-        public uint SMC_MSG_AcBtcStartCal { get; set; } = 0x0;
+        public uint SMU_MSG_AcBtcStartCal { get; set; } = 0x0;
         
-        public uint SMC_MSG_AcBtcStopCal { get; set; } = 0x0;
+        public uint SMU_MSG_AcBtcStopCal { get; set; } = 0x0;
         
-        public uint SMC_MSG_AcBtcEndCal { get; set; } = 0x0;
+        public uint SMU_MSG_AcBtcEndCal { get; set; } = 0x0;
         
         // Debug
         
-        public uint SMC_MSG_GetSustainedPowerAndThmLimit { get; set; } = 0x0;
+        public uint SMU_MSG_GetSustainedPowerAndThmLimit { get; set; } = 0x0;
         
         public uint SMU_MSG_GetBiosIfVersion { get; set; } = 0x3;
         

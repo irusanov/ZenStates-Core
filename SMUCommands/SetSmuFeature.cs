@@ -8,7 +8,7 @@
         {
             if (CanExecute() && bit > 0 && bit < 64)
             {
-                uint cmd = enabled ? smu.Mp1Smu.SMC_MSG_EnableSmuFeatures : smu.Mp1Smu.SMC_MSG_DisableSmuFeatures;
+                uint cmd = enabled ? smu.Mp1Smu.SMU_MSG_EnableSmuFeatures : smu.Mp1Smu.SMU_MSG_DisableSmuFeatures;
 
                 result.args[0] = 0;
                 result.args[1] = 0;

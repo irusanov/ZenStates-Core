@@ -68,7 +68,7 @@
         
         public uint SMU_MSG_SetFixedGfxClkFreq { get; set; } = 0x0; // Working almost everywhere without issues
         
-        public uint SMC_MSG_SetGfxclkOverdriveByFreqVid { get; set; } = 0x0; // Checking fuse, locked on most devices
+        public uint SMU_MSG_SetGfxclkOverdriveByFreqVid { get; set; } = 0x0; // Checking fuse, locked on most devices
         
         
         // Subsystem frequencies
@@ -113,19 +113,19 @@
         
         // Debug
         
-        public uint SMC_MSG_GetSustainedPowerAndThmLimit { get; set; } = 0x0;
+        public uint SMU_MSG_GetSustainedPowerAndThmLimit { get; set; } = 0x0;
         
-        public uint SMC_MSG_GetPboFusedPowerLimit { get; set; } = 0x0;
+        public uint SMU_MSG_GetPboFusedPowerLimit { get; set; } = 0x0;
         
-        public uint SMC_MSG_GetPboFusedSlowLimit { get; set; } = 0x0;
+        public uint SMU_MSG_GetPboFusedSlowLimit { get; set; } = 0x0;
         
-        public uint SMC_MSG_GetPboFusedFastLimit { get; set; } = 0x0;
+        public uint SMU_MSG_GetPboFusedFastLimit { get; set; } = 0x0;
         
-        public uint SMC_MSG_GetPboFusedApuSlowLimit { get; set; } = 0x0;
+        public uint SMU_MSG_GetPboFusedApuSlowLimit { get; set; } = 0x0;
         
-        public uint SMC_MSG_GetPboFusedVrmVddTdcCurrent { get; set; } = 0x0;
+        public uint SMU_MSG_GetPboFusedVrmVddTdcCurrent { get; set; } = 0x0;
         
-        public uint SMC_MSG_GetPboFusedVrmSocTdcCurrent { get; set; } = 0x0;
+        public uint SMU_MSG_GetPboFusedVrmSocTdcCurrent { get; set; } = 0x0;
         
         public uint SMU_MSG_GetTableVersion { get; set; } = 0x0;
         

@@ -28,7 +28,7 @@
             Rsmu.SMU_MSG_SetPBOScalar = 0x5B;
             Rsmu.SMU_MSG_GetPBOScalar = 0x6D;
             Rsmu.SMU_MSG_IsOverclockable = 0x6F;
-            Rsmu.SMC_MSG_SetGfxclkOverdriveByFreqVid = 0x61;
+            Rsmu.SMU_MSG_SetGfxclkOverdriveByFreqVid = 0x61;
             Rsmu.SMU_MSG_GetBoostLimitFrequency = 0x6E;
             Rsmu.SMU_MSG_SetBoostLimitFrequencyAllCores = 0x70;
             
@@ -40,10 +40,10 @@
             Rsmu.SMU_MSG_GetGpuPsmMargin = 0xD7;
             
             // Debug
-            Rsmu.SMC_MSG_GetPboFusedPowerLimit = 0xDC; // Can be locked on some Zen 4 motherboards, Zen 5 not affected
-            Rsmu.SMC_MSG_GetPboFusedApuSlowLimit = 0xDA;
-            Rsmu.SMC_MSG_GetPboFusedVrmVddTdcCurrent = 0xDB;
-            Rsmu.SMC_MSG_GetPboFusedVrmSocTdcCurrent = 0xD9;
+            Rsmu.SMU_MSG_GetPboFusedPowerLimit = 0xDC; // Can be locked on some Zen 4 motherboards, Zen 5 not affected
+            Rsmu.SMU_MSG_GetPboFusedApuSlowLimit = 0xDA;
+            Rsmu.SMU_MSG_GetPboFusedVrmVddTdcCurrent = 0xDB;
+            Rsmu.SMU_MSG_GetPboFusedVrmSocTdcCurrent = 0xD9;
             Rsmu.SMU_MSG_GetDramBaseAddress = 0x4;
             Rsmu.SMU_MSG_GetTableVersion = 0x5;
             Rsmu.SMU_MSG_TransferTableToDram = 0x3;
@@ -57,8 +57,8 @@
             Mp1Smu.SMU_ADDR_ARG = 0x3B109C4;
             
             // Smu features
-            Mp1Smu.SMC_MSG_EnableSmuFeatures = 0x3;
-            Mp1Smu.SMC_MSG_DisableSmuFeatures = 0x4;
+            Mp1Smu.SMU_MSG_EnableSmuFeatures = 0x3;
+            Mp1Smu.SMU_MSG_DisableSmuFeatures = 0x4;
             
             // DPTC interface
             Mp1Smu.SMU_MSG_SetStapmLimit = 0x4F;
@@ -84,7 +84,7 @@
             Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0x36;
             
             // Debug
-            Mp1Smu.SMC_MSG_GetSustainedPowerAndThmLimit = 0x23;
+            Mp1Smu.SMU_MSG_GetSustainedPowerAndThmLimit = 0x23;
             Mp1Smu.SMU_MSG_SetToolsDramAddress = 0x6;
 
             // HSMP

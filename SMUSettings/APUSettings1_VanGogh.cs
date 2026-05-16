@@ -25,7 +25,7 @@
             Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0x4C;
             
             // Debug
-            Mp1Smu.SMC_MSG_GetSustainedPowerAndThmLimit = 0x54;
+            Mp1Smu.SMU_MSG_GetSustainedPowerAndThmLimit = 0x54;
         }
     }
 }

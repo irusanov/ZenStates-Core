@@ -11,15 +11,15 @@
             {
                 Cpu.SystemPowerLimit limits = new Cpu.SystemPowerLimit();
                 
-                if (smu.Rsmu.SMC_MSG_GetSustainedPowerAndThmLimit > 0)
+                if (smu.Rsmu.SMU_MSG_GetSustainedPowerAndThmLimit > 0)
                 {
-                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMC_MSG_GetSustainedPowerAndThmLimit, ref result.args);
+                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetSustainedPowerAndThmLimit, ref result.args);
                     limits.PowerLimit = (int)((result.args[0] & 0x00FF0000) >> 16);
                     limits.TemperatureLimit = (int)(result.args[0] & 0xFF);
                 }
-                else if (smu.Mp1Smu.SMC_MSG_GetSustainedPowerAndThmLimit > 0)
+                else if (smu.Mp1Smu.SMU_MSG_GetSustainedPowerAndThmLimit > 0)
                 {
-                    result.status = smu.SendMp1Command(smu.Mp1Smu.SMC_MSG_GetSustainedPowerAndThmLimit, ref result.args);
+                    result.status = smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_GetSustainedPowerAndThmLimit, ref result.args);
                     limits.PowerLimit = (int)((result.args[0] & 0x00FF0000) >> 16);
                     limits.TemperatureLimit = (int)(result.args[0] & 0xFF);
                 }

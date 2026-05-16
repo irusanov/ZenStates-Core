@@ -47,8 +47,8 @@
             Mp1Smu.SMU_ADDR_ARG = 0x3B109C4;
             
             // Smu features
-            Mp1Smu.SMC_MSG_EnableSmuFeatures = 0x5;
-            Mp1Smu.SMC_MSG_DisableSmuFeatures = 0x6;
+            Mp1Smu.SMU_MSG_EnableSmuFeatures = 0x5;
+            Mp1Smu.SMU_MSG_DisableSmuFeatures = 0x6;
             
             // DPTC interface
             Mp1Smu.SMU_MSG_SetFastLimit = 0x3C; // was misaligned
@@ -70,7 +70,7 @@
             Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0x35;
             
             // Debug
-            Mp1Smu.SMC_MSG_GetSustainedPowerAndThmLimit = 0x23;
+            Mp1Smu.SMU_MSG_GetSustainedPowerAndThmLimit = 0x23;
             Mp1Smu.SMU_MSG_SetToolsDramAddress = 0x6;
 
             // HSMP

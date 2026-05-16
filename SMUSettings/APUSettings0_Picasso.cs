@@ -31,12 +31,12 @@
             Rsmu.SMU_MSG_SetMinLclk = 0x71;
             
             // Debug
-            Rsmu.SMC_MSG_GetPboFusedPowerLimit = 0x7F;
-            Rsmu.SMC_MSG_GetPboFusedSlowLimit = 0x80;
-            Rsmu.SMC_MSG_GetPboFusedFastLimit = 0x81;
-            Rsmu.SMC_MSG_GetPboFusedApuSlowLimit = 0x82;
-            Rsmu.SMC_MSG_GetPboFusedVrmVddTdcCurrent = 0x83;
-            Rsmu.SMC_MSG_GetPboFusedVrmSocTdcCurrent = 0x84;
+            Rsmu.SMU_MSG_GetPboFusedPowerLimit = 0x7F;
+            Rsmu.SMU_MSG_GetPboFusedSlowLimit = 0x80;
+            Rsmu.SMU_MSG_GetPboFusedFastLimit = 0x81;
+            Rsmu.SMU_MSG_GetPboFusedApuSlowLimit = 0x82;
+            Rsmu.SMU_MSG_GetPboFusedVrmVddTdcCurrent = 0x83;
+            Rsmu.SMU_MSG_GetPboFusedVrmSocTdcCurrent = 0x84;
 
             // MP1
             // DPTC interface

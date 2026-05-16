@@ -9,15 +9,15 @@
             if (CanExecute())
             {
                 result.args[0] = (freq & 0xFFFF) | (vid << 16);
-                var cmd = smu.Rsmu.SMC_MSG_SetGfxclkOverdriveByFreqVid;
+                var cmd = smu.Rsmu.SMU_MSG_SetGfxclkOverdriveByFreqVid;
                 var status = SMU.Status.UNKNOWN_CMD;
                 if (cmd > 0)
                 {
                     status = smu.SendRsmuCommand(cmd, ref result.args);
                 }
-                else if (smu.Mp1Smu.SMC_MSG_SetGfxclkOverdriveByFreqVid > 0) 
+                else if (smu.Mp1Smu.SMU_MSG_SetGfxclkOverdriveByFreqVid > 0) 
                 {
-                    status = smu.SendMp1Command(smu.Mp1Smu.SMC_MSG_SetGfxclkOverdriveByFreqVid, ref result.args);
+                    status = smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetGfxclkOverdriveByFreqVid, ref result.args);
                 }
                 result.status = status;
             }

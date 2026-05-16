@@ -18,8 +18,8 @@
             Mp1Smu.SMU_ADDR_ARG = 0x13000020;
             
             // Smu features
-            Mp1Smu.SMC_MSG_EnableSmuFeatures = 0x5F;
-            Mp1Smu.SMC_MSG_DisableSmuFeatures = 0x60;
+            Mp1Smu.SMU_MSG_EnableSmuFeatures = 0x5F;
+            Mp1Smu.SMU_MSG_DisableSmuFeatures = 0x60;
             
             // DPTC interface
             Mp1Smu.SMU_MSG_SetStapmLimit = 0x6C; // Arg 0
@@ -43,7 +43,7 @@
             Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x88;
             
             // Boot Time Calibration
-            Mp1Smu.SMC_MSG_AcBtcStartCal = 0x77;
+            Mp1Smu.SMU_MSG_AcBtcStartCal = 0x77;
         }
     }
 }

@@ -13,40 +13,40 @@
                 
                 Cpu.PboFusedLimits limits = new Cpu.PboFusedLimits();
                 
-                if (smu.Rsmu.SMC_MSG_GetPboFusedPowerLimit > 0)
+                if (smu.Rsmu.SMU_MSG_GetPboFusedPowerLimit > 0)
                 {
-                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMC_MSG_GetPboFusedPowerLimit, ref result.args);
+                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetPboFusedPowerLimit, ref result.args);
                     limits.PowerLimit = (int)result.args[0];
                 }
-                if (smu.Rsmu.SMC_MSG_GetPboFusedSlowLimit > 0)
+                if (smu.Rsmu.SMU_MSG_GetPboFusedSlowLimit > 0)
                 {
-                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMC_MSG_GetPboFusedSlowLimit, ref result.args);
+                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetPboFusedSlowLimit, ref result.args);
                     limits.SlowLimit = (int)result.args[0];
                 }
-                if (smu.Rsmu.SMC_MSG_GetPboFusedFastLimit > 0)
+                if (smu.Rsmu.SMU_MSG_GetPboFusedFastLimit > 0)
                 {
-                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMC_MSG_GetPboFusedFastLimit, ref result.args);
+                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetPboFusedFastLimit, ref result.args);
                     limits.FastLimit = (int)result.args[0];
                 }
-                if (smu.Rsmu.SMC_MSG_GetPboFusedApuSlowLimit > 0)
+                if (smu.Rsmu.SMU_MSG_GetPboFusedApuSlowLimit > 0)
                 {
-                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMC_MSG_GetPboFusedApuSlowLimit, ref result.args);
+                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetPboFusedApuSlowLimit, ref result.args);
                     limits.ApuSlowLimit = (int)result.args[0];
                 }
-                if (smu.Rsmu.SMC_MSG_GetPboFusedVrmVddTdcCurrent > 0)
+                if (smu.Rsmu.SMU_MSG_GetPboFusedVrmVddTdcCurrent > 0)
                 {
                     if (olderSmu)
                         result.args[0] = 4;
                     
-                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMC_MSG_GetPboFusedVrmVddTdcCurrent, ref result.args);
+                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetPboFusedVrmVddTdcCurrent, ref result.args);
                     limits.VrmVddTdcCurrent = (int)result.args[0];
                 }
-                if (smu.Rsmu.SMC_MSG_GetPboFusedVrmSocTdcCurrent > 0)
+                if (smu.Rsmu.SMU_MSG_GetPboFusedVrmSocTdcCurrent > 0)
                 {
                     if (olderSmu)
                         result.args[0] = 6;
 
-                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMC_MSG_GetPboFusedVrmSocTdcCurrent, ref result.args);
+                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetPboFusedVrmSocTdcCurrent, ref result.args);
                     limits.VrmSocTdcCurrent = (int)result.args[0];
                 }
 

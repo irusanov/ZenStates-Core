@@ -25,7 +25,7 @@
             Rsmu.SMU_MSG_SetAllDldoPsmMargin = 0x5E; // Only positive
             
             // Debug
-            Rsmu.SMC_MSG_GetSustainedPowerAndThmLimit = 0x5F;
+            Rsmu.SMU_MSG_GetSustainedPowerAndThmLimit = 0x5F;
             Rsmu.SMU_MSG_GetDramBaseAddress = 0xC;
             Rsmu.SMU_MSG_GetTableVersion = 0xD;
             Rsmu.SMU_MSG_TransferTableToDram = 0xA;
@@ -37,8 +37,8 @@
             Mp1Smu.SMU_ADDR_ARG = 0x03B10598;
             
             // Smu features
-            Mp1Smu.SMC_MSG_EnableSmuFeatures = 0x9;
-            Mp1Smu.SMC_MSG_DisableSmuFeatures = 0xA;
+            Mp1Smu.SMU_MSG_EnableSmuFeatures = 0x9;
+            Mp1Smu.SMU_MSG_DisableSmuFeatures = 0xA;
             
             // DPTC interface
             Mp1Smu.SMU_MSG_SetFastLimit = 0x31;
@@ -54,12 +54,12 @@
             Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x38;
             
             // Boot Time Calibration
-            Mp1Smu.SMC_MSG_AcBtcStartCal = 0x23;
-            Mp1Smu.SMC_MSG_AcBtcStopCal = 0x24;
-            Mp1Smu.SMC_MSG_AcBtcEndCal = 0x25;
+            Mp1Smu.SMU_MSG_AcBtcStartCal = 0x23;
+            Mp1Smu.SMU_MSG_AcBtcStopCal = 0x24;
+            Mp1Smu.SMU_MSG_AcBtcEndCal = 0x25;
             
             // Debug
-            Mp1Smu.SMC_MSG_GetSustainedPowerAndThmLimit = 0x36;
+            Mp1Smu.SMU_MSG_GetSustainedPowerAndThmLimit = 0x36;
         }
     }
 }

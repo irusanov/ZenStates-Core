@@ -35,7 +35,7 @@
             Rsmu.SMU_MSG_SetPBOScalar = 0x3B; // Locked
             Rsmu.SMU_MSG_GetPBOScalar = 0x62;
             Rsmu.SMU_MSG_IsOverclockable = 0x4C;
-            Rsmu.SMC_MSG_SetGfxclkOverdriveByFreqVid = 0x61; // Available on several systems
+            Rsmu.SMU_MSG_SetGfxclkOverdriveByFreqVid = 0x61; // Available on several systems
             Rsmu.SMU_MSG_GetBoostLimitFrequency = 0x12; // With arg 3
             
             // Curve Optimizer
@@ -44,9 +44,9 @@
             Rsmu.SMU_MSG_SetGpuPsmMargin = 0x59; // Same power rail
             
             // Debug
-            Rsmu.SMC_MSG_GetSustainedPowerAndThmLimit = 0x65;
-            Rsmu.SMC_MSG_GetPboFusedVrmVddTdcCurrent = 0x64; // Arg 4
-            Rsmu.SMC_MSG_GetPboFusedVrmSocTdcCurrent = 0x64; // Arg 6
+            Rsmu.SMU_MSG_GetSustainedPowerAndThmLimit = 0x65;
+            Rsmu.SMU_MSG_GetPboFusedVrmVddTdcCurrent = 0x64; // Arg 4
+            Rsmu.SMU_MSG_GetPboFusedVrmSocTdcCurrent = 0x64; // Arg 6
             Rsmu.SMU_MSG_GetDramBaseAddress = 0xB;
             Rsmu.SMU_MSG_GetTableVersion = 0xC;
             Rsmu.SMU_MSG_TransferTableToDram = 0x3D;
@@ -58,8 +58,8 @@
             Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
             
             // Smu features
-            Mp1Smu.SMC_MSG_EnableSmuFeatures = 0x5;
-            Mp1Smu.SMC_MSG_DisableSmuFeatures = 0x6;
+            Mp1Smu.SMU_MSG_EnableSmuFeatures = 0x5;
+            Mp1Smu.SMU_MSG_DisableSmuFeatures = 0x6;
             
             // DPTC interface
             Mp1Smu.SMU_MSG_SetStapmLimit = 0x1A;
@@ -85,15 +85,15 @@
             Mp1Smu.SMU_MSG_DisableOcMode = 0x3F; // Args 0
             Mp1Smu.SMU_MSG_SetOverclockFrequencyAllCores = 0x40;
             Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x41;
-            Mp1Smu.SMC_MSG_SetGfxclkOverdriveByFreqVid = 0x3D;
+            Mp1Smu.SMU_MSG_SetGfxclkOverdriveByFreqVid = 0x3D;
             
             // Boot Time Calibration
-            Mp1Smu.SMC_MSG_AcBtcStartCal = 0x2F;
-            Mp1Smu.SMC_MSG_AcBtcStopCal = 0x30;
-            Mp1Smu.SMC_MSG_AcBtcEndCal = 0x31;
+            Mp1Smu.SMU_MSG_AcBtcStartCal = 0x2F;
+            Mp1Smu.SMU_MSG_AcBtcStopCal = 0x30;
+            Mp1Smu.SMU_MSG_AcBtcEndCal = 0x31;
             
             // Debug
-            Mp1Smu.SMC_MSG_GetSustainedPowerAndThmLimit = 0x43;
+            Mp1Smu.SMU_MSG_GetSustainedPowerAndThmLimit = 0x43;
             
             
             // AmdGpu

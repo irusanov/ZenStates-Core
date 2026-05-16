@@ -39,7 +39,7 @@
             Rsmu.SMU_MSG_SetPBOScalar = 0x3F;
             Rsmu.SMU_MSG_GetPBOScalar = 0xF;
             Rsmu.SMU_MSG_IsOverclockable = 0x82;
-            Rsmu.SMC_MSG_SetGfxclkOverdriveByFreqVid = 0x1C; // Available on several systems
+            Rsmu.SMU_MSG_SetGfxclkOverdriveByFreqVid = 0x1C; // Available on several systems
             Rsmu.SMU_MSG_GetBoostLimitFrequency = 0x42;
             Rsmu.SMU_MSG_SetFixedGfxClkFreq = 0x89;
             
@@ -49,12 +49,12 @@
             Rsmu.SMU_MSG_SetGpuPsmMargin = 0x53;
             
             // Debug
-            Rsmu.SMC_MSG_GetPboFusedPowerLimit = 0x11;
-            Rsmu.SMC_MSG_GetPboFusedSlowLimit = 0x12;
-            Rsmu.SMC_MSG_GetPboFusedFastLimit = 0x13;
-            Rsmu.SMC_MSG_GetPboFusedApuSlowLimit = 0x14;
-            Rsmu.SMC_MSG_GetPboFusedVrmVddTdcCurrent = 0x15;
-            Rsmu.SMC_MSG_GetPboFusedVrmSocTdcCurrent = 0x16;
+            Rsmu.SMU_MSG_GetPboFusedPowerLimit = 0x11;
+            Rsmu.SMU_MSG_GetPboFusedSlowLimit = 0x12;
+            Rsmu.SMU_MSG_GetPboFusedFastLimit = 0x13;
+            Rsmu.SMU_MSG_GetPboFusedApuSlowLimit = 0x14;
+            Rsmu.SMU_MSG_GetPboFusedVrmVddTdcCurrent = 0x15;
+            Rsmu.SMU_MSG_GetPboFusedVrmSocTdcCurrent = 0x16;
             Rsmu.SMU_MSG_GetDramBaseAddress = 0x66;
             Rsmu.SMU_MSG_GetTableVersion = 0x6;
             Rsmu.SMU_MSG_TransferTableToDram = 0x65;
@@ -66,8 +66,8 @@
             Mp1Smu.SMU_ADDR_ARG = 0x03B10998;
 
             // Smu features
-            Mp1Smu.SMC_MSG_EnableSmuFeatures = 0x5;
-            Mp1Smu.SMC_MSG_DisableSmuFeatures = 0x7;
+            Mp1Smu.SMU_MSG_EnableSmuFeatures = 0x5;
+            Mp1Smu.SMU_MSG_DisableSmuFeatures = 0x7;
             
             // DPTC interface
             Mp1Smu.SMU_MSG_SetStapmLimit = 0x14;
@@ -99,14 +99,14 @@
             Mp1Smu.SMU_MSG_SetOverclockFrequencyPerCore = 0x32;
             Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x33;
             Mp1Smu.SMU_MSG_SetPBOScalar = 0x49;
-            Mp1Smu.SMC_MSG_SetGfxclkOverdriveByFreqVid = 0x34;
+            Mp1Smu.SMU_MSG_SetGfxclkOverdriveByFreqVid = 0x34;
             
             // Curve Optimizer
             Mp1Smu.SMU_MSG_SetDldoPsmMargin = 0x54;
             Mp1Smu.SMU_MSG_SetAllDldoPsmMargin = 0x55;
             
             // Debug
-            Mp1Smu.SMC_MSG_GetSustainedPowerAndThmLimit = 0x5B;
+            Mp1Smu.SMU_MSG_GetSustainedPowerAndThmLimit = 0x5B;
         }
     }
 }
