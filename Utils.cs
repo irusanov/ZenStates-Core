@@ -43,10 +43,8 @@ namespace ZenStates.Core
 
             while (v > 0)
             {
-                if ((v & 1) == 1)
-                    result++;
-
-                v >>= 1;
+                v &= v - 1;
+                result++;
             }
 
             return result;
@@ -90,43 +88,35 @@ namespace ZenStates.Core
             return (uint)Math.Round((targetVoltage - 0.245) / 0.005);
         }
 
-        private static bool CheckAllZero<T>(ref T[] typedArray)
+        private static bool CheckAllZero<T>(T[] typedArray)
         {
             if (typedArray == null)
                 return true;
 
+            var comparer = EqualityComparer<T>.Default;
+            T zero = default;
             foreach (var value in typedArray)
             {
-                try
-                {
-                    if (Convert.ToInt32(value) != 0)
-                        return false;
-                }
-                catch
-                {
-                    return true;
-                }
+                if (!comparer.Equals(value, zero))
+                    return false;
             }
 
             return true;
         }
 
-        public static bool AllZero(byte[] arr) => CheckAllZero(ref arr);
+        public static bool AllZero(byte[] arr) => CheckAllZero(arr);
 
-        public static bool AllZero(int[] arr) => CheckAllZero(ref arr);
+        public static bool AllZero(int[] arr) => CheckAllZero(arr);
 
-        public static bool AllZero(uint[] arr) => CheckAllZero(ref arr);
+        public static bool AllZero(uint[] arr) => CheckAllZero(arr);
 
-        public static bool AllZero(float[] arr) => CheckAllZero(ref arr);
+        public static bool AllZero(float[] arr) => CheckAllZero(arr);
 
         public static uint[] MakeCmdArgs(uint[] args, uint maxArgs = Constants.DEFAULT_MAILBOX_ARGS)
         {
             uint[] cmdArgs = new uint[maxArgs];
-            uint length = (uint)Math.Min(maxArgs, args.Length);
-
-            for (int i = 0; i < length; i++)
-                cmdArgs[i] = args[i];
-
+            int length = (int)Math.Min(maxArgs, (uint)args.Length);
+            Array.Copy(args, cmdArgs, length);
             return cmdArgs;
         }
 
@@ -135,18 +125,34 @@ namespace ZenStates.Core
             return MakeCmdArgs(new uint[] { arg }, maxArgs);
         }
 
-        // CO margin range seems to be from -30 to 30
-        // Margin arg seems to be 16 bits (lowest 16 bits of the command arg)
-        // Update 01 Nov 2022 - the range is different on Raphael, -40 is successfully set
+        // CO margin range from -30 to 30 before Zen 4, and from -50 to 50 on Zen 4 and newer
+        // Margin arg 16 bits (lowest 16 bits of the command arg)
         public static uint MakePsmMarginArg(int margin)
         {
-            // if (margin > 30)
-            //     margin = 30;
-            // else if (margin < -30)
-            //     margin = -30;
-
             int offset = margin < 0 ? 0x100000 : 0;
-            return Convert.ToUInt32(offset + margin) & 0xffff;
+            return (uint)(offset + margin) & 0xffff;
+        }
+        
+        public static uint CurveOptimizerToVid(int co)
+        {
+            if (co < -50) co = -50;
+            if (co > 50)  co = 50;
+
+            const double baseVoltage = 1.30;
+            const double maxOffset   = 0.200;
+            const double gamma       = 1.7;
+
+            double normalized = Math.Abs(co) / 50.0;
+            double curve = Math.Pow(normalized, gamma);
+
+            double delta = curve * maxOffset;
+
+            if (co < 0)
+                delta = -delta;
+
+            double targetVoltage = baseVoltage + delta;
+
+            return VoltageToVidSVI3(targetVoltage);
         }
 
         public static T ByteArrayToStructure<T>(byte[] byteArray) where T : new()
@@ -196,7 +202,7 @@ namespace ZenStates.Core
                     {
                         fieldValue = rawValue.ToString();
                     }
-                    else if (!propertyType.IsValueType && propertyType != typeof(string))
+                    else if (!propertyType.IsValueType)
                     {
                         fieldValue = Activator.CreateInstance(propertyType, rawValue);
                     }
@@ -236,7 +242,18 @@ namespace ZenStates.Core
 
         public static string GetStringFromBytes(byte[] value)
         {
-            return System.Text.Encoding.ASCII.GetString(value).Replace("\0", " ");
+            return Encoding.ASCII.GetString(value).Replace("\0", " ");
+        }
+
+        public static uint ReadUInt32(byte[] data, int offset)
+        {
+            if (data == null || offset < 0 || data.Length < offset + 4)
+                return 0;
+
+            return (uint)(data[offset]
+                | (data[offset + 1] << 8)
+                | (data[offset + 2] << 16)
+                | (data[offset + 3] << 24));
         }
 
         /// <summary>Looks for the next occurrence of a sequence in a byte array</summary>
@@ -285,16 +302,18 @@ namespace ZenStates.Core
 
         public static int FindLastSequence(byte[] source, int start, byte[] pattern)
         {
-            var lastIndex = -1;
-            for (int i = start; i < source.Length; i++)
+            int lastIndex = -1;
+            int current = start;
+
+            while (true)
             {
-                int found = FindSequence(source, i, pattern);
-                if (found != -1)
-                {
-                    lastIndex = found;
-                    i = found;
-                }
+                int found = FindSequence(source, current, pattern);
+                if (found == -1)
+                    break;
+                lastIndex = found;
+                current = found + 1;
             }
+
             return lastIndex;
         }
 
@@ -305,7 +324,7 @@ namespace ZenStates.Core
 
             if (array1.Length < numElements || array2.Length < numElements)
             {
-                Console.WriteLine("Arrays are not long enough to compare the specified number of elements.");
+                Debug.WriteLine("Arrays are not long enough to compare the specified number of elements.");
                 return false;
             }
 
@@ -322,19 +341,19 @@ namespace ZenStates.Core
 
         public static bool PartialStringMatch(string str, string[] arr)
         {
-            bool match = false;
-            for (int i = 0; i < arr.Length; i++)
+            foreach (var item in arr)
             {
-                if (str.Contains(arr[i])) { match = true; break; }
+                if (str.Contains(item))
+                    return true;
             }
-            return match;
+            return false;
         }
 
         public static float ToNanoseconds(uint value, float frequency)
         {
             if (frequency != 0)
             {
-                float refiValue = Convert.ToSingle(value);
+                float refiValue = value;
                 float trefins = refiValue * 2000f / frequency;
                 if (trefins > refiValue) trefins /= 2;
                 return trefins;
@@ -385,6 +404,8 @@ namespace ZenStates.Core
             public string State { get; set; }
         }
 
+        private static readonly Regex StateRegex = new Regex(@"STATE\s+:\s+\d+\s+(\w+)", RegexOptions.Compiled);
+
         public static CommandExecutionResult ExecuteCommand(string command)
         {
             var processInfo = new ProcessStartInfo("cmd.exe", "/c " + command)
@@ -420,7 +441,7 @@ namespace ZenStates.Core
                 result.ExitCode = process.ExitCode;
 
                 // Parse the state from the standard output
-                var stateMatch = Regex.Match(result.StandardOutput, @"STATE\s+:\s+\d+\s+(\w+)");
+                var stateMatch = StateRegex.Match(result.StandardOutput);
                 if (stateMatch.Success)
                 {
                     result.State = stateMatch.Groups[1].Value;
@@ -449,7 +470,7 @@ namespace ZenStates.Core
                 }
                 return true;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return false;
             }
@@ -532,7 +553,10 @@ namespace ZenStates.Core
 
             try
             {
-                if (underlyingTarget.IsEnum || underlyingTarget.IsPrimitive)
+                if (underlyingTarget.IsEnum)
+                    return Enum.ToObject(underlyingTarget, value);
+
+                if (underlyingTarget.IsPrimitive)
                     return Convert.ChangeType(value, underlyingTarget);
 
                 MethodInfo op = underlyingTarget.GetMethod("op_Implicit", new[] { sourceType });

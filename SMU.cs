@@ -55,6 +55,7 @@ namespace ZenStates.Core
         public RSMUMailbox Rsmu { get; protected set; }
         public MP1Mailbox Mp1Smu { get; protected set; }
         public HSMPMailbox Hsmp { get; protected set; }
+        public GpuMailbox GpuMb { get; protected set; }
 
         protected SMU()
         {
@@ -76,6 +77,7 @@ namespace ZenStates.Core
             Rsmu = new RSMUMailbox();
             Mp1Smu = new MP1Mailbox();
             Hsmp = new HSMPMailbox();
+            GpuMb = new GpuMailbox();
         }
 
         private static RyzenSmu _ryzenSmu;
@@ -87,15 +89,11 @@ namespace ZenStates.Core
 
         private static bool SmuWriteRegNoLock(uint addr, uint data)
         {
-            if (addr > uint.MaxValue) return false;
-
             return _ryzenSmu.SmuWriteRegNoLock(addr, data);
         }
 
-        private static bool SmuReadRegNoLock(uint addr, ref uint data)
+        private static bool SmuReadRegNoLock(uint addr, out uint data)
         {
-            if (addr > uint.MaxValue) return false;
-
             return _ryzenSmu.SmuReadRegNoLock(addr, out data);
         }
 
@@ -107,7 +105,7 @@ namespace ZenStates.Core
 
             // Retry until response register is non-zero and reading RSP register is successful
             do
-                res = SmuReadRegNoLock(mailbox.SMU_ADDR_RSP, ref data);
+                res = SmuReadRegNoLock(mailbox.SMU_ADDR_RSP, out data);
             while ((!res || data == 0) && --timeout > 0);
 
             return timeout != 0 && data > 0;
@@ -180,9 +178,8 @@ namespace ZenStates.Core
                     return Status.TIMEOUT_MAILBOX_MSG_WRITE;
                 }
 
-                uint status = 0;
                 // If we reach this stage, read final status
-                if (!SmuReadRegNoLock(mailbox.SMU_ADDR_RSP, ref status))
+                if (!SmuReadRegNoLock(mailbox.SMU_ADDR_RSP, out uint status))
                 {
                     // PCI read failed
                     return Status.PCI_FAILED;
@@ -202,11 +199,12 @@ namespace ZenStates.Core
                         if (mailbox.SMU_ADDR_ARG > maxValidArgAddress)
                             continue;
 
-                        if (!SmuReadRegNoLock(mailbox.SMU_ADDR_ARG + (uint)(i * 4), ref args[i]))
+                        if (!SmuReadRegNoLock(mailbox.SMU_ADDR_ARG + (uint)(i * 4), out uint argVal))
                         {
                             // PCI read failed
                             return Status.PCI_FAILED;
                         }
+                        args[i] = argVal;
                     }
                 }
                 return unchecked((Status)status);
@@ -231,6 +229,7 @@ namespace ZenStates.Core
 
         public Status SendMp1Command(uint msg, ref uint[] args) => SendSmuCommand(Mp1Smu, msg, ref args);
         public Status SendRsmuCommand(uint msg, ref uint[] args) => SendSmuCommand(Rsmu, msg, ref args);
+        public Status SendGpuMbCommand(uint msg, ref uint[] args) => SendSmuCommand(GpuMb, msg, ref args);
         public Status SendHsmpCommand(uint msg, ref uint[] args)
         {
             if (Hsmp.IsSupported && msg <= Hsmp.HighestSupportedFunction)
@@ -268,7 +267,7 @@ namespace ZenStates.Core
             { Cpu.CodeName.Raphael, new Zen4Settings() },
             { Cpu.CodeName.Genoa, new Zen4Settings() },
             { Cpu.CodeName.StormPeak, new Zen4Settings() },
-            { Cpu.CodeName.DragonRange, new DragonRangeSettings() },
+            { Cpu.CodeName.DragonRange, new Zen4Settings() },
 
             // Zen5
             { Cpu.CodeName.GraniteRidge, new Zen5Settings() },
@@ -290,19 +289,18 @@ namespace ZenStates.Core
 
             { Cpu.CodeName.Mero, new APUSettings1_VanGogh() }, // unknown, presumably based on VanGogh
             { Cpu.CodeName.VanGogh, new APUSettings1_VanGogh() },
-            { Cpu.CodeName.Rembrandt, new APUSettings1_Phoenix() },
+            { Cpu.CodeName.Rembrandt, new APUSettings1_Rembrandt() },
             // https://github.com/coreboot/coreboot/blob/master/src/soc/amd/mendocino/include/soc/smu.h
+            { Cpu.CodeName.Mendocino, new APUSettings1_Rembrandt() },
             // https://github.com/coreboot/coreboot/blob/master/src/soc/amd/phoenix/include/soc/smu.h
             { Cpu.CodeName.Phoenix, new APUSettings1_Phoenix() },
             { Cpu.CodeName.Phoenix2, new APUSettings1_Phoenix() },
             { Cpu.CodeName.HawkPoint, new APUSettings1_Phoenix() },
-            { Cpu.CodeName.Mendocino, new APUSettings1_Phoenix() },
 
-            { Cpu.CodeName.StrixPoint, new APUSettings1_Phoenix() },
-            { Cpu.CodeName.StrixHalo, new APUSettings1_Phoenix() },
-            { Cpu.CodeName.KrackanPoint, new APUSettings1_Phoenix() },
-
-            { Cpu.CodeName.KrackanPoint2, new DragonRangeSettings() },
+            { Cpu.CodeName.StrixPoint, new APUSettings1_Strix() },
+            { Cpu.CodeName.StrixHalo, new APUSettings1_Strix() },
+            { Cpu.CodeName.KrackanPoint, new APUSettings1_Strix() },
+            { Cpu.CodeName.KrackanPoint2, new APUSettings1_Strix() },
 
             { Cpu.CodeName.Unsupported, new UnsupportedSettings() },
         };

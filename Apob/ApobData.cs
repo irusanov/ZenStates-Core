@@ -136,7 +136,7 @@
         public GroupOdtImpedance CaOdtB => _caOdtB.HasValue ? new GroupOdtImpedance(_caOdtB.Value) : null;
 
         public ProcOdt ProcOdt => _procOdt.HasValue ? new ProcOdt(_procOdt.Value) : null;
-        public ProcDataDrvStren ProcDqDs => _procDqDs.HasValue ? new ProcDataDrvStren(_procDqDs.Value) : null;
+        public ProcOdt ProcDqDs => _procDqDs.HasValue ? new ProcOdt(_procDqDs.Value) : null;
         public ProcOdtImpedance ProcCaDs => _procCaDs.HasValue ? new ProcOdtImpedance(_procCaDs.Value) : null;
         public ProcOdtImpedance ProcCkDs => _procCkDs.HasValue ? new ProcOdtImpedance(_procCkDs.Value) : null;
         public ProcOdtImpedance ProcCsDs => _procCsDs.HasValue ? new ProcOdtImpedance(_procCsDs.Value) : null;
@@ -152,8 +152,9 @@
 
         public ProcOdt ProcOdtPullUpP0 => _procOdtPullUpP0.HasValue ? new ProcOdt(_procOdtPullUpP0.Value) : null;
         public ProcOdt ProcOdtPullDownP0 => _procOdtPullDownP0.HasValue ? new ProcOdt(_procOdtPullDownP0.Value) : null;
-        public ProcDataDrvStren ProcDqDsPullUpP0 => _procDqDsPullUpP0.HasValue ? new ProcDataDrvStren(_procDqDsPullUpP0.Value) : null;
-        public ProcDataDrvStren ProcDqDsPullDownP0 => _procDqDsPullDownP0.HasValue ? new ProcDataDrvStren(_procDqDsPullDownP0.Value) : null;
+        // These should be ProcDataDrvStren, but it seems auto can set values that are out of range for ProcDataDrvStren, so we'll just return ProcOdt for now
+        public ProcOdt ProcDqDsPullUpP0 => _procDqDsPullUpP0.HasValue ? new ProcOdt(_procDqDsPullUpP0.Value) : null;
+        public ProcOdt ProcDqDsPullDownP0 => _procDqDsPullDownP0.HasValue ? new ProcOdt(_procDqDsPullDownP0.Value) : null;
 
         // AM5 APU
         public ProcOdtImpedance ProcCaOdt => _procCaOdt.HasValue ? new ProcOdtImpedance(_procCaOdt.Value) : null;

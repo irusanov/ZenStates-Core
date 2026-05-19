@@ -8,8 +8,16 @@
         {
             if (CanExecute())
             {
+                if (smu.Mp1Smu.SMU_MSG_SetPBO_EN > 0) // Allow PBO overdrive on Zen 2 / Zen 3
+                    smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetPBO_EN, ref result.args);
+                
                 result.args[0] = arg * 100;
-                result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetPBOScalar, ref result.args);
+                var status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetPBOScalar, ref result.args);
+                if (status != SMU.Status.OK)
+                {
+                    status = smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetPBOScalar, ref result.args);
+                }
+                result.status = status;
             }
 
             return base.Execute();

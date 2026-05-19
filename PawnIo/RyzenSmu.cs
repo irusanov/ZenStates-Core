@@ -163,7 +163,7 @@ namespace ZenStates.Core
         /// <summary>
         /// Gets a value indicating whether the PawnIO module is loaded.
         /// </summary>
-        public bool IsLoaded => _pawnIo.IsLoaded;
+        public bool IsLoaded => _pawnIo?.IsLoaded ?? false;
 
         /// <summary>
         /// Gets a value indicating whether the current CPU is supported.
@@ -181,7 +181,7 @@ namespace ZenStates.Core
         public uint PmTableVersion => _pmTableVersion;
 
         /// <summary>
-        /// Gets the PM table szie.
+        /// Gets the PM table size.
         /// Temporary add setter to update from legacy PowerTable if needed
         /// </summary>
         public uint PmTableSize
@@ -210,17 +210,10 @@ namespace ZenStates.Core
         {
             ThrowIfDisposed();
 
-            if (!Mutexes.WaitPciBus(5000))
-                return (int)SMU.Status.TIMEOUT_MUTEX_LOCK;
-
-            try
+            using (new PciBusLock())
             {
                 long[] result = _pawnIo.Execute(IOCTL_GET_SMU_VERSION, new long[0], 1);
                 return Convert.ToUInt32(result[0] & 0xffffffff);
-            }
-            finally
-            {
-                Mutexes.ReleasePciBus();
             }
         }
 
@@ -232,28 +225,22 @@ namespace ZenStates.Core
         {
             ThrowIfDisposed();
 
-            if (!Mutexes.WaitPciBus(5000))
-                return (int)SMU.Status.TIMEOUT_MUTEX_LOCK;
+            if (args == null) throw new ArgumentNullException(nameof(args));
+            if (args.Length < 6) throw new ArgumentException("args must have at least 6 elements.", nameof(args));
 
-            try
+            using (new PciBusLock())
             {
                 long[] inputBuffer = new long[7];
                 inputBuffer[0] = command;
                 for (int i = 0; i < 6; i++)
-                {
                     inputBuffer[i + 1] = args[i];
-                }
+
                 long[] outBuffer = new long[6];
                 int result = _pawnIo.ExecuteHr(IOCTL_SEND_SMU_COMMAND, inputBuffer, 7, outBuffer, 6, out uint returnSize);
                 for (int i = 0; i < 6; i++)
-                {
                     args[i] = (uint)outBuffer[i];
-                }
+
                 return result;
-            }
-            finally
-            {
-                Mutexes.ReleasePciBus();
             }
         }
 
@@ -274,8 +261,9 @@ namespace ZenStates.Core
                 value = (uint)outBuffer[0];
                 return result == 0;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine("SmuReadRegNoLock failed: " + ex.Message);
                 value = 0;
                 return false;
             }
@@ -308,8 +296,9 @@ namespace ZenStates.Core
                 int result = _pawnIo.ExecuteHr(IOCTL_WRITE_SMU_REGISTER, inputBuffer, 2, outBuffer, 0, out uint returnSize);
                 return result == 0;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine("SmuWriteRegNoLock failed: " + ex.Message);
                 return false;
             }
         }
@@ -368,7 +357,7 @@ namespace ZenStates.Core
                 }
             }
 
-            return table?.Length == 0 ? new float[] { 0 } : table;
+            return table == null || table.Length == 0 ? new float[] { 0 } : table;
         }
 
         /// <summary>
@@ -396,18 +385,11 @@ namespace ZenStates.Core
         /// <param name="baseAddress">The PM table base address.</param>
         private void ResolvePmTable(out uint version, out long baseAddress)
         {
-            if (!Mutexes.WaitPciBus(5000))
-                throw new TimeoutException("ResolvePmTable: Timeout waiting for PCI bus mutex");
-
-            try
+            using (new PciBusLock())
             {
                 long[] result = _pawnIo.Execute(IOCTL_RESOLVE_PM_TABLE, new long[2], 2);
                 version = Convert.ToUInt32(result[0] & 0xffffffff);
                 baseAddress = result[1];
-            }
-            finally
-            {
-                Mutexes.ReleasePciBus();
             }
         }
 
@@ -419,16 +401,9 @@ namespace ZenStates.Core
 
         public void UpdatePmTable()
         {
-            if (!Mutexes.WaitPciBus(5000))
-                throw new TimeoutException("UpdatePmTable: Timeout waiting for PCI bus mutex");
-
-            try
+            using (new PciBusLock())
             {
-                _pawnIo.Execute(IOCTL_UPDATE_PM_TABLE, new long[0] { }, 0);
-            }
-            finally
-            {
-                Mutexes.ReleasePciBus();
+                _pawnIo.Execute(IOCTL_UPDATE_PM_TABLE, new long[0], 0);
             }
         }
 
@@ -462,16 +437,16 @@ namespace ZenStates.Core
             report.AppendLine("Ryzen SMU Report");
             report.AppendLine(new string('=', 50));
             report.AppendLine();
-            report.AppendFormat("CPU Code Name: {0}\n", _cpuCodeName);
-            report.AppendFormat("PM Table Version: 0x{0:X8}\n", _pmTableVersion);
-            report.AppendFormat("CPU Supported: {0}\n", _isSupported);
-            report.AppendFormat("PM Table Layout Defined: {0}\n", IsPmTableLayoutDefined);
+            report.AppendLine($"CPU Code Name: {_cpuCodeName}");
+            report.AppendLine($"PM Table Version: 0x{_pmTableVersion:X8}");
+            report.AppendLine($"CPU Supported: {_isSupported}");
+            report.AppendLine($"PM Table Layout Defined: {IsPmTableLayoutDefined}");
 
             if (_isSupported)
             {
-                report.AppendFormat("PM Table Size: 0x{0:X}\n", _pmTableSize);
-                report.AppendFormat("PM Table Size (detected): 0x{0:X}\n", _detectedPmTableSize);
-                report.AppendFormat("PM Table Base Address: 0x{0:X16}\n", _dramBaseAddress);
+                report.AppendLine($"PM Table Size: 0x{_pmTableSize:X}");
+                report.AppendLine($"PM Table Size (detected): 0x{_detectedPmTableSize:X}");
+                report.AppendLine($"PM Table Base Address: 0x{_dramBaseAddress:X16}");
                 report.AppendLine();
 
                 AppendPmTableDump(report);
@@ -479,10 +454,9 @@ namespace ZenStates.Core
             else
             {
                 report.AppendLine();
-                if (_initializationException != null)
-                    report.AppendFormat("Initialization Error: {0}\n", _initializationException.Message);
-                else
-                    report.AppendFormat("Initialization Error: {0}\n", "Unknown error");
+                report.AppendLine(_initializationException != null
+                    ? $"Initialization Error: {_initializationException.Message}"
+                    : "Initialization Error: Unknown error");
             }
 
             return report.ToString();
@@ -586,8 +560,7 @@ namespace ZenStates.Core
                 case 0x240903: _pmTableSize = 0x518; break;
                 case 0x240802: _pmTableSize = 0x7E0; break;
                 case 0x240803: _pmTableSize = 0x7E4; break;
-                    //default:
-                    //    throw new NotSupportedException($"Matisse PM table version 0x{_pmTableVersion:X8} is not supported");
+                default: _pmTableSize = 0x994; break;
             }
         }
 
@@ -601,8 +574,7 @@ namespace ZenStates.Core
                 case 0x2D0803: _pmTableSize = 0x894; break;
                 case 0x380804: _pmTableSize = 0x8A4; break;
                 case 0x380805: _pmTableSize = 0x8F0; break;
-                    //default:
-                    //    throw new NotSupportedException($"Vermeer PM table version 0x{_pmTableVersion:X8} is not supported");
+                default: _pmTableSize = 0x994; break;
             }
         }
 
@@ -617,8 +589,7 @@ namespace ZenStates.Core
                 case 0x370004: _pmTableSize = 0x8AC; break;
                 case 0x370005: _pmTableSize = 0x8C8; break;
                 case 0x450005: _pmTableSize = 0xAA4; break;
-                    //default:
-                    //    throw new NotSupportedException($"Renoir PM table version 0x{_pmTableVersion:X8} is not supported");
+                default: _pmTableSize = 0x994; break;
             }
         }
 
@@ -627,15 +598,15 @@ namespace ZenStates.Core
             switch (_pmTableVersion)
             {
                 case 0x400005: _pmTableSize = 0x944; break;
-                    //default:
-                    //    throw new NotSupportedException($"Cezanne PM table version 0x{_pmTableVersion:X8} is not supported");
+                default: _pmTableSize = 0x994; break;
             }
         }
 
         private void ConfigureRavenRidgePmTableSize()
         {
-            _pmTableSizeAlt = 0xA4;
-            _pmTableSize = 0x608 + _pmTableSizeAlt;
+            uint pmTableSizeAlt = 0xA4;
+            _pmTableSizeAlt = pmTableSizeAlt;
+            _pmTableSize = 0x608 + pmTableSizeAlt;
         }
 
         private void ConfigureRaphaelPmTableSize()
@@ -645,8 +616,7 @@ namespace ZenStates.Core
                 case 0x00540004: _pmTableSize = 0x948; break;
                 case 0x00540104: _pmTableSize = 0x950; break;
                 case 0x00620205: _pmTableSize = 0x994; break;
-                    //default:
-                    //    throw new NotSupportedException($"Raphael/GraniteRidge PM table version 0x{_pmTableVersion:X8} is not supported");
+                default: _pmTableSize = 0x994; break;
             }
         }
 

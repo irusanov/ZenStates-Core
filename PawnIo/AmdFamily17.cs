@@ -1,10 +1,19 @@
 ﻿using OpenHardwareMonitor.Hardware;
+using System;
 
 namespace ZenStates.Core
 {
-    public class AmdFamily17
+    public class AmdFamily17 : IDisposable
     {
+        private const string IOCTL_READ_SMN  = "ioctl_read_smn";
+        private const string IOCTL_READ_MSR  = "ioctl_read_msr";
+        private const string IOCTL_WRITE_MSR = "ioctl_write_msr";
+        private const int    STATUS_SUCCESS   = 0;
+
+        private static readonly long[] _emptyOutputBuffer = new long[0];
+
         private readonly PawnIo _pawnIo;
+        private volatile bool _disposed;
 
         /// <summary>
         /// Gets a value indicating whether the underlying PawnIo module is currently loaded.
@@ -18,20 +27,23 @@ namespace ZenStates.Core
             //_pawnIo = PawnIo.LoadModuleFromFile("AMDFamily17.amx");
         }
 
+        /// <summary>
+        /// Reads an SMN register. Returns 0 on failure.
+        /// Prefer the <c>out</c> overload when you need to distinguish a genuine zero from an error.
+        /// </summary>
         public uint ReadSmnNoLock(uint offset)
         {
-            long[] result = _pawnIo.Execute("ioctl_read_smn", new long[1] { offset }, 1);
-            return unchecked((uint)result[0]);
+            ReadSmnNoLock(offset, out uint data);
+            return data;
         }
 
         public bool ReadSmnNoLock(uint offset, out uint data)
         {
-            var input = new long[] { offset };
-            var output = new long[1];
+            long[] input  = new long[] { offset };
+            long[] output = new long[1];
 
-            int status = _pawnIo.ExecuteHr("ioctl_read_smn", input, 1, output, 1, out uint returnSize);
-            // NTSTATUS_SUCCESS (0)
-            if (status == 0 && returnSize > 0)
+            int status = _pawnIo.ExecuteHr(IOCTL_READ_SMN, input, 1, output, 1, out uint returnSize);
+            if (status == STATUS_SUCCESS && returnSize > 0)
             {
                 data = unchecked((uint)output[0]);
                 return true;
@@ -41,19 +53,21 @@ namespace ZenStates.Core
             return false;
         }
 
-        // TODO: Handle different NTSTATUS codes
         public bool ReadMsr(uint index, out ulong eaxedx)
         {
             try
             {
-                var output = new long[1];
-                int status = _pawnIo.ExecuteHr("ioctl_read_msr", new long[] { index }, 1, output, 1, out uint returnSize);
+                long[] output = new long[1];
+                int status = _pawnIo.ExecuteHr(IOCTL_READ_MSR, new long[] { index }, 1, output, 1, out uint returnSize);
+#if DEBUG
                 System.Diagnostics.Debug.WriteLine($"ReadMsr: index=0x{index:X}, status=0x{status:X}, returnSize={returnSize}");
-                if (status == 0 && returnSize > 0)
+#endif
+                if (status == STATUS_SUCCESS && returnSize > 0)
                 {
                     eaxedx = unchecked((ulong)output[0]);
                     return true;
                 }
+
                 eaxedx = 0;
                 return false;
             }
@@ -73,6 +87,7 @@ namespace ZenStates.Core
                     eax = edx = 0;
                     return false;
                 }
+
                 eax = unchecked((uint)eaxedx);
                 edx = unchecked((uint)(eaxedx >> 32));
                 return true;
@@ -101,10 +116,13 @@ namespace ZenStates.Core
         {
             try
             {
-                int status = _pawnIo.ExecuteHr("ioctl_write_msr", new long[] { index, unchecked((long)eaxedx) }, 2, new long[0], 0, out uint _);
-                if (status != 0)
-                    return false;
-                return true;
+                int status = _pawnIo.ExecuteHr(
+                    IOCTL_WRITE_MSR,
+                    new long[] { index, unchecked((long)eaxedx) }, 2,
+                    _emptyOutputBuffer, 0,
+                    out uint _);
+
+                return status == STATUS_SUCCESS;
             }
             catch
             {
@@ -130,6 +148,15 @@ namespace ZenStates.Core
             }
         }
 
-        public void Close() => _pawnIo.Close();
+        public void Close()
+        {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+            _pawnIo.Close();
+        }
+
+        public void Dispose() => Close();
     }
 }

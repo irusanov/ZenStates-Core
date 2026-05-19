@@ -20,6 +20,7 @@ namespace ZenStates.Core
                 case Cpu.CodeName.StormPeak:
                 case Cpu.CodeName.Vermeer:
                 case Cpu.CodeName.Raphael:
+                case Cpu.CodeName.DragonRange:
                     return ReadV1(data, offset);
                 // 1AH
                 case Cpu.CodeName.Turin:
@@ -34,7 +35,6 @@ namespace ZenStates.Core
                     return ReadV2(data, offset);
                 // AM5 APU
                 case Cpu.CodeName.Rembrandt:
-                case Cpu.CodeName.DragonRange:
                 case Cpu.CodeName.HawkPoint:
                 case Cpu.CodeName.Phoenix:
                 case Cpu.CodeName.Phoenix2:
@@ -47,9 +47,6 @@ namespace ZenStates.Core
         private static ApobData ReadV1(byte[] data, uint offset)
         {
             int blockSize = Marshal.SizeOf(typeof(ApobData19h));
-            if (data.Length < blockSize)
-                throw new ArgumentException("Buffer too small for Apob V1.", "data");
-
             ApobData19h raw = Read<ApobData19h>(data, blockSize, offset);
 
             return new ApobData(
@@ -76,9 +73,6 @@ namespace ZenStates.Core
         private static ApobData ReadV2(byte[] data, uint offset)
         {
             int blockSize = Marshal.SizeOf(typeof(ApobData1Ah));
-            if (data.Length < blockSize)
-                throw new ArgumentException("Buffer too small for Apob V2.", "data");
-
             ApobData1Ah raw = Read<ApobData1Ah>(data, blockSize, offset);
 
             return new ApobData(
@@ -116,9 +110,6 @@ namespace ZenStates.Core
         private static ApobData ReadV3(byte[] data, uint offset)
         {
             int blockSize = Marshal.SizeOf(typeof(ApobData19h_8000));
-            if (data.Length < blockSize)
-                throw new ArgumentException("Buffer too small for Apob V3.", "data");
-
             ApobData19h_8000 raw = Read<ApobData19h_8000>(data, blockSize, offset);
 
             return new ApobData(
@@ -148,6 +139,11 @@ namespace ZenStates.Core
 
         private static T Read<T>(byte[] data, int blockSize, uint offset) where T : struct
         {
+            if ((long)offset + blockSize > data.Length)
+                throw new ArgumentException(
+                    $"Buffer too small: need {blockSize} bytes at offset 0x{offset:X}, but buffer is only {data.Length} bytes.",
+                    "data");
+
             byte[] buffer = new byte[blockSize];
             Buffer.BlockCopy(data, (int)offset, buffer, 0, buffer.Length);
 

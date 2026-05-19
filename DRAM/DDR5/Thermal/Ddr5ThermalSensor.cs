@@ -46,6 +46,21 @@ namespace ZenStates.Core
         /// <summary>MR51 – Temperature alarm status flags.</summary>
         public const byte REG_TEMP_STATUS = 0x33;
 
+        /// <summary>
+        /// Check whether MR0:MR1 identify an SPD5118 device.
+        /// Accepts either byte order (MR0=0x51,MR1=0x18 or MR0=0x18,MR1=0x51)
+        /// </summary>
+        private static bool IsSpd5118DeviceType(byte mr0, byte mr1)
+        {
+            // Normal order: MR0 low nibble = 0x8, MR1 = 0x51
+            if ((mr0 & 0x0F) == 0x08 && mr1 == 0x51)
+                return true;
+            // Swapped order: MR0 = 0x51, MR1 low nibble = 0x8
+            if (mr0 == 0x51 && (mr1 & 0x0F) == 0x08)
+                return true;
+            return false;
+        }
+
         // Capability bits
         private const byte CAP_TS_SUPPORT = 0x02;  // bit 1
                                                    // Config bits
@@ -69,8 +84,10 @@ namespace ZenStates.Core
         /// </summary>
         public static int RawToMilliC(int raw16)
         {
-            int val = (raw16 >> 2) & 0x3FFF;
-            if ((val & 0x0400) != 0)
+            // JESD406: temperature register bits[12:2] = 11-bit signed value, 0.25°C per LSB
+            // Equivalent to Linux kernel: sign_extend32(reg >> 2, 10)
+            int val = (raw16 >> 2) & 0x7FF;
+            if ((val & 0x400) != 0)
                 val |= unchecked((int)0xFFFFF800);
             return val * TEMP_UNIT_MC;
         }
@@ -113,16 +130,12 @@ namespace ZenStates.Core
         {
             try
             {
-                byte mr0, mr1;
-                if (!ReadMRNoLock(smbus, i2cAddr, REG_TYPE, out mr0)) return false;
-                if (!ReadMRNoLock(smbus, i2cAddr, (byte)(REG_TYPE + 1), out mr1)) return false;
-                // SPD5118 registers are big-endian: MR0 = MSB (0x51), MR1 = LSB (0x18)
-                int deviceType = (mr0 << 8) | mr1;
-                if (deviceType != 0x5118)
+                if (!ReadMRNoLock(smbus, i2cAddr, REG_TYPE, out byte mr0)) return false;
+                if (!ReadMRNoLock(smbus, i2cAddr, (byte)(REG_TYPE + 1), out byte mr1)) return false;
+                if (!IsSpd5118DeviceType(mr0, mr1))
                     return false;
 
-                byte cap;
-                if (!ReadMRNoLock(smbus, i2cAddr, REG_CAPABILITY, out cap)) return false;
+                if (!ReadMRNoLock(smbus, i2cAddr, REG_CAPABILITY, out byte cap)) return false;
                 return (cap & CAP_TS_SUPPORT) != 0;
             }
             catch
@@ -166,9 +179,7 @@ namespace ZenStates.Core
                 byte mr0, mr1;
                 if (!ReadMRNoLock(smbus, i2cAddr, REG_TYPE, out mr0)) return td;
                 if (!ReadMRNoLock(smbus, i2cAddr, (byte)(REG_TYPE + 1), out mr1)) return td;
-                // SPD5118 registers are big-endian: MR0 = MSB, MR1 = LSB
-                int deviceType = (mr0 << 8) | mr1;
-                if (deviceType != 0x5118)
+                if (!IsSpd5118DeviceType(mr0, mr1))
                     return td;
 
                 byte cap;

@@ -48,8 +48,8 @@ namespace ZenStates.Core
         // Phoenix: END
         public ProcOdtImpedance ProcCsDs { get; set; }
         public ProcOdtImpedance ProcCkDs { get; set; }
-        public ProcDataDrvStren ProcDqDsPullUp { get; set; }
-        public ProcDataDrvStren ProcDqDsPullDown { get; set; }
+        public ProcOdt ProcDqDsPullUp { get; set; }
+        public ProcOdt ProcDqDsPullDown { get; set; }
         public DramDataDrvStren DramDataDrvStren { get; set; }
         public DramDataDrvStren DramDqDsPullUp { get; set; }
         public DramDataDrvStren DramDqDsPullDown { get; set; }

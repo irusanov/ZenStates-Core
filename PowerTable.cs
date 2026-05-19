@@ -41,7 +41,7 @@ namespace ZenStates.Core
         // Power table definition
         private struct PTDef
         {
-            public int tableVersion;
+            public uint tableVersion;
             public int tableSize; // in bytes
             public int offsetFclk;
             public int offsetUclk;
@@ -59,7 +59,7 @@ namespace ZenStates.Core
         {
             public void Add
             (
-                int tableVersion,
+                uint tableVersion,
                 int tableSize,
                 int offsetFclk,
                 int offsetUclk,
@@ -92,7 +92,7 @@ namespace ZenStates.Core
 
         /// <summary>
         /// List of power table definitions for the different table versions found.
-        /// If the sepcific detected version isn't found in the list, a generic one
+        /// If the specific detected version isn't found in the list, a generic one
         /// (usually the newest known) is selected.
         /// 
         /// Generic tables are defined with a faux version.
@@ -143,11 +143,13 @@ namespace ZenStates.Core
             { 0x650004, 0xB74, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
             { 0x650005, 0xB78, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
             { 0x650006, 0xB80, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+            { 0x000650, 0xB80, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
 
             // StrixPoint
             { 0x5D0008, 0xD54, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
             { 0x5D0009, 0xD58, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
             { 0x5D000A, 0xD60, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+            { 0x0005D0, 0xD60, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
 
             // StrixHalo
             { 0x640107, 0xDC0, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
@@ -160,6 +162,7 @@ namespace ZenStates.Core
             { 0x640209, 0x1020, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
             { 0x64020A, 0x1020, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
             { 0x64020C, 0x1028, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+            { 0x000640, 0x1028, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
 
             // Zen CPU
             { 0x000100, 0x7E4, 0x84, 0x84, 0x84, 0x68, 0x44, -1, -1, -1, -1 },
@@ -263,7 +266,6 @@ namespace ZenStates.Core
             { 0x730A04, 0x1EBC, 0x20C, 0x21C, 0x22C, 0x23C, 0x5CC, 0x714, 0x71C, -1, 0x1B4 },
             { 0x730C04, 0x23A4, 0x20C, 0x21C, 0x22C, 0x23C, 0x5CC, 0x714, 0x71C, -1, 0x1B4 },
             { 0x730E04, 0x288C, 0x20C, 0x21C, 0x22C, 0x23C, 0x5CC, 0x714, 0x71C, -1, 0x1B4 },
-            { 0x730E04, 0x288C, 0x20C, 0x21C, 0x22C, 0x23C, 0x5CC, 0x714, 0x71C, -1, 0x1B4 },
             { 0x731004, 0x2D74, 0x20C, 0x21C, 0x22C, 0x23C, 0x5CC, 0x714, 0x71C, -1, 0x1B4 },
             // Generic ShimadaPeak
             { 0x000730, 0xAFC, 0x20C, 0x21C, 0x22C, 0x23C, 0x5CC, -1, -1, -1, 0x1B4 },
@@ -350,11 +352,19 @@ namespace ZenStates.Core
                 case Cpu.CodeName.HawkPoint:
                 case Cpu.CodeName.Mendocino:
                 case Cpu.CodeName.StrixPoint:
+                case Cpu.CodeName.KrackanPoint:
+                case Cpu.CodeName.KrackanPoint2:
                 case Cpu.CodeName.StrixHalo:
                     if ((tableVersion >> 16) == 0x37)
                         version = 0x11;
                     else if ((tableVersion >> 16) == 0x4c)
                         version = 0x4c0;
+                    else if ((tableVersion >> 16) == 0x5d)
+                        version = 0x5d0;
+                    else if ((tableVersion >> 16) == 0x65)
+                        version = 0x650;
+                    else if ((tableVersion >> 16) == 0x64)
+                        version = 0x640;
                     else
                         version = 0x12;
                     break;
@@ -363,7 +373,7 @@ namespace ZenStates.Core
             return GetDefByVersion(version);
         }
 
-        private /*static*/ PTDef? GetPowerTableDef(uint tableVersion)
+        private PTDef? GetPowerTableDef(uint tableVersion)
         {
             PTDef temp = GetDefByVersion(tableVersion);
             if (temp.tableSize != 0)
@@ -384,7 +394,7 @@ namespace ZenStates.Core
                 throw new ApplicationException("Invalid table size.");
 
             TableSize = tableDef.tableSize;
-            // TODO: Move defitions to RyzenSMU.
+            // TODO: Move definitions to RyzenSMU.
             // Temporary update the table size in RyzenSMU as it only has very few defined table sizes
             if (TableSize > smu.PmTableSize)
             {

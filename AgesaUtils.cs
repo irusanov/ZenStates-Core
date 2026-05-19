@@ -6,28 +6,43 @@ namespace ZenStates.Core
     {
         private static readonly bool[] Allowed = BuildAllowedTable();
 
+        private static readonly byte[][] Markers =
+        {
+            Encoding.ASCII.GetBytes("AGESA!V9"),
+            Encoding.ASCII.GetBytes("AGESA!BB"),
+        };
+
         public static string ParseVersion(byte[] source)
         {
-            // Search for AGESA marker
-            byte[] marker = Encoding.ASCII.GetBytes("AGESA!V9");
-            int markerOffset = Utils.FindSequence(source, 0, marker);
-            if (markerOffset == -1)
-            {
-                //Debug.WriteLine("AGESA marker not found.");
+            if (source == null || source.Length == 0)
                 return string.Empty;
-            }
 
-            int versionStart = markerOffset + marker.Length;
-            versionStart = FindFirstAllowed(source, versionStart);
-            int versionEnd = FindFirstInvalid(source, versionStart);
-
-            if (versionEnd > versionStart)
+            foreach (byte[] marker in Markers)
             {
-                return Encoding.ASCII.GetString(source, versionStart, versionEnd - versionStart)
-                    .Trim('\0', ' ');
+                int markerOffset = Utils.FindSequence(source, 0, marker);
+                if (markerOffset == -1)
+                    continue;
+
+                string version = ExtractVersionAt(source, markerOffset + marker.Length);
+                if (version.Length > 0)
+                    return version;
             }
 
             return string.Empty;
+        }
+
+        private static string ExtractVersionAt(byte[] source, int offset)
+        {
+            int versionStart = FindFirstAllowed(source, offset);
+            if (versionStart == -1)
+                return string.Empty;
+
+            int versionEnd = FindFirstInvalid(source, versionStart);
+            if (versionEnd <= versionStart)
+                return string.Empty;
+
+            return Encoding.ASCII.GetString(source, versionStart, versionEnd - versionStart)
+                .Trim('\0', ' ');
         }
 
         private static int FindFirstInvalid(byte[] data, int startIndex = 0)

@@ -35,7 +35,7 @@ namespace ZenStates.Core
                         throw new ManagementException(@"Windows Management Instrumentation service is not running");
                 }
 
-                ManagementScope mScope = new ManagementScope($@"{scope}");
+                ManagementScope mScope = new ManagementScope(scope);
                 mScope.Connect();
 
                 if (mScope.IsConnected)
@@ -54,9 +54,12 @@ namespace ZenStates.Core
         {
             try
             {
-                using (var searcher = new ManagementObjectSearcher($"{scope}", $"SELECT * FROM {wmiClass}"))
+                using (var searcher = new ManagementObjectSearcher(
+                    new ManagementScope(scope),
+                    new ObjectQuery($"SELECT * FROM {wmiClass}")))
                 {
-                    using (ManagementObjectEnumerator enumerator = searcher.Get().GetEnumerator())
+                    using (ManagementObjectCollection results = searcher.Get())
+                    using (ManagementObjectEnumerator enumerator = results.GetEnumerator())
                     {
                         if (enumerator.MoveNext())
                             return enumerator.Current as ManagementObject;
@@ -76,14 +79,18 @@ namespace ZenStates.Core
             List<string> namespaces = new List<string>();
             try
             {
-                ManagementClass nsClass =
-                    new ManagementClass(new ManagementScope(root), new ManagementPath("__namespace"), null);
-                foreach (var obj in nsClass.GetInstances())
+                using (ManagementClass nsClass = new ManagementClass(
+                    new ManagementScope(root), new ManagementPath("__namespace"), null))
                 {
-                    var ns = (ManagementObject)obj;
-                    string namespaceName = root + "\\" + ns["Name"];
-                    namespaces.Add(namespaceName);
-                    namespaces.AddRange(GetWmiNamespaces(namespaceName));
+                    foreach (var obj in nsClass.GetInstances())
+                    {
+                        using (var ns = (ManagementObject)obj)
+                        {
+                            string namespaceName = root + "\\" + ns["Name"];
+                            namespaces.Add(namespaceName);
+                            namespaces.AddRange(GetWmiNamespaces(namespaceName));
+                        }
+                    }
                 }
 
                 namespaces.Sort(StringComparer.OrdinalIgnoreCase);
@@ -105,13 +112,18 @@ namespace ZenStates.Core
                 (new ManagementScope(wmiNamespaceName),
                     new WqlObjectQuery("SELECT * FROM meta_class")))
                 {
-                    ManagementObjectCollection objectCollection = searcher.Get();
-                    foreach (var obj in objectCollection)
+                    using (ManagementObjectCollection objectCollection = searcher.Get())
                     {
-                        var wmiClass = (ManagementClass)obj;
-                        string stringified = wmiClass.ToString();
-                        string[] parts = stringified.Split(':');
-                        classNames.Add(parts[1]);
+                        foreach (var obj in objectCollection)
+                        {
+                            using (var wmiClass = (ManagementClass)obj)
+                            {
+                                string stringified = wmiClass.ToString();
+                                string[] parts = stringified.Split(':');
+                                if (parts.Length > 1)
+                                    classNames.Add(parts[1]);
+                            }
+                        }
                     }
                 }
 
@@ -152,17 +164,12 @@ namespace ZenStates.Core
         {
             try
             {
-                // Obtain in-parameters for the method
-                ManagementBaseObject inParams = mo.GetMethodParameters($"{methodName}");
+                ManagementBaseObject inParams = mo.GetMethodParameters(methodName);
 
-                // Add the input parameters.
                 if (inParams != null)
-                    inParams[$"{inParamName}"] = arg;
+                    inParams[inParamName] = arg;
 
-                // Execute the method and obtain the return values.
-                ManagementBaseObject outParams = mo.InvokeMethod($"{methodName}", inParams, null);
-
-                return outParams;
+                return mo.InvokeMethod(methodName, inParams, null);
             }
             catch (ManagementException)
             {
@@ -176,7 +183,7 @@ namespace ZenStates.Core
             try
             {
                 ManagementBaseObject outParams = InvokeMethod(mo, methodName, inParamName, arg);
-                return (ManagementBaseObject)outParams?.Properties[$"{propName}"].Value;
+                return (ManagementBaseObject)outParams?.Properties[propName].Value;
             }
             catch (Exception ex)
             {

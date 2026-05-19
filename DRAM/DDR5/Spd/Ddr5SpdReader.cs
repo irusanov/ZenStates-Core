@@ -6,7 +6,7 @@ namespace ZenStates.Core.DRAM
 {
     internal static class Ddr5SpdReader
     {
-        private static readonly SmbusPiix4 smbusDriver = SmbusPiix4.Instance;
+        private static readonly SmbusDriverBase smbusDriver = SmbusProvider.Instance;
         private const int PAGE_SIZE = 128; // in bytes, for DDR5 SPD
         private const int SPD_TOTAL_SIZE = 0x400; // 1024 bytes total (8 pages of 128 bytes)
 
@@ -33,7 +33,11 @@ namespace ZenStates.Core.DRAM
 
         internal static bool SpdSwitchPage(byte addr7, byte page)
         {
-            return smbusDriver.WriteByteDataNoLock(addr7, 0x0B, page);
+            // JESD406 MR11: bit[3] = I2C addressing mode (set by BIOS, must be preserved),
+            // bits[2:0] = page select. Read-modify-write to avoid clearing the addressing mode bit.
+            if (!smbusDriver.ReadByteDataNoLock(addr7, 0x0B, out byte mr11))
+                return false;
+            return smbusDriver.WriteByteDataNoLock(addr7, 0x0B, (byte)((mr11 & 0x08) | (page & 0x07)));
         }
 
         /// <summary>
@@ -99,20 +103,31 @@ namespace ZenStates.Core.DRAM
                 offset++;
             }
 
+            SpdSwitchPage(addr7, 0);
+
             return Ddr5SpdDecoder.Decode(spd);
         }
 
         internal static Dictionary<byte, Ddr5SpdInfo> ReadDdr5SpdAllNoLock()
         {
-            Dictionary<byte, Ddr5SpdInfo> list = new Dictionary<byte, Ddr5SpdInfo>();
-            List<byte> addresses = ScanDdr5SpdHubsNoLock();
-            if (addresses.Count == 0)
-                throw new InvalidOperationException("No DDR5 DIMMs found on any SMBus port.");
+            smbusDriver.ChangePortNoLock(-1, out int savedPort);
+            try
+            {
+                Dictionary<byte, Ddr5SpdInfo> list = new Dictionary<byte, Ddr5SpdInfo>();
+                List<byte> addresses = ScanDdr5SpdHubsNoLock();
+                if (addresses.Count == 0)
+                    throw new InvalidOperationException("No DDR5 DIMMs found on any SMBus port.");
 
-            for (int i = 0; i < addresses.Count; i++)
-                list.Add(addresses[i], ReadDdr5SpdNoLock(addresses[i]));
+                for (int i = 0; i < addresses.Count; i++)
+                    list.Add(addresses[i], ReadDdr5SpdNoLock(addresses[i]));
 
-            return list;
+                return list;
+            }
+            finally
+            {
+                if (savedPort >= 0)
+                    smbusDriver.ChangePortNoLock(savedPort);
+            }
         }
 
          // Read minimal SPD info without Mutex lock
@@ -247,35 +262,36 @@ namespace ZenStates.Core.DRAM
 
             info.IsPartial = true;
 
-            ReadLiveDevicesNoLock(addr7, info, smbusDriver);
+            SpdSwitchPage(addr7, 0);
 
-            //byte pmicAddr = Ddr5PmicReader.CalculatePmicAddrFromSpd(addr7);
-            //if (Ddr5PmicReader.DetectNoLock(smbusDriver, pmicAddr))
-            //{
-            //    info.PmicData = new Ddr5PmicData()
-            //    {
-            //        IsValid = true,
-            //        I2cAddress = pmicAddr,
-            //    };
-            //}
+            ReadLiveDevicesNoLock(addr7, info, smbusDriver);
 
             return info;
         }
 
         internal static Dictionary<byte, Ddr5SpdInfo> ReadDdr5SpdInitInfoAllNoLock()
         {
-            Dictionary<byte, Ddr5SpdInfo> result = new Dictionary<byte, Ddr5SpdInfo>();
-
-            List<byte> addresses = ScanDdr5SpdHubsNoLock();
-            for (int i = 0; i < addresses.Count; i++)
+            smbusDriver.ChangePortNoLock(-1, out int savedPort);
+            try
             {
-                byte addr = addresses[i];
-                Ddr5SpdInfo info = ReadDdr5SpdInitInfoNoLock(addr);
-                if (info != null)
-                    result.Add(addr, info);
-            }
+                Dictionary<byte, Ddr5SpdInfo> result = new Dictionary<byte, Ddr5SpdInfo>();
 
-            return result;
+                List<byte> addresses = ScanDdr5SpdHubsNoLock();
+                for (int i = 0; i < addresses.Count; i++)
+                {
+                    byte addr = addresses[i];
+                    Ddr5SpdInfo info = ReadDdr5SpdInitInfoNoLock(addr);
+                    if (info != null)
+                        result.Add(addr, info);
+                }
+
+                return result;
+            }
+            finally
+            {
+                if (savedPort >= 0)
+                    smbusDriver.ChangePortNoLock(savedPort);
+            }
         }
 
         internal static void ReadThermalNoLock(byte addr7, Ddr5SpdInfo info, SmbusDriverBase smbus)

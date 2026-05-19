@@ -59,7 +59,7 @@ namespace ZenStates.Core
         /// Releases the unmanaged resources used by the SmbusPiix4 and optionally releases the managed resources.
         /// </summary>
         /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources.</param>
-        protected new virtual void Dispose(bool disposing)
+        protected override void Dispose(bool disposing)
         {
             if (_disposed)
                 return;
@@ -75,6 +75,7 @@ namespace ZenStates.Core
                 }
 
                 _disposed = true;
+                base.Dispose(disposing);
             }
         }
 
@@ -83,7 +84,7 @@ namespace ZenStates.Core
         /// </summary>
         ~SmbusPiix4()
         {
-            Dispose(true);
+            Dispose(false);
         }
 
         #endregion
@@ -99,17 +100,18 @@ namespace ZenStates.Core
         private bool Execute(string fn, long[] inParams, int outCount, out long[] result)
         {
             result = new long[outCount];
+            if (_pawnIo == null || !_pawnIo.IsLoaded)
+                return false;
+
             int hr = _pawnIo.ExecuteHr(
                 fn,
                 inParams,
-                unchecked((uint)inParams.Length),
+                (uint)inParams.Length,
                 result,
                 (uint)outCount,
-                out uint returnSize);
-
+                out uint _);
 
             // hr < 0 = NTSTATUS failure (device not present, timeout, etc.)
-            // returnSize == 0 on reads means no data came back
             return hr == 0;
         }
 
@@ -160,7 +162,7 @@ namespace ZenStates.Core
         /// Switch to the given port. Pass -1 to query without changing.
         /// Returns the previous port number.
         /// </summary>
-        internal bool ChangePortNoLock(int port, out int previousPort)
+        internal override bool ChangePortNoLock(int port, out int previousPort)
         {
             previousPort = -1;
             if (!Execute(IOCTL_PIIX4_PORT_SEL, new long[] { port }, 1, out long[] result))
@@ -172,30 +174,12 @@ namespace ZenStates.Core
             return true;
         }
 
-        internal bool ChangePortNoLock(int port) => ChangePortNoLock(port, out int _);
-
-        public bool ChangePort(int port, out int previousPort)
-        {
-            using (new SmbusLock())
-            {
-                return ChangePortNoLock(port, out previousPort);
-            }
-        }
-
-        public bool ChangePort(int port)
-        {
-            using (new SmbusLock())
-            {
-                return ChangePortNoLock(port);
-            }
-        }
-
         /// <summary>
         /// Returns [0]=type identifier, [1]=IO base address, [2]=PCI vendor+device ID.
         /// </summary>
         public bool GetIdentity(out long[] identity)
         {
-            return Execute(IOCTL_IDENTITY, new long[] { }, 3, out identity);
+            return Execute(IOCTL_IDENTITY, new long[0], 3, out identity);
         }
 
         public bool GetIoBase(out int ioBase)
@@ -341,7 +325,6 @@ namespace ZenStates.Core
 
             // in: [addr, rw, cmd, protocol, packed_data(5 cells)]
             // pack_bytes_le expects [count, data[0]..data[N]] → 5 cells
-            byte[] raw = data.ToArray();
             int cells = (data.Count + 1 + 7) / 8; // +1 for count byte
             long[] packed = new long[cells];
 
@@ -349,7 +332,7 @@ namespace ZenStates.Core
             byte[] blob = new byte[data.Count + 1];
             blob[0] = (byte)data.Count;
             for (int i = 0; i < data.Count; i++)
-                blob[i + 1] = raw[i];
+                blob[i + 1] = data[i];
 
             for (int i = 0; i < cells; i++)
                 packed[i] = PackBytes(blob, i * 8, Math.Min(8, blob.Length - i * 8));
