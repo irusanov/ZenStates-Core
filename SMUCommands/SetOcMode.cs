@@ -53,7 +53,7 @@ namespace ZenStates.Core.SMUCommands
                 // Reset the scalar to 1.0 when disabling OC mode. Auto-reset seems to be broken for some SMU versions
                 // The PBO Scalar is used to get the OC Mode (scalar = 0)
                 if (!enabled && result.Success)
-                    result = new SetPBOScalar(smu).Execute(1);
+                    new SetPBOScalar(smu).Execute(1);
             }
 
             return base.Execute();
