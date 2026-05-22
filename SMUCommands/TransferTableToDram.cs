@@ -17,7 +17,7 @@ namespace ZenStates.Core.SMUCommands
                 if (result.status == SMU.Status.CMD_REJECTED_PREREQ)
                 {
                     Thread.Sleep(10);
-                    result.args = Utils.MakeCmdArgs();
+                    ResetArgs();
                     SendCommand();
                 }
             }

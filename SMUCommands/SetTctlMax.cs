@@ -7,9 +7,11 @@
         {
             if (CanExecute())
             {
-                result.args[0] = smu.SMU_TYPE == SMU.SmuType.TYPE_CPU9 ? 
+                var limit = smu.SMU_TYPE == SMU.SmuType.TYPE_CPU9 ? 
                     arg * 1000 : arg; // Value * 1000 on Bristol
-                
+
+                result.args[0] = limit;
+
                 // Fix for some mobile APUs, firstly apply MP1 variant
                 var olderSmu = smu.SMU_TYPE == SMU.SmuType.TYPE_APU0 ||  smu.SMU_TYPE == SMU.SmuType.TYPE_APU1;
                 
@@ -27,6 +29,7 @@
                     status = smu.SendRsmuCommand(cmdRsmu, ref result.args);
                     if (status != SMU.Status.OK)
                     {
+                        result.args = Utils.MakeCmdArgs(limit);
                         status = smu.SendMp1Command(cmdMp1, ref result.args);
                     }
                 }

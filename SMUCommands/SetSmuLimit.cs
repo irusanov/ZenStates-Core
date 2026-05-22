@@ -8,7 +8,8 @@
             // Smu limits are different on Bristol, but SetFastLimit works as on Ryzen
             if (CanExecute() && (smu.SMU_TYPE != SMU.SmuType.TYPE_CPU9 || cmdMp1 == smu.Mp1Smu.SMU_MSG_SetFastLimit)) 
             {
-                result.args[0] = arg * 1000;
+                var limit = arg * 1000;
+                result.args[0] = limit;
                 
                 // Fix for some mobile APUs, firstly apply MP1 variant
                 var olderSmu = smu.SMU_TYPE == SMU.SmuType.TYPE_APU0 ||
@@ -16,6 +17,7 @@
                                     smu.SMU_TYPE == SMU.SmuType.TYPE_CPU9;
                 
                 SMU.Status status;
+
                 if (olderSmu)
                 {
                     status = cmdMp1 != 0 ? smu.SendMp1Command(cmdMp1, ref result.args) 
@@ -26,6 +28,7 @@
                     status = smu.SendRsmuCommand(cmdRsmu, ref result.args);
                     if (status != SMU.Status.OK)
                     {
+                        result.args = Utils.MakeCmdArgs(limit);
                         status = smu.SendMp1Command(cmdMp1, ref result.args);
                     }
                 }

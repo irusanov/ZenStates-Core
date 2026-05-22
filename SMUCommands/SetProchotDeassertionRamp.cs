@@ -16,6 +16,7 @@
                 SMU.Status status = smu.SendRsmuCommand(cmdRsmu, ref result.args);
                 if (status != SMU.Status.OK)
                 {
+                    result.args = Utils.MakeCmdArgs(arg);
                     status = smu.SendMp1Command(cmdMp1, ref result.args);
                 }
                 

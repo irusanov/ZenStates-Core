@@ -12,13 +12,14 @@ namespace ZenStates.Core.SMUCommands
 
         public override bool CanExecute()
         {
-            return smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin > 0 || smu.Rsmu.SMU_MSG_SetAllDldoPsmMargin > 0;
+            return base.CanExecute() && (smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin > 0 || smu.Rsmu.SMU_MSG_SetAllDldoPsmMargin > 0);
         }
 
         public CmdResult Execute(int margin)
         {
             var olderSmu = smu.SMU_TYPE == SMU.SmuType.TYPE_CPU0;
             var negativeMargin = margin < 0;
+
             if (CanExecute() && !(olderSmu && negativeMargin))
             {
                 result.args[0] = Utils.MakePsmMarginArg(margin);

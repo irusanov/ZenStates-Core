@@ -7,12 +7,14 @@ namespace ZenStates.Core.SMUCommands
         internal SMU smu;
         internal CmdResult result;
         private bool disposedValue;
+        private readonly uint _maxArgs = Constants.DEFAULT_MAILBOX_ARGS;
 
         protected BaseSMUCommand(SMU smuInstance, uint maxArgs = Constants.DEFAULT_MAILBOX_ARGS)
         {
             if (smuInstance != null)
             {
                 smu = smuInstance;
+                _maxArgs = maxArgs;
             }
             result = new CmdResult(maxArgs);
         }
@@ -22,11 +24,17 @@ namespace ZenStates.Core.SMUCommands
         {
             // reset args to 0, to avoid getting the incoming parameter as a result in case of an error
             if (!result.Success)
-                result.args = Utils.MakeCmdArgs();
+                ResetArgs();
 
             Dispose();
             return result;
         }
+
+        protected void ResetArgs()
+        {
+            result.args = Utils.MakeCmdArgs(maxArgs: _maxArgs);
+        }
+
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)

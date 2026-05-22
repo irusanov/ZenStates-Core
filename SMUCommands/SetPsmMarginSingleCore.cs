@@ -14,7 +14,7 @@
 
         public override bool CanExecute()
         {
-            return smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin > 0 || smu.Rsmu.SMU_MSG_SetDldoPsmMargin > 0;
+            return base.CanExecute() && (smu.Mp1Smu.SMU_MSG_SetDldoPsmMargin > 0 || smu.Rsmu.SMU_MSG_SetDldoPsmMargin > 0);
         }
 
         public CmdResult Execute(uint coreMask, int margin)

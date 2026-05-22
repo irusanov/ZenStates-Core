@@ -7,12 +7,15 @@
         {
             if (CanExecute()) 
             {
-                result.args[0] = arg * 256;
-                
+                var limit = arg * 256;
+                result.args[0] = limit;
                 
                 SMU.Status status = smu.SendRsmuCommand(cmdRsmu, ref result.args);
+
                 if (status != SMU.Status.OK)
                 {
+                    // Reset arg for MP1 command if RSMU command fails
+                    result.args[0] = limit;
                     status = smu.SendMp1Command(cmdMp1, ref result.args);
                 }
                 

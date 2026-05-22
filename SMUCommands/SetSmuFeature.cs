@@ -12,17 +12,13 @@
 
                 result.args[0] = 0;
                 result.args[1] = 0;
+
                 if (bit < 32)
                     result.args[0] = 1u << bit; 
                 else
                     result.args[1] = 1u << (bit % 32);
 
-                SMU.Status status = SMU.Status.UNKNOWN_CMD;
-
-                if (cmd != 0)
-                    status = smu.SendMp1Command(cmd, ref result.args);
-                
-                result.status = status;
+                result.status = smu.SendMp1Command(cmd, ref result.args);
             }
 
             return base.Execute();

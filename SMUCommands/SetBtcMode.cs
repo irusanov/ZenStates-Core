@@ -25,6 +25,8 @@
                 if (!enabled && smu.Mp1Smu.SMU_MSG_AcBtcStopCal != 0 && smu.Mp1Smu.SMU_MSG_AcBtcEndCal != 0)
                 {
                     smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_AcBtcStopCal, ref result.args);
+                    // Reset args
+                    result.args = Utils.MakeCmdArgs(arg);
                     status = smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_AcBtcEndCal, ref result.args);
                 }
 
