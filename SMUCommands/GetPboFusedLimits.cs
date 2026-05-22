@@ -3,16 +3,16 @@
     internal class GetPboFusedLimits : BaseSMUCommand
     {
         public GetPboFusedLimits(SMU smu) : base(smu) { }
-        
+
         public Cpu.PboFusedLimits Limits { get; private set; }
         public override CmdResult Execute()
         {
             if (CanExecute())
             {
                 bool olderSmu = smu.SMU_TYPE == SMU.SmuType.TYPE_APU0;
-                
+
                 Cpu.PboFusedLimits limits = new Cpu.PboFusedLimits();
-                
+
                 if (smu.Rsmu.SMU_MSG_GetPboFusedPowerLimit > 0)
                 {
                     result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetPboFusedPowerLimit, ref result.args);
@@ -42,7 +42,7 @@
 
                     if (olderSmu)
                         result.args[0] = 4;
-                    
+
                     result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetPboFusedVrmVddTdcCurrent, ref result.args);
                     limits.VrmVddTdcCurrent = (int)result.args[0];
                 }

@@ -130,7 +130,7 @@ namespace ZenStates.Core.DRAM
             }
         }
 
-         // Read minimal SPD info without Mutex lock
+        // Read minimal SPD info without Mutex lock
         internal static Ddr5SpdInfo ReadDdr5SpdInitInfoNoLock(byte addr7)
         {
             Ddr5SpdInfo info = new Ddr5SpdInfo();

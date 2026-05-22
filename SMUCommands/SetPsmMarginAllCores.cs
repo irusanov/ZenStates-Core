@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace ZenStates.Core.SMUCommands
+﻿namespace ZenStates.Core.SMUCommands
 {
     // Set DLDO Psm margin for all cores
     // CO margin range from -30 to 30 before Zen 4, and from -50 to 50 on Zen 4 and newer
@@ -23,8 +21,8 @@ namespace ZenStates.Core.SMUCommands
             if (CanExecute() && !(olderSmu && negativeMargin))
             {
                 result.args[0] = Utils.MakePsmMarginArg(margin);
-                result.status = smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin > 0 
-                    ? smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin, ref result.args) 
+                result.status = smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin > 0
+                    ? smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin, ref result.args)
                     : smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetAllDldoPsmMargin, ref result.args);
             }
             else

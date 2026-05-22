@@ -18,7 +18,7 @@
                 {
                     if (result.args[0] > 4)
                         result.args[0] = 4;
-                    
+
                     status = smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_AcBtcStartCal, ref result.args);
                 }
 

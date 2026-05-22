@@ -15,11 +15,11 @@
             {
                 if (stapmTime > 180)
                     stapmTime = 180;
-                
+
                 result.args[0] = stapm * 1000;
                 result.args[1] = stapmTime != 0 ? 2u : 0u;
                 result.args[2] = stapmTime * 1000;
-                    
+
                 if (cmdMp1 != 0)
                     result.status = smu.SendMp1Command(cmdMp1, ref result.args);
             }

@@ -14,7 +14,7 @@
                 result.args[1] = 0;
 
                 if (bit < 32)
-                    result.args[0] = 1u << bit; 
+                    result.args[0] = 1u << bit;
                 else
                     result.args[1] = 1u << (bit % 32);
 

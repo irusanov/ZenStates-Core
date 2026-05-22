@@ -15,7 +15,7 @@
                 {
                     status = smu.SendRsmuCommand(cmd, ref result.args);
                 }
-                else if (smu.Mp1Smu.SMU_MSG_SetGfxclkOverdriveByFreqVid > 0) 
+                else if (smu.Mp1Smu.SMU_MSG_SetGfxclkOverdriveByFreqVid > 0)
                 {
                     status = smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetGfxclkOverdriveByFreqVid, ref result.args);
                 }

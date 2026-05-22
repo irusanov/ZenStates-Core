@@ -3,7 +3,7 @@
     internal class GetIsOverclockable : BaseSMUCommand
     {
         public Cpu.OcCaps Capabilities { get; protected set; }
-       
+
         public GetIsOverclockable(SMU smu) : base(smu) { }
         public override CmdResult Execute()
         {

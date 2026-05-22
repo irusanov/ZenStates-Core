@@ -11,7 +11,7 @@
                 uint cmdMp1 = 0;
                 uint cmdRsmu = 0;
                 uint cmdGpuMb = 0;
-                
+
                 switch (subsystem)
                 {
                     case Cpu.CpuSubsystem.Cpu:
@@ -46,7 +46,7 @@
                 }
 
                 result.args[0] = freq;
-                
+
                 SMU.Status status = SMU.Status.UNKNOWN_CMD;
                 if (cmdMp1 != 0)
                     status = smu.SendMp1Command(cmdMp1, ref result.args);
@@ -54,7 +54,7 @@
                     status = smu.SendRsmuCommand(cmdRsmu, ref result.args);
                 else if (cmdGpuMb != 0)
                     status = smu.SendGpuMbCommand(cmdGpuMb, ref result.args);
-                
+
                 result.status = status;
             }
 

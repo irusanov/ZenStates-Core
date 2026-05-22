@@ -11,7 +11,7 @@
                 {
                     result.args[0] = 3; // Fix for older APUs
                 }
-                
+
                 result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetBoostLimitFrequency, ref result.args);
             }
 

@@ -3,14 +3,14 @@
     internal class GetSystemConfiguredPowerLimit : BaseSMUCommand
     {
         public GetSystemConfiguredPowerLimit(SMU smu) : base(smu) { }
-        
+
         public Cpu.SystemPowerLimit Limits { get; private set; }
         public override CmdResult Execute()
         {
             if (CanExecute())
             {
                 Cpu.SystemPowerLimit limits = new Cpu.SystemPowerLimit();
-                
+
                 if (smu.Rsmu.SMU_MSG_GetSustainedPowerAndThmLimit > 0)
                 {
                     result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_GetSustainedPowerAndThmLimit, ref result.args);

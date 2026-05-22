@@ -781,7 +781,7 @@ namespace ZenStates.Core
 
             byte rev = B(spd, SPD_XMP_REVISION);
 
-            info.XmpRevision = string.Format( "{0}.{1}", (rev >> 4) & 0x0F, rev & 0x0F);
+            info.XmpRevision = string.Format("{0}.{1}", (rev >> 4) & 0x0F, rev & 0x0F);
 
             byte enableBits = B(spd, SPD_XMP_PROF_ENABLE);
             byte dmbByte = B(spd, SPD_XMP_DMB_CONFIG);
@@ -938,7 +938,7 @@ namespace ZenStates.Core
             p.CL = (int)Math.Ceiling((double)p.tAAminPs / tCKideal - 0.01);
             p.tRCD = (int)Math.Ceiling((double)p.tRCDminPs / tCKideal - 0.01);
             p.tRP = (int)Math.Ceiling((double)p.tRPminPs / tCKideal - 0.01);
-            p.TimingString = string.Format( "{0}-{1}-{2} @ {3}", p.CL, p.tRCD, p.tRP, p.SpeedGrade);
+            p.TimingString = string.Format("{0}-{1}-{2} @ {3}", p.CL, p.tRCD, p.tRP, p.SpeedGrade);
 
             p.IsValid = true;
 
