@@ -9,7 +9,7 @@
             if (CanExecute() && smu.Rsmu.SMU_MSG_SetFixedGfxClkFreq > 0)
             {
                 result.args[0] = freq;
-                result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetOverclockCpuVid, ref result.args);
+                result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetFixedGfxClkFreq, ref result.args);
             }
             return base.Execute();
         }
