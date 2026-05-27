@@ -7,7 +7,7 @@ namespace ZenStates.Core.SMUCommands
         public float Scalar { get; protected set; }
         public GetPBOScalar(SMU smu) : base(smu)
         {
-            Scalar = 0.0f;
+            Scalar = Constants.PBO_SCALAR_MIN;
         }
 
         public override CmdResult Execute()

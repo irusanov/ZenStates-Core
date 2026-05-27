@@ -983,15 +983,15 @@ namespace ZenStates.Core
             CmdResult result = cmd.Execute(arg);
             return result.Success && cmd.IsSumCorrect;
         }
-        
+
         public uint GetSmuVersion() => _pawnRyzenSmu.GetSmuVersion();
-        
+
         public double? GetBclk() => mmio.GetBclk();
-        
+
         public AMD_MMIO.ClkGen GetStrapStatus() => mmio.GetStrapStatus();
-        
+
         public bool SetBclk(double blck) => mmio.SetBclk(blck);
-        
+
         public SMU.Status TransferTableToDram() => new TransferTableToDram(smu).Execute().status;
 
         public struct TableVersionResult
@@ -1004,9 +1004,9 @@ namespace ZenStates.Core
         {
             return new TableVersionResult { TableVersion = _pawnRyzenSmu.PmTableVersion, TableSize = _pawnRyzenSmu.PmTableSize };
         }
-        
+
         public uint GetDramBaseAddress() => new GetDramAddress(smu).Execute().args[0];
-        
+
         public long GetDramBaseAddress64()
         {
             CmdResult result = new GetDramAddress(smu).Execute();
@@ -1022,11 +1022,11 @@ namespace ZenStates.Core
         }
 
         public SMU.Status SetStapmLimit(uint arg = 0U) => new SetSmuLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetStapmLimit, 
+            .Execute(smu.Rsmu.SMU_MSG_SetStapmLimit,
                 smu.Mp1Smu.SMU_MSG_SetStapmLimit, arg).status;
 
         public SMU.Status SetFastLimit(uint arg = 0U) => SetPPTLimit(arg);
-        
+
         public SMU.Status SetSlowLimit(uint arg = 0U)
         {
             SMU.Status status;
@@ -1038,114 +1038,114 @@ namespace ZenStates.Core
             else
             {
                 status = new SetSmuLimit(smu)
-                    .Execute(smu.Rsmu.SMU_MSG_SetSlowLimit, 
+                    .Execute(smu.Rsmu.SMU_MSG_SetSlowLimit,
                         smu.Mp1Smu.SMU_MSG_SetSlowLimit, arg).status;
             }
 
             return status;
-        } 
-        
+        }
+
         public SMU.Status SetSlowTime(uint arg = 0U) => new SetSmuLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetSlowTime, 
+            .Execute(smu.Rsmu.SMU_MSG_SetSlowTime,
                 smu.Mp1Smu.SMU_MSG_SetSlowTime, arg).status;
-        
+
         public SMU.Status SetStapmTime(uint arg = 0U) => new SetSmuLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetStapmTime, 
+            .Execute(smu.Rsmu.SMU_MSG_SetStapmTime,
                 smu.Mp1Smu.SMU_MSG_SetStapmTime, arg).status;
-        
+
         public SMU.Status SetSttLimit(uint arg = 0U) => new SetSmuLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetSkinTempPowerLimit, 
+            .Execute(smu.Rsmu.SMU_MSG_SetSkinTempPowerLimit,
                 smu.Mp1Smu.SMU_MSG_SetSkinTempPowerLimit, arg).status;
-        
+
         public SMU.Status SetApuSkinTempLimit(uint arg = 0U) => new SetGpuSttLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetApuSkinTempLimit, 
+            .Execute(smu.Rsmu.SMU_MSG_SetApuSkinTempLimit,
                 smu.Mp1Smu.SMU_MSG_SetApuSkinTempLimit, arg).status;
-        
+
         public SMU.Status SetGpuSkinTempLimit(uint arg = 0U) => new SetGpuSttLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetDgpuSkinTempLimit, 
+            .Execute(smu.Rsmu.SMU_MSG_SetDgpuSkinTempLimit,
                 smu.Mp1Smu.SMU_MSG_SetDgpuSkinTempLimit, arg).status;
-        
+
         public SMU.Status SetApuSlowLimit(uint arg = 0U) => new SetSmuLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetApuSlowLimit, 
+            .Execute(smu.Rsmu.SMU_MSG_SetApuSlowLimit,
                 smu.Mp1Smu.SMU_MSG_SetApuSlowLimit, arg).status;
-        
+
         public SMU.Status SetTctlMax(uint arg = 0U) => new SetTctlMax(smu)
             .Execute(arg).status;
-        
+
         public SMU.Status SetPPTLimit(uint arg = 0U) => new SetSmuLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetFastLimit, 
+            .Execute(smu.Rsmu.SMU_MSG_SetFastLimit,
                 smu.Mp1Smu.SMU_MSG_SetFastLimit, arg).status;
-        
+
         public SMU.Status SetEDCVDDLimit(uint arg = 0U) => new SetSmuLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetEDCVDDLimit, 
+            .Execute(smu.Rsmu.SMU_MSG_SetEDCVDDLimit,
                 smu.Mp1Smu.SMU_MSG_SetEDCVDDLimit, arg).status;
-        
+
         public SMU.Status SetEDCSOCLimit(uint arg = 0U) => new SetSmuLimit(smu)
             .Execute(smu.Rsmu.SMU_MSG_SetEDCSocLimit,
                 smu.Mp1Smu.SMU_MSG_SetEDCSocLimit, arg).status;
-        
+
         public SMU.Status SetTDCVDDLimit(uint arg = 0U) => new SetSmuLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetTDCVDDLimit, 
+            .Execute(smu.Rsmu.SMU_MSG_SetTDCVDDLimit,
                 smu.Mp1Smu.SMU_MSG_SetTDCVDDLimit, arg).status;
-        
+
         public SMU.Status SetTDCSOCLimit(uint arg = 0U) => new SetSmuLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetTDCSocLimit, 
+            .Execute(smu.Rsmu.SMU_MSG_SetTDCSocLimit,
                 smu.Mp1Smu.SMU_MSG_SetTDCSocLimit, arg).status;
-        
+
         public SMU.Status SetPsi0Current(uint arg = 0U) => new SetSmuLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetPsi0Current, 
+            .Execute(smu.Rsmu.SMU_MSG_SetPsi0Current,
                 smu.Mp1Smu.SMU_MSG_SetPsi0Current, arg).status;
-        
+
         public SMU.Status SetPsi0SocCurrent(uint arg = 0U) => new SetSmuLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetPsi0SocCurrent, 
+            .Execute(smu.Rsmu.SMU_MSG_SetPsi0SocCurrent,
                 smu.Mp1Smu.SMU_MSG_SetPsi0SocCurrent, arg).status;
-        
+
         public SMU.Status Psi3CpuCurrent(uint arg = 0U) => new SetSmuLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetPsi3CpuCurrent, 
+            .Execute(smu.Rsmu.SMU_MSG_SetPsi3CpuCurrent,
                 smu.Mp1Smu.SMU_MSG_SetPsi3CpuCurrent, arg).status;
-        
+
         public SMU.Status Psi3GfxCurrent(uint arg = 0U) => new SetSmuLimit(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetPsi3GfxCurrent, 
+            .Execute(smu.Rsmu.SMU_MSG_SetPsi3GfxCurrent,
                 smu.Mp1Smu.SMU_MSG_SetPsi3GfxCurrent, arg).status;
-        
+
         public SMU.Status SetProchotDeassertionRamp(uint arg = 0U) => new SetProchotDeassertionRamp(smu)
-            .Execute(smu.Rsmu.SMU_MSG_SetProchotDeassertionRamp, 
+            .Execute(smu.Rsmu.SMU_MSG_SetProchotDeassertionRamp,
                 smu.Mp1Smu.SMU_MSG_SetProchotDeassertionRamp, arg).status;
 
         public SMU.Status SetBristolStapmLimit(uint stapmLimit, uint stapmTime) => new SetBristolSustainPowerLimit(smu)
             .Execute(smu.Mp1Smu.SMU_MSG_SetStapmLimit, stapmLimit, stapmTime).status;
-        
+
         public SMU.Status SetBristolTdcLimit(uint vddCurrent, uint socCurrent) => new SetBristolSmuLimit(smu)
             .Execute(smu.Mp1Smu.SMU_MSG_SetTDCVDDLimit, vddCurrent, socCurrent).status;
-        
+
         public SMU.Status SetBristolEdcLimit(uint vddCurrent, uint socCurrent) => new SetBristolSmuLimit(smu)
             .Execute(smu.Mp1Smu.SMU_MSG_SetEDCVDDLimit, vddCurrent, socCurrent).status;
-        
+
         public SMU.Status SetBristolPsi0Limit(uint vddCurrent, uint socCurrent) => new SetBristolSmuLimit(smu)
             .Execute(smu.Mp1Smu.SMU_MSG_SetPsi0Current, vddCurrent, socCurrent).status;
-        
+
         public SMU.Status SetFixedGfxClkFreq(uint arg) => new SetFixedGfxClk(smu).Execute(arg).status;
-        
+
         public SMU.Status SetGfxClkOverdrive(uint freq, uint vid) => new SetGfxClkOverdrive(smu).Execute(freq, vid).status;
-        
+
         public SMU.Status SetOverclockCpuVid(uint arg) => new SetOverclockCpuVid(smu).Execute(arg).status;
-        
+
         public SMU.Status EnableOcMode() => new SetOcMode(smu).Execute(true).status;
-        
+
         public SMU.Status DisableOcMode() => new SetOcMode(smu).Execute(false).status;
-        
+
         public SMU.Status StartBtcMode(uint mode = 0) => new SetBtcMode(smu).Execute(true, mode).status;
-        
+
         public SMU.Status StopBtcMode() => new SetBtcMode(smu).Execute(false).status;
-        
+
         public SMU.Status ManageSmuFeatureState(bool enabled, int bit = 0) => new SetSmuFeature(smu).Execute(enabled, bit).status;
-        
+
         public SMU.Status SetPowerSavingMode(bool maxPerformance) => new SetPowerSavingMode(smu).Execute(maxPerformance).status;
-        
+
         public SMU.Status SetPBOScalar(uint scalar) => new SetPBOScalar(smu).Execute(scalar).status;
-        
+
         public SMU.Status RefreshPowerTable() => powerTable != null ? powerTable.Refresh() : SMU.Status.FAILED;
-        
+
         public int GetCorePerformanceData(uint index)
         {
             CmdResult result = new GetCorePerformanceData(smu).Execute(index);
@@ -1155,7 +1155,7 @@ namespace ZenStates.Core
             }
             return -1;
         }
-        
+
         [Flags]
         public enum OcCapabilities : uint
         {
@@ -1167,7 +1167,7 @@ namespace ZenStates.Core
             ExpoProfilesAvailable = 0x20,
             GfxOverclockingEnabled = 0x20000
         }
-        
+
         public struct OcCaps
         {
             private readonly OcCapabilities _caps;
@@ -1190,7 +1190,7 @@ namespace ZenStates.Core
 
             return new OcCaps(0);
         }
-        
+
         public struct PboFusedLimits
         {
             public int PowerLimit;
@@ -1211,7 +1211,7 @@ namespace ZenStates.Core
 
             return null;
         }
-        
+
         public struct SystemPowerLimit
         {
             public int PowerLimit;
@@ -1228,7 +1228,7 @@ namespace ZenStates.Core
 
             return null;
         }
-        
+
         public enum CpuSubsystem
         {
             Cpu,
@@ -1238,24 +1238,24 @@ namespace ZenStates.Core
             Vcn,
             Lclk
         }
-        
+
         public SMU.Status SetCpuSubsystemFrequencyLimit(CpuSubsystem subsystem, uint freq, bool maximum = true) => new SetCpuSubsystemFrequency(smu).Execute(subsystem, freq, maximum).status;
-        
+
         public uint? GetGpuPsmMargin(uint coreMask)
         {
             CmdResult result = new GetGpuPsmMargin(smu).Execute();
             return result.Success ? result.args[0] : (uint?)null;
         }
-        
+
         public bool SetGpuPsmMargin(int margin) => new SetGpuPsmMargin(smu)
             .Execute(margin).Success;
-        
+
         public uint? GetPsmMarginSingleCore(uint coreMask)
         {
             CmdResult result = new GetPsmMarginSingleCore(smu).Execute(coreMask);
             return result.Success ? result.args[0] : (uint?)null;
         }
-        
+
         public uint? GetPsmMarginSingleCore(uint core, uint ccd, uint ccx)
         {
             if (smu.SMU_TYPE >= SMU.SmuType.TYPE_APU0 && smu.SMU_TYPE <= SMU.SmuType.TYPE_APU2)
@@ -1264,25 +1264,25 @@ namespace ZenStates.Core
             }
             return GetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx));
         }
-        
+
         public bool SetPsmMarginAllCores(int margin) => new SetPsmMarginAllCores(smu)
             .Execute(margin).Success;
-        
+
         public bool SetPsmMarginSingleCore(uint coreMask, int margin) => new SetPsmMarginSingleCore(smu)
             .Execute(coreMask, margin).Success;
-        
-        public bool SetPsmMarginSingleCore(uint core, uint ccd, uint ccx, int margin) => 
+
+        public bool SetPsmMarginSingleCore(uint core, uint ccd, uint ccx, int margin) =>
             SetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx), margin);
-        
+
         public bool SetFrequencyAllCore(uint frequency) => new SetFrequencyAllCore(smu)
             .Execute(frequency).Success;
-        
+
         public bool SetFrequencySingleCore(uint coreMask, uint frequency) => new SetFrequencySingleCore(smu)
             .Execute(coreMask, frequency).Success;
-        
-        public bool SetFrequencySingleCore(uint core, uint ccd, uint ccx, uint frequency) => 
+
+        public bool SetFrequencySingleCore(uint core, uint ccd, uint ccx, uint frequency) =>
             SetFrequencySingleCore(MakeCoreMask(core, ccd, ccx), frequency);
-        
+
         private bool SetFrequencyMultipleCores(uint mask, uint frequency, int count)
         {
             // ((i.CCD << 4 | i.CCX % 2 & 0xF) << 4 | i.CORE % 4 & 0xF) << 20;
@@ -1294,10 +1294,10 @@ namespace ZenStates.Core
             }
             return true;
         }
-        
-        public bool SetFrequencyCCX(uint mask, uint frequency) => 
+
+        public bool SetFrequencyCCX(uint mask, uint frequency) =>
             SetFrequencyMultipleCores(mask, frequency, 8/*SI.NumCoresInCCX*/);
-        
+
         public bool SetFrequencyCCD(uint mask, uint frequency)
         {
             bool ret = true;

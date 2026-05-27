@@ -1,4 +1,4 @@
-﻿namespace ZenStates.Core.SMUCommands
+namespace ZenStates.Core.SMUCommands
 {
     internal class SetOcMode : BaseSMUCommand
     {
@@ -24,13 +24,10 @@
                 if (olderSmu)
                 {
                     // Apply BOTH commands: Disable Prochot (on supported systems), enable or disable prochot volt/freq override
-                    if (cmd != 0)
-                        smu.SendRsmuCommand(cmd, ref result.args);
-
-                    if (fallback != 0)
-                        status = smu.SendMp1Command(fallback, ref result.args);
-                    else if (cmd != 0)
-                        status = SMU.Status.OK;
+                    smu.SendRsmuCommand(cmd, ref result.args);
+                    // Reset args for the second command
+                    result.args = Utils.MakeCmdArgs(arg);
+                    status = smu.SendMp1Command(fallback, ref result.args);
                 }
                 else
                 {
@@ -40,7 +37,10 @@
                         status = smu.SendRsmuCommand(cmd, ref result.args);
 
                         if (status != SMU.Status.OK && fallback != 0)
+                        {
+                            result.args[0] = arg;
                             status = smu.SendMp1Command(fallback, ref result.args);
+                        }
                     }
                     else if (fallback != 0)
                     {
@@ -53,7 +53,7 @@
                 // Reset the scalar to 1.0 when disabling OC mode. Auto-reset seems to be broken for some SMU versions
                 // The PBO Scalar is used to get the OC Mode (scalar = 0)
                 if (!enabled && result.Success)
-                    result = new SetPBOScalar(smu).Execute(1);
+                    new SetPBOScalar(smu).Execute(1);
             }
 
             return base.Execute();

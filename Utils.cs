@@ -132,7 +132,7 @@ namespace ZenStates.Core
             int offset = margin < 0 ? 0x100000 : 0;
             return (uint)(offset + margin) & 0xffff;
         }
-        
+
         public static uint CurveOptimizerToVid(int co)
         {
             if (co < -50) co = -50;

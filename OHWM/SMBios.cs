@@ -1091,7 +1091,19 @@ namespace OpenHardwareMonitor.Hardware
             if (Size == 0x7FFF)
                 Size = GetDword(0x1C);
             Type = (MemoryType)GetByte(0x12);
+
+            ushort totalWidth = GetWord(0x08);
+            ushort dataWidth = GetWord(0x0A);
+            // ECC is present when total bus width exceeds data bus width (extra bits used for error correction).
+            // 0xFFFF means unknown.
+            HasEcc = totalWidth != 0xFFFF && dataWidth != 0xFFFF && totalWidth > dataWidth;
         }
+
+        /// <summary>
+        /// Gets a value indicating whether this memory device uses ECC (Error Correcting Code).
+        /// Determined by comparing total bus width against data bus width per the SMBIOS specification.
+        /// </summary>
+        public bool HasEcc { get; }
 
         /// <summary>
         /// Gets the string number of the string that identifies the physically labeled bank where the memory device is located.
@@ -1502,6 +1514,8 @@ namespace OpenHardwareMonitor.Hardware
                 r.Append("Memory Device [" + i + "] Size: ");
                 r.Append(MemoryDevices[i].Size.ToString());
                 r.AppendLine(" MB");
+                r.Append("Memory Device [" + i + "] ECC: ");
+                r.AppendLine(MemoryDevices[i].HasEcc ? "Yes" : "No");
                 r.AppendLine();
             }
 

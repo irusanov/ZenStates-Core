@@ -9,12 +9,8 @@
             if (CanExecute())
             {
                 uint cmd = maxPerformance ? smu.Mp1Smu.SMU_MSG_SetMaxPerformance : smu.Mp1Smu.SMU_MSG_SetPowerSaving;
-
-                SMU.Status status = SMU.Status.UNKNOWN_CMD;
-                if (cmd != 0)
-                    status = smu.SendMp1Command(cmd, ref result.args);
-                
-                result.status = status;
+                // This will return Status.UNKNOWN_CMD if command is not defined
+                result.status = smu.SendMp1Command(cmd, ref result.args);
             }
 
             return base.Execute();
