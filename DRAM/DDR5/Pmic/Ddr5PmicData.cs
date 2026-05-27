@@ -109,6 +109,14 @@ namespace ZenStates.Core
 
         /// <summary>SWA current limit in milliamps (R0x20 [7:6]).</summary>
         public int SwaCurrentLimitMa;
+
+        /// <summary>
+        /// Number of active SWA phases (1 or 2).
+        /// Richtek RT9768 R0x29[3]: 0 = single-phase, 1 = dual-phase.
+        /// In dual-phase current mode the telemetry reports per-phase current,
+        /// so TotalW would be half the real value unless this multiplier is applied.
+        /// </summary>
+        public int SwaPhaseCount;
         /// <summary>SWB current limit in milliamps (R0x20 [3:2]).</summary>
         public int SwbCurrentLimitMa;
         /// <summary>SWC current limit in milliamps (R0x20 [1:0]).</summary>
@@ -247,6 +255,7 @@ namespace ZenStates.Core
 
             sb.AppendLine();
             sb.AppendFormat("  SWA current limit  : {0} mA\n", SwaCurrentLimitMa);
+            sb.AppendFormat("  SWA phase count    : {0}\n", SwaPhaseCount);
             sb.AppendFormat("  SWB current limit  : {0} mA\n", SwbCurrentLimitMa);
             sb.AppendFormat("  SWC current limit  : {0} mA\n", SwcCurrentLimitMa);
             sb.AppendFormat("  SWA OV / UV        : {0} / {1}\n", VddOvThreshold, VddUvThreshold);

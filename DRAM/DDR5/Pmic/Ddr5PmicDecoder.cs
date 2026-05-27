@@ -280,6 +280,9 @@ namespace ZenStates.Core
             byte reg2E = pd.RawRegisters[REG_SHUTDOWN_TEMP];
             pd.SwaMode = Ddr5PmicDecoder.DecodeModeSelect((reg29 >> 6) & 0x03);
             pd.SwaSwitchingFrequency = Ddr5PmicDecoder.DecodeSwitchingFrequency((reg29 >> 4) & 0x03);
+            // R0x29[3]: Richtek RT9768 dual-phase SWA enable. In current mode, telemetry
+            // reports per-phase current, so multiply by phase count to get total rail current.
+            pd.SwaPhaseCount = ((reg29 >> 3) & 0x01) != 0 ? 2 : 1;
             pd.SwbMode = Ddr5PmicDecoder.DecodeModeSelect((reg2A >> 6) & 0x03);
             pd.SwbSwitchingFrequency = Ddr5PmicDecoder.DecodeSwitchingFrequency((reg2A >> 4) & 0x03);
             pd.SwcMode = Ddr5PmicDecoder.DecodeModeSelect((reg2A >> 2) & 0x03);
@@ -325,18 +328,26 @@ namespace ZenStates.Core
             if (pd.TelemetryReportsPower)
             {
                 // Power mode: R0x0C / R0x0E / R0x0F report power directly, 0.125 W per LSB
+                pd.SwaW = pd.SwaTelemetryRaw * POWER_STEP_W;
                 pd.SwbW = pd.SwbTelemetryRaw * POWER_STEP_W;
                 pd.SwcW = pd.SwcTelemetryRaw * POWER_STEP_W;
 
                 if (pd.TelemetryReportsTotalPower)
                 {
-                    // R0x0C holds total power (SWA + SWB + SWC); individual SWA power is not available
-                    pd.TotalW = pd.SwaTelemetryRaw * POWER_STEP_W;
-                    pd.SwaW = 0.0;
+                    double reportedTotalW = pd.SwaW;
+
+                    if (reportedTotalW >= pd.SwbW + pd.SwcW)
+                    {
+                        pd.TotalW = reportedTotalW;
+                        pd.SwaW = reportedTotalW - pd.SwbW - pd.SwcW;
+                    }
+                    else
+                    {
+                        pd.TotalW = pd.SwaW + pd.SwbW + pd.SwcW;
+                    }
                 }
                 else
                 {
-                    pd.SwaW = pd.SwaTelemetryRaw * POWER_STEP_W;
                     pd.TotalW = pd.SwaW + pd.SwbW + pd.SwcW;
                 }
             }
@@ -344,7 +355,9 @@ namespace ZenStates.Core
             {
                 // Current mode: raw code is proportional to the programmed current limit
                 // SWA register is 8-bit (256 full-scale steps); SWB/SWC are 6-bit (64 steps)
-                double swaCurrentA = pd.SwaTelemetryRaw * (pd.SwaCurrentLimitMa / 1000.0) / 256.0;
+                // In dual-phase mode (Richtek R0x29[3]), telemetry reports per-phase current;
+                // multiply by SwaPhaseCount to get the total SWA rail current.
+                double swaCurrentA = pd.SwaTelemetryRaw * (pd.SwaCurrentLimitMa / 1000.0) / 256.0 * pd.SwaPhaseCount;
                 double swbCurrentA = pd.SwbTelemetryRaw * (pd.SwbCurrentLimitMa / 1000.0) / 64.0;
                 double swcCurrentA = pd.SwcTelemetryRaw * (pd.SwcCurrentLimitMa / 1000.0) / 64.0;
 
