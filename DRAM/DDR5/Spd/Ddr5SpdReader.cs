@@ -4,7 +4,7 @@ using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core.DRAM
 {
-    internal static class Ddr5SpdReader
+    public static class Ddr5SpdReader
     {
         private static readonly SmbusDriverBase smbusDriver = SmbusProvider.Instance;
         private const int PAGE_SIZE = 128; // in bytes, for DDR5 SPD
@@ -405,6 +405,34 @@ namespace ZenStates.Core.DRAM
         }
 
         /// <summary>
+        /// Write SPD data for a single DIMM to a binary file at the specified path.
+        /// </summary>
+        public static bool DumpDdr5SpdToFile(byte addr7, string filePath)
+        {
+            try
+            {
+                string dir = System.IO.Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(dir) && !System.IO.Directory.Exists(dir))
+                    System.IO.Directory.CreateDirectory(dir);
+
+                Ddr5SpdInfo info = ReadDdr5Spd(addr7);
+                if (info == null)
+                    throw new InvalidOperationException(string.Format("Could not read SPD from DIMM at address 0x{0:X2}.", addr7));
+
+                byte[] buffer = info.RawSpd;
+                System.IO.File.WriteAllBytes(filePath, buffer);
+                Console.WriteLine("Wrote {0} bytes to {1}", buffer.Length, filePath);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error dumping SPD to file: {0}", ex.Message);
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Write SPD data from all discovered DIMMs to binary files in the specified directory.
         /// </summary>
         public static bool DumpDdr5SpdToFiles(string outputDirectory)
@@ -419,17 +447,25 @@ namespace ZenStates.Core.DRAM
                 if (list.Count == 0)
                     throw new InvalidOperationException("No DDR5 DIMMs found on any SMBus port.");
 
+                bool allOk = true;
                 foreach (var kvp in list)
                 {
-                    string filename = System.IO.Path.Combine(outputDirectory, string.Format("DIMM_0x{0:X2}.bin", kvp.Key));
-
+                    string filePath = System.IO.Path.Combine(outputDirectory, string.Format("DIMM_0x{0:X2}.bin", kvp.Key));
                     byte[] buffer = kvp.Value.RawSpd;
-                    System.IO.File.WriteAllBytes(filename, buffer);
 
-                    Console.WriteLine("Wrote {0} bytes to {1}", buffer.Length, filename);
+                    try
+                    {
+                        System.IO.File.WriteAllBytes(filePath, buffer);
+                        Console.WriteLine("Wrote {0} bytes to {1}", buffer.Length, filePath);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine("Error writing {0}: {1}", filePath, ex.Message);
+                        allOk = false;
+                    }
                 }
 
-                return true;
+                return allOk;
             }
             catch (Exception ex)
             {
