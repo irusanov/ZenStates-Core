@@ -2,7 +2,7 @@
   <PropertyGroup>
     <!-- Base version components: update these when bumping the version -->
     <VersionMajor>1</VersionMajor>
-    <VersionMinor>90</VersionMinor>
+    <VersionMinor>91</VersionMinor>
     <VersionBase>$(VersionMajor).$(VersionMinor)</VersionBase>
     <!-- Prevent SourceLink from appending a second commit SHA to InformationalVersion -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
