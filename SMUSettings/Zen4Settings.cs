@@ -28,7 +28,7 @@
             Rsmu.SMU_MSG_SetPBOScalar = 0x5B;
             Rsmu.SMU_MSG_GetPBOScalar = 0x6D;
             Rsmu.SMU_MSG_IsOverclockable = 0x6F;
-            Rsmu.SMU_MSG_SetGfxclkOverdriveByFreqVid = 0x61;
+            //Rsmu.SMU_MSG_SetGfxclkOverdriveByFreqVid = 0x61;
             Rsmu.SMU_MSG_GetBoostLimitFrequency = 0x6E;
             Rsmu.SMU_MSG_SetBoostLimitFrequencyAllCores = 0x70;
 
@@ -65,7 +65,8 @@
             Mp1Smu.SMU_MSG_SetStapmTime = 0x4E;
             Mp1Smu.SMU_MSG_SetFastLimit = 0x3E;
             Mp1Smu.SMU_MSG_SetSlowLimit = 0x5F;
-            Mp1Smu.SMU_MSG_SetSlowTime = 0x60;
+            Mp1Smu.SMU_MSG_SetApuSlowLimit = 0x60;
+            Mp1Smu.SMU_MSG_SetSlowTime = 0x61;
             Mp1Smu.SMU_MSG_SetTctlMax = 0x3F;
             Mp1Smu.SMU_MSG_SetTDCVDDLimit = 0x3C;
             Mp1Smu.SMU_MSG_SetEDCVDDLimit = 0x3D;
