@@ -1,5 +1,6 @@
-﻿
 
+
+using System;
 using ZenStates.Core.DRAM;
 using static ZenStates.Core.JedecPmicRegisters;
 
@@ -335,16 +336,8 @@ namespace ZenStates.Core
                 if (pd.TelemetryReportsTotalPower)
                 {
                     double reportedTotalW = pd.SwaW;
-
-                    if (reportedTotalW >= pd.SwbW + pd.SwcW)
-                    {
-                        pd.TotalW = reportedTotalW;
-                        pd.SwaW = reportedTotalW - pd.SwbW - pd.SwcW;
-                    }
-                    else
-                    {
-                        pd.TotalW = pd.SwaW + pd.SwbW + pd.SwcW;
-                    }
+                    pd.TotalW = reportedTotalW;
+                    pd.SwaW = Math.Max(0.0, reportedTotalW - pd.SwbW - pd.SwcW);
                 }
                 else
                 {
@@ -366,9 +359,9 @@ namespace ZenStates.Core
                 double vddqV = (pd.SwbAdcMv > 0 ? pd.SwbAdcMv : pd.VddqMv) / 1000.0;
                 double vppV  = (pd.SwcAdcMv > 0 ? pd.SwcAdcMv : pd.VppMv)  / 1000.0;
 
-                pd.SwaW   = swaCurrentA * vddV;
-                pd.SwbW   = swbCurrentA * vddqV;
-                pd.SwcW   = swcCurrentA * vppV;
+                pd.SwaW   = Math.Round(swaCurrentA * vddV  / POWER_STEP_W) * POWER_STEP_W;
+                pd.SwbW   = Math.Round(swbCurrentA * vddqV / POWER_STEP_W) * POWER_STEP_W;
+                pd.SwcW   = Math.Round(swcCurrentA * vppV  / POWER_STEP_W) * POWER_STEP_W;
                 pd.TotalW = pd.SwaW + pd.SwbW + pd.SwcW;
             }
         }
