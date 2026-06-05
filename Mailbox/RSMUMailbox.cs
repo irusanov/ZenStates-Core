@@ -110,6 +110,9 @@
 
         public uint SMU_MSG_GetGpuPsmMargin { get; set; } = 0x0;
 
+        public uint SMU_MSG_SetCurveShaperMargin { get; set; } = 0x0;
+        public uint SMU_MSG_GetCurveShaperMargin { get; set; } = 0x0;
+
 
         // Debug
 

@@ -38,6 +38,8 @@
             Rsmu.SMU_MSG_SetGpuPsmMargin = 0xA7;
             Rsmu.SMU_MSG_GetDldoPsmMargin = 0xD5;
             Rsmu.SMU_MSG_GetGpuPsmMargin = 0xD7;
+            Rsmu.SMU_MSG_SetCurveShaperMargin = 0xA6; // marginHigh << 24 | marginMedium << 16 | marginLow << 8 | someBit << 7 | frequencyTier & 0x7F
+            Rsmu.SMU_MSG_GetCurveShaperMargin = 0x84; // first 5 arguments are the frequency tiers [minimum, low, medium, high, maximum], 6th argument seems to be unused
 
             // Debug
             Rsmu.SMU_MSG_GetPboFusedPowerLimit = 0xDC; // Can be locked on some Zen 4 motherboards, Zen 5 not affected

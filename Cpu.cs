@@ -1274,6 +1274,11 @@ namespace ZenStates.Core
         public bool SetPsmMarginSingleCore(uint core, uint ccd, uint ccx, int margin) =>
             SetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx), margin);
 
+        public SMU.Status SetCurveShaperMargin(int marginHigh = 0, int marginMedium = 0, int marginLow = 0, int frequencyTier = 0) => 
+            new SetCurveShaperMargin(smu).Execute(marginHigh, marginMedium, marginLow, frequencyTier).status;
+
+        public uint[] GetAllCurveShaperMargins() => new GetAllCurveShaperMargins(smu).Execute().args;
+
         public bool SetFrequencyAllCore(uint frequency) => new SetFrequencyAllCore(smu)
             .Execute(frequency).Success;
 
