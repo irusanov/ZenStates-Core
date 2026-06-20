@@ -331,71 +331,80 @@ namespace ZenStates.Core
 #if !NET20
             CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 #endif
-            Mutexes.Open();
-
             if (!PawnIo.IsInstalled)
             {
                 throw new ApplicationException("PawnIO is not installed.");
             }
 
-            Opcode.Open();
-
-            info.vendor = GetVendor();
-            if (info.vendor != Constants.VENDOR_AMD && info.vendor != Constants.VENDOR_HYGON)
-                throw new Exception("Not an AMD CPU");
-
             try
             {
-                _pawnAmd = new AmdFamily17();
-                _pawnRyzenSmu = new RyzenSmu();
-                _smbusPiix4 = SmbusProvider.Instance;
-            }
-            catch (Exception ex)
-            {
-                throw new ApplicationException("Error initializing PawnIO AMD module.", ex);
-            }
 
-            mmio = new AMD_MMIO(io);
+                Opcode.Open();
 
-            if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
-            {
-                info.cpuid = eax;
-                info.family = (Family)(((eax & 0xf00) >> 8) + ((eax & 0xff00000) >> 20));
-                info.baseModel = (eax & 0xf0) >> 4;
-                info.extModel = (eax & 0xf0000) >> 16;
-                info.model = info.baseModel + info.extModel * 0x10;
-                info.stepping = eax & 0xf;
-                // info.logicalCores = Utils.GetBits(ebx, 16, 8);
-            }
-            else
-            {
-                throw new ApplicationException(InitializationExceptionText);
-            }
+                info.vendor = GetVendor();
+                if (info.vendor != Constants.VENDOR_AMD && info.vendor != Constants.VENDOR_HYGON)
+                    throw new Exception("Not an AMD CPU");
 
-            info.cpuName = GetCpuName();
+                Mutexes.Open();
 
-            // Package type
-            if (Opcode.Cpuid(0x80000001, 0, out eax, out ebx, out ecx, out edx))
-            {
-                info.packageType = (PackageType)(ebx >> 28);
-                info.codeName = GetCodeName(info);
-                SMU.SetRyzenSmu(_pawnRyzenSmu);
-                smu = GetMaintainedSettings.GetByType(info.codeName);
-                smu.Hsmp.Init(this);
-                smu.Version = GetSmuVersion();
-                var tableVersionResult = GetTableVersion();
-                smu.TableVersion = tableVersionResult.TableVersion;
-                // Temporary workaround for pmt not refreshing with PawnIO module
-                // TODO: Fix in PawnIO RyzenSmu module and remove this
-                if (smu.SMU_TYPE <= SMU.SmuType.TYPE_CPU1)
+                try
                 {
-                    var result = new CmdResult(6);
-                    smu.SendRsmuCommand(0xE, ref result.args);
+                    _pawnAmd = new AmdFamily17();
+                    _pawnRyzenSmu = new RyzenSmu();
+                    _smbusPiix4 = SmbusProvider.Instance;
+                }
+                catch (Exception ex)
+                {
+                    throw new ApplicationException("Error initializing PawnIO AMD module.", ex);
+                }
+
+                mmio = new AMD_MMIO(io);
+
+                if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
+                {
+                    info.cpuid = eax;
+                    info.family = (Family)(((eax & 0xf00) >> 8) + ((eax & 0xff00000) >> 20));
+                    info.baseModel = (eax & 0xf0) >> 4;
+                    info.extModel = (eax & 0xf0000) >> 16;
+                    info.model = info.baseModel + info.extModel * 0x10;
+                    info.stepping = eax & 0xf;
+                    // info.logicalCores = Utils.GetBits(ebx, 16, 8);
+                }
+                else
+                {
+                    throw new ApplicationException(InitializationExceptionText);
+                }
+
+                info.cpuName = GetCpuName();
+
+                // Package type
+                if (Opcode.Cpuid(0x80000001, 0, out eax, out ebx, out ecx, out edx))
+                {
+                    info.packageType = (PackageType)(ebx >> 28);
+                    info.codeName = GetCodeName(info);
+                    SMU.SetRyzenSmu(_pawnRyzenSmu);
+                    smu = GetMaintainedSettings.GetByType(info.codeName);
+                    smu.Hsmp.Init(this);
+                    smu.Version = GetSmuVersion();
+                    var tableVersionResult = GetTableVersion();
+                    smu.TableVersion = tableVersionResult.TableVersion;
+                    // Temporary workaround for pmt not refreshing with PawnIO module
+                    // TODO: Fix in PawnIO RyzenSmu module and remove this
+                    if (smu.SMU_TYPE <= SMU.SmuType.TYPE_CPU1)
+                    {
+                        var result = new CmdResult(6);
+                        smu.SendRsmuCommand(0xE, ref result.args);
+                    }
+                }
+                else
+                {
+                    throw new ApplicationException(InitializationExceptionText);
                 }
             }
-            else
+            catch
             {
-                throw new ApplicationException(InitializationExceptionText);
+                Dispose(true);
+                throw;
             }
 
             // Non-critical block
