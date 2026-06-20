@@ -232,13 +232,17 @@ namespace ZenStates.Core
         public T GetHeader<T>(uint address, int length = 36) where T : new()
         {
             byte[] bytes = io.ReadMemory(new IntPtr(address), length);
+#pragma warning disable IL2091 // T is constrained to struct (a blittable value-type layout); ByteArrayToStructure<T> marshals it via Marshal.PtrToStructure, which does not reflect over T's constructors at this call site.
             return Utils.ByteArrayToStructure<T>(bytes);
+#pragma warning restore IL2091
         }
 
         public T GetHeader<T>(ulong address, int length = 36) where T : new()
         {
             byte[] bytes = io.ReadMemory(new IntPtr((long)address), length);
+#pragma warning disable IL2091 // T is constrained to struct (a blittable value-type layout); ByteArrayToStructure<T> marshals it via Marshal.PtrToStructure, which does not reflect over T's constructors at this call site.
             return Utils.ByteArrayToStructure<T>(bytes);
+#pragma warning restore IL2091
         }
 
         public RSDP GetRsdp()
@@ -248,9 +252,14 @@ namespace ZenStates.Core
 
             if (rsdpOffset < 0)
                 throw new SystemException("ACPI: Could not find RSDP signature");
+#if NET20
+            var size = Marshal.SizeOf(typeof(RSDP));
+#else
+            var size = Marshal.SizeOf<RSDP>();
+#endif
 
             RSDP rsdp = Utils.ByteArrayToStructure<RSDP>(
-                io.ReadMemory(new IntPtr(RSDP_REGION_BASE_ADDRESS + rsdpOffset), Marshal.SizeOf(typeof(RSDP))));
+                io.ReadMemory(new IntPtr(RSDP_REGION_BASE_ADDRESS + rsdpOffset), size));
 
             if (!VerifyChecksum(bytes, rsdpOffset, 20))
                 throw new SystemException("ACPI: RSDP checksum validation failed");
@@ -287,7 +296,11 @@ namespace ZenStates.Core
             if (rawTable == null)
                 return new RSDT();
 
+#if NET20
             int headerSize = Marshal.SizeOf(typeof(SDTHeader));
+#else
+            int headerSize = Marshal.SizeOf<SDTHeader>();
+#endif
             int dataSize = (int)rsdtHeader.Length - headerSize;
             RSDT rsdtTable = new RSDT
             {
@@ -312,7 +325,11 @@ namespace ZenStates.Core
             if (rawTable == null)
                 return new XSDT();
 
+#if NET20
             int headerSize = Marshal.SizeOf(typeof(SDTHeader));
+#else
+            int headerSize = Marshal.SizeOf<SDTHeader>();
+#endif
             int dataSize = (int)xsdtHeader.Length - headerSize;
             XSDT xsdtTable = new XSDT
             {
@@ -331,14 +348,22 @@ namespace ZenStates.Core
             SDTHeader rawHeader;
             try
             {
+#if NET20
                 rawHeader = (SDTHeader)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(SDTHeader));
+#else
+                rawHeader = Marshal.PtrToStructure<SDTHeader>(handle.AddrOfPinnedObject());
+#endif
             }
             finally
             {
                 handle.Free();
             }
 
+#if NET20
             int headerSize = Marshal.SizeOf(typeof(SDTHeader));
+#else
+            int headerSize = Marshal.SizeOf<SDTHeader>();
+#endif
             int dataSize = Math.Max(0, (int)rawHeader.Length - headerSize);
             ACPITable acpiTable = new ACPITable
             {

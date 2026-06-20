@@ -348,8 +348,11 @@ namespace ZenStates.Core.Drivers
             IntPtr ptr = GetProcAddress(moduleName, procName);
             if (ptr != IntPtr.Zero)
             {
-                Delegate d = Marshal.GetDelegateForFunctionPointer(ptr, delegateType);
-                return d;
+#if NET20
+                return Marshal.GetDelegateForFunctionPointer(ptr, delegateType);
+#else
+                return Marshal.GetDelegateForFunctionPointer<Delegate>(ptr);
+#endif
             }
 
             int result = Marshal.GetHRForLastWin32Error();

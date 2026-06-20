@@ -9,6 +9,7 @@
 */
 
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
@@ -19,7 +20,6 @@ namespace OpenHardwareMonitor.Hardware
 
         private static IntPtr codeBuffer;
         private static ulong size;
-
         public static void Open()
         {
             byte[] rdtscCode;
@@ -33,6 +33,9 @@ namespace OpenHardwareMonitor.Hardware
             {
                 rdtscCode = RDTSC_64;
 
+#if NET5_0_OR_GREATER
+                cpuidCode = CPUID_64_WINDOWS;
+#else
                 if (OperatingSystem.IsUnix)
                 { // Unix
                     cpuidCode = CPUID_64_LINUX;
@@ -41,10 +44,16 @@ namespace OpenHardwareMonitor.Hardware
                 { // Windows
                     cpuidCode = CPUID_64_WINDOWS;
                 }
+#endif
             }
 
             size = (ulong)(rdtscCode.Length + cpuidCode.Length);
 
+#if NET5_0_OR_GREATER
+            codeBuffer = NativeMethods.VirtualAlloc(IntPtr.Zero,
+              (UIntPtr)size, AllocationType.COMMIT | AllocationType.RESERVE,
+              MemoryProtection.EXECUTE_READWRITE);
+#else
             if (OperatingSystem.IsUnix)
             { // Unix   
                 Assembly assembly =
@@ -74,17 +83,27 @@ namespace OpenHardwareMonitor.Hardware
                   (UIntPtr)size, AllocationType.COMMIT | AllocationType.RESERVE,
                   MemoryProtection.EXECUTE_READWRITE);
             }
+#endif
 
             Marshal.Copy(rdtscCode, 0, codeBuffer, rdtscCode.Length);
-
-            Rdtsc = Marshal.GetDelegateForFunctionPointer(
-              codeBuffer, typeof(RdtscDelegate)) as RdtscDelegate;
+#if NET20
+            Rdtsc = Marshal.GetDelegateForFunctionPointer(codeBuffer, typeof(RdtscDelegate)) as RdtscDelegate;
+#else
+#pragma warning disable IL3050 // RdtscDelegate is fully blittable (ulong return, no params); no marshalling stub is generated.
+            Rdtsc = Marshal.GetDelegateForFunctionPointer<RdtscDelegate>(codeBuffer);
+#pragma warning restore IL3050
+#endif
 
             IntPtr cpuidAddress = (IntPtr)((long)codeBuffer + rdtscCode.Length);
             Marshal.Copy(cpuidCode, 0, cpuidAddress, cpuidCode.Length);
 
-            Cpuid = Marshal.GetDelegateForFunctionPointer(
-              cpuidAddress, typeof(CpuidDelegate)) as CpuidDelegate;
+#if NET20
+            Cpuid = Marshal.GetDelegateForFunctionPointer(cpuidAddress, typeof(CpuidDelegate)) as CpuidDelegate;
+#else
+#pragma warning disable IL3050 // CpuidDelegate is fully blittable (uint in/out params only); no marshalling stub is generated.
+            Cpuid = Marshal.GetDelegateForFunctionPointer<CpuidDelegate>(cpuidAddress);
+#pragma warning restore IL3050
+#endif
         }
 
         public static void Close()
@@ -92,6 +111,9 @@ namespace OpenHardwareMonitor.Hardware
             Rdtsc = null;
             Cpuid = null;
 
+#if NET5_0_OR_GREATER
+            NativeMethods.VirtualFree(codeBuffer, UIntPtr.Zero, FreeType.RELEASE);
+#else
             if (OperatingSystem.IsUnix)
             { // Unix
                 Assembly assembly =
@@ -108,6 +130,7 @@ namespace OpenHardwareMonitor.Hardware
                 NativeMethods.VirtualFree(codeBuffer, UIntPtr.Zero,
                   FreeType.RELEASE);
             }
+#endif
         }
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
@@ -197,6 +220,7 @@ namespace OpenHardwareMonitor.Hardware
       0xC3                            // ret  
     };
 
+#if !NET5_0_OR_GREATER
         private static readonly byte[] CPUID_64_LINUX = new byte[] {
       0x49, 0x89, 0xD2,               // mov r10, rdx
       0x49, 0x89, 0xCB,               // mov r11, rcx
@@ -211,6 +235,7 @@ namespace OpenHardwareMonitor.Hardware
       0x5B,                           // pop rbx
       0xC3,                           // ret
     };
+#endif
 
         public static bool CpuidTx(uint index, uint ecxValue,
           out uint eax, out uint ebx, out uint ecx, out uint edx,
