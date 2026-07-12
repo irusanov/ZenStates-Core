@@ -387,7 +387,7 @@ namespace ZenStates.Core
         {
             using (new PciBusLock())
             {
-                long[] result = _pawnIo.Execute(IOCTL_RESOLVE_PM_TABLE, new long[2], 2);
+                long[] result = _pawnIo.Execute(IOCTL_RESOLVE_PM_TABLE, new long[0], 2);
                 version = Convert.ToUInt32(result[0] & 0xffffffff);
                 baseAddress = result[1];
             }
@@ -395,7 +395,7 @@ namespace ZenStates.Core
 
         public long[] ReadPmTable(int size)
         {
-            long[] outArray = _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[size], size);
+            long[] outArray = _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[0], size);
             return outArray;
         }
 

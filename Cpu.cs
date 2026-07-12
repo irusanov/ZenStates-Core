@@ -88,6 +88,9 @@ namespace ZenStates.Core
             TurinD,
             Bergamo,
             ShimadaPeak,
+            Venice,
+            Annapurna,
+            MustangPeak,
         };
 
 
@@ -782,6 +785,9 @@ namespace ZenStates.Core
                     case 0x7C:
                         codeName = CodeName.HawkPoint;
                         break;
+                    case 0xA0:
+                        codeName = CodeName.Bergamo;
+                        break;
 
                     default:
                         codeName = CodeName.Unsupported;
@@ -793,6 +799,7 @@ namespace ZenStates.Core
                 switch (cpuInfo.model)
                 {
                     case 0x2:
+                        // Also known as Sorano?
                         codeName = CodeName.Turin;
                         break;
                     // https://github.com/InstLatx64/InstLatx64/commit/9e87330a805eb78a8c74f0b63fa767c0571c9e8b
@@ -807,6 +814,7 @@ namespace ZenStates.Core
                         codeName = CodeName.StrixPoint;
                         break;
                     case 0x44:
+                        // Fire Range is the mobile variant
                         codeName = CodeName.GraniteRidge;
                         break;
                     case 0x60:
@@ -819,8 +827,28 @@ namespace ZenStates.Core
                     case 0x70:
                         codeName = CodeName.StrixHalo;
                         break;
+
+                    // Zen5 based EPYC Embedded for Network Control Planes
+                    // https://github.com/InstLatx64/InstLatx64/commit/65da9371d13867485c11db0bb7835a79d1d5106f
+                    case 0xD0:
+                        codeName = CodeName.Annapurna;
+                        break;
+
+                    // Zen6
+                    // Do we need to distinguish Venice Dense from Venice Classic?
+                    // Dense
+                    case 0x50:
+                    case 0x90:
+                    // Classic
                     case 0xA0:
-                        codeName = CodeName.Bergamo;
+                    case 0xC0:
+                        codeName = CodeName.Venice;
+                        break;
+
+                    // Zen6 Threadripper
+                    // https://github.com/InstLatx64/InstLatx64/commit/f2711d446543d66ccabe4f9e19f401598b73563d
+                    case 0xA8:
+                        codeName = CodeName.MustangPeak;
                         break;
 
                     default:

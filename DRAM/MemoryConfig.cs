@@ -238,11 +238,9 @@ namespace ZenStates.Core.DRAM
                     Ddr5ThermalData td = info.Value?.ThermalData;
                     if (td != null && td.IsValid && td.TempSensorEnabled)
                     {
-                        int mc = Ddr5ThermalSensor.ReadTemperatureMilliC(smbusDriver, pd.SpdHubAddress);
-                        if (mc != int.MinValue)
-                        {
-                            info.Value.ThermalData.TemperatureMilliC = mc;
-                        }
+                        // Merge updated temperature and status into the existing thermal data
+                        // instead of replacing the whole object, preserving other cached fields.
+                        Ddr5ThermalSensor.RefreshTemperatureAndStatusNoLock(smbusDriver, pd.SpdHubAddress, td);
                     }
 
                     updated = true;
