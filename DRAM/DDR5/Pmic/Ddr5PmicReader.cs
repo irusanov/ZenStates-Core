@@ -7,7 +7,7 @@ using static ZenStates.Core.JedecPmicRegisters;
 
 namespace ZenStates.Core
 {
-    internal static class Ddr5PmicReader
+    public static class Ddr5PmicReader
     {
         // SMBus helpers
         private static bool ReadRegNoLock(SmbusDriverBase smbus, byte addr, byte reg, out byte val)
@@ -154,7 +154,6 @@ namespace ZenStates.Core
             }
         }
 
-
         internal static Ddr5PmicData ReadPmicNoLock(SmbusDriverBase smbus, byte pmicAddr)
         {
             byte[] rawRegisters = new byte[0x52];
@@ -174,12 +173,13 @@ namespace ZenStates.Core
             return pd;
         }
 
+        // DDR5 PMICs reside on SMBus port 2 (DDR5/TSI port on KernCZ/AMD FCH)
+        public const int PORT_DIMM = 2;
+        public const int PORT_BOARD = 0;
+
         /// <summary>
         /// Read single Pmic
         /// </summary>
-        /// <param name="smbus"></param>
-        /// <param name="pmicAddr"></param>
-        /// <returns></returns>
         public static Ddr5PmicData ReadPmic(SmbusDriverBase smbus, byte pmicAddr)
         {
             if (!Mutexes.WaitSmbus(5000))
@@ -198,15 +198,41 @@ namespace ZenStates.Core
             }
         }
 
+        /// <summary>
+        /// Write VDD (SWA), VDDQ (SWB) and VPP (SWC) voltages to a single PMIC using
+        /// JEDEC 7-bit VID encoding. Acquires the SMBus mutex and switches to the
+        /// correct DDR5 port automatically.
+        /// </summary>
+        /// <param name="smbus">SMBus driver instance.</param>
+        /// <param name="pmicAddr">7-bit I2C address of the PMIC (0x48–0x4F).</param>
+        /// <param name="vddRegByte">Encoded VDD  register byte  (SWA, REG 0x21).</param>
+        /// <param name="vddqRegByte">Encoded VDDQ register byte (SWB, REG 0x25).</param>
+        /// <param name="vppRegByte">Encoded VPP  register byte  (SWC, REG 0x27).</param>
+        public static bool WriteVoltageRegisters(SmbusDriverBase smbus, byte pmicAddr,
+            byte vddRegByte, byte vddqRegByte, byte vppRegByte)
+        {
+            using(new SmbusLock())
+            {
+                smbus.ChangePortNoLock(PORT_DIMM, out int _);
+                bool ok = WriteRegNoLock(smbus, pmicAddr, REG_SWA_VID, vddRegByte);
+                ok &= WriteRegNoLock(smbus, pmicAddr, REG_SWB_VID, vddqRegByte);
+                ok &= WriteRegNoLock(smbus, pmicAddr, REG_SWC_VID, vppRegByte);
+                return ok;
+            }
+        }
+
+        /// <summary>Read PMIC data for all detected DIMMs by scanning 0x48-0x4F.</summary>
         /// <summary>Read PMIC data for all detected DIMMs by scanning 0x48-0x4F.</summary>
         internal static Dictionary<byte, Ddr5PmicData> ReadAllPmicsNoLock(SmbusDriverBase smbus)
         {
             Dictionary<byte, Ddr5PmicData> results = new Dictionary<byte, Ddr5PmicData>();
 
+            smbus.ChangePortNoLock(PORT_DIMM, out int _);
+
             for (byte addr = PMIC_ADDR_BASE; addr <= PMIC_ADDR_LAST; addr++)
             {
                 if (DetectNoLock(smbus, addr))
-                    results.Add(addr, ReadPmicNoLock(smbus, addr));
+                    results[addr] = ReadPmicNoLock(smbus, addr);
             }
 
             return results;

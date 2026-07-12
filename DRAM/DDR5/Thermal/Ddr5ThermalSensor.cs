@@ -150,8 +150,7 @@ namespace ZenStates.Core
         /// <returns>Temperature in millidegrees Celsius, or int.MinValue on error.</returns>
         internal static int ReadTemperatureMilliC(SmbusDriverBase smbus, byte i2cAddr)
         {
-            int mc;
-            if (!ReadMR16NoLock(smbus, i2cAddr, REG_TEMP, out mc))
+            if (!ReadMR16NoLock(smbus, i2cAddr, REG_TEMP, out int mc))
                 return int.MinValue;
             return mc;
         }
@@ -167,6 +166,79 @@ namespace ZenStates.Core
             return mc / 1000.0;
         }
 
+        private static bool ClearTempStatusNoLock(SmbusDriverBase smbus, byte addr7)
+        {
+            return smbus.WriteByteDataNoLock(addr7, REG_TEMP_CLR, 0x0F);
+        }
+
+        /// <summary>
+        /// Read a 16-bit MR register pair and, on success, store the value
+        /// (in millidegrees Celsius) into <paramref name="field"/>.
+        /// </summary>
+        /// <returns>True if the register was read successfully.</returns>
+        private static bool ReadMR16IntoNoLock(SmbusDriverBase smbus, byte addr7, byte mr, ref int field)
+        {
+            if (!ReadMR16NoLock(smbus, addr7, mr, out int mc))
+                return false;
+            field = mc;
+            return true;
+        }
+
+        /// <summary>
+        /// Read the alarm status flags into <paramref name="td"/> and clear
+        /// them on the device.
+        /// </summary>
+        /// <returns>True if the status register was read successfully.</returns>
+        private static bool ReadAndClearAlarmStatusNoLock(SmbusDriverBase smbus, byte i2cAddr, Ddr5ThermalData td)
+        {
+            if (!ReadMRNoLock(smbus, i2cAddr, REG_TEMP_STATUS, out byte status))
+                return false;
+
+            td.AlarmHigh = (status & STATUS_HIGH) != 0;
+            td.AlarmLow = (status & STATUS_LOW) != 0;
+            td.AlarmCritHigh = (status & STATUS_CRIT) != 0;
+            td.AlarmCritLow = (status & STATUS_LCRIT) != 0;
+
+            ClearTempStatusNoLock(smbus, i2cAddr);
+            return true;
+        }
+
+        /// <summary>
+        /// Refresh the current temperature and alarm status from the SPD5118 sensor.
+        /// Clears the alarm status after reading.
+        /// </summary>
+        /// <returns>Ddr5ThermalData with current temperature and alarm flags, or IsValid=false on error.</returns>
+        internal static Ddr5ThermalData RefreshTemperatureAndStatusNoLock(SmbusDriverBase smbus, byte i2cAddr)
+        {
+            Ddr5ThermalData td = new Ddr5ThermalData();
+            td.IsValid = RefreshTemperatureAndStatusNoLock(smbus, i2cAddr, td);
+            return td;
+        }
+
+        /// <summary>
+        /// Refresh the current temperature and alarm status from the SPD5118 sensor,
+        /// merging the updated values into the existing <paramref name="td"/> instead
+        /// of replacing it, so other cached fields (e.g. limits) are preserved.
+        /// Clears the alarm status after reading.
+        /// </summary>
+        /// <returns>True if the temperature and status were refreshed successfully.</returns>
+        internal static bool RefreshTemperatureAndStatusNoLock(SmbusDriverBase smbus, byte i2cAddr, Ddr5ThermalData td)
+        {
+            try
+            {
+                // Read current temperature
+                if (!ReadMR16IntoNoLock(smbus, i2cAddr, REG_TEMP, ref td.TemperatureMilliC))
+                    return false;
+
+                // Read alarm status flags and clear them
+                return ReadAndClearAlarmStatusNoLock(smbus, i2cAddr, td);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         /// <summary>
         /// Read all thermal sensor data: current temp, limits, and alarms.
         /// </summary>
@@ -176,15 +248,7 @@ namespace ZenStates.Core
 
             try
             {
-                byte mr0, mr1;
-                if (!ReadMRNoLock(smbus, i2cAddr, REG_TYPE, out mr0)) return td;
-                if (!ReadMRNoLock(smbus, i2cAddr, (byte)(REG_TYPE + 1), out mr1)) return td;
-                if (!IsSpd5118DeviceType(mr0, mr1))
-                    return td;
-
-                byte cap;
-                if (!ReadMRNoLock(smbus, i2cAddr, REG_CAPABILITY, out cap)) return td;
-                td.TempSensorSupported = (cap & CAP_TS_SUPPORT) != 0;
+                td.TempSensorSupported = DetectNoLock(smbus, i2cAddr);
                 if (!td.TempSensorSupported)
                     return td;
 
@@ -198,26 +262,13 @@ namespace ZenStates.Core
                     return td;
                 }
 
-                int mc;
-                if (ReadMR16NoLock(smbus, i2cAddr, REG_TEMP, out mc))
-                    td.TemperatureMilliC = mc;
-                if (ReadMR16NoLock(smbus, i2cAddr, REG_TEMP_MAX, out mc))
-                    td.TempMaxMilliC = mc;
-                if (ReadMR16NoLock(smbus, i2cAddr, REG_TEMP_MIN, out mc))
-                    td.TempMinMilliC = mc;
-                if (ReadMR16NoLock(smbus, i2cAddr, REG_TEMP_CRIT, out mc))
-                    td.TempCritMilliC = mc;
-                if (ReadMR16NoLock(smbus, i2cAddr, REG_TEMP_LCRIT, out mc))
-                    td.TempLCritMilliC = mc;
+                ReadMR16IntoNoLock(smbus, i2cAddr, REG_TEMP, ref td.TemperatureMilliC);
+                ReadMR16IntoNoLock(smbus, i2cAddr, REG_TEMP_MAX, ref td.TempMaxMilliC);
+                ReadMR16IntoNoLock(smbus, i2cAddr, REG_TEMP_MIN, ref td.TempMinMilliC);
+                ReadMR16IntoNoLock(smbus, i2cAddr, REG_TEMP_CRIT, ref td.TempCritMilliC);
+                ReadMR16IntoNoLock(smbus, i2cAddr, REG_TEMP_LCRIT, ref td.TempLCritMilliC);
 
-                byte status;
-                if (ReadMRNoLock(smbus, i2cAddr, REG_TEMP_STATUS, out status))
-                {
-                    td.AlarmHigh = (status & STATUS_HIGH) != 0;
-                    td.AlarmLow = (status & STATUS_LOW) != 0;
-                    td.AlarmCritHigh = (status & STATUS_CRIT) != 0;
-                    td.AlarmCritLow = (status & STATUS_LCRIT) != 0;
-                }
+                ReadAndClearAlarmStatusNoLock(smbus, i2cAddr, td);
 
                 td.IsValid = true;
             }
@@ -271,7 +322,7 @@ namespace ZenStates.Core
 
             foreach (KeyValuePair<byte, Ddr5ThermalData> kvp in data)
             {
-                Debug.WriteLine($"DIMM 0x{0:X2} Thermal Sensor: {kvp.Key}");
+                Debug.WriteLine($"DIMM 0x{kvp.Key:X2} Thermal Sensor:");
                 Debug.WriteLine(kvp.Value.ToString());
             }
         }

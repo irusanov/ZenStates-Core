@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core.DRAM
@@ -421,13 +422,13 @@ namespace ZenStates.Core.DRAM
 
                 byte[] buffer = info.RawSpd;
                 System.IO.File.WriteAllBytes(filePath, buffer);
-                Console.WriteLine("Wrote {0} bytes to {1}", buffer.Length, filePath);
+                Debug.WriteLine(String.Format("Wrote {0} bytes to {1}", buffer.Length, filePath));
 
                 return true;
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error dumping SPD to file: {0}", ex.Message);
+                Debug.WriteLine(String.Format("Error dumping SPD to file: {0}", ex.Message));
                 return false;
             }
         }
@@ -456,11 +457,11 @@ namespace ZenStates.Core.DRAM
                     try
                     {
                         System.IO.File.WriteAllBytes(filePath, buffer);
-                        Console.WriteLine("Wrote {0} bytes to {1}", buffer.Length, filePath);
+                        Debug.WriteLine(String.Format("Wrote {0} bytes to {1}", buffer.Length, filePath));
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine("Error writing {0}: {1}", filePath, ex.Message);
+                        Debug.WriteLine(String.Format("Error writing {0}: {1}", filePath, ex.Message));
                         allOk = false;
                     }
                 }
@@ -469,7 +470,7 @@ namespace ZenStates.Core.DRAM
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Error dumping SPD to files: {0}", ex.Message);
+                Debug.WriteLine("Error dumping SPD to files: {0}", ex.Message);
                 return false;
             }
         }

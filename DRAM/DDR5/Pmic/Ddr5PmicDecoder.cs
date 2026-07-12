@@ -6,12 +6,14 @@ using static ZenStates.Core.JedecPmicRegisters;
 
 namespace ZenStates.Core
 {
-    internal static class Ddr5PmicDecoder
+    public static class Ddr5PmicDecoder
     {
         // Voltage formulas (JEDEC JESD301-2)
         private const int SWA_SWB_BASE = 800;   // mV base for VDD/VDDQ
         private const int SWC_BASE = 1500;      // mV base for VPP
         private const int VID_STEP = 5;         // mV per VID code
+        private const int JEDEC_VDD_MAX_MV = 1435;
+        private const int JEDEC_VDDQ_MAX_MV = 1435;
 
         /// <summary>Decode SWA/SWB VID to millivolts (JEDEC 7-bit: bits [7:1]).</summary>
         public static int SwabVid7ToMv(byte reg) { return SWA_SWB_BASE + ((reg >> 1) & 0x7F) * VID_STEP; }
@@ -236,6 +238,29 @@ namespace ZenStates.Core
             pd.PmicTemperature = Ddr5PmicDecoder.DecodePmicTemp((reg33 >> 5) & 0x07);
             pd.Vout10PowerGood = (reg33 & 0x04) == 0;
 
+            //5 RW 0
+            //R2B[5]: SWA_VOLTAGE_RANGE
+            //SWA Output Voltage Range Selection
+            //0 = Range: 800mV to 1435mV for SWA; 5mV step size
+            //1 = Range: 600mV to 1235mV for SWA; 5mV step size
+            //4 RW 0
+            //R2B[4]: SWB_VOLTAGE_RANGE
+            //SWB Output Voltage Range Selection
+            //0 = Range: 800mV to 1435mV for SWB; 5mV step size
+            //1 = Range: 600mV to 1235mV for SWB; 5mV step size
+            //3 RW 0
+            //R2B[3]: SWC_VOLTAGE_RANGE
+            //SWC Output Voltage Range Selection
+            //0 = Range: 800mV to 1435mV for SWC; 5mV step size
+            //1 = Range: 600mV to 1235mV for SWC; 5mV step size
+
+            //R2F[2]: WRITE_PROTECT_FUNCTION_CONTROL
+            //PMIC Write Protect Function Control
+            //0 = CAMP input signal determines the Write Protect Function
+            //1 = Write Protect Function is disabled; All register write access is allowed independent
+            //of CAMP input signal
+
+
             // LDO runtime / NVM defaults
             pd.Vout18SettingMv = Ddr5PmicDecoder.DecodeLdo18Mv(pd.RawRegisters[REG_LDO_SETTINGS]);
             pd.Vout10SettingMv = Ddr5PmicDecoder.DecodeLdo10Mv(pd.RawRegisters[REG_LDO_SETTINGS]);
@@ -302,6 +327,20 @@ namespace ZenStates.Core
             pd.CriticalTemperatureShutdown = (status0 & 0x40) != 0;
             pd.PecError = (status2 & 0x08) != 0;
             pd.ParityError = (status2 & 0x04) != 0;
+
+            // High-voltage / OC mode detection
+            bool vddOcActive = pd.VddMv8bit != pd.VddMv;
+            bool vddqOcActive = pd.VddqMv8bit != pd.VddqMv;
+
+            pd.HighVoltageMode =
+                vddOcActive ||
+                vddqOcActive ||
+                pd.VddMv8bit > JEDEC_VDD_MAX_MV ||
+                pd.VddqMv8bit > JEDEC_VDDQ_MAX_MV;
+
+            //0 = CAMP input signal determines the Write Protect Function
+            //1 = Write Protect Function is disabled; All register write access is allowed independent
+            pd.WriteProtectFunctionControl = ((pd.RawRegisters[REG_WRITE_PROTECT_FUNCTION_CONTROL] >> 2) & 0x1) == 1 ? "Disabled" : "CAMP input signal";
 
             return pd;
         }

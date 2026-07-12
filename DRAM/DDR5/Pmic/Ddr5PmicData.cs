@@ -48,6 +48,15 @@ namespace ZenStates.Core
         /// <summary>Whether total power mode is selected (R0x1A [1]).</summary>
         public bool TelemetryReportsTotalPower;
 
+        /// <summary>
+        /// Indicates DDR5 PMIC is operating in high-voltage (OC) mode,
+        /// meaning voltages exceed JEDEC 7-bit VID range.
+        /// </summary>
+        public bool HighVoltageMode;
+        
+        /// <summary>PMIC write protect function control status (R0x2F [2]).</summary>
+        public string WriteProtectFunctionControl;
+
         // Voltage readings (JEDEC 7-bit VID)
         //    SWA/SWB: Vout = 800 + R[7:1] × 5 mV  (range 800-1435 mV)
         //    SWC:     Vout = 1500 + R[7:1] × 5 mV  (range 1500-2135 mV)
@@ -173,6 +182,8 @@ namespace ZenStates.Core
             sb.AppendFormat("  VR Enabled         : {0}\n", VrEnabled ? "Yes" : "No");
             sb.AppendFormat("  PMIC Temperature   : {0}\n", PmicTemperature);
             sb.AppendFormat("  Shutdown Temp      : {0}\n", ShutdownTemperatureThreshold);
+            sb.AppendFormat("  High Voltage Mode  : {0}\n", HighVoltageMode ? "Enabled" : "Disabled");
+            sb.AppendFormat("  Write Protect      : {0}\n", WriteProtectFunctionControl);
 
             sb.AppendLine();
 
