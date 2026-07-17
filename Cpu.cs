@@ -523,7 +523,10 @@ namespace ZenStates.Core
 
         public bool WriteDwordEx(uint addr, uint data, int maxRetries = 10)
         {
-            throw new NotSupportedException("WriteDwordEx is currently not supported by PawnIO");
+            using (new PciBusLock())
+            {
+                return _pawnRyzenSmu.SmuWriteRegNoLock(addr, data);
+            }
 
             //for (int retry = 0; retry < maxRetries; retry++)
             //{
