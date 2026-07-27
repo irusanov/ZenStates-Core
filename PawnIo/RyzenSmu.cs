@@ -761,7 +761,7 @@ namespace ZenStates.Core
     /// <summary>
     /// Defines the CPU code names for different AMD processor families.
     /// This enum should match the enum in RyzenSmu PawnIO module.
-    /// https://github.com/namazso/PawnIO.Modules/blob/5628d05dd7045d3fdf69fd2ed2dc8086e90f238c/RyzenSMU.p#L22
+    /// https://github.com/namazso/PawnIO.Modules/blob/main/RyzenSMU.p#L22
     /// </summary>
     public enum CpuCodeName
     {
