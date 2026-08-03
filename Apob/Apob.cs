@@ -52,6 +52,11 @@ namespace ZenStates.Core
         /// <summary>Raw bytes of the entire APOB table.</summary>
         public byte[] RawTable { get; private set; }
 
+        public byte[] RawHeader
+        {
+            get { return SliceRawTable(0, Header.HeaderSize); }
+        }
+
         public byte[] RawData
         {
             get { return SliceRawTable(DataOffset, DataSize); }
