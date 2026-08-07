@@ -3,9 +3,9 @@
 // Adapted from LibreHardwareMonitor (https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)
 // Partial Copyright (C) Michael Möller <mmoeller@openhardwaremonitor.org> and Contributors.
 
-namespace ZenStates.Core.SuperIo
+namespace ZenStates.Core.Lpc
 {
-    public interface ISuperIo
+    public interface ISuperIO
     {
         Chip Chip { get; }
 

@@ -3,7 +3,7 @@
 // Adаpted from LibreHardwareMonitor (https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)
 // Partial Copyright (C) Michael Möller <mmoeller@openhardwaremonitor.org> and Contributors.
 
-namespace ZenStates.Core.SuperIo
+namespace ZenStates.Core.Lpc
 {
     /// <summary>
     /// SuperIO chips commonly found on AMD-platform motherboards.
