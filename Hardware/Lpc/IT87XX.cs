@@ -50,11 +50,10 @@ namespace ZenStates.Core.Hardware.Lpc
             _gigabyteController = gigabyteController;
             _requiresBankSelect = false;
 
-            _chip = chip;
+            Chip = chip;
 
             // Check vendor id
-            bool valid;
-            byte vendorId = ReadByte(VENDOR_ID_REGISTER, out valid);
+            byte vendorId = ReadByte(VENDOR_ID_REGISTER, out bool valid);
             if (!valid)
                 return;
 
@@ -123,116 +122,116 @@ namespace ZenStates.Core.Hardware.Lpc
             switch (chip)
             {
                 case Chip.IT8613E:
-                    _voltages = new float?[10];
-                    _temperatures = new float?[4];
-                    _fans = new float?[5];
-                    _controls = new float?[4];
+                    Voltages = new float?[10];
+                    Temperatures = new float?[4];
+                    Fans = new float?[5];
+                    Controls = new float?[4];
                     break;
 
                 case Chip.IT8625E:
-                    _voltages = new float?[7];
-                    _temperatures = new float?[3];
-                    _fans = new float?[6];
-                    _controls = new float?[6];
+                    Voltages = new float?[7];
+                    Temperatures = new float?[3];
+                    Fans = new float?[6];
+                    Controls = new float?[6];
                     break;
                 case Chip.IT8628E:
-                    _voltages = new float?[10];
-                    _temperatures = new float?[6];
-                    _fans = new float?[6];
-                    _controls = new float?[6];
+                    Voltages = new float?[10];
+                    Temperatures = new float?[6];
+                    Fans = new float?[6];
+                    Controls = new float?[6];
                     break;
 
                 case Chip.IT8631E:
-                    _voltages = new float?[9];
-                    _temperatures = new float?[2];
-                    _fans = new float?[2];
-                    _controls = new float?[2];
+                    Voltages = new float?[9];
+                    Temperatures = new float?[2];
+                    Fans = new float?[2];
+                    Controls = new float?[2];
                     break;
 
                 case Chip.IT8638E:
-                    _voltages = new float?[9];
-                    _temperatures = new float?[2];
-                    _fans = new float?[2];
-                    _controls = new float?[2];
+                    Voltages = new float?[9];
+                    Temperatures = new float?[2];
+                    Fans = new float?[2];
+                    Controls = new float?[2];
                     break;
 
                 case Chip.IT8665E:
-                    _voltages = new float?[9];
-                    _temperatures = new float?[6];
-                    _fans = new float?[6];
-                    _controls = new float?[6];
+                    Voltages = new float?[9];
+                    Temperatures = new float?[6];
+                    Fans = new float?[6];
+                    Controls = new float?[6];
                     _requiresBankSelect = true;
                     break;
 
                 case Chip.IT8686E:
-                    _voltages = new float?[10];
-                    _temperatures = new float?[7];
-                    _fans = new float?[6];
-                    _controls = new float?[5];
+                    Voltages = new float?[10];
+                    Temperatures = new float?[7];
+                    Fans = new float?[6];
+                    Controls = new float?[5];
                     break;
 
                 case Chip.IT8688E:
-                    _voltages = new float?[11];
-                    _temperatures = new float?[6];
-                    _fans = new float?[6];
-                    _controls = new float?[5];
+                    Voltages = new float?[11];
+                    Temperatures = new float?[6];
+                    Fans = new float?[6];
+                    Controls = new float?[5];
                     break;
 
                 case Chip.IT8689E:
-                    _voltages = new float?[10];
-                    _temperatures = new float?[6];
-                    _fans = new float?[6];
-                    _controls = new float?[6];
+                    Voltages = new float?[10];
+                    Temperatures = new float?[6];
+                    Fans = new float?[6];
+                    Controls = new float?[6];
                     break;
 
                 case Chip.IT8696E:
-                    _voltages = new float?[10];
-                    _temperatures = new float?[6];
-                    _fans = new float?[6];
-                    _controls = new float?[6];
+                    Voltages = new float?[10];
+                    Temperatures = new float?[6];
+                    Fans = new float?[6];
+                    Controls = new float?[6];
                     break;
 
                 case Chip.IT87952E:
-                    _voltages = new float?[9];
-                    _temperatures = new float?[3];
-                    _fans = new float?[3];
-                    _controls = new float?[3];
+                    Voltages = new float?[9];
+                    Temperatures = new float?[3];
+                    Fans = new float?[3];
+                    Controls = new float?[3];
                     break;
 
                 case Chip.IT8655E:
-                    _voltages = new float?[9];
-                    _temperatures = new float?[6];
-                    _fans = new float?[3];
-                    _controls = new float?[3];
+                    Voltages = new float?[9];
+                    Temperatures = new float?[6];
+                    Fans = new float?[3];
+                    Controls = new float?[3];
                     _requiresBankSelect = true;
                     break;
 
                 case Chip.IT8792E:
-                    _voltages = new float?[9];
-                    _temperatures = new float?[3];
-                    _fans = new float?[3];
-                    _controls = new float?[3];
+                    Voltages = new float?[9];
+                    Temperatures = new float?[3];
+                    Fans = new float?[3];
+                    Controls = new float?[3];
                     break;
 
                 case Chip.IT8705F:
-                    _voltages = new float?[9];
-                    _temperatures = new float?[3];
-                    _fans = new float?[3];
-                    _controls = new float?[3];
+                    Voltages = new float?[9];
+                    Temperatures = new float?[3];
+                    Fans = new float?[3];
+                    Controls = new float?[3];
                     break;
 
                 case Chip.IT8620E:
-                    _voltages = new float?[9];
-                    _temperatures = new float?[3];
-                    _fans = new float?[5];
-                    _controls = new float?[5];
+                    Voltages = new float?[9];
+                    Temperatures = new float?[3];
+                    Fans = new float?[5];
+                    Controls = new float?[5];
                     break;
 
                 default:
-                    _voltages = new float?[9];
-                    _temperatures = new float?[3];
-                    _fans = new float?[5];
-                    _controls = new float?[3];
+                    Voltages = new float?[9];
+                    Temperatures = new float?[3];
+                    Fans = new float?[5];
+                    Controls = new float?[3];
                     break;
             }
 
@@ -320,37 +319,15 @@ namespace ZenStates.Core.Hardware.Lpc
             }
         }
 
-        private readonly Chip _chip;
+        public Chip Chip { get; }
 
-        public Chip Chip
-        {
-            get { return _chip; }
-        }
+        public float?[] Controls { get; } = new float?[0];
 
-        private float?[] _controls = new float?[0];
-        private float?[] _fans = new float?[0];
-        private float?[] _temperatures = new float?[0];
-        private float?[] _voltages = new float?[0];
+        public float?[] Fans { get; } = new float?[0];
 
-        public float?[] Controls
-        {
-            get { return _controls; }
-        }
+        public float?[] Temperatures { get; } = new float?[0];
 
-        public float?[] Fans
-        {
-            get { return _fans; }
-        }
-
-        public float?[] Temperatures
-        {
-            get { return _temperatures; }
-        }
-
-        public float?[] Voltages
-        {
-            get { return _voltages; }
-        }
+        public float?[] Voltages { get; } = new float?[0];
 
         public byte? ReadGpio(int index)
         {
@@ -371,7 +348,7 @@ namespace ZenStates.Core.Hardware.Lpc
         public void SetControl(int index, byte? value)
         {
             if (index < 0 || index >= Controls.Length)
-                throw new ArgumentOutOfRangeException("index");
+                throw new ArgumentOutOfRangeException(nameof(index));
 
             if (!Mutexes.WaitIsaBus(10))
                 return;
@@ -385,7 +362,7 @@ namespace ZenStates.Core.Hardware.Lpc
                     _gigabyteController.Enable(false);
 
                 if (index < 3 && !_initialFanOutputModeEnabled[index])
-                    WriteByte(FAN_MAIN_CTRL_REG, (byte)(ReadByte(FAN_MAIN_CTRL_REG, out bool valid) | (1 << index)));
+                    WriteByte(FAN_MAIN_CTRL_REG, (byte)(ReadByte(FAN_MAIN_CTRL_REG, out _) | (1 << index)));
 
                 if (_hasExtReg)
                 {
@@ -475,8 +452,7 @@ namespace ZenStates.Core.Hardware.Lpc
             for (int i = 0; i < _gpioCount; i++)
             {
                 r.Append(" ");
-                byte? gpioValue = ReadGpio(i);
-                r.Append(gpioValue.HasValue ? gpioValue.Value.ToString("X2", CultureInfo.InvariantCulture) : "");
+                r.Append(ReadGpio(i)?.ToString("X2", CultureInfo.InvariantCulture));
             }
 
             r.AppendLine();
@@ -620,7 +596,7 @@ namespace ZenStates.Core.Hardware.Lpc
 
         public void Close()
         {
-            if (_gigabyteController != null) _gigabyteController.Dispose();
+            _gigabyteController?.Dispose();
             _port.Close();
         }
 
@@ -646,14 +622,13 @@ namespace ZenStates.Core.Hardware.Lpc
         {
             if (!_restoreDefaultFanPwmControlRequired[index])
             {
-                bool valid;
-                _initialFanPwmControl[index] = ReadByte(FAN_PWM_CTRL_REG[index], out valid);
+                _initialFanPwmControl[index] = ReadByte(FAN_PWM_CTRL_REG[index], out bool _);
 
                 if (index < 3)
-                    _initialFanOutputModeEnabled[index] = ReadByte(FAN_MAIN_CTRL_REG, out valid) != 0; // Save default control reg value.
+                    _initialFanOutputModeEnabled[index] = ReadByte(FAN_MAIN_CTRL_REG, out bool _) != 0; // Save default control reg value.
 
                 if (_hasExtReg)
-                    _initialFanPwmControlExt[index] = ReadByte(FAN_PWM_CTRL_EXT_REG[index], out valid);
+                    _initialFanPwmControlExt[index] = ReadByte(FAN_PWM_CTRL_EXT_REG[index], out _);
             }
 
             _restoreDefaultFanPwmControlRequired[index] = true;

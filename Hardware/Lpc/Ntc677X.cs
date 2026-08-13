@@ -5,6 +5,8 @@
 // All Rights Reserved.
 // Adаpted from LibreHardwareMonitor (https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)
 
+//#define NCT677X_DEBUG_LOG
+
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -51,7 +53,7 @@ namespace ZenStates.Core.Hardware.Lpc
         // Fan registers (chip-specific, initialized in constructor)
         // ReSharper disable InconsistentNaming
         private readonly ushort[] FAN_CONTROL_MODE_REG;
-        private readonly int[] FAN_CONTROL_MODE_BIT; // NCT6687DR only: maps array index ? bit position in mode register
+        private readonly int[] FAN_CONTROL_MODE_BIT; // NCT6687DR only: maps array index → bit position in mode register
         private readonly ushort[] FAN_PWM_COMMAND_REG;
         private readonly ushort[] FAN_PWM_OUT_REG;
         private readonly ushort[] FAN_PWM_REQUEST_REG;
@@ -93,23 +95,30 @@ namespace ZenStates.Core.Hardware.Lpc
 
                 _vBatMonitorControlRegister = 0x0318;
             }
-            else if (chip == Chip.NCT6683D || chip == Chip.NCT6686D || chip == Chip.NCT6687D) //These work on older NCT6687D boards, but only fans 0, 1 and 3 on newer (X870 and Z890) motherboards. Unsure of controls for "next pack of 8".
+            else if (chip == Chip.NCT6683D ||
+                     chip == Chip.NCT6686D ||
+                     chip == Chip.NCT6687D)
             {
+                //These work on older NCT6687D boards, but only fans 0, 1 and 3 on newer (X870 and Z890) motherboards. Unsure of controls for "next pack of 8".
                 FAN_PWM_OUT_REG = new ushort[] { 0x160, 0x161, 0x162, 0x163, 0x164, 0x165, 0x166, 0x167 }; // Next 8 fans will be 0xE00, 0xE01, 0xE02, 0xE03, 0xE04, 0xE05, 0xE06, 0xE07
                 FAN_PWM_COMMAND_REG = new ushort[] { 0xA28, 0xA29, 0xA2A, 0xA2B, 0xA2C, 0xA2D, 0xA2E, 0xA2F }; // Possibly 0X260, 0X261, 0X262, 0X263, 0X264, 0X265, 0X266, 0X267 but can't confirm
                 FAN_CONTROL_MODE_REG = new ushort[] { 0xA00, 0xA00, 0xA00, 0xA00, 0xA00, 0xA00, 0xA00, 0xA00 }; // Not sure of next 8, MSI won't provide info
                 FAN_PWM_REQUEST_REG = new ushort[] { 0xA01, 0xA01, 0xA01, 0xA01, 0xA01, 0xA01, 0xA01, 0xA01 }; // Not sure of next 8, MSI won't provide info
             }
-            else if (chip == Chip.NCT6687DR) // MSI AM5/LGA1851 Motherboards
+            else if (chip == Chip.NCT6687DR)
             {
+                // MSI AM5/LGA1851 Motherboards
+
                 // Each index in the below arrays represents a fan header
                 // ARRAY_KEY = new ushort[] { CPU FAN, PUMP, CHIPSET, EZ-CONNECT FAN, null, null, null, null, null, SYSFAN7, SYSFAN1, SYSFAN2, SYSFAN3, SYSFAN4, SYSFAN5, SYSFAN6 };
                 FAN_PWM_OUT_REG = new ushort[] { 0x160, 0x161, 0x162, 0x163, 0x164, 0x165, 0x166, 0x167, 0xFFF, 0xC93, 0xE05, 0xE04, 0xE03, 0xE02, 0xE01, 0xE00 }; // Duty Cycle Sensors
-                                                                                                                                                                   // Direct PWM command registers ("pair 0" from extended unk_101E0 table in BIOS).
-                                                                                                                                                                   // CPU/Pump/Chipset/EZ-Connect: 0A:(28+ch).  SYSFAN7(ch9): 08:E9.  SYSFAN1-6(ch10-15): 02:(65..60).
-                                                                                                                                                                   // Setting the manual-mode bit in FAN_CONTROL_MODE_REG makes the EC use these for direct PWM,
-                                                                                                                                                                   // bypassing the SmartFAN curve engine and its inherent ~2%/sec smoothing.
+
+                // Direct PWM command registers ("pair 0" from extended unk_101E0 table in BIOS).
+                // CPU/Pump/Chipset/EZ-Connect: 0A:(28+ch).  SYSFAN7(ch9): 08:E9.  SYSFAN1-6(ch10-15): 02:(65..60).
+                // Setting the manual-mode bit in FAN_CONTROL_MODE_REG makes the EC use these for direct PWM,
+                // bypassing the SmartFAN curve engine and its inherent ~2%/sec smoothing.
                 FAN_PWM_COMMAND_REG = new ushort[] { 0xA28, 0xA29, 0xA2A, 0xA2B, 0xFFF, 0xFFF, 0xFFF, 0xFFF, 0xFFF, 0x8E9, 0x265, 0x264, 0x263, 0x262, 0x261, 0x260 };
+
                 // Manual-mode enable registers.  Ch 0-7 use 0A:00 (one bit each); ch 8-15 use 08:0F.
                 FAN_CONTROL_MODE_REG = new ushort[] { 0xA00, 0xA00, 0xA00, 0xA00, 0xA00, 0xA00, 0xA00, 0xA00, 0xA00, 0x80F, 0x80F, 0x80F, 0x80F, 0x80F, 0x80F, 0x80F };
                 FAN_PWM_REQUEST_REG = new ushort[] { 0xA01, 0xA01, 0xA01, 0xA01, 0xA01, 0xA01, 0xA01, 0xA01, 0xA01, 0xA01, 0xA01, 0xA01, 0xA01, 0xA01, 0xA01, 0xA01 };
@@ -124,8 +133,8 @@ namespace ZenStates.Core.Hardware.Lpc
                 FAN_CONTROL_MODE_BIT[1] = 1;   // Pump       ? bit 1 of 0A:00
                 FAN_CONTROL_MODE_BIT[2] = 2;   // Chipset    ? bit 2 of 0A:00
                 FAN_CONTROL_MODE_BIT[3] = 3;   // EZ-Connect ? bit 3 of 0A:00
-                                               // System fans: manual-mode bits in 08:0F (derived from BIOS unk_104C0 entry[1]).
-                                               // EC channel mapping: LHM idx 9=ch9, 10=ch15, 11=ch14, 12=ch13, 13=ch12, 14=ch11, 15=ch10.
+                // System fans: manual-mode bits in 08:0F (derived from BIOS unk_104C0 entry[1]).
+                // EC channel mapping: LHM idx 9=ch9, 10=ch15, 11=ch14, 12=ch13, 13=ch12, 14=ch11, 15=ch10.
                 FAN_CONTROL_MODE_BIT[9] = 1;  // SYSFAN7 (ch 9)  ? bit 1 of 08:0F
                 FAN_CONTROL_MODE_BIT[10] = 7;  // SYSFAN1 (ch 15) ? bit 7 of 08:0F
                 FAN_CONTROL_MODE_BIT[11] = 6;  // SYSFAN2 (ch 14) ? bit 6 of 08:0F
@@ -139,9 +148,18 @@ namespace ZenStates.Core.Hardware.Lpc
                 VENDOR_ID_HIGH_REGISTER = 0x804F;
                 VENDOR_ID_LOW_REGISTER = 0x004F;
 
-                FAN_PWM_OUT_REG = chip == Chip.NCT6797D || chip == Chip.NCT6798D || chip == Chip.NCT6799D || chip == Chip.NCT6796DS || chip == Chip.NCT5585D
-                    ? new ushort[] { 0x001, 0x003, 0x011, 0x013, 0x015, 0xA09, 0xB09 }
-                    : new ushort[] { 0x001, 0x003, 0x011, 0x013, 0x015, 0x017, 0x029 };
+                if (chip == Chip.NCT6797D ||
+                    chip == Chip.NCT6798D ||
+                    chip == Chip.NCT6799D ||
+                    chip == Chip.NCT6796DS ||
+                    chip == Chip.NCT5585D)
+                {
+                    FAN_PWM_OUT_REG = new ushort[] { 0x001, 0x003, 0x011, 0x013, 0x015, 0xA09, 0xB09 };
+                }
+                else
+                {
+                    FAN_PWM_OUT_REG = new ushort[] { 0x001, 0x003, 0x011, 0x013, 0x015, 0x017, 0x029 };
+                }
 
                 FAN_PWM_COMMAND_REG = new ushort[] { 0x109, 0x209, 0x309, 0x809, 0x909, 0xA09, 0xB09 };
                 FAN_CONTROL_MODE_REG = new ushort[] { 0x102, 0x202, 0x302, 0x802, 0x902, 0xA02, 0xB02 };
@@ -247,7 +265,7 @@ namespace ZenStates.Core.Hardware.Lpc
                     Voltages = new float?[16];
                     _voltageRegisters = new ushort[] { 0x480, 0x481, 0x482, 0x483, 0x484, 0x485, 0x486, 0x487, 0x488, 0x489, 0x48A, 0x48B, 0x48C, 0x48D, 0x48E, 0x48F };
                     _voltageVBatRegister = 0x488;
-                    var temperaturesSources = new List<TemperatureSourceData>();
+                    List<TemperatureSourceData> temperaturesSources = new List<TemperatureSourceData>();
 
                     switch (chip)
                     {
@@ -448,8 +466,8 @@ namespace ZenStates.Core.Hardware.Lpc
                     _voltageRegisters = new ushort[] { 0x300, 0x301, 0x302, 0x303, 0x304, 0x305, 0x307, 0x308, 0x309 };
                     _voltageVBatRegister = 0x308;
                     Temperatures = new float?[7];
-                    _temperaturesSource =
-                    new TemperatureSourceData[] {
+                    _temperaturesSource = new TemperatureSourceData[]
+                    {
                         new TemperatureSourceData(SourceNct610X.PECI_0, 0x06b, 0, -1, 0x621),
                         new TemperatureSourceData(SourceNct610X.AUXTIN, 0x010, 0x016, 0),
                         new TemperatureSourceData(SourceNct610X.CPUTIN, 0x011, 0x01B, 1),
@@ -480,8 +498,8 @@ namespace ZenStates.Core.Hardware.Lpc
                     // PCIE_2
                     // M2_1
                     // M2_4
-                    _temperaturesSource =
-                    new TemperatureSourceData[] {
+                    _temperaturesSource = new TemperatureSourceData[]
+                    {
                         new TemperatureSourceData(null, 0x100),
                         new TemperatureSourceData(null, 0x102),
                         new TemperatureSourceData(null, 0x104),
@@ -563,8 +581,8 @@ namespace ZenStates.Core.Hardware.Lpc
                     Voltages = new float?[14];
                     Temperatures = new float?[7];
 
-                    _temperaturesSource =
-                    new TemperatureSourceData[] {
+                    _temperaturesSource = new TemperatureSourceData[]
+                    {
                         new TemperatureSourceData(null, 0x100), // CPU
                         new TemperatureSourceData(null, 0x102), // System
                         new TemperatureSourceData(null, 0x104), // MOS
@@ -646,7 +664,8 @@ namespace ZenStates.Core.Hardware.Lpc
         }
 
         public void WriteGpio(int index, byte value)
-        { }
+        {
+        }
 
         public void SetControl(int index, byte? value)
         {
@@ -666,7 +685,10 @@ namespace ZenStates.Core.Hardware.Lpc
             {
                 SaveDefaultFanControl(index);
 
-                if (Chip != Chip.NCT6683D && Chip != Chip.NCT6686D && Chip != Chip.NCT6687D && Chip != Chip.NCT6687DR)
+                if (Chip != Chip.NCT6683D &&
+                    Chip != Chip.NCT6686D &&
+                    Chip != Chip.NCT6687D &&
+                    Chip != Chip.NCT6687DR)
                 {
                     // set manual mode
                     WriteByte(FAN_CONTROL_MODE_REG[index], 0);
@@ -742,7 +764,10 @@ namespace ZenStates.Core.Hardware.Lpc
 
             for (int i = 0; i < Voltages.Length; i++)
             {
-                if (Chip != Chip.NCT6683D && Chip != Chip.NCT6686D && Chip != Chip.NCT6687D && Chip != Chip.NCT6687DR)
+                if (Chip != Chip.NCT6683D &&
+                    Chip != Chip.NCT6686D &&
+                    Chip != Chip.NCT6687D &&
+                    Chip != Chip.NCT6687DR)
                 {
                     float value = 0.008f * ReadByte(_voltageRegisters[i]);
                     bool valid = value > 0;
@@ -751,27 +776,41 @@ namespace ZenStates.Core.Hardware.Lpc
                     if (valid && _voltageRegisters[i] == _voltageVBatRegister)
                         valid = (ReadByte(_vBatMonitorControlRegister) & 0x01) > 0;
 
-                    Voltages[i] = valid ? value : (float?)null;
+                    Voltages[i] = valid ? (float?)value : null;
                 }
                 else
                 {
-                    float value = 0.001f * ((16 * ReadByte(_voltageRegisters[i])) + (ReadByte((ushort)(_voltageRegisters[i] + 1)) >> 4));
+                    float value = 0.001f *
+                        ((16 * ReadByte(_voltageRegisters[i])) +
+                         (ReadByte((ushort)(_voltageRegisters[i] + 1)) >> 4));
 
                     switch (i)
                     {
                         // 12V
-                        case 0: Voltages[i] = value * 12.0f; break;
+                        case 0:
+                            Voltages[i] = value * 12.0f;
+                            break;
+
                         // 5V
-                        case 1: Voltages[i] = value * 5.0f; break;
+                        case 1:
+                            Voltages[i] = value * 5.0f;
+                            break;
+
                         // DRAM
-                        case 4: Voltages[i] = value * 2.0f; break;
-                        default: Voltages[i] = value; break;
+                        case 4:
+                            Voltages[i] = value * 2.0f;
+                            break;
+
+                        default:
+                            Voltages[i] = value;
+                            break;
                     }
                 }
             }
 
             Log("Updating temperatures.");
             long temperatureSourceMask = 0;
+
             for (int i = 0; i < _temperaturesSource.Length; i++)
             {
                 TemperatureSourceData ts = _temperaturesSource[i];
@@ -812,6 +851,7 @@ namespace ZenStates.Core.Hardware.Lpc
 
                         value = (sbyte)ReadByte(_temperaturesSource[i].Register) << 1;
                         Log("Temperature register {0} at 0x{1:X3} value (integer): {2}/2", i, ts.Register, value);
+
                         if (_temperaturesSource[i].HalfBit > 0)
                         {
                             value |= (ReadByte(_temperaturesSource[i].HalfRegister) >> ts.HalfBit) & 0x1;
@@ -838,7 +878,9 @@ namespace ZenStates.Core.Hardware.Lpc
 
                         temperature = 0.5f * value;
                         Log("Temperature register {0} final temperature: {1}.", i, temperature);
-                        if (temperature > 125 || temperature < -55)
+
+                        if (temperature.HasValue &&
+                            (temperature.Value > 125 || temperature.Value < -55))
                         {
                             temperature = null;
                             Log("Temperature register {0} discarded: Out of range.", i);
@@ -862,6 +904,7 @@ namespace ZenStates.Core.Hardware.Lpc
 
                     default:
                         value = (sbyte)ReadByte(ts.Register) << 1;
+
                         if (ts.HalfBit > 0)
                         {
                             value |= (ReadByte(ts.HalfRegister) >> ts.HalfBit) & 0x1;
@@ -871,8 +914,12 @@ namespace ZenStates.Core.Hardware.Lpc
                         temperatureSourceMask |= 1L << (byte)source;
 
                         temperature = 0.5f * value;
-                        if (temperature > 125 || temperature < -55)
+
+                        if (temperature.HasValue &&
+                            (temperature.Value > 125 || temperature.Value < -55))
+                        {
                             temperature = null;
+                        }
 
                         for (int j = 0; j < Temperatures.Length; j++)
                         {
@@ -887,6 +934,7 @@ namespace ZenStates.Core.Hardware.Lpc
             for (int i = 0; i < _temperaturesSource.Length; i++)
             {
                 TemperatureSourceData ts = _temperaturesSource[i];
+
                 if (!ts.AlternateRegister.HasValue)
                 {
                     Log("Alternate temperature register for temperature {0}, {1:G} ({1:D}), skipped, because address is null.", i, ts.Source);
@@ -902,7 +950,8 @@ namespace ZenStates.Core.Hardware.Lpc
                 float? temperature = (sbyte)ReadByte(ts.AlternateRegister.Value);
                 Log("Alternate temperature register for temperature {0}, {1:G} ({1:D}), at 0x{2:X3} final temperature: {3}.", i, ts.Source, ts.AlternateRegister.Value, temperature);
 
-                if (temperature > 125 || temperature <= 0)
+                if (temperature.HasValue &&
+                    (temperature.Value > 125 || temperature.Value <= 0))
                 {
                     temperature = null;
                     Log("Alternate Temperature register for temperature {0}, {1:G} ({1:D}), discarded: Out of range.", i, ts.Source);
@@ -944,7 +993,10 @@ namespace ZenStates.Core.Hardware.Lpc
 
             for (int i = 0; i < Fans.Length; i++)
             {
-                if (Chip != Chip.NCT6683D && Chip != Chip.NCT6686D && Chip != Chip.NCT6687D && Chip != Chip.NCT6687DR)
+                if (Chip != Chip.NCT6683D &&
+                    Chip != Chip.NCT6686D &&
+                    Chip != Chip.NCT6687D &&
+                    Chip != Chip.NCT6687DR)
                 {
                     if (_fanCountRegister != null)
                     {
@@ -981,7 +1033,10 @@ namespace ZenStates.Core.Hardware.Lpc
 
             for (int i = 0; i < Controls.Length; i++)
             {
-                if (Chip != Chip.NCT6683D && Chip != Chip.NCT6686D && Chip != Chip.NCT6687D && Chip != Chip.NCT6687DR)
+                if (Chip != Chip.NCT6683D &&
+                    Chip != Chip.NCT6686D &&
+                    Chip != Chip.NCT6687D &&
+                    Chip != Chip.NCT6687DR)
                 {
                     int value = ReadByte(FAN_PWM_OUT_REG[i]);
                     Controls[i] = value / 2.55f;
@@ -1021,120 +1076,124 @@ namespace ZenStates.Core.Hardware.Lpc
 
             ushort[] addresses =
             {
-            0x000,
-            0x010,
-            0x020,
-            0x030,
-            0x040,
-            0x050,
-            0x060,
-            0x070,
-            0x0F0,
-            0x100,
-            0x110,
-            0x120,
-            0x130,
-            0x140,
-            0x150,
-            0x200,
-            0x210,
-            0x220,
-            0x230,
-            0x240,
-            0x250,
-            0x260,
-            0x300,
-            0x320,
-            0x330,
-            0x340,
-            0x360,
-            0x400,
-            0x410,
-            0x420,
-            0x440,
-            0x450,
-            0x460,
-            0x480,
-            0x490,
-            0x4B0,
-            0x4C0,
-            0x4F0,
-            0x500,
-            0x550,
-            0x560,
-            0x600,
-            0x610,
-            0x620,
-            0x630,
-            0x640,
-            0x650,
-            0x660,
-            0x670,
-            0x700,
-            0x710,
-            0x720,
-            0x730,
-            0x800,
-            0x820,
-            0x830,
-            0x840,
-            0x900,
-            0x920,
-            0x930,
-            0x940,
-            0x960,
-            0xA00,
-            0xA10,
-            0xA20,
-            0xA30,
-            0xA40,
-            0xA50,
-            0xA60,
-            0xA70,
-            0xB00,
-            0xB10,
-            0xB20,
-            0xB30,
-            0xB50,
-            0xB60,
-            0xB70,
-            0xC00,
-            0xC10,
-            0xC20,
-            0xC30,
-            0xC50,
-            0xC60,
-            0xC70,
-            0xD00,
-            0xD10,
-            0xD20,
-            0xD30,
-            0xD50,
-            0xD60,
-            0xE00,
-            0xE10,
-            0xE20,
-            0xE30,
-            0xF00,
-            0xF10,
-            0xF20,
-            0xF30,
-            0x8040,
-            0x80F0
-        };
+                0x000,
+                0x010,
+                0x020,
+                0x030,
+                0x040,
+                0x050,
+                0x060,
+                0x070,
+                0x0F0,
+                0x100,
+                0x110,
+                0x120,
+                0x130,
+                0x140,
+                0x150,
+                0x200,
+                0x210,
+                0x220,
+                0x230,
+                0x240,
+                0x250,
+                0x260,
+                0x300,
+                0x320,
+                0x330,
+                0x340,
+                0x360,
+                0x400,
+                0x410,
+                0x420,
+                0x440,
+                0x450,
+                0x460,
+                0x480,
+                0x490,
+                0x4B0,
+                0x4C0,
+                0x4F0,
+                0x500,
+                0x550,
+                0x560,
+                0x600,
+                0x610,
+                0x620,
+                0x630,
+                0x640,
+                0x650,
+                0x660,
+                0x670,
+                0x700,
+                0x710,
+                0x720,
+                0x730,
+                0x800,
+                0x820,
+                0x830,
+                0x840,
+                0x900,
+                0x920,
+                0x930,
+                0x940,
+                0x960,
+                0xA00,
+                0xA10,
+                0xA20,
+                0xA30,
+                0xA40,
+                0xA50,
+                0xA60,
+                0xA70,
+                0xB00,
+                0xB10,
+                0xB20,
+                0xB30,
+                0xB50,
+                0xB60,
+                0xB70,
+                0xC00,
+                0xC10,
+                0xC20,
+                0xC30,
+                0xC50,
+                0xC60,
+                0xC70,
+                0xD00,
+                0xD10,
+                0xD20,
+                0xD30,
+                0xD50,
+                0xD60,
+                0xE00,
+                0xE10,
+                0xE20,
+                0xE30,
+                0xF00,
+                0xF10,
+                0xF20,
+                0xF30,
+                0x8040,
+                0x80F0
+            };
 
             r.AppendLine("Hardware Monitor Registers");
             r.AppendLine();
             r.AppendLine("        00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F");
             r.AppendLine();
 
-            if (Chip != Chip.NCT6683D && Chip != Chip.NCT6686D && Chip != Chip.NCT6687D && Chip != Chip.NCT6687DR)
+            if (Chip != Chip.NCT6683D &&
+                Chip != Chip.NCT6686D &&
+                Chip != Chip.NCT6687D &&
+                Chip != Chip.NCT6687DR)
             {
                 foreach (ushort address in addresses)
                 {
                     r.Append(" ");
                     r.Append(address.ToString("X4", CultureInfo.InvariantCulture));
                     r.Append("  ");
+
                     for (ushort j = 0; j <= 0xF; j++)
                     {
                         r.Append(" ");
@@ -1151,6 +1210,7 @@ namespace ZenStates.Core.Hardware.Lpc
                     r.Append(" ");
                     r.Append((i << 4).ToString("X4", CultureInfo.InvariantCulture));
                     r.Append("  ");
+
                     for (int j = 0; j <= 0xF; j++)
                     {
                         ushort address = (ushort)(i << 4 | j);
@@ -1171,13 +1231,18 @@ namespace ZenStates.Core.Hardware.Lpc
 
         private byte ReadByte(ushort address)
         {
-            if (Chip != Chip.NCT6683D && Chip != Chip.NCT6686D && Chip != Chip.NCT6687D && Chip != Chip.NCT6687DR)
+            if (Chip != Chip.NCT6683D &&
+                Chip != Chip.NCT6686D &&
+                Chip != Chip.NCT6687D &&
+                Chip != Chip.NCT6687DR)
             {
                 byte bank = (byte)(address >> 8);
                 byte register = (byte)(address & 0xFF);
+
                 _lpcPort.WriteIoPort((ushort)(_port + ADDRESS_REGISTER_OFFSET), BANK_SELECT_REGISTER);
                 _lpcPort.WriteIoPort((ushort)(_port + DATA_REGISTER_OFFSET), bank);
                 _lpcPort.WriteIoPort((ushort)(_port + ADDRESS_REGISTER_OFFSET), register);
+
                 return _lpcPort.ReadIoPort((ushort)(_port + DATA_REGISTER_OFFSET));
             }
 
@@ -1192,7 +1257,9 @@ namespace ZenStates.Core.Hardware.Lpc
             while (true)
             {
                 access = _lpcPort.ReadIoPort((ushort)(_port + EC_SPACE_PAGE_REGISTER_OFFSET));
-                if (access == EC_SPACE_PAGE_SELECT || timeout.Elapsed >= TimeSpan.FromMilliseconds(500))
+
+                if (access == EC_SPACE_PAGE_SELECT ||
+                    timeout.Elapsed >= TimeSpan.FromMilliseconds(500))
                     break;
 
                 Thread.Sleep(1);
@@ -1206,6 +1273,7 @@ namespace ZenStates.Core.Hardware.Lpc
 
             _lpcPort.WriteIoPort((ushort)(_port + EC_SPACE_PAGE_REGISTER_OFFSET), page);
             _lpcPort.WriteIoPort((ushort)(_port + EC_SPACE_INDEX_REGISTER_OFFSET), index);
+
             byte result = _lpcPort.ReadIoPort((ushort)(_port + EC_SPACE_DATA_REGISTER_OFFSET));
 
             //free access for other instances
@@ -1216,10 +1284,14 @@ namespace ZenStates.Core.Hardware.Lpc
 
         private void WriteByte(ushort address, byte value)
         {
-            if (Chip != Chip.NCT6683D && Chip != Chip.NCT6686D && Chip != Chip.NCT6687D && Chip != Chip.NCT6687DR)
+            if (Chip != Chip.NCT6683D &&
+                Chip != Chip.NCT6686D &&
+                Chip != Chip.NCT6687D &&
+                Chip != Chip.NCT6687DR)
             {
                 byte bank = (byte)(address >> 8);
                 byte register = (byte)(address & 0xFF);
+
                 _lpcPort.WriteIoPort((ushort)(_port + ADDRESS_REGISTER_OFFSET), BANK_SELECT_REGISTER);
                 _lpcPort.WriteIoPort((ushort)(_port + DATA_REGISTER_OFFSET), bank);
                 _lpcPort.WriteIoPort((ushort)(_port + ADDRESS_REGISTER_OFFSET), register);
@@ -1238,7 +1310,9 @@ namespace ZenStates.Core.Hardware.Lpc
                 while (true)
                 {
                     access = _lpcPort.ReadIoPort((ushort)(_port + EC_SPACE_PAGE_REGISTER_OFFSET));
-                    if (access == EC_SPACE_PAGE_SELECT || timeout.Elapsed >= TimeSpan.FromMilliseconds(500))
+
+                    if (access == EC_SPACE_PAGE_SELECT ||
+                        timeout.Elapsed >= TimeSpan.FromMilliseconds(500))
                         break;
 
                     Thread.Sleep(1);
@@ -1261,8 +1335,13 @@ namespace ZenStates.Core.Hardware.Lpc
 
         private bool IsNuvotonVendor()
         {
-            return Chip == Chip.NCT6683D || Chip == Chip.NCT6686D || Chip == Chip.NCT6687D || Chip == Chip.NCT6687DR || Chip == Chip.NCT6701D ||
-                   ((ReadByte(VENDOR_ID_HIGH_REGISTER) << 8) | ReadByte(VENDOR_ID_LOW_REGISTER)) == NUVOTON_VENDOR_ID;
+            return Chip == Chip.NCT6683D ||
+                   Chip == Chip.NCT6686D ||
+                   Chip == Chip.NCT6687D ||
+                   Chip == Chip.NCT6687DR ||
+                   Chip == Chip.NCT6701D ||
+                   ((ReadByte(VENDOR_ID_HIGH_REGISTER) << 8) |
+                    ReadByte(VENDOR_ID_LOW_REGISTER)) == NUVOTON_VENDOR_ID;
         }
 
         private void UpdateByte(ushort address, byte andMask, byte orMask)
@@ -1290,17 +1369,21 @@ namespace ZenStates.Core.Hardware.Lpc
             byte engineSts = ReadByte(NCT6687DR_REG_FAN_ENGINE_STS);
 
             // Already accessible
-            if ((engineSts & NCT6687DR_FAN_CFG_LOCK) == 0 && (engineSts & NCT6687DR_FAN_CFG_PHASE) != 0)
+            if ((engineSts & NCT6687DR_FAN_CFG_LOCK) == 0 &&
+                (engineSts & NCT6687DR_FAN_CFG_PHASE) != 0)
                 return true;
 
             // Wait until any existing config phase is done and request flag is clear
             Stopwatch sw = Stopwatch.StartNew();
+
             while (sw.Elapsed < TimeSpan.FromSeconds(1))
             {
                 engineSts = ReadByte(NCT6687DR_REG_FAN_ENGINE_STS);
+
                 if ((engineSts & NCT6687DR_FAN_CFG_PHASE) == 0)
                 {
                     byte req = ReadByte(FAN_PWM_REQUEST_REG[index]);
+
                     if ((req & NCT6687DR_FAN_CFG_REQ) == 0)
                         break;
                 }
@@ -1310,7 +1393,10 @@ namespace ZenStates.Core.Hardware.Lpc
 
             // Send config request. The BIOS uses read-modify-write on 0A:01,
             // preserving unrelated status bits while setting CFG_REQ.
-            UpdateByte(FAN_PWM_REQUEST_REG[index], NCT6687DR_FAN_CFG_REQ_UPDATE_MASK, NCT6687DR_FAN_CFG_REQ);
+            UpdateByte(FAN_PWM_REQUEST_REG[index],
+                NCT6687DR_FAN_CFG_REQ_UPDATE_MASK,
+                NCT6687DR_FAN_CFG_REQ);
+
             Thread.Sleep(10); // CC_Engine: fixed 10ms delay after request
 
             // Wait until EC enters config phase and unlocks registers
@@ -1318,7 +1404,9 @@ namespace ZenStates.Core.Hardware.Lpc
             while (sw.Elapsed < TimeSpan.FromSeconds(1))
             {
                 engineSts = ReadByte(NCT6687DR_REG_FAN_ENGINE_STS);
-                if ((engineSts & NCT6687DR_FAN_CFG_LOCK) == 0 && (engineSts & NCT6687DR_FAN_CFG_PHASE) != 0)
+
+                if ((engineSts & NCT6687DR_FAN_CFG_LOCK) == 0 &&
+                    (engineSts & NCT6687DR_FAN_CFG_PHASE) != 0)
                     return true;
 
                 Thread.Sleep(1);
@@ -1336,19 +1424,25 @@ namespace ZenStates.Core.Hardware.Lpc
             byte engineSts = ReadByte(NCT6687DR_REG_FAN_ENGINE_STS);
 
             // Already not accessible
-            if ((engineSts & NCT6687DR_FAN_CFG_LOCK) != 0 || (engineSts & NCT6687DR_FAN_CFG_PHASE) == 0)
+            if ((engineSts & NCT6687DR_FAN_CFG_LOCK) != 0 ||
+                (engineSts & NCT6687DR_FAN_CFG_PHASE) == 0)
                 return false;
 
             // Signal done. The BIOS uses read-modify-write on 0A:01,
             // preserving CFG_REQ and unrelated bits while setting CFG_DONE.
-            UpdateByte(FAN_PWM_REQUEST_REG[index], NCT6687DR_FAN_CFG_DONE_UPDATE_MASK, NCT6687DR_FAN_CFG_DONE);
+            UpdateByte(FAN_PWM_REQUEST_REG[index],
+                NCT6687DR_FAN_CFG_DONE_UPDATE_MASK,
+                NCT6687DR_FAN_CFG_DONE);
+
             Thread.Sleep(10); // CC_Engine: fixed 10ms delay after commit
 
             // Wait until EC checks the new configuration
             Stopwatch sw = Stopwatch.StartNew();
+
             while (sw.Elapsed < TimeSpan.FromSeconds(1))
             {
                 engineSts = ReadByte(NCT6687DR_REG_FAN_ENGINE_STS);
+
                 if ((engineSts & NCT6687DR_FAN_CFG_CHECK_DONE) != 0)
                     break;
 
@@ -1372,7 +1466,10 @@ namespace ZenStates.Core.Hardware.Lpc
         {
             if (!_restoreDefaultFanControlRequired[index])
             {
-                if (Chip != Chip.NCT6683D && Chip != Chip.NCT6686D && Chip != Chip.NCT6687D && Chip != Chip.NCT6687DR)
+                if (Chip != Chip.NCT6683D &&
+                    Chip != Chip.NCT6686D &&
+                    Chip != Chip.NCT6687D &&
+                    Chip != Chip.NCT6687DR)
                 {
                     _initialFanControlMode[index] = ReadByte(FAN_CONTROL_MODE_REG[index]);
                 }
@@ -1380,13 +1477,13 @@ namespace ZenStates.Core.Hardware.Lpc
                 {
                     // Use the correct bit position mapping for NCT6687DR
                     int bitPos = FAN_CONTROL_MODE_BIT[index];
+
                     if (bitPos >= 0)
                     {
                         byte mode = ReadByte(FAN_CONTROL_MODE_REG[index]);
                         byte bitMask = (byte)(0x01 << bitPos);
                         _initialFanControlMode[index] = (byte)(mode & bitMask);
                     }
-
                 }
                 else
                 {
@@ -1404,7 +1501,10 @@ namespace ZenStates.Core.Hardware.Lpc
         {
             if (_restoreDefaultFanControlRequired[index])
             {
-                if (Chip != Chip.NCT6683D && Chip != Chip.NCT6686D && Chip != Chip.NCT6687D && Chip != Chip.NCT6687DR)
+                if (Chip != Chip.NCT6683D &&
+                    Chip != Chip.NCT6686D &&
+                    Chip != Chip.NCT6687D &&
+                    Chip != Chip.NCT6687DR)
                 {
                     WriteByte(FAN_CONTROL_MODE_REG[index], _initialFanControlMode[index]);
                     WriteByte(FAN_PWM_COMMAND_REG[index], _initialFanPwmCommand[index]);
@@ -1423,7 +1523,10 @@ namespace ZenStates.Core.Hardware.Lpc
                         if (!StartFanCfgUpdate(index))
                             break;
 
-                        UpdateByte(FAN_CONTROL_MODE_REG[index], unchecked((byte)~bitMask), restoreBit);
+                        UpdateByte(FAN_CONTROL_MODE_REG[index],
+                            unchecked((byte)~bitMask),
+                            restoreBit);
+
                         Set6687DRControl(index, _initialFanPwmCommand[index]);
 
                         if (CompleteFanConfigUpdate(index))
@@ -1452,7 +1555,18 @@ namespace ZenStates.Core.Hardware.Lpc
 
         private void DisableIOSpaceLock()
         {
-            if (Chip != Chip.NCT6683D && Chip != Chip.NCT6686D && Chip != Chip.NCT6687D && Chip != Chip.NCT6687DR)
+            if (Chip != Chip.NCT6791D &&
+                Chip != Chip.NCT6792D &&
+                Chip != Chip.NCT6792DA &&
+                Chip != Chip.NCT6793D &&
+                Chip != Chip.NCT6795D &&
+                Chip != Chip.NCT6796D &&
+                Chip != Chip.NCT6796DR &&
+                Chip != Chip.NCT6796DS &&
+                Chip != Chip.NCT6797D &&
+                Chip != Chip.NCT6798D &&
+                Chip != Chip.NCT6799D &&
+                Chip != Chip.NCT5585D)
             {
                 return;
             }
@@ -1472,7 +1586,7 @@ namespace ZenStates.Core.Hardware.Lpc
             Debug.WriteLine(string.Format(CultureInfo.InvariantCulture, format, args));
         }
 
-        private readonly struct TemperatureSourceData
+        private struct TemperatureSourceData
         {
             public readonly Enum Source;
             public readonly ushort Register;
@@ -1481,37 +1595,39 @@ namespace ZenStates.Core.Hardware.Lpc
             public readonly ushort SourceRegister;
             public readonly ushort? AlternateRegister;
 
-            public TemperatureSourceData(Enum source, ushort register)
+            public TemperatureSourceData(
+                Enum source,
+                ushort register)
+                : this(source, register, 0, -1, 0, null)
             {
-                Source = source;
-                Register = register;
-                HalfRegister = 0;
-                HalfBit = -1;
-                SourceRegister = 0;
-                AlternateRegister = null;
             }
 
-            public TemperatureSourceData(Enum source, ushort register, ushort halfRegister, int halfBit)
+            public TemperatureSourceData(
+                Enum source,
+                ushort register,
+                ushort halfRegister,
+                int halfBit)
+                : this(source, register, halfRegister, halfBit, 0, null)
             {
-                Source = source;
-                Register = register;
-                HalfRegister = halfRegister;
-                HalfBit = halfBit;
-                SourceRegister = 0;
-                AlternateRegister = null;
             }
 
-            public TemperatureSourceData(Enum source, ushort register, ushort halfRegister, int halfBit, ushort sourceRegister)
+            public TemperatureSourceData(
+                Enum source,
+                ushort register,
+                ushort halfRegister,
+                int halfBit,
+                ushort sourceRegister)
+                : this(source, register, halfRegister, halfBit, sourceRegister, null)
             {
-                Source = source;
-                Register = register;
-                HalfRegister = halfRegister;
-                HalfBit = halfBit;
-                SourceRegister = sourceRegister;
-                AlternateRegister = null;
             }
 
-            public TemperatureSourceData(Enum source, ushort register, ushort halfRegister, int halfBit, ushort sourceRegister, ushort? alternateRegister)
+            public TemperatureSourceData(
+                Enum source,
+                ushort register,
+                ushort halfRegister,
+                int halfBit,
+                ushort sourceRegister,
+                ushort? alternateRegister)
             {
                 Source = source;
                 Register = register;
