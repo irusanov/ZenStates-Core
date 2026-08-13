@@ -1,7 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.Globalization;
+using ZenStates.Core.Dictionaries;
 
-namespace ZenStates.Core
+namespace ZenStates.Core.Common
 {
     public class ProcOdt : EncodedValueBase
     {

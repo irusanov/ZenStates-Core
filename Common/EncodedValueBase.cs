@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Data.SqlTypes;
 
-namespace ZenStates.Core
+namespace ZenStates.Core.Common
 {
     public abstract class EncodedValueBase : INullable
     {

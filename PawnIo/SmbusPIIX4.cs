@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using ZenStates.Core.Drivers;
 
-namespace ZenStates.Core
+namespace ZenStates.Core.PawnIo
 {
     internal class SmbusPiix4 : SmbusDriverBase
     {

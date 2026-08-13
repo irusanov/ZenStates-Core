@@ -1,17 +1,17 @@
 using System;
 
-namespace ZenStates.Core
+namespace ZenStates.Core.PawnIo
 {
     internal class LpcIO : IDisposable
     {
-        private const string IOCTL_SELECT_SLOT   = "ioctl_select_slot";
-        private const string IOCTL_FIND_BARS     = "ioctl_find_bars";
-        private const string IOCTL_PIO_INB       = "ioctl_pio_inb";
-        private const string IOCTL_PIO_OUTB      = "ioctl_pio_outb";
-        private const string IOCTL_SUPERIO_INB   = "ioctl_superio_inb";
-        private const string IOCTL_SUPERIO_INW   = "ioctl_superio_inw";
-        private const string IOCTL_SUPERIO_OUTB  = "ioctl_superio_outb";
-        private const int    STATUS_SUCCESS      = 0;
+        private const string IOCTL_SELECT_SLOT = "ioctl_select_slot";
+        private const string IOCTL_FIND_BARS = "ioctl_find_bars";
+        private const string IOCTL_PIO_INB = "ioctl_pio_inb";
+        private const string IOCTL_PIO_OUTB = "ioctl_pio_outb";
+        private const string IOCTL_SUPERIO_INB = "ioctl_superio_inb";
+        private const string IOCTL_SUPERIO_INW = "ioctl_superio_inw";
+        private const string IOCTL_SUPERIO_OUTB = "ioctl_superio_outb";
+        private const int STATUS_SUCCESS = 0;
 
         private static readonly long[] _emptyOutputBuffer = new long[0];
 
@@ -43,7 +43,7 @@ namespace ZenStates.Core
 
         public bool ReadPort(ushort port, out byte value)
         {
-            long[] input  = new long[] { port };
+            long[] input = new long[] { port };
             long[] output = new long[1];
 
             int status = _pawnIo.ExecuteHr(IOCTL_PIO_INB, input, 1, output, 1, out uint returnSize);
@@ -66,7 +66,7 @@ namespace ZenStates.Core
 
         public bool ReadByte(byte reg, out byte value)
         {
-            long[] input  = new long[] { reg };
+            long[] input = new long[] { reg };
             long[] output = new long[1];
 
             int status = _pawnIo.ExecuteHr(IOCTL_SUPERIO_INB, input, 1, output, 1, out uint returnSize);
@@ -82,7 +82,7 @@ namespace ZenStates.Core
 
         public bool ReadWord(byte reg, out ushort value)
         {
-            long[] input  = new long[] { reg };
+            long[] input = new long[] { reg };
             long[] output = new long[1];
 
             int status = _pawnIo.ExecuteHr(IOCTL_SUPERIO_INW, input, 1, output, 1, out uint returnSize);
@@ -103,7 +103,7 @@ namespace ZenStates.Core
             return status == STATUS_SUCCESS;
         }
 
-        // Locking methods — acquire the ISA bus mutex for each call.
+        // Locking methods - acquire the ISA bus mutex for each call.
 
         //public bool SelectSlot(int slot)
         //{

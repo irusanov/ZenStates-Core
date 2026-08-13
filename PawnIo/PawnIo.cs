@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace ZenStates.Core
+namespace ZenStates.Core.PawnIo
 {
     /// <summary>
     /// Adapted from LibreHardwareMonitor's PawnIo.cs

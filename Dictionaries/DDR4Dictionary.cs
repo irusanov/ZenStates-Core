@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
-using static ZenStates.Core.DRAM.MemoryConfig;
+using static ZenStates.Core.Hardware.DRAM.MemoryConfig;
 
-namespace ZenStates.Core
+namespace ZenStates.Core.Dictionaries
 {
     internal static class DDR4Dictionary
     {

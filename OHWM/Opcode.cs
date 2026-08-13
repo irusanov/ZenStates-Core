@@ -12,7 +12,7 @@ using System;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
-namespace OpenHardwareMonitor.Hardware
+namespace ZenStates.Core.OHWM
 {
     internal static class Opcode
     {

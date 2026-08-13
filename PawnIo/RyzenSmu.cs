@@ -2,8 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using ZenStates.Core.Hardware.MutexLock;
 
-namespace ZenStates.Core
+namespace ZenStates.Core.PawnIo
 {
     /// <summary>
     /// Provides access to AMD Ryzen SMU (System Management Unit) functionality

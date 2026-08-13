@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace ZenStates.Core
+namespace ZenStates.Core.Dictionaries
 {
     internal static class AodDictionaries
     {

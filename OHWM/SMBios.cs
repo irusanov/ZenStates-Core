@@ -13,7 +13,7 @@ using System.Text;
 // ReSharper disable IdentifierTypo
 // ReSharper disable InconsistentNaming
 
-namespace OpenHardwareMonitor.Hardware
+namespace ZenStates.Core.OHWM
 {
 
     /// <summary>

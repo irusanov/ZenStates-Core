@@ -8,12 +8,13 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using ZenStates.Core.Common;
 
 namespace ZenStates.Core
 {
     public static class Utils
     {
-        public static bool Is64Bit => OpenHardwareMonitor.Hardware.OperatingSystem.Is64BitOperatingSystem;
+        public static bool Is64Bit => OHWM.OperatingSystem.Is64BitOperatingSystem;
 
         public static uint SetBits(uint val, int offset, int n, uint newVal)
         {
@@ -136,11 +137,11 @@ namespace ZenStates.Core
         public static uint CurveOptimizerToVid(int co)
         {
             if (co < -50) co = -50;
-            if (co > 50)  co = 50;
+            if (co > 50) co = 50;
 
             const double baseVoltage = 1.30;
-            const double maxOffset   = 0.200;
-            const double gamma       = 1.7;
+            const double maxOffset = 0.200;
+            const double gamma = 1.7;
 
             double normalized = Math.Abs(co) / 50.0;
             double curve = Math.Pow(normalized, gamma);

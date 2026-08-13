@@ -1,4 +1,3 @@
-using OpenHardwareMonitor.Hardware;
 using System;
 using System.Diagnostics;
 
@@ -7,9 +6,17 @@ using System.Globalization;
 #endif
 using System.Reflection;
 using System.Text.RegularExpressions;
-using ZenStates.Core.DRAM;
 using ZenStates.Core.Drivers;
-using ZenStates.Core.SMUCommands;
+using ZenStates.Core.PawnIo;
+using ZenStates.Core.Common;
+using ZenStates.Core.Hardware.DRAM;
+using ZenStates.Core.OHWM;
+using ZenStates.Core.Hardware.Smu.Commands;
+using ZenStates.Core.Hardware;
+using ZenStates.Core.Hardware.MutexLock;
+using ZenStates.Core.Hardware.Apob;
+using ZenStates.Core.Hardware.Aod;
+using ZenStates.Core.Hardware.Smu;
 
 namespace ZenStates.Core
 {
@@ -154,7 +161,7 @@ namespace ZenStates.Core
         }
 
         public readonly IODriver io = new IODriver();
-        private readonly AMD_MMIO mmio;
+        private readonly Mmio mmio;
         public readonly CPUInfo info;
         public readonly SystemInfo systemInfo;
         public readonly SMU smu;
@@ -334,7 +341,7 @@ namespace ZenStates.Core
 #if !NET20
             CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 #endif
-            if (!PawnIo.IsInstalled)
+            if (!PawnIo.PawnIo.IsInstalled)
             {
                 throw new ApplicationException("PawnIO is not installed.");
             }
@@ -361,7 +368,7 @@ namespace ZenStates.Core
                     throw new ApplicationException("Error initializing PawnIO AMD module.", ex);
                 }
 
-                mmio = new AMD_MMIO(io);
+                mmio = new Mmio();
 
                 if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
                 {
@@ -1028,7 +1035,7 @@ namespace ZenStates.Core
 
         public double? GetBclk() => mmio.GetBclk();
 
-        public AMD_MMIO.ClkGen GetStrapStatus() => mmio.GetStrapStatus();
+        public Mmio.ClkGen GetStrapStatus() => mmio.GetStrapStatus();
 
         public bool SetBclk(double blck) => mmio.SetBclk(blck);
 
@@ -1314,7 +1321,7 @@ namespace ZenStates.Core
         public bool SetPsmMarginSingleCore(uint core, uint ccd, uint ccx, int margin) =>
             SetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx), margin);
 
-        public SMU.Status SetCurveShaperMargin(int marginHigh = 0, int marginMedium = 0, int marginLow = 0, int frequencyTier = 0) => 
+        public SMU.Status SetCurveShaperMargin(int marginHigh = 0, int marginMedium = 0, int marginLow = 0, int frequencyTier = 0) =>
             new SetCurveShaperMargin(smu).Execute(marginHigh, marginMedium, marginLow, frequencyTier).status;
 
         public uint[] GetAllCurveShaperMargins() => new GetAllCurveShaperMargins(smu).Execute().args;

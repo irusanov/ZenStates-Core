@@ -12,7 +12,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace OpenHardwareMonitor.Hardware
+namespace ZenStates.Core.OHWM
 {
 
     internal static class FirmwareTable

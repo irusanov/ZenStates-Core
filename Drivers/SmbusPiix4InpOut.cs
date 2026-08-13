@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using ZenStates.Core.Hardware;
 
 namespace ZenStates.Core.Drivers
 {

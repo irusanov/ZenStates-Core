@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 
-namespace ZenStates.Core
+namespace ZenStates.Core.OHWM
 {
     // this class just wraps some Win32 stuff that we're going to use
     public static class InteropMethods
