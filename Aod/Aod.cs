@@ -431,6 +431,37 @@ namespace ZenStates.Core
         {
             Dictionary<string, uint> dict = new Dictionary<string, uint>();
 
+#if NET8_0_OR_GREATER
+            if (!System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeCompiled)
+            {
+                Debug.WriteLine("Native AOT detected. Skipping WMI.");
+                return dict;
+            }
+#endif
+            if (IsNativeAotFallback())
+            {
+                return dict;
+            }
+
+            return GetWmiFunctionsImpl(dict);    
+            
+        }
+        
+        private static bool IsNativeAotFallback()
+        {
+            try
+            {
+                return string.IsNullOrEmpty(typeof(object).Assembly.Location);
+            }
+            catch
+            {
+                return true;
+            }
+        }
+        
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static Dictionary<string, uint> GetWmiFunctionsImpl(Dictionary<string, uint> dict)
+        {
             try
             {
                 string wmiAMDACPI = "AMD_ACPI";
