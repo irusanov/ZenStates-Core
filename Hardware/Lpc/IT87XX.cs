@@ -289,7 +289,7 @@ namespace ZenStates.Core.Hardware.Lpc
 
                 if (Fans.Length >= 6)
                 {
-                    if (chip == Chip.IT8665E)
+                    if (chip == Chip.IT8665E || chip == Chip.IT8625E)
                     {
                         modes = ReadByte(FAN_TACHOMETER_16BIT_REGISTER_ALT, out valid);
                         if (valid)
@@ -508,11 +508,11 @@ namespace ZenStates.Core.Hardware.Lpc
 
             for (int i = 0; i < Temperatures.Length; i++)
             {
-                sbyte value = (sbyte)ReadByte((byte)(TEMPERATURE_BASE_REG + i), out bool valid);
+                sbyte value = unchecked((sbyte)ReadByte((byte)(TEMPERATURE_BASE_REG + i), out bool valid));
                 if (!valid)
                     continue;
 
-                if (value < sbyte.MaxValue && value > 0)
+                if (value < sbyte.MaxValue)
                     Temperatures[i] = value;
                 else
                     Temperatures[i] = null;

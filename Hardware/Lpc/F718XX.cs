@@ -168,7 +168,7 @@ namespace ZenStates.Core.Hardware.Lpc
                         break;
                     default:
                         {
-                            sbyte value = (sbyte)ReadByte((byte)(TEMPERATURE_BASE_REG + (2 * (i + 1))));
+                            sbyte value = unchecked((sbyte)ReadByte((byte)(TEMPERATURE_BASE_REG + (2 * (i + 1)))));
                             if (value < sbyte.MaxValue && value > 0)
                                 Temperatures[i] = value;
                             else

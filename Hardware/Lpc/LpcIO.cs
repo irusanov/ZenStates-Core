@@ -14,7 +14,7 @@ using System.Threading;
 
 namespace ZenStates.Core.Hardware.Lpc
 {
-    internal class LpcIO
+    public class LpcIO
     {
         private readonly StringBuilder _report = new StringBuilder();
         private readonly List<ISuperIO> _superIOs = new List<ISuperIO>();

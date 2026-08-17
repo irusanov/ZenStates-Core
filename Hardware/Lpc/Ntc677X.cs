@@ -821,7 +821,7 @@ namespace ZenStates.Core.Hardware.Lpc
                 switch (Chip)
                 {
                     case Chip.NCT610XD:
-                        value = (sbyte)ReadByte(ts.Register);
+                        value = unchecked((sbyte)ReadByte(ts.Register));
                         int half = (ReadByte(ts.HalfRegister) >> ts.HalfBit) & 0x1;
                         temperature = value + (0.5f * half);
                         Temperatures[i] = temperature;
@@ -831,7 +831,7 @@ namespace ZenStates.Core.Hardware.Lpc
                     case Chip.NCT6687DR:
                     case Chip.NCT6686D:
                     case Chip.NCT6683D:
-                        value = (sbyte)ReadByte(ts.Register);
+                        value = unchecked((sbyte)ReadByte(ts.Register));
                         half = (ReadByte((ushort)(ts.Register + 1)) >> 7) & 0x1;
                         Temperatures[i] = value + (0.5f * half);
                         break;
@@ -849,7 +849,7 @@ namespace ZenStates.Core.Hardware.Lpc
                             continue;
                         }
 
-                        value = (sbyte)ReadByte(_temperaturesSource[i].Register) << 1;
+                        value = unchecked((sbyte)ReadByte(_temperaturesSource[i].Register)) << 1;
                         Log("Temperature register {0} at 0x{1:X3} value (integer): {2}/2", i, ts.Register, value);
 
                         if (_temperaturesSource[i].HalfBit > 0)
@@ -870,7 +870,7 @@ namespace ZenStates.Core.Hardware.Lpc
                         }
 
                         // Skip reading when already filled, because later values are without fractional
-                        if ((temperatureSourceMask & (1L << (byte)source)) > 0)
+                        if ((temperatureSourceMask & (1L << unchecked((byte)source))) > 0)
                         {
                             Log("Temperature register {0} discarded, because source seen before.", i);
                             continue;
@@ -887,7 +887,7 @@ namespace ZenStates.Core.Hardware.Lpc
                         }
                         else
                         {
-                            temperatureSourceMask |= 1L << (byte)source;
+                            temperatureSourceMask |= 1L << unchecked((byte)source);
                             Log("Temperature register {0} accepted.", i);
                         }
 
@@ -903,7 +903,7 @@ namespace ZenStates.Core.Hardware.Lpc
                         break;
 
                     default:
-                        value = (sbyte)ReadByte(ts.Register) << 1;
+                        value = unchecked((sbyte)ReadByte(ts.Register)) << 1;
 
                         if (ts.HalfBit > 0)
                         {
@@ -911,7 +911,7 @@ namespace ZenStates.Core.Hardware.Lpc
                         }
 
                         source = (SourceNct67Xxd)ReadByte(ts.SourceRegister);
-                        temperatureSourceMask |= 1L << (byte)source;
+                        temperatureSourceMask |= 1L << unchecked((byte)source);
 
                         temperature = 0.5f * value;
 
@@ -947,7 +947,7 @@ namespace ZenStates.Core.Hardware.Lpc
                     continue;
                 }
 
-                float? temperature = (sbyte)ReadByte(ts.AlternateRegister.Value);
+                float? temperature = unchecked((sbyte)ReadByte(ts.AlternateRegister.Value));
                 Log("Alternate temperature register for temperature {0}, {1:G} ({1:D}), at 0x{2:X3} final temperature: {3}.", i, ts.Source, ts.AlternateRegister.Value, temperature);
 
                 if (temperature.HasValue &&

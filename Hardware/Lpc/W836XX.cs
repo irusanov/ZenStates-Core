@@ -344,7 +344,7 @@ namespace ZenStates.Core.Hardware.Lpc
 
             for (int i = 0; i < Temperatures.Length; i++)
             {
-                int value = (sbyte)ReadByte(TEMPERATURE_BANK[i], TEMPERATURE_REG[i]) << 1;
+                int value = unchecked((sbyte)ReadByte(TEMPERATURE_BANK[i], TEMPERATURE_REG[i]) << 1);
                 if (TEMPERATURE_BANK[i] > 0)
                     value |= ReadByte(TEMPERATURE_BANK[i], (byte)(TEMPERATURE_REG[i] + 1)) >> 7;
 

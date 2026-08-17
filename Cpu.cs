@@ -17,6 +17,8 @@ using ZenStates.Core.Hardware.MutexLock;
 using ZenStates.Core.Hardware.Apob;
 using ZenStates.Core.Hardware.Aod;
 using ZenStates.Core.Hardware.Smu;
+using ZenStates.Core.Hardware.Lpc;
+using LpcIO = ZenStates.Core.Hardware.Lpc.LpcIO;
 
 namespace ZenStates.Core
 {
@@ -32,6 +34,7 @@ namespace ZenStates.Core
         public readonly Version Version = Assembly.GetExecutingAssembly().GetName().Version;
 
         public RyzenSmu RyzenSmu => _pawnRyzenSmu;
+        public LpcIO LpcIO;
 
         public enum Family
         {
@@ -442,6 +445,8 @@ namespace ZenStates.Core
                 info.apob = new Apob(info.codeName);
                 systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
                 powerTable = new PowerTable(_pawnRyzenSmu, info.codeName);
+
+                LpcIO = new LpcIO(this.systemInfo);
 
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
