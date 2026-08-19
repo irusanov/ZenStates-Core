@@ -4,6 +4,61 @@ using static ZenStates.Core.Cpu;
 
 namespace ZenStates.Core.Hardware
 {
+    public struct SmuVersionNumber
+    {
+        private readonly uint _value;
+
+        public SmuVersionNumber(uint value)
+        {
+            _value = value;
+        }
+
+        public uint Value => _value;
+
+        public override string ToString()
+        {
+            if (_value == 0)
+                return "Unknown";
+
+            if ((_value & 0xFF000000) > 0)
+                return $"{(_value >> 24) & 0xff}.{(_value >> 16) & 0xff}.{(_value >> 8) & 0xff}.{_value & 0xff}";
+
+            return $"{(_value >> 16) & 0xff}.{(_value >> 8) & 0xff}.{_value & 0xff}";
+        }
+
+        public static implicit operator SmuVersionNumber(uint value)
+        {
+            return new SmuVersionNumber(value);
+        }
+
+        public static implicit operator uint(SmuVersionNumber value)
+        {
+            return value._value;
+        }
+    }
+
+    public struct CpuId
+    {
+        private readonly uint _value;
+        public CpuId(uint value)
+        {
+            _value = value;
+        }
+        public uint Value => _value;
+        public override string ToString()
+        {
+            return _value.ToString("X8").TrimStart('0');
+        }
+        public static implicit operator CpuId(uint value)
+        {
+            return new CpuId(value);
+        }
+        public static implicit operator uint(CpuId value)
+        {
+            return value._value;
+        }
+    }
+
     [Serializable]
     public class SystemInfo
     {
@@ -27,8 +82,7 @@ namespace ZenStates.Core.Hardware
         public string CpuName => _cpuInfo.cpuName ?? "N/A";
         public string Vendor => _cpuInfo.vendor ?? "N/A";
         public string CodeName => _cpuInfo.codeName.ToString();
-        public uint CpuId => _cpuInfo.cpuid;
-        public string CpuIdString => CpuId.ToString("X8").TrimStart('0');
+        public CpuId CpuId => _cpuInfo.cpuid;
         public uint BaseModel => _cpuInfo.baseModel;
         public uint ExtendedModel => _cpuInfo.extModel;
         public uint Model => _cpuInfo.model;
@@ -54,29 +108,11 @@ namespace ZenStates.Core.Hardware
         public string AgesaVersion { get; set; }
 
         // SMU
-        public uint SmuVersion { get; private set; }
+        public SmuVersionNumber SmuVersion { get; private set; }
         public uint SmuTableVersion { get; private set; }
         public string SmuType { get; private set; }
-        public string SmuVersionString => SmuVersionToString(SmuVersion);
 
         // Static access to SMBios
         public static SMBios SMBios => SMBiosSingleton.Instance;
-
-        [Obsolete("Use SmuVersionString property instead.")]
-        public string GetSmuVersionString() => SmuVersionString;
-
-        [Obsolete("Use CpuIdString property instead.")]
-        public string GetCpuIdString() => CpuIdString;
-
-        private static string SmuVersionToString(uint ver)
-        {
-            if (ver == 0)
-                return "Unknown";
-
-            if ((ver & 0xFF000000) > 0)
-                return $"{(ver >> 24) & 0xff}.{(ver >> 16) & 0xff}.{(ver >> 8) & 0xff}.{ver & 0xff}";
-
-            return $"{(ver >> 16) & 0xff}.{(ver >> 8) & 0xff}.{ver & 0xff}";
-        }
     }
 }
