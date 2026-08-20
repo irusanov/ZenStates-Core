@@ -9,7 +9,7 @@ using System;
 using System.Globalization;
 using System.Text;
 
-namespace ZenStates.Core.Hardware.Lpc
+namespace ZenStates.Core.Hardware.Motherboard.Lpc
 {
     internal class IT87XX : ISuperIO
     {

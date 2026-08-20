@@ -7,7 +7,7 @@
 
 using System.Diagnostics;
 
-namespace ZenStates.Core.Hardware.Lpc
+namespace ZenStates.Core.Hardware.Motherboard.Lpc
 {
     internal class IT879xEcioPort
     {

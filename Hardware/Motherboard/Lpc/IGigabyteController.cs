@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace ZenStates.Core.Hardware.Lpc
+namespace ZenStates.Core.Hardware.Motherboard.Lpc
 {
     internal interface IGigabyteController : IDisposable
     {

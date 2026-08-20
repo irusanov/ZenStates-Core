@@ -5,7 +5,7 @@
 // All Rights Reserved.
 // Adаpted from LibreHardwareMonitor (https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)
 
-namespace ZenStates.Core.Hardware.Lpc
+namespace ZenStates.Core.Hardware.Motherboard.Lpc
 {
     public interface ISuperIO
     {

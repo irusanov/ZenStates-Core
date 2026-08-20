@@ -17,8 +17,7 @@ using ZenStates.Core.Hardware.MutexLock;
 using ZenStates.Core.Hardware.Apob;
 using ZenStates.Core.Hardware.Aod;
 using ZenStates.Core.Hardware.Smu;
-using ZenStates.Core.Hardware.Lpc;
-using LpcIO = ZenStates.Core.Hardware.Lpc.LpcIO;
+using LpcIO = ZenStates.Core.Hardware.Motherboard.Lpc.LpcIO;
 
 namespace ZenStates.Core
 {
@@ -446,7 +445,7 @@ namespace ZenStates.Core
                 systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
                 powerTable = new PowerTable(_pawnRyzenSmu, info.codeName);
 
-                LpcIO = new LpcIO(this.systemInfo);
+                LpcIO = new LpcIO(SMBiosSingleton.Instance);
 
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
@@ -1539,6 +1538,7 @@ namespace ZenStates.Core
                     _pawnAmd?.Close();
                     _pawnRyzenSmu?.Dispose();
                     _smbusPiix4?.Dispose();
+                    LpcIO?.Close();
                 }
 
                 disposedValue = true;

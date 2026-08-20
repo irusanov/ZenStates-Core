@@ -7,7 +7,7 @@
 
 using System;
 
-namespace ZenStates.Core.Hardware.Lpc
+namespace ZenStates.Core.Hardware.Motherboard.Lpc
 {
     /// <summary>
     /// Adapted from LibreHardwareMonitor LpcPort

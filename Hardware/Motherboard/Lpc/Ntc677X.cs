@@ -15,7 +15,7 @@ using System.Globalization;
 using System.Text;
 using System.Threading;
 
-namespace ZenStates.Core.Hardware.Lpc
+namespace ZenStates.Core.Hardware.Motherboard.Lpc
 {
     internal class Nct677X : ISuperIO
     {

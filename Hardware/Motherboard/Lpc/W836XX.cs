@@ -11,7 +11,7 @@ using System.Text;
 
 // ReSharper disable once InconsistentNaming
 
-namespace ZenStates.Core.Hardware.Lpc
+namespace ZenStates.Core.Hardware.Motherboard.Lpc
 {
     internal class W836XX : ISuperIO
     {

@@ -11,20 +11,21 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using System.Threading;
+using ZenStates.Core.OHWM;
 
-namespace ZenStates.Core.Hardware.Lpc
+namespace ZenStates.Core.Hardware.Motherboard.Lpc
 {
     public class LpcIO
     {
         private readonly StringBuilder _report = new StringBuilder();
         private readonly List<ISuperIO> _superIOs = new List<ISuperIO>();
 
-        public LpcIO(SystemInfo systemInfo)
+        public LpcIO(SMBios smbios)
         {
             if (!Mutexes.WaitIsaBus(100))
                 return;
 
-            Detect(systemInfo);
+            Detect(smbios);
 
             Mutexes.ReleaseIsaBus();
         }
@@ -63,16 +64,16 @@ namespace ZenStates.Core.Hardware.Lpc
             return false;
         }
 
-        private void Detect(SystemInfo systemInfo)
+        private void Detect(SMBios smbios)
         {
             for (int i = 0; i < REGISTER_PORTS.Length; i++)
             {
                 LpcPort port = new LpcPort(REGISTER_PORTS[i], VALUE_PORTS[i]);
 
-                if (DetectWinbondFintek(port, systemInfo))
+                if (DetectWinbondFintek(port, smbios))
                     continue;
 
-                if (DetectIT87(port, systemInfo))
+                if (DetectIT87(port, smbios))
                     continue;
 
                 if (DetectSmsc(port))
@@ -98,13 +99,15 @@ namespace ZenStates.Core.Hardware.Lpc
                 superIO.Close();
         }
 
-        private bool DetectWinbondFintek(LpcPort port, SystemInfo systemInfo)
+        private bool DetectWinbondFintek(LpcPort port, SMBios smbios)
         {
             port.WinbondNuvotonFintekEnter();
 
             byte logicalDeviceNumber = 0;
             byte id = port.ReadByte(CHIP_ID_REGISTER);
             byte revision = port.ReadByte(CHIP_REVISION_REGISTER);
+            var motherboardName = smbios.Board.ProductName.ToString();
+            var motherboardVendor = smbios.Board.ManufacturerName.ToString();
             Chip chip = Chip.Unknown;
 
             switch (id)
@@ -381,7 +384,7 @@ namespace ZenStates.Core.Hardware.Lpc
                             break;
                         case 0x2A:
 
-                            if (systemInfo.MbName.Equals("X870E Nova WiFi", StringComparison.OrdinalIgnoreCase))
+                            if (motherboardName.Equals("X870E Nova WiFi", StringComparison.OrdinalIgnoreCase))
                             {
                                 chip = Chip.NCT5585D;
                             }
@@ -412,14 +415,13 @@ namespace ZenStates.Core.Hardware.Lpc
                     {
                         case 0x92:
                             // MSI AM5/LGA1851 800 Series Motherboard Compatibility (Nuvoton NCT6687DR)
-                            string productName = SystemInfo.SMBios.Board.ProductName.ToString();
-                            if ((systemInfo.MbVendor.IndexOf("msi", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                systemInfo.MbVendor.IndexOf("Micro Star", StringComparison.OrdinalIgnoreCase) >= 0) && 
-                                (productName.IndexOf("B840", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                productName.IndexOf("B850", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                productName.IndexOf("B860", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                productName.IndexOf("X870", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                productName.IndexOf("Z890", StringComparison.OrdinalIgnoreCase) >= 0))
+                            if ((motherboardVendor.IndexOf("msi", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                motherboardVendor.IndexOf("Micro Star", StringComparison.OrdinalIgnoreCase) >= 0) && 
+                                (motherboardName.IndexOf("B840", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                motherboardName.IndexOf("B850", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                motherboardName.IndexOf("B860", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                motherboardName.IndexOf("X870", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                motherboardName.IndexOf("Z890", StringComparison.OrdinalIgnoreCase) >= 0))
                             {
                                 chip = Chip.NCT6687DR;
                             }
@@ -437,7 +439,7 @@ namespace ZenStates.Core.Hardware.Lpc
                     switch (revision)
                     {
                         case 0x02:
-                            if (systemInfo.MbName.Equals("X870E Nova WiFi", StringComparison.OrdinalIgnoreCase))
+                            if (motherboardName.Equals("X870E Nova WiFi", StringComparison.OrdinalIgnoreCase))
                             {
                                 chip = Chip.NCT6796DS;
                             }
@@ -582,7 +584,7 @@ namespace ZenStates.Core.Hardware.Lpc
             return false;
         }
 
-        private bool DetectIT87(LpcPort port, SystemInfo systemInfo)
+        private bool DetectIT87(LpcPort port, SMBios smbios)
         {
             // IT87XX can enter only on port 0x2E
             // IT8792 using 0x4E
@@ -720,7 +722,7 @@ namespace ZenStates.Core.Hardware.Lpc
                     gpioVerify = port.ReadWord(BASE_ADDRESS_REGISTER + 2);
                 }
 
-                IGigabyteController gigabyteController = FindGigabyteEC(port, chip, systemInfo);
+                IGigabyteController gigabyteController = FindGigabyteEC(port, chip, smbios);
                 port.IT87Exit();
 
                 if (address != verify || address < 0x100 || (address & 0xF007) != 0)
@@ -759,12 +761,13 @@ namespace ZenStates.Core.Hardware.Lpc
             return false;
         }
 
-        private IGigabyteController FindGigabyteEC(LpcPort port, Chip chip, SystemInfo systemInfo)
+        private static IGigabyteController FindGigabyteEC(LpcPort port, Chip chip, SMBios smbios)
         {
             // The controller only affects the 2nd ITE chip if present, and only a few
             // models are known to use this controller.
             // IT8795E likely to need this too, but may use different registers.
-            if (systemInfo.MbVendor.IndexOf("Gigabyte", StringComparison.OrdinalIgnoreCase) < 0 || port.RegisterPort != 0x4E ||
+            var motherboardVendor = smbios.Board.ManufacturerName.ToString();
+            if (motherboardVendor.IndexOf("Gigabyte", StringComparison.OrdinalIgnoreCase) < 0 || port.RegisterPort != 0x4E ||
                 (chip != Chip.IT8790E && chip != Chip.IT8792E && chip != Chip.IT87952E))
                 return null;
 
