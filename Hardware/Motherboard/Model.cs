@@ -54,6 +54,7 @@ namespace ZenStates.Core.Hardware.Motherboard
         ROG_STRIX_X470_I,
         ROG_CROSSHAIR_X670E_EXTREME,
         ROG_CROSSHAIR_X670E_HERO,
+        ROG_CROSSHAIR_X870E_HERO_BTF,
         ROG_CROSSHAIR_X670E_GENE,
         ROG_STRIX_X670E_A_GAMING_WIFI,
         ROG_STRIX_X670E_E_GAMING_WIFI,
@@ -73,6 +74,7 @@ namespace ZenStates.Core.Hardware.Motherboard
         ROG_STRIX_Z390_I_GAMING,
         ROG_STRIX_Z690_A_GAMING_WIFI_D4,
         ROG_STRIX_Z690_G_GAMING_WIFI,
+        ROG_STRIX_B850_A_GAMING_WIFI,
         ROG_STRIX_B850_E_GAMING_WIFI,
         ROG_STRIX_B850_I_GAMING_WIFI,
         ROG_MAXIMUS_XI_FORMULA,
@@ -129,7 +131,9 @@ namespace ZenStates.Core.Hardware.Motherboard
         PROART_X870E_CREATOR_WIFI,
         PROART_B760_CREATOR_D4,
         TUF_GAMING_B450_PLUS_II,
+        TUF_GAMING_B850_BTF_WIFI_W,
         TUF_GAMING_B850M_PLUS_II,
+        TUF_GAMING_X870_PRO_WIFI7_W_NEO,
 
         //BIOSTAR
         B660GTN,
