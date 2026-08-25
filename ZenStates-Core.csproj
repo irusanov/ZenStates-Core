@@ -36,6 +36,14 @@
 	<WarningLevel>4</WarningLevel>
 	<CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
 </PropertyGroup>
+<PropertyGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+	<!-- Native AOT: enables AOT compilation and compatibility analysis -->
+	<PublishAot>true</PublishAot>
+	<IsAotCompatible>true</IsAotCompatible>
+	<!-- Trim unused code on publish -->
+	<PublishTrimmed>true</PublishTrimmed>
+	<TrimmerRootDescriptor>AotRoots.xml</TrimmerRootDescriptor>
+</PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net20|AnyCPU'">
     <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
   </PropertyGroup>
@@ -57,6 +65,9 @@
     <None Remove="Resources\PawnIo\SmbusI801.bin" />
     <None Remove="Resources\PawnIo\SmbusNCT6793.bin" />
     <None Remove="Resources\PawnIo\SmbusPIIX4.bin" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+    <TrimmerRootDescriptor Include="AotRoots.xml" />
   </ItemGroup>
   <ItemGroup>
     <None Include="External\InpOut\DLPortIO.txt" />

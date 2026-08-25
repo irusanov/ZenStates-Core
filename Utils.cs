@@ -2,6 +2,7 @@ using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -156,7 +157,14 @@ namespace ZenStates.Core
             return VoltageToVidSVI3(targetVoltage);
         }
 
+
+#if NET8_0_OR_GREATER
+        public static T ByteArrayToStructure<[DynamicallyAccessedMembers(
+            DynamicallyAccessedMemberTypes.PublicConstructors |
+            DynamicallyAccessedMemberTypes.NonPublicConstructors)] T>(byte[] byteArray) where T : new()
+#else
         public static T ByteArrayToStructure<T>(byte[] byteArray) where T : new()
+#endif
         {
             if (byteArray == null)
                 return default;
@@ -165,7 +173,11 @@ namespace ZenStates.Core
             GCHandle handle = GCHandle.Alloc(byteArray, GCHandleType.Pinned);
             try
             {
+#if NET8_0_OR_GREATER
+                structure = Marshal.PtrToStructure<T>(handle.AddrOfPinnedObject());  
+#else
                 structure = (T)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(T));
+#endif
             }
             finally
             {
@@ -174,6 +186,12 @@ namespace ZenStates.Core
             return structure;
         }
 
+#if NET8_0_OR_GREATER
+        [RequiresUnreferencedCode(
+            "Uses reflection (Type.GetProperty by name and Activator.CreateInstance with a " +
+            "runtime-discovered Type) to populate arbitrary T from a byte array; the property " +
+            "names, property types, and their constructors must not be trimmed.")]
+#endif
         public static T CreateFromByteArray<T>(byte[] byteArray, Dictionary<string, int> fieldDictionary) where T : new()
         {
             T data = new T();
@@ -541,6 +559,12 @@ namespace ZenStates.Core
         /// Attempts to convert a value to the specified target type.
         /// Supports implicit/explicit operators, enums, primitives, and nullable types.
         /// </summary>
+#if NET8_0_OR_GREATER
+        [RequiresUnreferencedCode(
+            "Reflects over the target type's op_Implicit/op_Explicit conversion operators by " +
+            "name; targetType is a runtime value, not statically annotatable, so its members " +
+            "must not be trimmed.")]
+#endif
         public static object ConvertValue(object value, Type targetType)
         {
             if (value == null)

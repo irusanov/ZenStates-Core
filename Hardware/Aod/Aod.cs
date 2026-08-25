@@ -221,7 +221,9 @@ namespace ZenStates.Core.Hardware.Aod
                 this.Table.BaseAddress = opRegion.Offset;
                 this.Table.Length = (opRegion.Length[1] << 8) | opRegion.Length[0];
                 this.Table.RawAodTable = this.io.ReadMemory(new IntPtr(this.Table.BaseAddress), this.Table.Length);
+#pragma warning disable IL2026
                 this.Table.Data = AodData.CreateFromByteArray(this.Table.RawAodTable, GetAodDataDictionary(this.codeName, this.patchLevel));
+#pragma warning restore IL2026
             }
         }
 
@@ -431,6 +433,37 @@ namespace ZenStates.Core.Hardware.Aod
         {
             Dictionary<string, uint> dict = new Dictionary<string, uint>();
 
+#if NET8_0_OR_GREATER
+            if (!System.Runtime.CompilerServices.RuntimeFeature.IsDynamicCodeCompiled)
+            {
+                Debug.WriteLine("Native AOT detected. Skipping WMI.");
+                return dict;
+            }
+#endif
+            if (IsNativeAotFallback())
+            {
+                return dict;
+            }
+
+            return GetWmiFunctionsImpl(dict);    
+            
+        }
+        
+        private static bool IsNativeAotFallback()
+        {
+            try
+            {
+                return string.IsNullOrEmpty(typeof(object).Assembly.Location);
+            }
+            catch
+            {
+                return true;
+            }
+        }
+        
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static Dictionary<string, uint> GetWmiFunctionsImpl(Dictionary<string, uint> dict)
+        {
             try
             {
                 string wmiAMDACPI = "AMD_ACPI";

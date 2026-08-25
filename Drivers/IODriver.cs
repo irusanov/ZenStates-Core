@@ -17,9 +17,6 @@ namespace ZenStates.Core.Drivers
         [DllImport("kernel32", SetLastError = true)]
         private static extern bool FreeLibrary(IntPtr hModule);
 
-        [DllImport("kernel32", CharSet = CharSet.Ansi, SetLastError = true, ExactSpelling = false)]
-        private static extern IntPtr GetProcAddress(IntPtr hModule, [MarshalAs(UnmanagedType.LPStr)] string lpProcName);
-
         internal IntPtr ioModule;
 
         public enum LibStatus
@@ -36,61 +33,11 @@ namespace ZenStates.Core.Drivers
 
         public static IODriver Instance => _instance;
 
-        public bool IsInpOutDriverOpen()
-        {
-            if (Utils.Is64Bit)
-                return IsInpOutDriverOpen64() != 0;
-            else
-                return WinIoStatus == LibStatus.OK;
-        }
-
-        public byte[] ReadMemory(IntPtr baseAddress, int size)
-        {
-            try
-            {
-                if (MapPhysToLin != null && UnmapPhysicalMemory != null)
-                {
-                    IntPtr pdwLinAddr = MapPhysToLin(baseAddress, (uint)size, out IntPtr pPhysicalMemoryHandle);
-                    if (pdwLinAddr != IntPtr.Zero)
-                    {
-                        byte[] bytes = new byte[size];
-                        Marshal.Copy(pdwLinAddr, bytes, 0, bytes.Length);
-                        UnmapPhysicalMemory(pPhysicalMemoryHandle, pdwLinAddr);
-
-                        return bytes;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error reading memory: {ex.Message}");
-            }
-
-            return null;
-        }
-
-        public static IntPtr LoadDll(string filename)
-        {
-            IntPtr dll = LoadLibrary(filename);
-
-            if (dll == IntPtr.Zero)
-            {
-                int lasterror = Marshal.GetLastWin32Error();
-                Win32Exception innerEx = new Win32Exception(lasterror);
-                innerEx.Data.Add("LastWin32Error", lasterror);
-
-                throw new Exception("Can't load DLL " + filename, innerEx);
-            }
-
-            return dll;
-        }
-
         public IODriver()
         {
             try
             {
                 // restrict the driver access to system (SY) and builtin admins (BA)
-                // TODO: replace with a call to IoCreateDeviceSecure in the driver
                 string filePath = @"\\.\inpoutx64";
                 FileInfo fileInfo = new FileInfo(filePath);
                 FileSecurity fileSecurity = fileInfo.GetAccessControl();
@@ -104,35 +51,9 @@ namespace ZenStates.Core.Drivers
                 string fileName = Utils.Is64Bit ? "inpoutx64.dll" : "WinIo32.dll";
                 ioModule = LoadDll(fileName);
 
-                // Common
-                GetPhysLong = (_GetPhysLong)GetDelegate(ioModule, "GetPhysLong", typeof(_GetPhysLong));
-                SetPhysLong = (_SetPhysLong)GetDelegate(ioModule, "SetPhysLong", typeof(_SetPhysLong));
-                MapPhysToLin = (_MapPhysToLin)GetDelegate(ioModule, "MapPhysToLin", typeof(_MapPhysToLin));
-                UnmapPhysicalMemory = (_UnmapPhysicalMemory)GetDelegate(ioModule, "UnmapPhysicalMemory", typeof(_UnmapPhysicalMemory));
-
-                DlPortReadPortUchar = (_DlPortReadPortUchar)GetDelegate(ioModule, "DlPortReadPortUchar", typeof(_DlPortReadPortUchar));
-                DlPortWritePortUchar = (_DlPortWritePortUchar)GetDelegate(ioModule, "DlPortWritePortUchar", typeof(_DlPortWritePortUchar));
-
-                DlPortReadPortUshort = (_DlPortReadPortUshort)GetDelegate(ioModule, "DlPortReadPortUshort", typeof(_DlPortReadPortUshort));
-                DlPortWritePortUshort = (_DlPortWritePortUshort)GetDelegate(ioModule, "DlPortWritePortUshort", typeof(_DlPortWritePortUshort));
-
-                DlPortReadPortUlong = (_DlPortReadPortUlong)GetDelegate(ioModule, "DlPortReadPortUlong", typeof(_DlPortReadPortUlong));
-                DlPortWritePortUlong = (_DlPortWritePortUlong)GetDelegate(ioModule, "DlPortWritePortUlong", typeof(_DlPortWritePortUlong));
-
-                Inp32 = (_Inp32)GetDelegate(ioModule, "Inp32", typeof(_Inp32));
-                Out32 = (_Out32)GetDelegate(ioModule, "Out32", typeof(_Out32));
-
-                // 64bit only
-                if (Utils.Is64Bit)
+                if (!Utils.Is64Bit)
                 {
-                    IsInpOutDriverOpen64 = (_IsInpOutDriverOpen64)GetDelegate(ioModule, "IsInpOutDriverOpen", typeof(_IsInpOutDriverOpen64));
-                }
-                else
-                {
-                    InitializeWinIo32 = (_InitializeWinIo32)GetDelegate(ioModule, "InitializeWinIo", typeof(_InitializeWinIo32));
-                    ShutdownWinIo32 = (_ShutdownWinIo32)GetDelegate(ioModule, "ShutdownWinIo", typeof(_ShutdownWinIo32));
-
-                    if (InitializeWinIo32())
+                    if (NativeMethodsX86.InitializeWinIo())
                     {
                         WinIoStatus = LibStatus.OK;
                     }
@@ -146,54 +67,86 @@ namespace ZenStates.Core.Drivers
             }
         }
 
-        internal delegate byte _Inp32(short port);
-        internal readonly _Inp32 Inp32;
+        public static IntPtr LoadDll(string filename)
+        {
+            IntPtr dll = LoadLibrary(filename);
+            if (dll == IntPtr.Zero)
+            {
+                int lasterror = Marshal.GetLastWin32Error();
+                Win32Exception innerEx = new Win32Exception(lasterror);
+                innerEx.Data.Add("LastWin32Error", lasterror);
+                throw new Exception("Can't load DLL " + filename, innerEx);
+            }
+            return dll;
+        }
 
-        internal delegate void _Out32(short port, short value);
-        internal readonly _Out32 Out32;
+        public bool IsInpOutDriverOpen()
+        {
+            if (Utils.Is64Bit)
+                return NativeMethodsX64.IsInpOutDriverOpen() != 0;
+            else
+                return WinIoStatus == LibStatus.OK;
+        }
 
-        // 8-bit
-        public delegate byte _DlPortReadPortUchar(ushort port);
-        public readonly _DlPortReadPortUchar DlPortReadPortUchar;
+        public byte[] ReadMemory(IntPtr baseAddress, int size)
+        {
+            try
+            {
+                IntPtr pdwLinAddr = Utils.Is64Bit 
+                    ? NativeMethodsX64.MapPhysToLin(baseAddress, (uint)size, out IntPtr memHandle64) 
+                    : NativeMethodsX86.MapPhysToLin(baseAddress, (uint)size, out memHandle64);
 
-        public delegate void _DlPortWritePortUchar(ushort port, byte value);
-        public readonly _DlPortWritePortUchar DlPortWritePortUchar;
+                if (pdwLinAddr != IntPtr.Zero)
+                {
+                    byte[] bytes = new byte[size];
+                    Marshal.Copy(pdwLinAddr, bytes, 0, bytes.Length);
 
-        // 16-bit
-        public delegate ushort _DlPortReadPortUshort(ushort port);
-        public readonly _DlPortReadPortUshort DlPortReadPortUshort;
+                    if (Utils.Is64Bit)
+                        NativeMethodsX64.UnmapPhysicalMemory(memHandle64, pdwLinAddr);
+                    else
+                        NativeMethodsX86.UnmapPhysicalMemory(memHandle64, pdwLinAddr);
 
-        public delegate void _DlPortWritePortUshort(ushort port, ushort value);
-        public readonly _DlPortWritePortUshort DlPortWritePortUshort;
+                    return bytes;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error reading memory: {ex.Message}");
+            }
 
-        // 32-bit
-        public delegate uint _DlPortReadPortUlong(uint port);
-        public readonly _DlPortReadPortUlong DlPortReadPortUlong;
+            return null;
+        }
 
-        public delegate void _DlPortWritePortUlong(uint port, uint value);
-        public readonly _DlPortWritePortUlong DlPortWritePortUlong;
+        public byte Inp32(short port) => Utils.Is64Bit ? NativeMethodsX64.Inp32(port) : NativeMethodsX86.Inp32(port);
+        public void Out32(short port, short value)
+        {
+            if (Utils.Is64Bit) NativeMethodsX64.Out32(port, value);
+            else NativeMethodsX86.Out32(port, value);
+        }
 
-        public delegate bool _GetPhysLong(UIntPtr memAddress, out uint data);
-        public readonly _GetPhysLong GetPhysLong;
+        public byte DlPortReadPortUchar(ushort port) => Utils.Is64Bit ? NativeMethodsX64.DlPortReadPortUchar(port) : NativeMethodsX86.DlPortReadPortUchar(port);
+        public void DlPortWritePortUchar(ushort port, byte value)
+        {
+            if (Utils.Is64Bit) NativeMethodsX64.DlPortWritePortUchar(port, value);
+            else NativeMethodsX86.DlPortWritePortUchar(port, value);
+        }
 
-        public delegate bool _SetPhysLong(UIntPtr memAddress, uint data);
-        public readonly _SetPhysLong SetPhysLong;
+        public ushort DlPortReadPortUshort(ushort port) => Utils.Is64Bit ? NativeMethodsX64.DlPortReadPortUshort(port) : NativeMethodsX86.DlPortReadPortUshort(port);
+        public void DlPortWritePortUshort(ushort port, ushort value)
+        {
+            if (Utils.Is64Bit) NativeMethodsX64.DlPortWritePortUshort(port, value);
+            else NativeMethodsX86.DlPortWritePortUshort(port, value);
+        }
 
-        private delegate IntPtr _MapPhysToLin(IntPtr pbPhysAddr, uint dwPhysSize, out IntPtr pPhysicalMemoryHandle);
-        private readonly _MapPhysToLin MapPhysToLin;
+        public uint DlPortReadPortUlong(uint port) => Utils.Is64Bit ? NativeMethodsX64.DlPortReadPortUlong(port) : NativeMethodsX86.DlPortReadPortUlong(port);
+        public void DlPortWritePortUlong(uint port, uint value)
+        {
+            if (Utils.Is64Bit) NativeMethodsX64.DlPortWritePortUlong(port, value);
+            else NativeMethodsX86.DlPortWritePortUlong(port, value);
+        }
 
-        private delegate bool _UnmapPhysicalMemory(IntPtr PhysicalMemoryHandle, IntPtr pbLinAddr);
-        private readonly _UnmapPhysicalMemory UnmapPhysicalMemory;
-
-        // InpOutx64
-        private delegate uint _IsInpOutDriverOpen64();
-        private readonly _IsInpOutDriverOpen64 IsInpOutDriverOpen64;
-
-        // WinIo
-        private delegate bool _InitializeWinIo32();
-        private delegate bool _ShutdownWinIo32();
-        private readonly _InitializeWinIo32 InitializeWinIo32;
-        private readonly _ShutdownWinIo32 ShutdownWinIo32;
+        public bool GetPhysLong(UIntPtr memAddress, out uint data) => Utils.Is64Bit ? NativeMethodsX64.GetPhysLong(memAddress, out data) : NativeMethodsX86.GetPhysLong(memAddress, out data);
+        public bool SetPhysLong(UIntPtr memAddress, uint data) => Utils.Is64Bit ? NativeMethodsX64.SetPhysLong(memAddress, data) : NativeMethodsX86.SetPhysLong(memAddress, data);
 
         private void CleanupDriver()
         {
@@ -330,11 +283,14 @@ namespace ZenStates.Core.Drivers
 
             if (ioModule == IntPtr.Zero) return;
 
-            //if (Utils.Is64Bit)
-            //    System.Threading.ThreadPool.QueueUserWorkItem(_ => CleanupDriver());
-
             if (!Utils.Is64Bit)
-                ShutdownWinIo32?.Invoke();
+            {
+                try { NativeMethodsX86.ShutdownWinIo(); }
+                catch
+                {
+                    // ignored
+                }
+            }
 
             FreeLibrary(ioModule);
             ioModule = IntPtr.Zero;
@@ -343,17 +299,95 @@ namespace ZenStates.Core.Drivers
                 _instance = null;
         }
 
-        public static Delegate GetDelegate(IntPtr moduleName, string procName, Type delegateType)
+        private static class NativeMethodsX64
         {
-            IntPtr ptr = GetProcAddress(moduleName, procName);
-            if (ptr != IntPtr.Zero)
-            {
-                Delegate d = Marshal.GetDelegateForFunctionPointer(ptr, delegateType);
-                return d;
-            }
+            private const string Dll = "inpoutx64.dll";
 
-            int result = Marshal.GetHRForLastWin32Error();
-            throw Marshal.GetExceptionForHR(result);
+            [DllImport(Dll, EntryPoint = "GetPhysLong", CallingConvention = CallingConvention.StdCall)]
+            public static extern bool GetPhysLong(UIntPtr memAddress, out uint data);
+
+            [DllImport(Dll, EntryPoint = "SetPhysLong", CallingConvention = CallingConvention.StdCall)]
+            public static extern bool SetPhysLong(UIntPtr memAddress, uint data);
+
+            [DllImport(Dll, EntryPoint = "MapPhysToLin", CallingConvention = CallingConvention.StdCall)]
+            public static extern IntPtr MapPhysToLin(IntPtr pbPhysAddr, uint dwPhysSize, out IntPtr pPhysicalMemoryHandle);
+
+            [DllImport(Dll, EntryPoint = "UnmapPhysicalMemory", CallingConvention = CallingConvention.StdCall)]
+            public static extern bool UnmapPhysicalMemory(IntPtr physicalMemoryHandle, IntPtr pbLinAddr);
+
+            [DllImport(Dll, EntryPoint = "Inp32", CallingConvention = CallingConvention.StdCall)]
+            public static extern byte Inp32(short port);
+
+            [DllImport(Dll, EntryPoint = "Out32", CallingConvention = CallingConvention.StdCall)]
+            public static extern void Out32(short port, short value);
+
+            [DllImport(Dll, EntryPoint = "DlPortReadPortUchar", CallingConvention = CallingConvention.StdCall)]
+            public static extern byte DlPortReadPortUchar(ushort port);
+
+            [DllImport(Dll, EntryPoint = "DlPortWritePortUchar", CallingConvention = CallingConvention.StdCall)]
+            public static extern void DlPortWritePortUchar(ushort port, byte value);
+
+            [DllImport(Dll, EntryPoint = "DlPortReadPortUshort", CallingConvention = CallingConvention.StdCall)]
+            public static extern ushort DlPortReadPortUshort(ushort port);
+
+            [DllImport(Dll, EntryPoint = "DlPortWritePortUshort", CallingConvention = CallingConvention.StdCall)]
+            public static extern void DlPortWritePortUshort(ushort port, ushort value);
+
+            [DllImport(Dll, EntryPoint = "DlPortReadPortUlong", CallingConvention = CallingConvention.StdCall)]
+            public static extern uint DlPortReadPortUlong(uint port);
+
+            [DllImport(Dll, EntryPoint = "DlPortWritePortUlong", CallingConvention = CallingConvention.StdCall)]
+            public static extern void DlPortWritePortUlong(uint port, uint value);
+
+            [DllImport(Dll, EntryPoint = "IsInpOutDriverOpen", CallingConvention = CallingConvention.StdCall)]
+            public static extern uint IsInpOutDriverOpen();
+        }
+
+        private static class NativeMethodsX86
+        {
+            private const string Dll = "WinIo32.dll";
+
+            [DllImport(Dll, EntryPoint = "GetPhysLong", CallingConvention = CallingConvention.StdCall)]
+            public static extern bool GetPhysLong(UIntPtr memAddress, out uint data);
+
+            [DllImport(Dll, EntryPoint = "SetPhysLong", CallingConvention = CallingConvention.StdCall)]
+            public static extern bool SetPhysLong(UIntPtr memAddress, uint data);
+
+            [DllImport(Dll, EntryPoint = "MapPhysToLin", CallingConvention = CallingConvention.StdCall)]
+            public static extern IntPtr MapPhysToLin(IntPtr pbPhysAddr, uint dwPhysSize, out IntPtr pPhysicalMemoryHandle);
+
+            [DllImport(Dll, EntryPoint = "UnmapPhysicalMemory", CallingConvention = CallingConvention.StdCall)]
+            public static extern bool UnmapPhysicalMemory(IntPtr PhysicalMemoryHandle, IntPtr pbLinAddr);
+
+            [DllImport(Dll, EntryPoint = "Inp32", CallingConvention = CallingConvention.StdCall)]
+            public static extern byte Inp32(short port);
+
+            [DllImport(Dll, EntryPoint = "Out32", CallingConvention = CallingConvention.StdCall)]
+            public static extern void Out32(short port, short value);
+
+            [DllImport(Dll, EntryPoint = "DlPortReadPortUchar", CallingConvention = CallingConvention.StdCall)]
+            public static extern byte DlPortReadPortUchar(ushort port);
+
+            [DllImport(Dll, EntryPoint = "DlPortWritePortUchar", CallingConvention = CallingConvention.StdCall)]
+            public static extern void DlPortWritePortUchar(ushort port, byte value);
+
+            [DllImport(Dll, EntryPoint = "DlPortReadPortUshort", CallingConvention = CallingConvention.StdCall)]
+            public static extern ushort DlPortReadPortUshort(ushort port);
+
+            [DllImport(Dll, EntryPoint = "DlPortWritePortUshort", CallingConvention = CallingConvention.StdCall)]
+            public static extern void DlPortWritePortUshort(ushort port, ushort value);
+
+            [DllImport(Dll, EntryPoint = "DlPortReadPortUlong", CallingConvention = CallingConvention.StdCall)]
+            public static extern uint DlPortReadPortUlong(uint port);
+
+            [DllImport(Dll, EntryPoint = "DlPortWritePortUlong", CallingConvention = CallingConvention.StdCall)]
+            public static extern void DlPortWritePortUlong(uint port, uint value);
+
+            [DllImport(Dll, EntryPoint = "InitializeWinIo", CallingConvention = CallingConvention.StdCall)]
+            public static extern bool InitializeWinIo();
+
+            [DllImport(Dll, EntryPoint = "ShutdownWinIo", CallingConvention = CallingConvention.StdCall)]
+            public static extern bool ShutdownWinIo();
         }
     }
 }

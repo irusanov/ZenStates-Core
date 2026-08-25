@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ZenStates.Core.Common;
+using System.Diagnostics.CodeAnalysis;
 
 namespace ZenStates.Core.Hardware.Aod
 {
@@ -64,6 +65,12 @@ namespace ZenStates.Core.Hardware.Aod
         public Voltage MemVpp { get; set; }
         public Voltage ApuVddio { get; set; }
 
+#if NET8_0_OR_GREATER
+        [RequiresUnreferencedCode(
+            "Forwards to Utils.CreateFromByteArray<AodData>, which uses reflection " +
+            "(Type.GetProperty by name and Activator.CreateInstance) to populate AodData; " +
+            "AodData's properties and their types must not be trimmed.")]
+#endif
         public static AodData CreateFromByteArray(byte[] byteArray, Dictionary<string, int> fieldDictionary)
         {
             return Utils.CreateFromByteArray<AodData>(byteArray, fieldDictionary);

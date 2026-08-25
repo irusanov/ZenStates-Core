@@ -87,7 +87,9 @@ namespace ZenStates.Core.Hardware.DRAM
                         PropertyInfo propertyInfo = GetPropertyInfo(propertyName);
                         if (propertyInfo != null)
                         {
+#pragma warning disable IL2026
                             object converted = Utils.ConvertValue(value, propertyInfo.PropertyType);
+#pragma warning restore IL2026
                             //if (converted != null)
                             {
                                 propertyInfo.SetValue(this, converted, null);

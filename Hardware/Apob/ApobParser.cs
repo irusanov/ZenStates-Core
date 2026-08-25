@@ -46,7 +46,11 @@ namespace ZenStates.Core.Hardware.Apob
 
         private static ApobData ReadV1(byte[] data, uint offset)
         {
+#if NET20
             int blockSize = Marshal.SizeOf(typeof(ApobData19h));
+#else
+            int blockSize = Marshal.SizeOf<ApobData19h>();
+#endif
             ApobData19h raw = Read<ApobData19h>(data, blockSize, offset);
 
             return new ApobData(
@@ -72,7 +76,11 @@ namespace ZenStates.Core.Hardware.Apob
 
         private static ApobData ReadV2(byte[] data, uint offset)
         {
+#if NET20
             int blockSize = Marshal.SizeOf(typeof(ApobData1Ah));
+#else
+            int blockSize = Marshal.SizeOf<ApobData1Ah>();
+#endif
             ApobData1Ah raw = Read<ApobData1Ah>(data, blockSize, offset);
 
             return new ApobData(
@@ -109,7 +117,11 @@ namespace ZenStates.Core.Hardware.Apob
 
         private static ApobData ReadV3(byte[] data, uint offset)
         {
+#if NET20
             int blockSize = Marshal.SizeOf(typeof(ApobData19h_8000));
+#else
+            int blockSize = Marshal.SizeOf<ApobData19h_8000>();
+#endif
             ApobData19h_8000 raw = Read<ApobData19h_8000>(data, blockSize, offset);
 
             return new ApobData(
@@ -142,12 +154,14 @@ namespace ZenStates.Core.Hardware.Apob
             if ((long)offset + blockSize > data.Length)
                 throw new ArgumentException(
                     $"Buffer too small: need {blockSize} bytes at offset 0x{offset:X}, but buffer is only {data.Length} bytes.",
-                    "data");
+                    nameof(data));
 
             byte[] buffer = new byte[blockSize];
             Buffer.BlockCopy(data, (int)offset, buffer, 0, buffer.Length);
 
+#pragma warning disable IL2091 // T is constrained to struct (a blittable value-type layout); ByteArrayToStructure<T> marshals it via Marshal.PtrToStructure, which does not reflect over T's constructors at this call site.
             return Utils.ByteArrayToStructure<T>(buffer);
+#pragma warning restore IL2091
         }
     }
 }

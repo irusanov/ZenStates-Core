@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Native AOT / Trimmer root descriptor for ZenStates.Core (net8.0-windows).
+
+  Add types here that are loaded dynamically (e.g. via reflection, Activator.CreateInstance,
+  Type.GetType, or COM interop) so the linker does not trim them away.
+
+  Example:
+  <assembly fullname="ZenStates-Core">
+    <type fullname="ZenStates.Core.SomeReflectedType" preserve="all" />
+  </assembly>
+
+  See: https://learn.microsoft.com/dotnet/core/deploying/trimming/trimming-options#root-descriptors
+-->
+<linker>
+  <assembly fullname="ZenStates-Core">
+    <!-- Preserve all public API surface so consumers can P/Invoke / reflect into this library -->
+    <type fullname="ZenStates.Core.*" preserve="all" />
+  </assembly>
+</linker>
