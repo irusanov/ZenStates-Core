@@ -17,7 +17,6 @@ using ZenStates.Core.Hardware.MutexLock;
 using ZenStates.Core.Hardware.Apob;
 using ZenStates.Core.Hardware.Aod;
 using ZenStates.Core.Hardware.Smu;
-using LpcIO = ZenStates.Core.Hardware.Motherboard.Lpc.LpcIO;
 
 namespace ZenStates.Core
 {
@@ -27,13 +26,13 @@ namespace ZenStates.Core
         private readonly AmdFamily17 _pawnAmd;
         private readonly RyzenSmu _pawnRyzenSmu;
         private readonly SmbusDriverBase _smbusPiix4;
+        private readonly LpcIO _lpcIO;
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
 
         public readonly Version Version = Assembly.GetExecutingAssembly().GetName().Version;
 
         public RyzenSmu RyzenSmu => _pawnRyzenSmu;
-        public LpcIO LpcIO;
 
         public enum Family
         {
@@ -350,7 +349,6 @@ namespace ZenStates.Core
 
             try
             {
-
                 Opcode.Open();
 
                 info.vendor = GetVendor();
@@ -364,6 +362,7 @@ namespace ZenStates.Core
                     _pawnAmd = new AmdFamily17();
                     _pawnRyzenSmu = new RyzenSmu();
                     _smbusPiix4 = SmbusProvider.Instance;
+                    _lpcIO = new LpcIO();
                 }
                 catch (Exception ex)
                 {
@@ -444,8 +443,6 @@ namespace ZenStates.Core
                 info.apob = new Apob(info.codeName);
                 systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
                 powerTable = new PowerTable(_pawnRyzenSmu, info.codeName);
-
-                LpcIO = new LpcIO(SMBiosSingleton.Instance);
 
                 if (!SendTestMessage())
                     LastError = new ApplicationException("SMU is not responding to test message!");
@@ -1535,10 +1532,11 @@ namespace ZenStates.Core
                     io.Dispose();
                     Mutexes.Close();
                     Opcode.Close();
+                    systemInfo.Dispose();
                     _pawnAmd?.Close();
                     _pawnRyzenSmu?.Dispose();
                     _smbusPiix4?.Dispose();
-                    LpcIO?.Close();
+                    _lpcIO?.Close();
                 }
 
                 disposedValue = true;

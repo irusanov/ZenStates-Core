@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
+using ZenStates.Core.Hardware.Motherboard;
+using ZenStates.Core.Hardware.Motherboard.Lpc;
 using ZenStates.Core.OHWM;
 using static ZenStates.Core.Cpu;
 
@@ -59,10 +62,27 @@ namespace ZenStates.Core.Hardware
         }
     }
 
+    public readonly struct SuperIoSensorGroup
+    {
+        public string ChipName { get; }
+        public Chip Chip { get; }
+        public IEnumerable<Sensor> Sensors { get; }
+
+        public SuperIoSensorGroup(string chipName, Chip chip, IEnumerable<Sensor> sensors)
+        {
+            ChipName = chipName;
+            Chip = chip;
+            Sensors = sensors;
+        }
+    }
+
     [Serializable]
-    public class SystemInfo
+    public class SystemInfo: IDisposable
     {
         private readonly CPUInfo _cpuInfo;
+        private readonly LpcIO _lpcIO;
+        private readonly List<SuperIOHardware> _superIoHardware;
+        private bool disposedValue;
 
         public SystemInfo(CPUInfo info, SMU smu, string agesaVersion)
         {
@@ -71,11 +91,17 @@ namespace ZenStates.Core.Hardware
             SmuTableVersion = smu.TableVersion;
             SmuType = smu.SMU_TYPE.ToString();
             AgesaVersion = agesaVersion;
+            _superIoHardware = new List<SuperIOHardware>();
 
             SMBios smbios = SMBiosSingleton.Instance;
             MbVendor = smbios?.Board?.ManufacturerName ?? "N/A";
             MbName = smbios?.Board?.ProductName ?? "N/A";
             BiosVersion = smbios?.Bios?.Version ?? "N/A";
+            _lpcIO = new LpcIO(smbios);
+            for (var i = 0; i < _lpcIO.SuperIO.Length; i++)
+            {
+                _superIoHardware.Add(new SuperIOHardware(_lpcIO.SuperIO[i], smbios, i));
+            }
         }
 
         // CPU identity
@@ -106,6 +132,37 @@ namespace ZenStates.Core.Hardware
         public string MbName { get; private set; }
         public string BiosVersion { get; private set; }
         public string AgesaVersion { get; set; }
+        //public IEnumerable<Sensor> Sensors
+        //{
+        //    get
+        //    {
+        //        foreach (SuperIOHardware hardware in _superIoHardware)
+        //        {
+        //            foreach (Sensor sensor in hardware.Sensors)
+        //                yield return sensor;
+        //        }
+        //    }
+        //}
+
+        // Sensors grouped by the SuperIO chip they were read from.
+        // Useful when a board has multiple SuperIO chips and sensors need
+        // to be displayed/labeled per-chip.
+        public IEnumerable<SuperIoSensorGroup> SensorGroups
+        {
+            get
+            {
+                foreach (SuperIOHardware hardware in _superIoHardware)
+                {
+                    yield return new SuperIoSensorGroup(hardware.ChipName, hardware.Chip, hardware.Sensors);
+                }
+            }
+        }
+
+        public void UpdateSensors()
+        {
+            foreach (SuperIOHardware hardware in _superIoHardware)
+                hardware.Update();
+        }
 
         // SMU
         public SmuVersionNumber SmuVersion { get; private set; }
@@ -114,5 +171,32 @@ namespace ZenStates.Core.Hardware
 
         // Static access to SMBios
         public static SMBios SMBios => SMBiosSingleton.Instance;
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    _lpcIO?.Close();
+                }
+
+                disposedValue = true;
+            }
+        }
+
+        // // TODO: override finalizer only if 'Dispose(bool disposing)' has code to free unmanaged resources
+        // ~SystemInfo()
+        // {
+        //     // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+        //     Dispose(disposing: false);
+        // }
+
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
     }
 }

@@ -106,8 +106,10 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             byte logicalDeviceNumber = 0;
             byte id = port.ReadByte(CHIP_ID_REGISTER);
             byte revision = port.ReadByte(CHIP_REVISION_REGISTER);
-            var motherboardName = smbios.Board.ProductName.ToString();
-            var motherboardVendor = smbios.Board.ManufacturerName.ToString();
+
+            var motherboardName = Identification.GetModel(smbios.Board.ProductName.ToString());
+            var motherboardVendor = Identification.GetManufacturer(smbios.Board.ManufacturerName.ToString());
+
             Chip chip = Chip.Unknown;
 
             switch (id)
@@ -383,8 +385,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                             logicalDeviceNumber = WINBOND_NUVOTON_HARDWARE_MONITOR_LDN;
                             break;
                         case 0x2A:
-
-                            if (motherboardName.Equals("X870E Nova WiFi", StringComparison.OrdinalIgnoreCase))
+                            if (motherboardName == Model.X870E_NOVA_WIFI)
                             {
                                 chip = Chip.NCT5585D;
                             }
@@ -415,13 +416,11 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                     {
                         case 0x92:
                             // MSI AM5/LGA1851 800 Series Motherboard Compatibility (Nuvoton NCT6687DR)
-                            if ((motherboardVendor.IndexOf("msi", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                motherboardVendor.IndexOf("Micro Star", StringComparison.OrdinalIgnoreCase) >= 0) && 
-                                (motherboardName.IndexOf("B840", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                motherboardName.IndexOf("B850", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                motherboardName.IndexOf("B860", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                motherboardName.IndexOf("X870", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                motherboardName.IndexOf("Z890", StringComparison.OrdinalIgnoreCase) >= 0))
+                            if (motherboardVendor == Manufacturer.MSI && (SMBiosSingleton.Instance.Board.ProductName.ToString().IndexOf("B840", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                SMBiosSingleton.Instance.Board.ProductName.ToString().IndexOf("B850", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                SMBiosSingleton.Instance.Board.ProductName.ToString().IndexOf("B860", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                SMBiosSingleton.Instance.Board.ProductName.ToString().IndexOf("X870", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                SMBiosSingleton.Instance.Board.ProductName.ToString().IndexOf("Z890", StringComparison.OrdinalIgnoreCase) >= 0))
                             {
                                 chip = Chip.NCT6687DR;
                             }
@@ -439,7 +438,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                     switch (revision)
                     {
                         case 0x02:
-                            if (motherboardName.Equals("X870E Nova WiFi", StringComparison.OrdinalIgnoreCase))
+                            if (motherboardName == Model.X870E_NOVA_WIFI)
                             {
                                 chip = Chip.NCT6796DS;
                             }
