@@ -66,6 +66,8 @@ namespace ZenStates.Core.Hardware
     {
         public string ChipName { get; }
         public Chip Chip { get; }
+
+        public static HardwareType HardwareType => HardwareType.SuperIO;
         public IEnumerable<Sensor> Sensors { get; }
 
         public SuperIoSensorGroup(string chipName, Chip chip, IEnumerable<Sensor> sensors)
@@ -81,7 +83,7 @@ namespace ZenStates.Core.Hardware
     {
         private readonly CPUInfo _cpuInfo;
         private readonly LpcIO _lpcIO;
-        private readonly List<SuperIOHardware> _superIoHardware;
+        private readonly List<IHardware> _hardware;
         private bool disposedValue;
 
         public SystemInfo(CPUInfo info, SMU smu, string agesaVersion)
@@ -91,7 +93,7 @@ namespace ZenStates.Core.Hardware
             SmuTableVersion = smu.TableVersion;
             SmuType = smu.SMU_TYPE.ToString();
             AgesaVersion = agesaVersion;
-            _superIoHardware = new List<SuperIOHardware>();
+            _hardware = new List<IHardware>();
 
             SMBios smbios = SMBiosSingleton.Instance;
             MbVendor = smbios?.Board?.ManufacturerName ?? "N/A";
@@ -100,7 +102,7 @@ namespace ZenStates.Core.Hardware
             _lpcIO = new LpcIO(smbios);
             for (var i = 0; i < _lpcIO.SuperIO.Length; i++)
             {
-                _superIoHardware.Add(new SuperIOHardware(_lpcIO.SuperIO[i], smbios, i));
+                _hardware.Add(new SuperIOHardware(_lpcIO.SuperIO[i], smbios, i));
             }
         }
 
@@ -147,21 +149,33 @@ namespace ZenStates.Core.Hardware
         // Sensors grouped by the SuperIO chip they were read from.
         // Useful when a board has multiple SuperIO chips and sensors need
         // to be displayed/labeled per-chip.
+
+        public List<IHardware> Hardware => _hardware;
+
         public IEnumerable<SuperIoSensorGroup> SensorGroups
         {
             get
             {
-                foreach (SuperIOHardware hardware in _superIoHardware)
+                foreach (IHardware hardware in _hardware)
                 {
-                    yield return new SuperIoSensorGroup(hardware.ChipName, hardware.Chip, hardware.Sensors);
+                    if (hardware.HardwareType == HardwareType.SuperIO)
+                    {
+                        yield return new SuperIoSensorGroup(((SuperIOHardware)hardware).ChipName, ((SuperIOHardware)hardware).Chip, ((SuperIOHardware)hardware)?.Sensors);
+                    }
                 }
             }
         }
 
+        // Update SuperIOs only for now
         public void UpdateSensors()
         {
-            foreach (SuperIOHardware hardware in _superIoHardware)
-                hardware.Update();
+            foreach (IHardware hardware in _hardware)
+            {
+                if (hardware.HardwareType == HardwareType.SuperIO)
+                {
+                    ((SuperIOHardware)hardware).Update();
+                }
+            }
         }
 
         // SMU

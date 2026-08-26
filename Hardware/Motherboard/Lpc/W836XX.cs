@@ -423,7 +423,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             r.AppendLine(_address.ToString("X4", CultureInfo.InvariantCulture));
             r.AppendLine();
 
-            if (!Mutexes.WaitIsaBus(100))
+            if (!Mutexes.WaitIsaBus(5000))
                 return r.ToString();
 
             r.AppendLine("Hardware Monitor Registers");

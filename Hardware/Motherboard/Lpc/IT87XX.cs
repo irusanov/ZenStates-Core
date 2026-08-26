@@ -405,7 +405,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             r.AppendLine(_gpioAddress.ToString("X4", CultureInfo.InvariantCulture));
             r.AppendLine();
 
-            if (!Mutexes.WaitIsaBus(100))
+            if (!Mutexes.WaitIsaBus(5000))
                 return r.ToString();
 
             if (_requiresBankSelect)

@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Text;
 using ZenStates.Core.Hardware.Motherboard.Lpc;
 using ZenStates.Core.OHWM;
 
 namespace ZenStates.Core.Hardware.Motherboard
 {
-    internal sealed class SuperIOHardware
+    internal sealed class SuperIOHardware: IHardware
     {
         private readonly List<Sensor> _voltages = new List<Sensor>();
         private readonly List<Sensor> _temperatures = new List<Sensor>();
@@ -48,6 +50,8 @@ namespace ZenStates.Core.Hardware.Motherboard
 
         public string ChipName => Lpc.ChipName.GetName(Chip);
 
+        public HardwareType HardwareType => HardwareType.SuperIO;
+
         public IEnumerable<Sensor> Sensors
         {
             get
@@ -58,32 +62,6 @@ namespace ZenStates.Core.Hardware.Motherboard
                     yield return sensor;
                 foreach (Sensor sensor in _fans)
                     yield return sensor;
-            }
-        }
-
-        public void Update()
-        {
-            _superIO.Update();
-
-            foreach (Sensor sensor in _voltages)
-            {
-                float? value = _superIO.Voltages[sensor.Index];
-                if (value.HasValue)
-                {
-                    sensor.Value = value.Value + (value.Value - sensor.Parameters[2].Value) * sensor.Parameters[0].Value / sensor.Parameters[1].Value;
-                }
-            }
-
-            foreach (Sensor sensor in _temperatures)
-            {
-                if (sensor.Index < _superIO.Temperatures.Length)
-                    sensor.Value = _superIO.Temperatures[sensor.Index];
-            }
-
-            foreach (Sensor sensor in _fans)
-            {
-                if (sensor.Index < _superIO.Fans.Length)
-                    sensor.Value = _superIO.Fans[sensor.Index];
             }
         }
 
@@ -5952,5 +5930,72 @@ namespace ZenStates.Core.Hardware.Motherboard
             }
         }
 
+        public string GetReport()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine(_superIO.GetReport());
+            sb.AppendLine();
+            sb.AppendLine("Temperature debug (SuperIO read):");
+
+            try
+            {
+                // If there are named sensors created, iterate them; otherwise use superIO.Temperatures
+                if (_temperatures != null && _temperatures.Count > 0)
+                {
+                    foreach (Sensor s in _temperatures)
+                    {
+                        int idx = s.Index;
+                        float? v = _temperatures[idx]?.Value != null ? _temperatures[idx]?.Value : null;
+                        sb.Append("  Index ").Append(idx).Append(" \"").Append(s.Name).Append("\": ");
+                        sb.AppendLine(v.HasValue ? v.Value.ToString("F2", CultureInfo.InvariantCulture) : "null");
+                    }
+                }
+                else
+                {
+                    // Fallback: dump raw superIO.Temperatures if available
+                    var temps = (_superIO?.Temperatures);
+                    if (temps != null)
+                    {
+                        for (int i = 0; i < temps.Length; i++)
+                        {
+                            sb.Append("  Raw Index ").Append(i).Append(": ");
+                            sb.AppendLine(temps[i].HasValue ? temps[i].Value.ToString("F2", CultureInfo.InvariantCulture) : "null");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine("  Exception while reading temperatures: " + ex.Message);
+            }
+
+            return sb.ToString();
+        }
+
+        public void Update()
+        {
+            _superIO.Update();
+
+            foreach (Sensor sensor in _voltages)
+            {
+                float? value = _superIO.Voltages[sensor.Index];
+                if (value.HasValue)
+                {
+                    sensor.Value = value.Value + (value.Value - sensor.Parameters[2].Value) * sensor.Parameters[0].Value / sensor.Parameters[1].Value;
+                }
+            }
+
+            foreach (Sensor sensor in _temperatures)
+            {
+                if (sensor.Index < _superIO.Temperatures.Length)
+                    sensor.Value = _superIO.Temperatures[sensor.Index];
+            }
+
+            foreach (Sensor sensor in _fans)
+            {
+                if (sensor.Index < _superIO.Fans.Length)
+                    sensor.Value = _superIO.Fans[sensor.Index];
+            }
+        }
     }
 }
