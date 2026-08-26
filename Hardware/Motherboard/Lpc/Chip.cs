@@ -88,7 +88,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
         IPMI = 0x4764,
     }
 
-    internal class ChipName
+    internal static class ChipName
     {
         public static string GetName(Chip chip)
         {

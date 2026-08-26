@@ -46,7 +46,7 @@ namespace ZenStates.Core.Hardware.Motherboard
 
         public Chip Chip => _superIO.Chip;
 
-        public string ChipName => _superIO.Chip.ToString();
+        public string ChipName => Lpc.ChipName.GetName(Chip);
 
         public IEnumerable<Sensor> Sensors
         {
@@ -401,11 +401,11 @@ namespace ZenStates.Core.Hardware.Motherboard
                         case Manufacturer.MSI when model == Model.B550A_PRO:
                             v.Add(new Voltage("+12V", 0));
                             v.Add(new Voltage("+5V", 1));
-                            v.Add(new Voltage("CPU Northbridge/SoC", 2));
-                            v.Add(new Voltage("DIMM", 3, 1, 1));
+                            v.Add(new Voltage("CPU NB/SoC", 2));
+                            v.Add(new Voltage("VDIMM", 3, 1, 1));
                             v.Add(new Voltage("Vcore", 4, -1, 2));
                             v.Add(new Voltage("Chipset", 5));
-                            v.Add(new Voltage("CPU System Agent", 6));
+                            v.Add(new Voltage("CPU SA", 6));
                             v.Add(new Voltage("+3.3V", 8));
                             v.Add(new Voltage("+1.8V", 9));
                             v.Add(new Voltage("CPU VDDP", 10));
@@ -442,7 +442,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                         case Manufacturer.MSI when model == Model.B650M_Gaming_Plus_Wifi: // NCT6687D
                             v.Add(new Voltage("+12V", 0));
                             v.Add(new Voltage("+5V", 1));
-                            v.Add(new Voltage("CPU Northbridge/SoC", 2));
+                            v.Add(new Voltage("CPU NB/SoC", 2));
                             v.Add(new Voltage("CPU VDDIO", 3, 1, 1));
                             v.Add(new Voltage("Vcore", 4, -1, 2));
                             v.Add(new Voltage("+3.3V", 8));
@@ -476,9 +476,9 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 1));
                             v.Add(new Voltage("Vcore", 2));
                             v.Add(new Voltage("Voltage #1", 3));
-                            v.Add(new Voltage("DIMM", 4));
+                            v.Add(new Voltage("VDIMM", 4));
                             v.Add(new Voltage("CPU I/O", 5));
-                            v.Add(new Voltage("CPU System Agent", 6));
+                            v.Add(new Voltage("CPU SA", 6));
                             v.Add(new Voltage("Voltage #2", 7));
                             v.Add(new Voltage("AVCC3", 8));
                             v.Add(new Voltage("CPU Termination", 9));
@@ -492,8 +492,8 @@ namespace ZenStates.Core.Hardware.Motherboard
                             t.Add(new Temperature("VRM MOS", 2));
                             t.Add(new Temperature("PCH", 3));
                             t.Add(new Temperature("CPU Socket", 4));
-                            t.Add(new Temperature("Thermistor Sensor 1", 5));
-                            t.Add(new Temperature("Thermistor Sensor 2", 6));
+                            t.Add(new Temperature("T_SEN 1", 5));
+                            t.Add(new Temperature("T_SEN 2", 6));
                             t.Add(new Temperature("PCIe #1", 7));
                             t.Add(new Temperature("PCIe #2", 8));
                             t.Add(new Temperature("M2 #1", 9));
@@ -527,9 +527,9 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 1));
                             v.Add(new Voltage("Vcore", 2));
                             v.Add(new Voltage("Voltage #1", 3));
-                            v.Add(new Voltage("DIMM", 4));
+                            v.Add(new Voltage("VDIMM", 4));
                             v.Add(new Voltage("CPU I/O", 5));
-                            v.Add(new Voltage("CPU System Agent", 6));
+                            v.Add(new Voltage("CPU SA", 6));
                             v.Add(new Voltage("Voltage #2", 7));
                             v.Add(new Voltage("AVCC3", 8));
                             v.Add(new Voltage("CPU Termination", 9));
@@ -606,12 +606,12 @@ namespace ZenStates.Core.Hardware.Motherboard
                         case Model.X870E_EDGE_TI_WIFI:
                             v.Add(new Voltage("+12V", 0));
                             v.Add(new Voltage("+5V", 1));
-                            v.Add(new Voltage("CPU Northbridge/SoC", 2));
-                            v.Add(new Voltage("DIMM", 3, 1, 1));
+                            v.Add(new Voltage("CPU NB/SoC", 2));
+                            v.Add(new Voltage("CPU VDDIO", 3, 1, 1));
                             v.Add(new Voltage("Vcore", 4, -1, 2));
                             v.Add(new Voltage("Chipset", 5));
-                            v.Add(new Voltage("CPU System Agent", 6));
-                            //v.Add(new Voltage("Unknown_4", 7)); //"Voltage #2"
+                            v.Add(new Voltage("CPU SA", 6));
+                            //v.Add(new Voltage("Unknown_7", 7)); //"Voltage #7"
                             v.Add(new Voltage("+3.3V", 8));
                             v.Add(new Voltage("VREF", 9));
                             v.Add(new Voltage("+1.8V", 10));
@@ -624,14 +624,15 @@ namespace ZenStates.Core.Hardware.Motherboard
                             break;
 
                         case Model.X870E_ACE_MAX:
+                        case Model.X870E_UNIFY_X_MAX:
                             v.Add(new Voltage("+12V", 0));
                             v.Add(new Voltage("+5V", 1));
-                            v.Add(new Voltage("CPU Northbridge/SoC", 2));
-                            v.Add(new Voltage("DIMM", 3, 1, 1));
+                            v.Add(new Voltage("CPU NB/SoC", 2));
+                            v.Add(new Voltage("CPU VDDIO", 3, 1, 1));
                             v.Add(new Voltage("Vcore", 4, -1, 2));
-                            v.Add(new Voltage("Chipset", 5));
-                            v.Add(new Voltage("CPU System Agent", 6));
-                            //v.Add(new Voltage("Unknown_4", 7)); //"Voltage #2"
+                            v.Add(new Voltage("Chipset #1", 5));
+                            v.Add(new Voltage("CPU SA", 6));
+                            //v.Add(new Voltage("Unknown_7", 7)); //"Voltage #7"
                             v.Add(new Voltage("+3.3V", 8));
                             v.Add(new Voltage("VREF", 9));
                             v.Add(new Voltage("+1.8V", 10));
@@ -640,24 +641,23 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("CMOS Battery", 13));
 
                             t.Add(new Temperature("Chipset #2", 5));
-                            t.Add(new Temperature("Thermistor Sensor #1", 6));
-                            t.Add(new Temperature("Thermistor Sensor #2", 4));
+                            t.Add(new Temperature("T_SEN #1", 6));
+                            t.Add(new Temperature("T_SEN #2", 4));
 
                             break;
 
                         case Model.X870E_CARBON_WIFI:
                         case Model.X870E_GODLIKE:
-                        case Model.X870E_UNIFY_X_MAX:
                             f.Add(new Fan("System Fan #7", 9));
                             c.Add(new Control("System Fan #7", 9));
 
                             v.Add(new Voltage("+12V", 0));
                             v.Add(new Voltage("+5V", 1));
-                            v.Add(new Voltage("CPU Northbridge/SoC", 2));
-                            v.Add(new Voltage("DIMM", 3, 1, 1));
+                            v.Add(new Voltage("CPU NB/SoC", 2));
+                            v.Add(new Voltage("CPU VDDIO", 3, 1, 1));
                             v.Add(new Voltage("Vcore", 4, -1, 2));
                             v.Add(new Voltage("Chipset", 5));
-                            v.Add(new Voltage("CPU System Agent", 6));
+                            v.Add(new Voltage("CPU SA", 6));
                             //v.Add(new Voltage("Unknown_4", 7)); //"Voltage #2"
                             v.Add(new Voltage("+3.3V", 8));
                             v.Add(new Voltage("VREF", 9));
@@ -667,8 +667,8 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("CMOS Battery", 13));
 
                             t.Add(new Temperature("PCIe x1", 5));
-                            t.Add(new Temperature("Thermistor Sensor #1", 6));
-                            t.Add(new Temperature("Thermistor Sensor #2", 4));
+                            t.Add(new Temperature("T_SEN #1", 6));
+                            t.Add(new Temperature("T_SEN #2", 4));
 
                             break;
 
@@ -682,7 +682,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("VIN5", 3));
                             v.Add(new Voltage("VDIMM", 4));
                             v.Add(new Voltage("Chipset", 5));
-                            //v.Add(new Voltage("CPU System Agent", 6));
+                            //v.Add(new Voltage("CPU SA", 6));
                             v.Add(new Voltage("VIN7", 7));
                             v.Add(new Voltage("+3.3V", 8));
                             v.Add(new Voltage("VTT", 9));
@@ -710,7 +710,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("VIN5", 3));
                             v.Add(new Voltage("VDIMM", 4));
                             v.Add(new Voltage("Chipset", 5));
-                            //v.Add(new Voltage("CPU System Agent", 6));
+                            //v.Add(new Voltage("CPU SA", 6));
                             v.Add(new Voltage("Unknown_3", 7));
                             v.Add(new Voltage("+3.3V", 8));
                             v.Add(new Voltage("VTT", 9));
@@ -724,11 +724,11 @@ namespace ZenStates.Core.Hardware.Motherboard
                         default:
                             v.Add(new Voltage("+12V", 0));
                             v.Add(new Voltage("+5V", 1));
-                            v.Add(new Voltage("CPU Northbridge/SoC", 2));
-                            v.Add(new Voltage("DIMM", 3, 1, 1));
+                            v.Add(new Voltage("CPU NB/SoC", 2));
+                            v.Add(new Voltage("VDIMM", 3, 1, 1));
                             v.Add(new Voltage("Vcore", 4, -1, 2));
                             v.Add(new Voltage("Chipset", 5));
-                            v.Add(new Voltage("CPU System Agent", 6));
+                            v.Add(new Voltage("CPU SA", 6));
                             //v.Add(new Voltage("Unknown_4", 7)); //"Voltage #2"
                             v.Add(new Voltage("+3.3V", 8));
                             v.Add(new Voltage("VREF", 9));
@@ -847,8 +847,8 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+3.3V", 2));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("+12V", 4, 30, 10));
-                            v.Add(new Voltage("Northbridge Core", 5));
-                            v.Add(new Voltage("DIMM", 6));
+                            v.Add(new Voltage("NB Core", 5));
+                            v.Add(new Voltage("VDIMM", 6));
                             v.Add(new Voltage("+5VSB", 7, 6.8f, 10));
                             v.Add(new Voltage("CMOS Battery", 8));
                             t.Add(new Temperature("CPU", 0));
@@ -866,8 +866,8 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+3.3V", 2));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("+12V", 4, 30, 10));
-                            v.Add(new Voltage("Phase Locked Loop", 5));
-                            v.Add(new Voltage("DIMM", 6));
+                            v.Add(new Voltage("PLL", 5));
+                            v.Add(new Voltage("VDIMM", 6));
                             v.Add(new Voltage("+5VSB", 7, 6.8f, 10));
                             v.Add(new Voltage("CMOS Battery", 8));
                             t.Add(new Temperature("Chipset", 0));
@@ -886,7 +886,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 3, 6.8f, 10, 0, true));
                             v.Add(new Voltage("+12V", 4, 30, 10, 0, true));
                             v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("DIMM", 6, true));
+                            v.Add(new Voltage("VDIMM", 6, true));
                             v.Add(new Voltage("+5VSB", 7, 6.8f, 10, 0, true));
                             v.Add(new Voltage("CMOS Battery", 8));
 
@@ -908,7 +908,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                     {
                         case Model._965P_S3: // IT8718F
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("+3.3V", 2));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("+12V", 7, 24.3f, 8.2f));
@@ -924,7 +924,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                         case Model.EP45_UD3R:
                         case Model.X38_DS5:
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("+3.3V", 2));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("+12V", 7, 24.3f, 8.2f));
@@ -940,7 +940,7 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                         case Model.EX58_EXTREME: // IT8720F
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("CMOS Battery", 8));
                             t.Add(new Temperature("System", 0));
@@ -956,7 +956,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                         case Model.P35_DS3: // IT8718F
                         case Model.P35_DS3L: // IT8718F
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("+3.3V", 2));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("+12V", 7, 24.3f, 8.2f));
@@ -976,7 +976,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                         case Model.H55_USB3: // IT8720F
                         case Model.EX58_UD3R: // IT8720F
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("+3.3V", 2));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("+12V", 5, 24.3f, 8.2f));
@@ -994,7 +994,7 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                         case Model.H55N_USB3: // IT8720F
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("+3.3V", 2));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("+12V", 5, 24.3f, 8.2f));
@@ -1010,7 +1010,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                         case Model.G41MT_S2: // IT8718F
                         case Model.G41MT_S2P: // IT8718F
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("+3.3V", 2));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("+12V", 7, 24.3f, 8.2f));
@@ -1023,7 +1023,7 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                         case Model._970A_UD3: // IT8720F
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("+3.3V", 2));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("+12V", 4, 24.3f, 8.2f));
@@ -1044,7 +1044,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                         case Model.MA770T_UD3P: // IT8720F
                         case Model.MA790X_UD3P: // IT8720F
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("+3.3V", 2));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("+12V", 4, 24.3f, 8.2f));
@@ -1060,7 +1060,7 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                         case Model.MA78LM_S2H: // IT8718F
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("+3.3V", 2));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("+12V", 4, 24.3f, 8.2f));
@@ -1077,7 +1077,7 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                         case Model.MA790X_DS4: // IT8718F
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("+3.3V", 2));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("+12V", 4, 24.3f, 8.2f));
@@ -1101,7 +1101,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                         case Model.MA785GM_US2H: // IT8718F
                         case Model.MA785GMT_UD2H: // IT8718F
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("+3.3V", 2));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("+12V", 4, 24.3f, 8.2f));
@@ -1116,7 +1116,7 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                         case Model.X58A_UD3R: // IT8720F
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("+3.3V", 2));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("+12V", 5, 24.3f, 8.2f));
@@ -1133,7 +1133,7 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                         default:
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1, true));
+                            v.Add(new Voltage("VDIMM", 1, true));
                             v.Add(new Voltage("+3.3V", 2, true));
                             v.Add(new Voltage("+5V", 3, 6.8f, 10, 0, true));
                             v.Add(new Voltage("Voltage #5", 4, true));
@@ -1256,7 +1256,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 3, 1.5f, 1));
                             v.Add(new Voltage("Southbridge 1.05V", 4, 10, 10));
                             v.Add(new Voltage("DIMM C/D", 5, 10, 10));
-                            v.Add(new Voltage("Phase Locked Loop", 6, 10, 10));
+                            v.Add(new Voltage("PLL", 6, 10, 10));
                             v.Add(new Voltage("+3.3V", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("CPU", 0));
@@ -1287,7 +1287,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("CPU", 0));
                             t.Add(new Temperature("Motherboard", 1));
-                            t.Add(new Temperature("Thermistor Sensor", 2));
+                            t.Add(new Temperature("T_SEN", 2));
                             t.Add(new Temperature("PCIe x16", 3));
                             t.Add(new Temperature("VRM", 4));
                             t.Add(new Temperature("Temperature #6", 5));
@@ -1368,10 +1368,10 @@ namespace ZenStates.Core.Hardware.Motherboard
                     {
                         case Model.A890GXM_A: // IT8721F
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("Northbridge", 2));
                             v.Add(new Voltage("AVCC", 3, 10, 10));
-                            // v.Add(new Voltage("DIMM", 6, true));
+                            // v.Add(new Voltage("VDIMM", 6, true));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("CPU", 0));
@@ -1415,7 +1415,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("CPU Termination", 0));
                             v.Add(new Voltage("+12V", 2, 30.9f, 10));
                             v.Add(new Voltage("Vcore", 5));
-                            v.Add(new Voltage("DIMM", 6));
+                            v.Add(new Voltage("VDIMM", 6));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("System", 0));
@@ -1431,7 +1431,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 1, 15, 10));
                             v.Add(new Voltage("+12V", 2, 30.9f, 10));
                             v.Add(new Voltage("Vcore", 5));
-                            v.Add(new Voltage("DIMM", 6));
+                            v.Add(new Voltage("VDIMM", 6));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("System", 0));
@@ -1450,7 +1450,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+12V", 2, 10, 2));
                             v.Add(new Voltage("iGPU VAXG", 4));
                             v.Add(new Voltage("Vcore", 5));
-                            v.Add(new Voltage("DIMM", 6));
+                            v.Add(new Voltage("VDIMM", 6));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("System", 0));
@@ -1464,7 +1464,7 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                         case Model._970A_DS3P: // IT8620E
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("+12V", 2, 5, 1));
                             v.Add(new Voltage("+5V", 3, 1.5f, 1));
                             v.Add(new Voltage("+3.3V", 4, 6.5f, 10));
@@ -1490,7 +1490,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 3, 1.5f, 1));
                             v.Add(new Voltage("iGPU", 4));
                             v.Add(new Voltage("CPU Input Auxiliary", 5));
-                            v.Add(new Voltage("DIMM", 6));
+                            v.Add(new Voltage("VDIMM", 6));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("CPU", 2));
@@ -1509,7 +1509,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 3, 1.5f, 1));
                             v.Add(new Voltage("iGPU", 4));
                             v.Add(new Voltage("CPU Input Auxiliary", 5));
-                            v.Add(new Voltage("DIMM", 6));
+                            v.Add(new Voltage("VDIMM", 6));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
 
@@ -1568,7 +1568,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 3, 1.5f, 1));
                             v.Add(new Voltage("VSOC", 4));
                             v.Add(new Voltage("VDDP", 5));
-                            v.Add(new Voltage("DIMM", 6));
+                            v.Add(new Voltage("VDIMM", 6));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             v.Add(new Voltage("AVCC3", 9, 7.53f, 1));
@@ -1618,7 +1618,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 3, 1.5F, 1));
                             v.Add(new Voltage("Vcore SoC", 4, 0, 1));
                             v.Add(new Voltage("VDDP", 5, 0, 1));
-                            v.Add(new Voltage("DIMM", 6, 0, 1));
+                            v.Add(new Voltage("VDIMM", 6, 0, 1));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("System", 0));
@@ -1649,7 +1649,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 3, 1.5F, 1));
                             v.Add(new Voltage("Vcore SoC", 4, 0, 1));
                             v.Add(new Voltage("VDDP", 5, 0, 1));
-                            v.Add(new Voltage("DIMM", 6, 0, 1));
+                            v.Add(new Voltage("VDIMM", 6, 0, 1));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("System", 0));
@@ -1677,7 +1677,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 3, 1.5F, 1));
                             v.Add(new Voltage("Vcore SoC", 4, 0, 1));
                             v.Add(new Voltage("VDDP", 5, 0, 1));
-                            v.Add(new Voltage("DIMM", 6, 0, 1));
+                            v.Add(new Voltage("VDIMM", 6, 0, 1));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("System", 0));
@@ -1705,7 +1705,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 3, 1.5F, 1));
                             v.Add(new Voltage("Vcore SoC", 4, 0, 1));
                             v.Add(new Voltage("VDDP", 5, 0, 1));
-                            v.Add(new Voltage("DIMM", 6, 0, 1));
+                            v.Add(new Voltage("VDIMM", 6, 0, 1));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("System", 0));
@@ -1756,8 +1756,8 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+12V", 2, 10f, 2f));
                             v.Add(new Voltage("+5V", 3, 15f, 10f));
                             v.Add(new Voltage("iGPU VAGX", 4));
-                            v.Add(new Voltage("CPU System Agent", 5));
-                            v.Add(new Voltage("DIMM", 6));
+                            v.Add(new Voltage("CPU SA", 5));
+                            v.Add(new Voltage("VDIMM", 6));
                             v.Add(new Voltage("+3V Standby", 7, 10f, 10f));
                             v.Add(new Voltage("CMOS Battery", 8, 10f, 10f));
                             v.Add(new Voltage("AVCC3", 9, 59.9f, 9.8f));
@@ -1914,7 +1914,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+12V", 2, 10f, 2f));
                             v.Add(new Voltage("+5V", 3, 15f, 10f));
                             v.Add(new Voltage("CPU Vcore", 4, 0, 1));
-                            v.Add(new Voltage("CPU System Agent", 5, 0, 1));
+                            v.Add(new Voltage("CPU SA", 5, 0, 1));
                             v.Add(new Voltage("DIMM A/B", 6, 0, 1));
                             v.Add(new Voltage("+3V Standby", 7, 1, 1));
                             v.Add(new Voltage("CMOS Battery", 8, 1, 1));
@@ -2031,7 +2031,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+12V", 2, 5f, 1));
                             v.Add(new Voltage("+5V", 3, 1.5f, 1));
                             v.Add(new Voltage("CPU VCCGT", 4));
-                            v.Add(new Voltage("CPU System Agent", 5));
+                            v.Add(new Voltage("CPU SA", 5));
                             v.Add(new Voltage("VDDQ", 6));
                             v.Add(new Voltage("DDRVTT", 7));
                             v.Add(new Voltage("PCHCore", 8));
@@ -2060,7 +2060,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+12V", 2, 5f, 1));
                             v.Add(new Voltage("+5V", 3, 1.5f, 1));
                             v.Add(new Voltage("CPU VCCGT", 4));
-                            v.Add(new Voltage("CPU System Agent", 5));
+                            v.Add(new Voltage("CPU SA", 5));
                             v.Add(new Voltage("DDR", 6));
                             v.Add(new Voltage("Voltage #7", 7, true));
                             v.Add(new Voltage("+3V Standby", 8, 1f, 1f, -0.312f));
@@ -2226,7 +2226,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+12V", 2, 30.9f, 10));
                             v.Add(new Voltage("+5V", 3, 7.15f, 10));
                             v.Add(new Voltage("Vcore", 5));
-                            v.Add(new Voltage("DIMM", 6));
+                            v.Add(new Voltage("VDIMM", 6));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("System", 0));
@@ -2249,7 +2249,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+12V", 2, 30.9f, 10));
                             v.Add(new Voltage("+5V", 3, 7.15f, 10));
                             v.Add(new Voltage("Vcore", 5));
-                            v.Add(new Voltage("DIMM", 6));
+                            v.Add(new Voltage("VDIMM", 6));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("System", 0));
@@ -2267,7 +2267,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+12V", 2, 30.9f, 10));
                             v.Add(new Voltage("+5V", 3, 7.15f, 10));
                             v.Add(new Voltage("Vcore", 5));
-                            v.Add(new Voltage("DIMM", 6));
+                            v.Add(new Voltage("VDIMM", 6));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("System", 0));
@@ -2316,7 +2316,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 3, 1.5F, 1));
                             v.Add(new Voltage("Vcore SoC", 4, 0, 1));
                             v.Add(new Voltage("VDDP", 5, 0, 1));
-                            v.Add(new Voltage("DIMM", 6, 0, 1));
+                            v.Add(new Voltage("VDIMM", 6, 0, 1));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("System #1", 0));
@@ -2350,7 +2350,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 3, 1.5F, 1));
                             v.Add(new Voltage("Vcore SoC", 4, 0, 1));
                             v.Add(new Voltage("VDDP", 5, 0, 1));
-                            v.Add(new Voltage("DIMM", 6, 0, 1));
+                            v.Add(new Voltage("VDIMM", 6, 0, 1));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("System #1", 0));
@@ -2385,7 +2385,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 3, 1.5F, 1));
                             v.Add(new Voltage("Vcore SoC", 4, 0, 1));
                             v.Add(new Voltage("VDDP", 5, 0, 1));
-                            v.Add(new Voltage("DIMM", 6, 0, 1));
+                            v.Add(new Voltage("VDIMM", 6, 0, 1));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("System", 0));
@@ -2410,7 +2410,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 3, 1.5F, 1));
                             v.Add(new Voltage("iGPU", 4));
                             v.Add(new Voltage("CPU Input Auxiliary", 5));
-                            v.Add(new Voltage("DIMM", 6));
+                            v.Add(new Voltage("VDIMM", 6));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             t.Add(new Temperature("System #1", 0));
@@ -2553,7 +2553,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                                             // In the meantime, it's possible to control CPUFAN and CPUOPT1m but not SYSFAN1.
                                             // The parameters are extracted from the Biostar app config file.
                             v.Add(new Voltage("Vcore", 0, 0, 1));
-                            v.Add(new Voltage("DIMM", 1, 0, 1));
+                            v.Add(new Voltage("VDIMM", 1, 0, 1));
                             v.Add(new Voltage("+12V", 2, 5, 1)); // Reads higher than it should.
                             v.Add(new Voltage("+5V", 3, 147, 100)); // Reads higher than it should.
                                                                     // Commented because I don't know if it makes sense.
@@ -2576,7 +2576,7 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                         case Model.X670E_Valkyrie: //IT8625E
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("+12V", 2, 10, 2));
                             // Voltage of unknown use
                             v.Add(new Voltage("Voltage #4", 3, true));
@@ -2630,7 +2630,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                     {
                         case Model.FH67: // IT8772E
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM", 1));
+                            v.Add(new Voltage("VDIMM", 1));
                             v.Add(new Voltage("PCH VCCIO", 2));
                             v.Add(new Voltage("CPU VCCIO", 3));
                             v.Add(new Voltage("Graphics", 4));
@@ -2777,7 +2777,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("DIMM I/O", 1));
                             v.Add(new Voltage("Chipset +0.82V", 2));
                             v.Add(new Voltage("Voltage #4", 3, true));
-                            v.Add(new Voltage("CPU System Agent", 4));
+                            v.Add(new Voltage("CPU SA", 4));
                             v.Add(new Voltage("Chipset +1.8V", 5));
                             v.Add(new Voltage("Voltage #7", 6, true));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
@@ -2822,7 +2822,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("DIMM I/O", 1));
                             v.Add(new Voltage("Chipset +0.82V", 2));
                             v.Add(new Voltage("Voltage #4", 3, true));
-                            v.Add(new Voltage("CPU System Agent", 4));
+                            v.Add(new Voltage("CPU SA", 4));
                             v.Add(new Voltage("Chipset +1.8V", 5));
                             v.Add(new Voltage("Voltage #7", 6, true));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
@@ -2912,7 +2912,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                         case Model.X58_SLI_Classified: // F71882
                             v.Add(new Voltage("VCC3V", 0, 150, 150));
                             v.Add(new Voltage("Vcore", 1, 47, 100));
-                            v.Add(new Voltage("DIMM", 2, 47, 100));
+                            v.Add(new Voltage("VDIMM", 2, 47, 100));
                             v.Add(new Voltage("CPU Termination", 3, 24, 100));
                             v.Add(new Voltage("IOH Vcore", 4, 24, 100));
                             v.Add(new Voltage("+5V", 5, 51, 12));
@@ -2931,7 +2931,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                         case Model.X58_3X_SLI: // F71882
                             v.Add(new Voltage("VCC3V", 0, 150, 150));
                             v.Add(new Voltage("Vcore", 1, 47, 100));
-                            v.Add(new Voltage("DIMM", 2, 47, 100));
+                            v.Add(new Voltage("VDIMM", 2, 47, 100));
                             v.Add(new Voltage("CPU Termination", 3, 24, 100));
                             v.Add(new Voltage("IOH Vcore", 4, 24, 100));
                             v.Add(new Voltage("+5V", 5, 51, 12));
@@ -2983,7 +2983,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("iGPU", 2));
                             v.Add(new Voltage("+5V", 3, 20, 4.7f));
                             v.Add(new Voltage("+12V", 4, 68, 6.8f));
-                            v.Add(new Voltage("DIMM", 5, 150, 150));
+                            v.Add(new Voltage("VDIMM", 5, 150, 150));
                             v.Add(new Voltage("CPU I/O", 6));
                             v.Add(new Voltage("+3.3V", 7, 150, 150));
                             v.Add(new Voltage("CMOS Battery", 8, 150, 150));
@@ -3304,7 +3304,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+3.3V", 3, 10, 10));
                             v.Add(new Voltage("+12V", 4, 56, 10));
                             v.Add(new Voltage("VcoreRef", 5, 0, 1));
-                            v.Add(new Voltage("DIMM", 6, 0, 1));
+                            v.Add(new Voltage("VDIMM", 6, 0, 1));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             //v.Add(new Voltage("#Unused #9", 9, 0, 1, 0, true));
@@ -3416,7 +3416,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+3.3V", 3, 10, 10));
                             v.Add(new Voltage("+12V", 4, 56, 10));
                             v.Add(new Voltage("SoC", 5, 0, 1));
-                            v.Add(new Voltage("DIMM", 6, 0, 1, 0));
+                            v.Add(new Voltage("VDIMM", 6, 0, 1, 0));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 34, 34));
                             v.Add(new Voltage("VPPM", 11, 3, 1));
@@ -3447,7 +3447,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+3.3V", 3, 10, 10));
                             v.Add(new Voltage("+12V", 4, 56, 10));
                             v.Add(new Voltage("VDDCR_SOC", 5, 0, 1));
-                            v.Add(new Voltage("DIMM", 6, 0, 1));
+                            v.Add(new Voltage("VDIMM", 6, 0, 1));
                             v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
                             //v.Add(new Voltage("#Unused", 9, 0, 1, 0, true));
@@ -3515,9 +3515,9 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+5V", 1));
                             v.Add(new Voltage("Vcore", 2));
                             v.Add(new Voltage("Voltage #1", 3));
-                            v.Add(new Voltage("DIMM", 4));
+                            v.Add(new Voltage("VDIMM", 4));
                             v.Add(new Voltage("CPU I/O", 5));
-                            v.Add(new Voltage("CPU System Agent", 6));
+                            v.Add(new Voltage("CPU SA", 6));
                             v.Add(new Voltage("Voltage #2", 7));
                             v.Add(new Voltage("AVCC3", 8));
                             v.Add(new Voltage("CPU Termination", 9));
@@ -3548,14 +3548,14 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+3.3V", 3, 34, 34));
                             v.Add(new Voltage("+12V", 4, 110, 10));
                             v.Add(new Voltage("CPU Input Auxiliary", 5, 1, 1));
-                            v.Add(new Voltage("DIMM", 6));
+                            v.Add(new Voltage("VDIMM", 6));
                             v.Add(new Voltage("+3.3V Standby", 7, 34, 34));
                             v.Add(new Voltage("CMOS Battery", 8, 34, 34));
                             v.Add(new Voltage("CPU Termination", 9, 1, 1));
                             v.Add(new Voltage("CPU 1.05V", 10, 1, 1));
                             v.Add(new Voltage("Chipset 0.82V", 11, 1, 1));
                             v.Add(new Voltage("Chipset 1.0V", 12));
-                            v.Add(new Voltage("CPU System Agent", 13, 1, 1));
+                            v.Add(new Voltage("CPU SA", 13, 1, 1));
                             v.Add(new Voltage("+5V Standby", 14, 2.35f, 1));
 
                             f.Add(new Fan("CPU Fan #1", 1));
@@ -3592,7 +3592,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("CPU 1.05V", 10, 1, 1));
                             v.Add(new Voltage("Chipset 0.82V", 11, 1, 1));
                             v.Add(new Voltage("Chipset 1.0V", 12));
-                            v.Add(new Voltage("CPU System Agent", 13, 1, 1));
+                            v.Add(new Voltage("CPU SA", 13, 1, 1));
                             v.Add(new Voltage("+5V Standby", 14, 2.35f, 1));
 
                             f.Add(new Fan("CPU Fan #1", 1));
@@ -3630,7 +3630,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("CPU 1.05V", 10, 1, 1));
                             v.Add(new Voltage("Chipset 0.82V", 11, 1, 1));
                             v.Add(new Voltage("Chipset 1.0V", 12));
-                            v.Add(new Voltage("CPU System Agent", 13, 1, 1));
+                            v.Add(new Voltage("CPU SA", 13, 1, 1));
                             v.Add(new Voltage("+5V Standby", 14, 2.35f, 1));
 
                             f.Add(new Fan("CPU Fan #1", 1));
@@ -3670,7 +3670,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+3.3V", 3, 1, 1));
                             v.Add(new Voltage("+12V", 4, 56, 10));
                             v.Add(new Voltage("CPU SoC", 5));
-                            v.Add(new Voltage("DIMM", 6));
+                            v.Add(new Voltage("VDIMM", 6));
                             v.Add(new Voltage("+3V Standby", 7, 1, 1));
                             v.Add(new Voltage("CMOS Battery", 8, 1, 1));
                             v.Add(new Voltage("DIMM Termination", 9));
@@ -3763,7 +3763,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                                 v.Add(new Voltage("+3.3V", 3, 34, 34));
                                 v.Add(new Voltage("+12V", 4, 110, 10));
                                 v.Add(new Voltage("CPU Input Auxiliary", 5, 1, 1));
-                                v.Add(new Voltage("CPU System Agent", 13, 1, 1));
+                                v.Add(new Voltage("CPU SA", 13, 1, 1));
                                 v.Add(new Voltage("+5V Standby", 14, 235, 100));
 
                                 f.Add(new Fan("Chassis #3", 0));
@@ -3804,7 +3804,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("Vcore SoC", 10, 1, 1));
                             v.Add(new Voltage("Vcore Misc", 11, 1, 1));
                             v.Add(new Voltage("+1.8V", 13, 1, 1));
-                            v.Add(new Voltage("DIMM", 14));
+                            v.Add(new Voltage("VDIMM", 14));
 
                             t.Add(new Temperature("CPU Core", 9));
                             t.Add(new Temperature("Motherboard", 2));
@@ -3834,7 +3834,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             t.Add(new Temperature("CPU", 1));
                             t.Add(new Temperature("Motherboard", 2));
                             t.Add(new Temperature("PCH TS10", 9));
-                            t.Add(new Temperature("Thermistor Sensor", 24));
+                            t.Add(new Temperature("T_SEN", 24));
 
                             f.Add(new Fan("CPU Fan #1", 1)); // CPU_FAN1
                             f.Add(new Fan("CPU Fan #2 / Pump", 0)); // CPU_FAN2/PUMP
@@ -3863,9 +3863,9 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                             t.Add(new Temperature("Motherboard", 2));
 
-                            t.Add(new Temperature("Thermistor Sensor #1", 5)); // Thermistor Sensor 1
-                            t.Add(new Temperature("Thermistor Sensor #2", 6)); // Thermistor Sensor 2
-                            t.Add(new Temperature("Thermistor Sensor #3", 8)); // Thermistor Sensor 3
+                            t.Add(new Temperature("T_SEN #1", 5)); // T_SEN 1
+                            t.Add(new Temperature("T_SEN #2", 6)); // T_SEN 2
+                            t.Add(new Temperature("T_SEN #3", 8)); // T_SEN 3
 
                             f.Add(new Fan("CPU Fan #1", 1)); // CPU_FAN1
                             f.Add(new Fan("CPU Fan #2", 2)); // CPU_FAN2
@@ -3904,10 +3904,10 @@ namespace ZenStates.Core.Hardware.Motherboard
                             t.Add(new Temperature("Motherboard", 1)); // SYSTIN
                             t.Add(new Temperature("Auxiliary #0", 2)); // AUXTIN0
                             t.Add(new Temperature("Auxiliary #1", 3)); // AUXTIN1
-                            t.Add(new Temperature("Thermistor Sensor #1", 4)); // AUXTIN2 (Thermistor Sensor1)
-                            t.Add(new Temperature("Thermistor Sensor #2", 5)); // AUXTIN3 (Thermistor Sensor2)
+                            t.Add(new Temperature("T_SEN #1", 4)); // AUXTIN2 (T_SEN1)
+                            t.Add(new Temperature("T_SEN #2", 5)); // AUXTIN3 (T_SEN2)
                             t.Add(new Temperature("Auxiliary #4", 6)); // AUXTIN4
-                            t.Add(new Temperature("Thermistor Sensor #3", 7)); // AUXTIN5 (Thermistor Sensor3)
+                            t.Add(new Temperature("T_SEN #3", 7)); // AUXTIN5 (T_SEN3)
                             t.Add(new Temperature("CPU Core", 8)); // SMBUSMASTER0 (CPU Core)
                             t.Add(new Temperature("CPU (PECI)", 9)); // CPU (PECI)
                             t.Add(new Temperature("Virtual", 10)); // VIRTUAL_TEMP
@@ -4010,10 +4010,10 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+3V Standby", 7, 34, 34));
                             v.Add(new Voltage("CMOS Battery", 8, 34, 34));
                             v.Add(new Voltage("CPU Termination", 9));
-                            v.Add(new Voltage("DIMM", 10, 1, 1));
-                            v.Add(new Voltage("CPU System Agent", 11));
+                            v.Add(new Voltage("VDIMM", 10, 1, 1));
+                            v.Add(new Voltage("CPU SA", 11));
                             v.Add(new Voltage("PCH Core", 12));
-                            v.Add(new Voltage("Phase Locked Loop", 13));
+                            v.Add(new Voltage("PLL", 13));
                             v.Add(new Voltage("CPU VCCIO/IMC", 14));
                             t.Add(new Temperature("CPU (PECI)", 0));
                             t.Add(new Temperature("T2", 1));
@@ -4046,10 +4046,10 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+3V Standby", 7, 34, 34));
                             v.Add(new Voltage("CMOS Battery", 8, 34, 34));
                             v.Add(new Voltage("CPU Termination", 9));
-                            v.Add(new Voltage("DIMM", 10, 1, 1));
-                            v.Add(new Voltage("CPU System Agent", 11));
+                            v.Add(new Voltage("VDIMM", 10, 1, 1));
+                            v.Add(new Voltage("CPU SA", 11));
                             v.Add(new Voltage("PCH Core", 12));
-                            v.Add(new Voltage("Phase Locked Loop", 13));
+                            v.Add(new Voltage("PLL", 13));
                             v.Add(new Voltage("CPU VCCIO/IMC", 14));
                             t.Add(new Temperature("CPU (PECI)", 0));
                             t.Add(new Temperature("CPU", 1));
@@ -4084,10 +4084,10 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+3V Standby", 7, 34, 34));
                             v.Add(new Voltage("CMOS Battery", 8, 34, 34));
                             v.Add(new Voltage("PCH", 9));
-                            //v.Add(new Voltage("DIMM", 10, 1, 1));
-                            //v.Add(new Voltage("CPU System Agent", 11));
+                            //v.Add(new Voltage("VDIMM", 10, 1, 1));
+                            //v.Add(new Voltage("CPU SA", 11));
                             //v.Add(new Voltage("PCH Core", 12));
-                            //v.Add(new Voltage("Phase Locked Loop", 13));
+                            //v.Add(new Voltage("PLL", 13));
                             //v.Add(new Voltage("CPU VCCIO/IMC", 14));
 
                             t.Add(new Temperature("CPU (PECI)", 0));
@@ -4240,7 +4240,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("Voltage #11", 10, true));
                             v.Add(new Voltage("Voltage #12", 11, true));
                             v.Add(new Voltage("Voltage #13", 12, true));
-                            v.Add(new Voltage("DIMM", 13));
+                            v.Add(new Voltage("VDIMM", 13));
                             v.Add(new Voltage("Voltage #15", 14, true));
                             t.Add(new Temperature("PECI 0", 0));
                             t.Add(new Temperature("CPU", 1));
@@ -4293,11 +4293,11 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+3V Standby", 7, 34, 34));
                             v.Add(new Voltage("CMOS Battery", 8, 34, 34));
                             v.Add(new Voltage("CPU Termination", 9, 1, 1));
-                            v.Add(new Voltage("DIMM", 10));
+                            v.Add(new Voltage("VDIMM", 10));
                             v.Add(new Voltage("CPU VCCIO", 11, 1, 1));
                             v.Add(new Voltage("PCH Core", 12));
-                            v.Add(new Voltage("Phase Locked Loop", 13));
-                            v.Add(new Voltage("CPU System Agent", 14));
+                            v.Add(new Voltage("PLL", 13));
+                            v.Add(new Voltage("CPU SA", 14));
 
                             t.Add(new Temperature("Motherboard", 0));
                             t.Add(new Temperature("CPU", 1));
@@ -4375,10 +4375,10 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+3V Standby", 7, 34, 34));
                             v.Add(new Voltage("CMOS Battery", 8, 34, 34));
                             v.Add(new Voltage("CPU Termination", 9));
-                            v.Add(new Voltage("DIMM", 10, 1, 1));
-                            v.Add(new Voltage("CPU System Agent", 11));
+                            v.Add(new Voltage("VDIMM", 10, 1, 1));
+                            v.Add(new Voltage("CPU SA", 11));
                             v.Add(new Voltage("PCH Core", 12));
-                            v.Add(new Voltage("Phase Locked Loop", 13));
+                            v.Add(new Voltage("PLL", 13));
                             v.Add(new Voltage("CPU VCCIO/IMC", 14));
                             t.Add(new Temperature("CPU (PECI)", 0));
                             t.Add(new Temperature("T2", 1));
@@ -4575,7 +4575,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("Voltage #11", 10, 1, 1));
                             v.Add(new Voltage("IVR Atom L2 Cluster #0", 11, 1, 1));
                             v.Add(new Voltage("PCH", 12));
-                            v.Add(new Voltage("CPU System Agent", 13, 1, 1));
+                            v.Add(new Voltage("CPU SA", 13, 1, 1));
                             v.Add(new Voltage("CPU Input Auxiliary", 14, 1, 1));
                             v.Add(new Voltage("Voltage #15", 15));
 
@@ -4626,7 +4626,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             t.Add(new Temperature("CPU", 1));
                             t.Add(new Temperature("Motherboard", 2));
                             t.Add(new Temperature("VRM", 3));
-                            t.Add(new Temperature("Thermistor Sensor", 8));
+                            t.Add(new Temperature("T_SEN", 8));
                             t.Add(new Temperature("PCH", 13));
                             t.Add(new Temperature("CPU Calibrated", 22));
 
@@ -4736,7 +4736,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+12V", 4, 6, 1));
                             v.Add(new Voltage("DIMM C/D", 11, 10, 10));
                             v.Add(new Voltage("DIMM A/B", 13));
-                            v.Add(new Voltage("Phase Locked Loop", 14));
+                            v.Add(new Voltage("PLL", 14));
 
                             t.Add(new Temperature("CPU", 1));
                             t.Add(new Temperature("Motherboard", 2));
@@ -4923,7 +4923,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             t.Add(new Temperature("Temperature #6", 6)); // No matching temp value
                             t.Add(new Temperature("Temperature #7", 8)); // Matches MB in HWinfo
                             t.Add(new Temperature("CPU", 22)); // Matches MB in HWinfo
-                            t.Add(new Temperature("Thermistor Sensor", 24));
+                            t.Add(new Temperature("T_SEN", 24));
 
                             for (int i = 0; i < superIO.Fans.Length; i++)
                                 f.Add(new Fan("Fan #" + (i + 1), i));
@@ -4958,7 +4958,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             t.Add(new Temperature("Temperature #4", 4)); // No matching temp value
                             t.Add(new Temperature("Temperature #5", 5)); // No matching temp value
                             t.Add(new Temperature("Temperature #6", 6)); // No matching temp value
-                            t.Add(new Temperature("Thermistor Sensor", 24)); // Aligned with Armoury Crate ROG_STRIX_X670E_E_GAMING_WIFI
+                            t.Add(new Temperature("T_SEN", 24)); // Aligned with Armoury Crate ROG_STRIX_X670E_E_GAMING_WIFI
 
                             for (int i = 0; i < superIO.Fans.Length; i++)
                                 f.Add(new Fan("Fan #" + (i + 1), i));
@@ -5008,7 +5008,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             //v.Add(new Voltage("CPU Termination", 9)); // This is wrong
                             t.Add(new Temperature("CPU", 22));
                             t.Add(new Temperature("Motherboard", 2));
-                            t.Add(new Temperature("Thermistor Sensor", 24)); // Aligned with Armoury Crate
+                            t.Add(new Temperature("T_SEN", 24)); // Aligned with Armoury Crate
                             t.Add(new Temperature("Temperature #1", 1)); // Unknown, Possibly VRM with 23 offset
 
                             for (int i = 0; i < superIO.Fans.Length; i++)
@@ -5215,7 +5215,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             t.Add(new Temperature("CPU Package", 0)); // PECI_0, CPU Package
                             t.Add(new Temperature("CPU", 1)); // CPUTIN, CPU
                             t.Add(new Temperature("Motherboard", 2)); // SYSTIN, MOTHERBOARD
-                            t.Add(new Temperature("Thermistor Sensor", 8)); // TSENSOR
+                            t.Add(new Temperature("T_SEN", 8)); // TSENSOR
                             t.Add(new Temperature("PCH", 13)); // PCH_CHIP_TEMP
                             t.Add(new Temperature("PECI 0 Calibrated", 22)); // PECI_0_CAL, CPU
 
@@ -5441,10 +5441,10 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("CPU I/O", 6));
                             v.Add(new Voltage("+3V Standby", 7, 34, 34));
                             v.Add(new Voltage("CPU Termination", 9));
-                            v.Add(new Voltage("CPU System Agent", 10));
+                            v.Add(new Voltage("CPU SA", 10));
                             //v.Add(new Voltage("Voltage #12", 11, true));
                             v.Add(new Voltage("Northbridge/SoC", 12));
-                            v.Add(new Voltage("DIMM", 13, 1, 1));
+                            v.Add(new Voltage("VDIMM", 13, 1, 1));
                             //v.Add(new Voltage("Voltage #15", 14, true));
                             t.Add(new Temperature("CPU", 0));
                             t.Add(new Temperature("Auxiliary", 1));
@@ -5469,10 +5469,10 @@ namespace ZenStates.Core.Hardware.Motherboard
                             //v.Add(new Voltage("CPU I/O", 6));
                             v.Add(new Voltage("+3V Standby", 7, 34, 34));
                             v.Add(new Voltage("CPU Termination", 9));
-                            v.Add(new Voltage("CPU System Agent", 10));
+                            v.Add(new Voltage("CPU SA", 10));
                             //v.Add(new Voltage("Voltage #12", 11, false));
                             v.Add(new Voltage("Northbridge/SoC", 12));
-                            v.Add(new Voltage("DIMM", 13, 1, 1));
+                            v.Add(new Voltage("VDIMM", 13, 1, 1));
                             //v.Add(new Voltage("Voltage #15", 14, false));
                             //t.Add(new Temperature("CPU", 0));
                             t.Add(new Temperature("CPU", 1));
@@ -5505,10 +5505,10 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("CPU I/O", 6));
                             v.Add(new Voltage("+3V Standby", 7, 34, 34));
                             v.Add(new Voltage("CPU Termination", 9));
-                            v.Add(new Voltage("CPU System Agent", 10));
+                            v.Add(new Voltage("CPU SA", 10));
                             v.Add(new Voltage("Voltage #12", 11, true));
                             v.Add(new Voltage("PCH", 12));
-                            v.Add(new Voltage("DIMM", 13, 1, 1));
+                            v.Add(new Voltage("VDIMM", 13, 1, 1));
                             v.Add(new Voltage("Voltage #15", 14, true));
                             t.Add(new Temperature("CPU", 0));
                             t.Add(new Temperature("Auxiliary", 1));
@@ -5546,7 +5546,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             //v.Add(new Voltage("Voltage #11", 10));
                             v.Add(new Voltage("Voltage #11", 11));
                             v.Add(new Voltage("CPU NB/SoC", 12));
-                            v.Add(new Voltage("DIMM", 13, 1, 1));
+                            v.Add(new Voltage("VDIMM", 13, 1, 1));
                             v.Add(new Voltage("Voltage #14", 14));
 
                             //t.Add(new Temperature("Unknown Temperature #1", 1));
@@ -5590,7 +5590,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("CPU VDDP", 10));       // VIN5
                             v.Add(new Voltage("Voltage #6", 11, true));    // VIN6, temperature input
                             v.Add(new Voltage("CPU NB/SoC", 12));     // VIN2, VCCP_NB
-                            v.Add(new Voltage("DIMM", 13, 1, 1));     // VIN3
+                            v.Add(new Voltage("VDIMM", 13, 1, 1));     // VIN3
                             v.Add(new Voltage("+5V Standby", 14, 768, 330));  // VIN7, ATX_5VSB
 
                             t.Add(new Temperature("CPU Socket", 1));  // CPUTIN, 10k at top side of the socket
@@ -5598,7 +5598,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             t.Add(new Temperature("VRM MOS", 3));     // AUXTIN0, CPUMOSTIN, 10k at left side of cpu vrm
                             t.Add(new Temperature("Chipset", 5));     // AUXTIN2, 10k at back side of the chipset
                             t.Add(new Temperature("CPU", 23));
-                            // Add Thermistor Sensors for voltage inputs that are marked ad
+                            // Add T_SENs for voltage inputs that are marked ad
                             t.Add(new Temperature("MOS CPU", 24));  // (VIN 4 Voltage) NTC Near MOSFET CPU VRM
                             t.Add(new Temperature("PCH", 25));      // (Voltage #6) X570 Platform Control HUB TEMP (NTC On Bottom of PCB)
 
