@@ -744,10 +744,8 @@ namespace ZenStates.Core.Hardware.Motherboard
                     return Model.X870E_TOMAHAWK_WIFI;
                 case var _ when name.Equals("MAG X870E TOMAHAWK MAX WIFI PZ (MS-7E84)", StringComparison.OrdinalIgnoreCase):
                     return Model.X870E_TOMAHAWK_MAX_WIFI_PZ;
-                case var _ when name.Equals("MEG X870E UNIFY-X MAX (MS-7E73)"):
-                    return Model.X870E_UNIFY_X_MAX;
                 case var _ when name.Equals("MEG X870E GODLIKE (MS-7E48)", StringComparison.OrdinalIgnoreCase):
-            case var _ when name.Equals("MEG X870E GODLIKE X EDITION (MS-7E48)", StringComparison.OrdinalIgnoreCase):
+                case var _ when name.Equals("MEG X870E GODLIKE X EDITION (MS-7E48)", StringComparison.OrdinalIgnoreCase):
                     return Model.X870E_GODLIKE;
                 case var _ when name.Equals("PRO X870-P WIFI (MS-7E47)", StringComparison.OrdinalIgnoreCase):
                     return Model.X870P_PRO_WIFI;
@@ -759,6 +757,8 @@ namespace ZenStates.Core.Hardware.Motherboard
                     return Model.X870E_EDGE_TI_WIFI;
                 case var _ when name.Equals("MEG X870E ACE MAX (MS-7E85)", StringComparison.OrdinalIgnoreCase):
                     return Model.X870E_ACE_MAX;
+                case var _ when name.Equals("MEG X870E UNIFY-X MAX (MS-7E73)", StringComparison.OrdinalIgnoreCase):
+                return Model.X870E_UNIFY_X_MAX;
                 case var _ when name.Equals("MEG Z790 GODLIKE MAX (MS-7D85)", StringComparison.OrdinalIgnoreCase):
                     return Model.Z790_GODLIKE_MAX;
                 case var _ when name.Equals("MEG Z890 ACE (MS-7E22)", StringComparison.OrdinalIgnoreCase):

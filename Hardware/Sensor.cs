@@ -29,7 +29,7 @@ namespace ZenStates.Core.Hardware
         public float? Value
         {
             get => _currentValue;
-            internal set
+            set
             {
                 _currentValue = value;
                 if (value.HasValue && !float.IsNaN(value.Value) && !float.IsInfinity(value.Value))

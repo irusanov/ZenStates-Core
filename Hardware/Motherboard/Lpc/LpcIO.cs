@@ -22,7 +22,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
 
         public LpcIO(SMBios smbios)
         {
-            if (!Mutexes.WaitIsaBus(100))
+            if (!Mutexes.WaitIsaBus(500))
                 return;
 
             Detect(smbios);

@@ -83,7 +83,15 @@ namespace ZenStates.Core.Hardware.Motherboard
             {
                 if (temperature.Index < superIO.Temperatures.Length)
                 {
-                    Sensor sensor = new Sensor(temperature.Name, temperature.Index, SensorType.Temperature);
+                    Sensor sensor = new Sensor(
+                    	temperature.Name,
+                    	temperature.Index,
+                    	SensorType.Temperature,
+                    	new Parameter[]
+                    	{
+                    		new Parameter("Offset [°C]", "Temperature offset.", 0)
+                    	}
+                    	);
                     _temperatures.Add(sensor);
                 }
             }
@@ -112,7 +120,7 @@ namespace ZenStates.Core.Hardware.Motherboard
         }
 
 
-        public static void GetBoardSpecificConfiguration(
+        private static void GetBoardSpecificConfiguration(
             ISuperIO superIO,
             Model model,
             Manufacturer manufacturer,
@@ -724,6 +732,22 @@ namespace ZenStates.Core.Hardware.Motherboard
                     GetDefaultConfiguration(superIO, v, t, f, c);
                     break;
             }
+        }
+
+        // Only used in IPMI which we don't support for now
+        private static void GetDefaultConfiguration(ISuperIO superIO, ICollection<Voltage> v, ICollection<Temperature> t, ICollection<Fan> f, ICollection<Control> c)
+        {
+            for (int i = 0; i < superIO.Voltages.Length; i++)
+                v.Add(new Voltage("Voltage #" + (i + 1), i, true));
+
+            for (int i = 0; i < superIO.Temperatures.Length; i++)
+                t.Add(new Temperature("Temperature #" + (i + 1), i));
+
+            for (int i = 0; i < superIO.Fans.Length; i++)
+                f.Add(new Fan("Fan #" + (i + 1), i));
+
+            for (int i = 0; i < superIO.Controls.Length; i++)
+                c.Add(new Control("Fan #" + (i + 1), i));
         }
 
         private static void GetIteConfigurationsA(ISuperIO superIO, Manufacturer manufacturer, Model model, IList<Voltage> v, IList<Temperature> t, IList<Fan> f, IList<Control> c)
@@ -2863,21 +2887,6 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                     break;
             }
-        }
-
-        private static void GetDefaultConfiguration(ISuperIO superIO, IList<Voltage> v, IList<Temperature> t, IList<Fan> f, IList<Control> c)
-        {
-            for (int i = 0; i < superIO.Voltages.Length; i++)
-                v.Add(new Voltage("Voltage #" + (i + 1), i, true));
-
-            for (int i = 0; i < superIO.Temperatures.Length; i++)
-                t.Add(new Temperature("Temperature #" + (i + 1), i));
-
-            for (int i = 0; i < superIO.Fans.Length; i++)
-                f.Add(new Fan("Fan #" + (i + 1), i));
-
-            for (int i = 0; i < superIO.Controls.Length; i++)
-                c.Add(new Control("Fan #" + (i + 1), i));
         }
 
         private static void GetFintekConfiguration(ISuperIO superIO, Manufacturer manufacturer, Model model, IList<Voltage> v, IList<Temperature> t, IList<Fan> f, IList<Control> c)
@@ -5576,7 +5585,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             t.Add(new Temperature("VRM MOS", 3));     // AUXTIN0, CPUMOSTIN, 10k at left side of cpu vrm
                             t.Add(new Temperature("Chipset", 5));     // AUXTIN2, 10k at back side of the chipset
                             t.Add(new Temperature("CPU", 23));
-                            // Add T_SENs for voltage inputs that are marked ad
+                            // Add Thermistor Sensors for voltage inputs that are marked ad
                             t.Add(new Temperature("MOS CPU", 24));  // (VIN 4 Voltage) NTC Near MOSFET CPU VRM
                             t.Add(new Temperature("PCH", 25));      // (Voltage #6) X570 Platform Control HUB TEMP (NTC On Bottom of PCB)
 
@@ -5981,20 +5990,51 @@ namespace ZenStates.Core.Hardware.Motherboard
                 float? value = _superIO.Voltages[sensor.Index];
                 if (value.HasValue)
                 {
-                    sensor.Value = value.Value + (value.Value - sensor.Parameters[2].Value) * sensor.Parameters[0].Value / sensor.Parameters[1].Value;
+                    sensor.Value = value + (value - sensor.Parameters[2].Value) * sensor.Parameters[0].Value / sensor.Parameters[1].Value;
                 }
             }
 
             foreach (Sensor sensor in _temperatures)
             {
-                if (sensor.Index < _superIO.Temperatures.Length)
-                    sensor.Value = _superIO.Temperatures[sensor.Index];
+                float? value = _superIO.Temperatures[sensor.Index];
+                if (value.HasValue)
+                {
+                    sensor.Value = value + sensor.Parameters[0].Value;
+                }
+                else
+                {
+                    if (_motherboardName == Model.X570_MS7C35) // Add Temp Value for CPU MOS TEMPERATURE & PCH TEMPERATURE
+                    {
+                        float? voltage = null;
+
+                        if (sensor.Index == 24)
+                        {
+                            voltage = _superIO.Voltages[6];
+                        }
+                        else if (sensor.Index == 25)
+                        {
+                            voltage = _superIO.Voltages[11];
+                        }
+
+                        if (!voltage.HasValue || voltage.Value <= 0)
+                            continue;
+
+                        double R = (10000.0 * voltage.Value / (2.048 - 1.0));            //Convert voltage measured to resistance value
+                        double T = ((298.15 * 3435.0) / ((298.15 * Math.Log(R / 10000.0)) + 3435.0));  // Use R value in steinhart and hart equation, calculate temperature value in kelvin
+                        float Tc = (float)(T - 273.15);                            // Converting kelvin to celsius
+
+                        sensor.Value = Tc + sensor.Parameters[0].Value;
+                    }
+                }
             }
 
             foreach (Sensor sensor in _fans)
             {
-                if (sensor.Index < _superIO.Fans.Length)
-                    sensor.Value = _superIO.Fans[sensor.Index];
+                float? value = _superIO.Fans[sensor.Index];
+                if (value.HasValue)
+                {
+                    sensor.Value = value;
+                }
             }
         }
     }
