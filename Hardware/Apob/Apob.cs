@@ -5,6 +5,20 @@ using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core.Hardware.Apob
 {
+    public readonly struct CcdlData
+    {
+        public uint Tccdl { get; }
+        public uint Tccdlwr { get; }
+        public uint Tccdlwr2 { get; }
+
+        public CcdlData(uint tccdl, uint tccdlwr, uint tccdlwr2)
+        {
+            Tccdl = tccdl;
+            Tccdlwr = tccdlwr;
+            Tccdlwr2 = tccdlwr2;
+        }
+    }
+
     /// <summary>
     /// Reads and parses the AGESA PSP Output Block (APOB) from physical memory.
     /// </summary>
@@ -12,11 +26,11 @@ namespace ZenStates.Core.Hardware.Apob
     {
         private const uint APOB_SIGNATURE = 0x424F5041; // "APOB"
         private const uint HASH_SIZE = 32;
-        private const int CONFIG_LIST_START = 0x30;
-        private const int ENTRY_SIZE_OFFSET = 0x0C;
-        private const int DATA_MIN_SIZE = 4;
-        private const int DATA_PARSE_LEAD_BYTES = 48;
-        private const int RTT_BLOCK_SIZE = 5;
+        private const uint CONFIG_LIST_START = 0x30;
+        private const uint ENTRY_SIZE_OFFSET = 0x0C;
+        private const uint DATA_MIN_SIZE = 4;
+        private const uint DATA_PARSE_LEAD_BYTES = 48;
+        private const uint RTT_BLOCK_SIZE = 5;
 
         // Expected first-byte signatures for each config block type
         private const byte MAIN_CONFIG_BYTE0 = 0x01;
@@ -24,8 +38,10 @@ namespace ZenStates.Core.Hardware.Apob
         private const byte EXT_CONFIG_BYTE0 = 0x07;
         private const byte EXT_CONFIG_BYTE4 = 0x03;
 
-        private static readonly IODriver io = IODriver.Instance;
         private static readonly uint[] KnownAddresses = new uint[] { 0xA200000, 0x9F00000, 0x4000000 };
+        private static readonly byte[] CHANNEL_START_PATTERN = new byte[] { 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00 };
+
+        private static readonly IODriver io = IODriver.Instance;
 
         private readonly Cpu.CodeName _codeName;
 
@@ -45,6 +61,8 @@ namespace ZenStates.Core.Hardware.Apob
         public ApobHeader Header { get; private set; }
         public ApobData Data { get; private set; }
         public ApobData ExtendedData { get; private set; }
+
+        public CcdlData CcdlData { get; private set; } = new CcdlData();
 
         /// <summary>Offsets of all non-zero config entries found inside the header region.</summary>
         public List<uint> ConfigOffsets { get; private set; }
@@ -120,7 +138,45 @@ namespace ZenStates.Core.Hardware.Apob
             // 6. Optionally locate the extended config block, which may contain more data on some SKUs
             TryGetExtendedConfig();
 
-            // 7. Parse data
+            // 7. Locate the channel start offset inside the extended data block
+            if (TryFindChannelStart(out uint channelOffset))
+            {
+                // index relative to the extended data block
+                uint ccdlStart;
+                uint tccdl = 0;
+                uint tccdlwr = 0;
+                uint tccdlwr2 = 0;
+
+                switch (codeName)
+                {
+                    // TODO: Do not use codename, maybe use family
+                    // 1AH
+                    case Cpu.CodeName.Turin:
+                    case Cpu.CodeName.TurinD:
+                    case Cpu.CodeName.ShimadaPeak:
+                    case Cpu.CodeName.StrixPoint:
+                    case Cpu.CodeName.StrixHalo:
+                    case Cpu.CodeName.KrackanPoint:
+                    case Cpu.CodeName.KrackanPoint2:
+                    case Cpu.CodeName.GraniteRidge:
+                    case Cpu.CodeName.Bergamo:
+                        ccdlStart = channelOffset + 0x1CA;
+                        tccdl = Utils.ReadUInt16(RawExtendedData, ccdlStart);
+                        tccdlwr = Utils.ReadUInt16(RawExtendedData, ccdlStart + 2);
+                        tccdlwr2 = Utils.ReadUInt16(RawExtendedData, ccdlStart + 4);
+                        break;
+                    default:
+                        ccdlStart = channelOffset + 0x214;
+                        tccdl = Utils.ReadUInt32(RawExtendedData, ccdlStart);
+                        tccdlwr = Utils.ReadUInt32(RawExtendedData, ccdlStart + 4);
+                        tccdlwr2 = Utils.ReadUInt32(RawExtendedData, ccdlStart + 8);
+                        break;
+                }
+
+                CcdlData = new CcdlData(tccdl, tccdlwr, tccdlwr2);
+            }
+
+            // 8. Parse data
             ParseRawData();
         }
 
@@ -186,9 +242,9 @@ namespace ZenStates.Core.Hardware.Apob
             if (regionLength <= 0)
                 return list;
 
-            int regionEnd = CONFIG_LIST_START + regionLength;
+            uint regionEnd = CONFIG_LIST_START + (uint)regionLength;
 
-            for (int i = CONFIG_LIST_START; i + 3 < regionEnd && i + 3 < table.Length; i += 4)
+            for (uint i = CONFIG_LIST_START; i + 3 < regionEnd && i + 3 < table.Length; i += 4)
             {
                 uint offset = Utils.ReadUInt32(table, i);
                 if (offset != 0 && offset + ENTRY_SIZE_OFFSET + 4 < table.Length)
@@ -204,7 +260,7 @@ namespace ZenStates.Core.Hardware.Apob
             if (firstOffset + ENTRY_SIZE_OFFSET + 4 >= RawTable.Length)
                 return false;
 
-            uint firstEntrySize = Utils.ReadUInt32(RawTable, (int)(firstOffset + ENTRY_SIZE_OFFSET));
+            uint firstEntrySize = Utils.ReadUInt32(RawTable, firstOffset + ENTRY_SIZE_OFFSET);
             uint secondOffset = firstOffset + firstEntrySize;
 
             if (secondOffset + ENTRY_SIZE_OFFSET + 4 >= RawTable.Length)
@@ -216,7 +272,7 @@ namespace ZenStates.Core.Hardware.Apob
                 RawTable[secondOffset + 4] != MAIN_CONFIG_BYTE4)
                 return false;
 
-            uint secondSize = Utils.ReadUInt32(RawTable, (int)(secondOffset + ENTRY_SIZE_OFFSET));
+            uint secondSize = Utils.ReadUInt32(RawTable, secondOffset + ENTRY_SIZE_OFFSET);
             if (secondSize <= DATA_MIN_SIZE)
                 return false;
 
@@ -241,12 +297,31 @@ namespace ZenStates.Core.Hardware.Apob
                         return false;
 
                     ExtendedDataOffset = offset;
-                    ExtendedDataSize = Utils.ReadUInt32(RawTable, (int)(offset + ENTRY_SIZE_OFFSET));
+                    ExtendedDataSize = Utils.ReadUInt32(RawTable, offset + ENTRY_SIZE_OFFSET);
                     return true;
                 }
             }
 
             return false;
+        }
+
+        private bool TryFindChannelStart(out uint channelOffset)
+        {
+            if (ExtendedDataOffset == 0 || ExtendedDataSize == 0 || RawExtendedData == null)
+            {
+                channelOffset = 0;
+                return false;
+            }
+
+            int matchIndex = Utils.FindSequence(RawExtendedData, 0, CHANNEL_START_PATTERN);
+            if (matchIndex < 0)
+            {
+                channelOffset = 0;
+                return false;
+            }
+
+            channelOffset = (uint)matchIndex;
+            return true;
         }
 
         private void ParseRawData()
@@ -272,17 +347,17 @@ namespace ZenStates.Core.Hardware.Apob
                 Data = ApobDataReader.Read(RawTable, _codeName, i);
 
                 byte[] rttBlock = new byte[RTT_BLOCK_SIZE];
-                Buffer.BlockCopy(RawTable, (int)i + 2, rttBlock, 0, RTT_BLOCK_SIZE);
+                Buffer.BlockCopy(RawTable, (int)i + 2, rttBlock, 0, (int)RTT_BLOCK_SIZE);
 
                 if (Utils.AllZero(rttBlock))
                     return;
 
                 // Locate the same sequence inside the extended data block.
-                int extendedMatch = Utils.FindSequence(RawTable, (int)ExtendedDataOffset, rttBlock);
+                int extendedMatch = Utils.FindSequence(RawExtendedData, 0, rttBlock);
                 if (extendedMatch < 2)
                     return;
 
-                ExtendedData = ApobDataReader.Read(RawTable, _codeName, (uint)(extendedMatch - 2));
+                ExtendedData = ApobDataReader.Read(RawExtendedData, _codeName, (uint)(extendedMatch - 2));
                 return;
             }
         }
