@@ -385,14 +385,14 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                             logicalDeviceNumber = WINBOND_NUVOTON_HARDWARE_MONITOR_LDN;
                             break;
                         case 0x2A:
-                        	switch (motherboardName)
+                            switch (motherboardName)
                             {
-                            case Model.X870E_NOVA_WIFI:
-                                chip = Chip.NCT5585D;
-                                break;
-                            default:
-                                chip = Chip.NCT6796DR;
-                                break;
+                                case Model.X870E_NOVA_WIFI:
+                                    chip = Chip.NCT5585D;
+                                    break;
+                                default:
+                                    chip = Chip.NCT6796DR;
+                                    break;
                             }
                             logicalDeviceNumber = WINBOND_NUVOTON_HARDWARE_MONITOR_LDN;
                             break;
@@ -440,14 +440,14 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                     {
                         case 0x02:
                             switch (motherboardName)
-	                        {
-	                            case Model.X870E_NOVA_WIFI:
-	                                chip = Chip.NCT6796DS;
-	                                break;
-	                            default:
-	                                chip = Chip.NCT6799D;
-	                                break;
-	                        }
+                            {
+                                case Model.X870E_NOVA_WIFI:
+                                    chip = Chip.NCT6796DS;
+                                    break;
+                                default:
+                                    chip = Chip.NCT6799D;
+                                    break;
+                            }
 
                             logicalDeviceNumber = WINBOND_NUVOTON_HARDWARE_MONITOR_LDN;
                             break;
@@ -473,21 +473,21 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                 port.FindBars();
                 port.Select(logicalDeviceNumber);
 
-            // Some NCT6701D firmware leaves the hardware-monitor logical device disabled.
-            if (chip == Chip.NCT6701D && port.ReadByte(LOGICAL_DEVICE_ACTIVATE_REGISTER) == 0)
-                port.WriteByte(LOGICAL_DEVICE_ACTIVATE_REGISTER, LOGICAL_DEVICE_ACTIVATE_ENABLED);
+                // Some NCT6701D firmware leaves the hardware-monitor logical device disabled.
+                if (chip == Chip.NCT6701D && port.ReadByte(LOGICAL_DEVICE_ACTIVATE_REGISTER) == 0)
+                    port.WriteByte(LOGICAL_DEVICE_ACTIVATE_REGISTER, LOGICAL_DEVICE_ACTIVATE_ENABLED);
 
                 ushort address = port.ReadWord(BASE_ADDRESS_REGISTER);
                 Thread.Sleep(1);
                 ushort verify = port.ReadWord(BASE_ADDRESS_REGISTER);
 
-            // The D8 family can expose the runtime base through the alternate 0x64/0x65 pair.
-            if (chip == Chip.NCT6701D && address == verify && IsInvalidRuntimeBase(address))
-            {
-                address = port.ReadWord(ALTERNATE_BASE_ADDRESS_REGISTER);
-                Thread.Sleep(1);
-                verify = port.ReadWord(ALTERNATE_BASE_ADDRESS_REGISTER);
-            }
+                // The D8 family can expose the runtime base through the alternate 0x64/0x65 pair.
+                if (chip == Chip.NCT6701D && address == verify && IsInvalidRuntimeBase(address))
+                {
+                    address = port.ReadWord(ALTERNATE_BASE_ADDRESS_REGISTER);
+                    Thread.Sleep(1);
+                    verify = port.ReadWord(ALTERNATE_BASE_ADDRESS_REGISTER);
+                }
 
                 ushort vendorId = port.ReadWord(FINTEK_VENDOR_ID_REGISTER);
 
@@ -516,7 +516,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                 if ((address & 0x07) == 0x05)
                     address &= 0xFFF8;
 
-            	if (IsInvalidRuntimeBase(address))
+                if (IsInvalidRuntimeBase(address))
                 {
                     _report.Append("Chip ID: 0x");
                     _report.AppendLine(chip.ToString("X"));
@@ -748,7 +748,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                     _report.AppendLine(address.ToString("X", CultureInfo.InvariantCulture));
                     _report.AppendLine();
 
-                	gigabyteController?.Dispose();
+                    gigabyteController?.Dispose();
 
                     return false;
                 }
@@ -761,7 +761,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                     _report.AppendLine(gpioAddress.ToString("X", CultureInfo.InvariantCulture));
                     _report.AppendLine();
 
-                	gigabyteController?.Dispose();
+                    gigabyteController?.Dispose();
 
                     return false;
                 }
@@ -773,7 +773,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
 
             return false;
         }
-        
+
 
         private static IGigabyteController FindGigabyteEC(LpcPort port, Chip chip, SMBios smbios)
         {
@@ -800,15 +800,15 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
 
             return null;
         }
-        
+
         private static bool IsInvalidRuntimeBase(ushort address)
-	    {
-	        return address < 0x100 || (address & 0xF007) != 0;
-	    }
+        {
+            return address < 0x100 || (address & 0xF007) != 0;
+        }
 
         // ReSharper disable InconsistentNaming
         private const byte BASE_ADDRESS_REGISTER = 0x60;
-    	private const byte ALTERNATE_BASE_ADDRESS_REGISTER = 0x64;
+        private const byte ALTERNATE_BASE_ADDRESS_REGISTER = 0x64;
         private const byte CHIP_ID_REGISTER = 0x20;
         private const byte CHIP_REVISION_REGISTER = 0x21;
 
@@ -817,8 +817,8 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
         private const byte IT87_ENVIRONMENT_CONTROLLER_LDN = 0x04;
         private const byte IT8705_GPIO_LDN = 0x05;
         private const byte IT87XX_GPIO_LDN = 0x07;
-    	private const byte LOGICAL_DEVICE_ACTIVATE_REGISTER = 0x30;
-    	private const byte LOGICAL_DEVICE_ACTIVATE_ENABLED = 0x01;
+        private const byte LOGICAL_DEVICE_ACTIVATE_REGISTER = 0x30;
+        private const byte LOGICAL_DEVICE_ACTIVATE_ENABLED = 0x01;
 
         // Shared Memory/Flash Interface
         private const byte WINBOND_NUVOTON_HARDWARE_MONITOR_LDN = 0x0B;

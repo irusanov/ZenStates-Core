@@ -445,10 +445,10 @@ namespace ZenStates.Core.Hardware.Aod
                 return dict;
             }
 
-            return GetWmiFunctionsImpl(dict);    
-            
+            return GetWmiFunctionsImpl(dict);
+
         }
-        
+
         private static bool IsNativeAotFallback()
         {
             try
@@ -460,7 +460,7 @@ namespace ZenStates.Core.Hardware.Aod
                 return true;
             }
         }
-        
+
         [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
         private static Dictionary<string, uint> GetWmiFunctionsImpl(Dictionary<string, uint> dict)
         {

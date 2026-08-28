@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace ZenStates.Core.Hardware
+﻿namespace ZenStates.Core.Hardware
 {
     public class Sensor : ISensor
     {

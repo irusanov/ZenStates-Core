@@ -1,6 +1,6 @@
 using System.Collections.Generic;
-using ZenStates.Core.Common;
 using System.Diagnostics.CodeAnalysis;
+using ZenStates.Core.Common;
 
 namespace ZenStates.Core.Hardware.Aod
 {

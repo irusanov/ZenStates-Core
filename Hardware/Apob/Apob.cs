@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using ZenStates.Core.Drivers;
-using ZenStates.Core.PawnIo;
-using static ZenStates.Core.Cpu;
 
 namespace ZenStates.Core.Hardware.Apob
 {

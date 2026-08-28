@@ -3,7 +3,6 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Management;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.ServiceProcess;
@@ -95,8 +94,8 @@ namespace ZenStates.Core.Drivers
         {
             try
             {
-                IntPtr pdwLinAddr = Utils.Is64Bit 
-                    ? NativeMethodsX64.MapPhysToLin(baseAddress, (uint)size, out IntPtr memHandle64) 
+                IntPtr pdwLinAddr = Utils.Is64Bit
+                    ? NativeMethodsX64.MapPhysToLin(baseAddress, (uint)size, out IntPtr memHandle64)
                     : NativeMethodsX86.MapPhysToLin(baseAddress, (uint)size, out memHandle64);
 
                 if (pdwLinAddr != IntPtr.Zero)

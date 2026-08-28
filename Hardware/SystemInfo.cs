@@ -79,7 +79,7 @@ namespace ZenStates.Core.Hardware
     }
 
     [Serializable]
-    public class SystemInfo: IDisposable
+    public class SystemInfo : IDisposable
     {
         private readonly CPUInfo _cpuInfo;
         private readonly LpcIO _lpcIO;
