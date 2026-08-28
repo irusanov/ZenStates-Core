@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using ZenStates.Core.Drivers;
+using ZenStates.Core.PawnIo;
+using static ZenStates.Core.Cpu;
 
 namespace ZenStates.Core.Hardware.Apob
 {
@@ -31,6 +33,8 @@ namespace ZenStates.Core.Hardware.Apob
         private const uint DATA_MIN_SIZE = 4;
         private const uint DATA_PARSE_LEAD_BYTES = 48;
         private const uint RTT_BLOCK_SIZE = 5;
+        private const uint CCDL_BLOCK_OFFSET_ZEN4 = 0x28;
+        private const uint CCDL_BLOCK_OFFSET_ZEN5 = 0x0E;
 
         // Expected first-byte signatures for each config block type
         private const byte MAIN_CONFIG_BYTE0 = 0x01;
@@ -39,7 +43,9 @@ namespace ZenStates.Core.Hardware.Apob
         private const byte EXT_CONFIG_BYTE4 = 0x03;
 
         private static readonly uint[] KnownAddresses = new uint[] { 0xA200000, 0x9F00000, 0x4000000 };
-        private static readonly byte[] CHANNEL_START_PATTERN = new byte[] { 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00 };
+
+        private static readonly byte[] CCDL_BLOCK_MAGIC_ZEN4 = new byte[] { 0x00, 0x43, 0x30, 0x00 };
+        private static readonly byte[] CCDL_BLOCK_MAGIC_ZEN5 = new byte[] { 0x00, 0x50, 0xC3, 0x00 };
 
         private static readonly IODriver io = IODriver.Instance;
 
@@ -139,41 +145,9 @@ namespace ZenStates.Core.Hardware.Apob
             TryGetExtendedConfig();
 
             // 7. Locate the channel start offset inside the extended data block
-            if (TryFindChannelStart(out uint channelOffset))
+            if (TryFindCcdlBlock(out uint ccdl, out uint ccdlrw, out uint ccdlrw2))
             {
-                // index relative to the extended data block
-                uint ccdlStart;
-                uint tccdl = 0;
-                uint tccdlwr = 0;
-                uint tccdlwr2 = 0;
-
-                switch (codeName)
-                {
-                    // TODO: Do not use codename, maybe use family
-                    // 1AH
-                    case Cpu.CodeName.Turin:
-                    case Cpu.CodeName.TurinD:
-                    case Cpu.CodeName.ShimadaPeak:
-                    case Cpu.CodeName.StrixPoint:
-                    case Cpu.CodeName.StrixHalo:
-                    case Cpu.CodeName.KrackanPoint:
-                    case Cpu.CodeName.KrackanPoint2:
-                    case Cpu.CodeName.GraniteRidge:
-                    case Cpu.CodeName.Bergamo:
-                        ccdlStart = channelOffset + 0x1CA;
-                        tccdl = Utils.ReadUInt16(RawExtendedData, ccdlStart);
-                        tccdlwr = Utils.ReadUInt16(RawExtendedData, ccdlStart + 2);
-                        tccdlwr2 = Utils.ReadUInt16(RawExtendedData, ccdlStart + 4);
-                        break;
-                    default:
-                        ccdlStart = channelOffset + 0x214;
-                        tccdl = Utils.ReadUInt32(RawExtendedData, ccdlStart);
-                        tccdlwr = Utils.ReadUInt32(RawExtendedData, ccdlStart + 4);
-                        tccdlwr2 = Utils.ReadUInt32(RawExtendedData, ccdlStart + 8);
-                        break;
-                }
-
-                CcdlData = new CcdlData(tccdl, tccdlwr, tccdlwr2);
+                CcdlData = new CcdlData(ccdl, ccdlrw, ccdlrw2);
             }
 
             // 8. Parse data
@@ -305,22 +279,61 @@ namespace ZenStates.Core.Hardware.Apob
             return false;
         }
 
-        private bool TryFindChannelStart(out uint channelOffset)
+        private bool TryFindCcdlBlock(out uint ccdl, out uint ccdlrw, out uint ccdrw2)
         {
+            ccdl = 0;
+            ccdlrw = 0;
+            ccdrw2 = 0;
+
             if (ExtendedDataOffset == 0 || ExtendedDataSize == 0 || RawExtendedData == null)
             {
-                channelOffset = 0;
                 return false;
             }
 
-            int matchIndex = Utils.FindSequence(RawExtendedData, 0, CHANNEL_START_PATTERN);
+            bool isDefault;
+            switch (_codeName)
+            {
+                // TODO: Do not use codename, maybe use family
+                case Cpu.CodeName.Turin:
+                case Cpu.CodeName.TurinD:
+                case Cpu.CodeName.ShimadaPeak:
+                case Cpu.CodeName.StrixPoint:
+                case Cpu.CodeName.StrixHalo:
+                case Cpu.CodeName.KrackanPoint:
+                case Cpu.CodeName.KrackanPoint2:
+                case Cpu.CodeName.GraniteRidge:
+                case Cpu.CodeName.Bergamo:
+                    isDefault = true;
+                    break;
+                default:
+                    isDefault = false;
+                    break;
+            }
+
+            byte[] magic = isDefault ? CCDL_BLOCK_MAGIC_ZEN5 : CCDL_BLOCK_MAGIC_ZEN4;
+            uint extraOffset = isDefault ? CCDL_BLOCK_OFFSET_ZEN5 : CCDL_BLOCK_OFFSET_ZEN4;
+
+            int matchIndex = Utils.FindSequence(RawExtendedData, 0, magic);
             if (matchIndex < 0)
             {
-                channelOffset = 0;
                 return false;
             }
 
-            channelOffset = (uint)matchIndex;
+            uint offset = (uint)(matchIndex + magic.Length + extraOffset);
+
+            if (isDefault)
+            {
+                ccdl = Utils.ReadUInt16(RawExtendedData, offset);
+                ccdlrw = Utils.ReadUInt16(RawExtendedData, offset + 2);
+                ccdrw2 = Utils.ReadUInt16(RawExtendedData, offset + 4);
+            }
+            else
+            {
+                ccdl = Utils.ReadUInt32(RawExtendedData, offset);
+                ccdlrw = Utils.ReadUInt32(RawExtendedData, offset + 4);
+                ccdrw2 = Utils.ReadUInt32(RawExtendedData, offset + 8);
+            }
+
             return true;
         }
 

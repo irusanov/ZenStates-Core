@@ -3,6 +3,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Management;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.ServiceProcess;
@@ -37,17 +38,6 @@ namespace ZenStates.Core.Drivers
         {
             try
             {
-                // restrict the driver access to system (SY) and builtin admins (BA)
-                string filePath = @"\\.\inpoutx64";
-                FileInfo fileInfo = new FileInfo(filePath);
-                FileSecurity fileSecurity = fileInfo.GetAccessControl();
-                fileSecurity.SetSecurityDescriptorSddlForm("O:BAG:SYD:(A;;FA;;;SY)(A;;FA;;;BA)");
-                fileInfo.SetAccessControl(fileSecurity);
-            }
-            catch { }
-
-            try
-            {
                 string fileName = Utils.Is64Bit ? "inpoutx64.dll" : "WinIo32.dll";
                 ioModule = LoadDll(fileName);
 
@@ -57,6 +47,19 @@ namespace ZenStates.Core.Drivers
                     {
                         WinIoStatus = LibStatus.OK;
                     }
+                }
+                else
+                {
+                    try
+                    {
+                        // restrict the driver access to system (SY) and builtin admins (BA)
+                        string filePath = @"\\.\inpoutx64";
+                        FileInfo fileInfo = new FileInfo(filePath);
+                        FileSecurity fileSecurity = fileInfo.GetAccessControl();
+                        fileSecurity.SetSecurityDescriptorSddlForm("O:BAG:SYD:(A;;FA;;;SY)(A;;FA;;;BA)");
+                        fileInfo.SetAccessControl(fileSecurity);
+                    }
+                    catch { }
                 }
 
                 _instance = this;

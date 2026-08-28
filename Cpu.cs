@@ -1529,14 +1529,14 @@ namespace ZenStates.Core
             {
                 if (disposing)
                 {
-                    io.Dispose();
-                    Mutexes.Close();
-                    Opcode.Close();
-                    systemInfo.Dispose();
                     _pawnAmd?.Close();
                     _pawnRyzenSmu?.Dispose();
                     _smbusPiix4?.Dispose();
                     _lpcIO?.Close();
+                    systemInfo.Dispose();
+                    io.Dispose();
+                    Mutexes.Close();
+                    Opcode.Close();
                 }
 
                 disposedValue = true;
