@@ -573,21 +573,29 @@ namespace ZenStates.Core.OHWM
     /// </summary>
     public class BiosInformation : InformationBase
     {
-        internal BiosInformation(string vendor, string version, string date = null, ulong? size = null) : base(null, null)
+        internal BiosInformation(string vendor, string version, string date = null, ulong? size = null, string agesaVersion = null) : base(null, null)
         {
             Vendor = vendor;
             Version = version;
             Date = GetDate(date);
             Size = size;
+            AgesaVersion = agesaVersion;
         }
 
-        internal BiosInformation(byte[] data, IList<string> strings) : base(data, strings)
+        internal BiosInformation(byte[] data, IList<string> strings, byte[] rawSmbios) : base(data, strings)
         {
             Vendor = GetString(0x04);
             Version = GetString(0x05);
             Date = GetDate(GetString(0x08));
             Size = GetSize();
+            AgesaVersion = GetAgesaVersion(rawSmbios);
         }
+
+        /// <summary>
+        /// Gets the AMD AGESA version reported by the firmware.
+        /// This library focues on AMD platforms, so it is fine to add it here.
+        /// </summary>
+        public string AgesaVersion { get; internal set; }
 
         /// <summary>
         /// Gets the BIOS release date.
@@ -608,6 +616,35 @@ namespace ZenStates.Core.OHWM
         /// Gets the string number of the BIOS Version. This value is a free-form string that may contain Core and OEM version information.
         /// </summary>
         public string Version { get; }
+
+        /// <summary>
+        /// Get the AMD AGESA version from the RSMB firmware table.
+        /// </summary>
+        /// <param name="data"></param>
+        /// <returns></returns>
+        private static string GetAgesaVersion(byte[] data)
+        {
+            if (data == null || data.Length == 0)
+                return null;
+
+            const string marker = "AGESA!";
+
+            string text = Encoding.ASCII.GetString(data);
+            int index = text.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
+
+            if (index < 0)
+                return null;
+
+            int start = index + marker.Length;
+            int end = text.IndexOf('\0', start);
+
+            if (end < 0)
+                end = text.Length;
+
+            string version = text.Substring(start, end - start).Trim();
+
+            return string.IsNullOrEmpty(version) ? null : version;
+        }
 
         /// <summary>
         /// Gets the size.
@@ -1253,7 +1290,7 @@ namespace ZenStates.Core.OHWM
                             switch (type)
                             {
                                 case 0x00:
-                                    Bios = new BiosInformation(data, strings);
+                                    Bios = new BiosInformation(data, strings, _raw);
                                     break;
                                 case 0x01:
                                     System = new SystemInformation(data, strings);
@@ -1360,6 +1397,7 @@ namespace ZenStates.Core.OHWM
                 r.AppendLine(Bios.Vendor);
                 r.Append("BIOS Version: ");
                 r.AppendLine(Bios.Version);
+
                 if (Bios.Date != null)
                 {
                     r.Append("BIOS Date: ");
@@ -1374,6 +1412,12 @@ namespace ZenStates.Core.OHWM
                         r.AppendLine((Bios.Size.Value / megabyte) + " MB");
                     else
                         r.AppendLine((Bios.Size.Value / 1024) + " KB");
+                }
+
+                if (!string.IsNullOrEmpty(Bios.AgesaVersion))
+                {
+                    r.Append("AGESA Version: ");
+                    r.AppendLine(Bios.AgesaVersion);
                 }
 
                 r.AppendLine();
