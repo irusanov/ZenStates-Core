@@ -42,7 +42,7 @@ namespace ZenStates.Core.Hardware.Apob
 
         private static readonly uint[] KnownAddresses = new uint[] { 0xA200000, 0x9F00000, 0x4000000 };
 
-        private static readonly byte[] CCDL_BLOCK_MAGIC_ZEN4 = new byte[] { 0x00, 0x43, 0x30, 0x00 };
+        private static readonly byte[] CCDL_BLOCK_MAGIC_ZEN4 = new byte[] { 0x00, 0xD4, 0x30, 0x00 };
         private static readonly byte[] CCDL_BLOCK_MAGIC_ZEN5 = new byte[] { 0x00, 0x50, 0xC3, 0x00 };
 
         private static readonly IODriver io = IODriver.Instance;
