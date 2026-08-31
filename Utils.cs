@@ -77,6 +77,11 @@ namespace ZenStates.Core
         {
             return 1.55 - vid * 0.00625;
         }
+        
+        public static uint VoltageToVid(double voltage)
+        {
+            return (uint)Math.Round((1.55 - voltage) / 0.00625);
+        }
 
         public static double VidToVoltageSVI3(uint vid)
         {
@@ -154,7 +159,44 @@ namespace ZenStates.Core
 
             double targetVoltage = baseVoltage + delta;
 
-            return VoltageToVidSVI3(targetVoltage);
+            return VoltageToVid(targetVoltage);
+        }
+        
+        public static uint CurveOptimizerToGfxArg(int co)
+        {
+            if (co < -50) co = -50;
+            else if (co > 50) co = 50;
+
+            const double baseVoltage = 1.00;
+            const double maxUnderOffset = 0.400;
+            const double maxOverOffset = 0.200;
+            
+            double normalized = Math.Abs(co) / 50.0;
+            double curve = Math.Pow(normalized, 1.7);
+
+            double delta;
+            if (co < 0)
+                delta = -curve * maxUnderOffset;
+            else
+                delta = curve * maxOverOffset;
+
+            double targetVoltage = baseVoltage + delta;
+            if (targetVoltage < 0.60) targetVoltage = 0.60;
+            else if (targetVoltage > 1.25) targetVoltage = 1.25;
+            
+            return (uint)Math.Round(targetVoltage * 4000.0);
+        }
+        
+        public static float HexIeee754ToFloat(uint hex)
+        {
+            byte[] bytes = BitConverter.GetBytes(hex);
+            return BitConverter.ToSingle(bytes, 0);
+        }
+        
+        public static uint FloatToHexIeee754(float value)
+        {
+            byte[] bytes = BitConverter.GetBytes(value);
+            return BitConverter.ToUInt32(bytes, 0);
         }
 
 
