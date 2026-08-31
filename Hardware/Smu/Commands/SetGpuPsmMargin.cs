@@ -7,18 +7,25 @@
     internal class SetGpuPsmMargin : BaseSMUCommand
     {
         public SetGpuPsmMargin(SMU smu) : base(smu) { }
-
-        public override bool CanExecute()
-        {
-            return smu.Rsmu.SMU_MSG_SetGpuPsmMargin > 0;
-        }
-
         public CmdResult Execute(int margin)
         {
             if (CanExecute())
             {
-                result.args[0] = Utils.MakePsmMarginArg(margin);
-                result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetGpuPsmMargin, ref result.args);
+                if (smu.Rsmu.SMU_MSG_SetGpuPsmMargin > 0)
+                {
+                    result.args[0] = Utils.MakePsmMarginArg(margin);
+                    result.status = smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetGpuPsmMargin, ref result.args);
+                }
+                else if (smu.SMU_TYPE == SMU.SmuType.TYPE_CPU9)
+                {
+                    result.args[0] = Utils.CurveOptimizerToGfxArg(margin);
+                    result.status = smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetGpuPsmMargin, ref result.args);
+                    if (result.status != SMU.Status.OK)
+                    {
+                        result.args[0] = Utils.CurveOptimizerToGfxArg(margin);
+                        result.status = smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetGpuPsmMarginAlt, ref result.args);
+                    }
+                }
             }
 
             return base.Execute();
