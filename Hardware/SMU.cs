@@ -246,7 +246,10 @@ namespace ZenStates.Core
     {
         private static readonly Dictionary<Cpu.CodeName, SMU> settings = new Dictionary<Cpu.CodeName, SMU>
         {
+            // Pre-Ryzen
+            { Cpu.CodeName.Carrizo, new BristolRidgeSettings() },
             { Cpu.CodeName.BristolRidge, new BristolRidgeSettings() },
+            { Cpu.CodeName.StoneyRidge, new BristolRidgeSettings() },
 
             // Zen
             { Cpu.CodeName.SummitRidge, new ZenSettings() },

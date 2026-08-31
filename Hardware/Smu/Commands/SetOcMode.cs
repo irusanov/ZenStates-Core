@@ -4,59 +4,77 @@ namespace ZenStates.Core.Hardware.Smu.Commands
     {
         public SetOcMode(SMU smu) : base(smu) { }
 
-        // TODO: Set OC vid based on current PState0 VID
         public CmdResult Execute(bool enabled, uint arg = 0U)
         {
-            if (CanExecute())
+            if (!CanExecute())
+                return base.Execute();
+
+            result.args[0] = arg;
+
+            switch (smu.SMU_TYPE)
             {
-                bool olderSmu = smu.SMU_TYPE == SMU.SmuType.TYPE_APU0 || smu.SMU_TYPE == SMU.SmuType.TYPE_CPU0;
+                case SMU.SmuType.TYPE_CPU9:
+                    result.status = ExecuteBristolOcMode(enabled);
+                    break;
+                case SMU.SmuType.TYPE_APU0:
+                case SMU.SmuType.TYPE_CPU0:
+                    result.status = ExecuteLegacyOcMode(enabled, arg);
+                    break;
+                default:
+                    result.status = ExecuteOcMode(enabled, arg);
+                    break;
+            };
 
-                if (olderSmu && enabled)
-                    arg = 1;
-
-                uint cmd = enabled ? smu.Rsmu.SMU_MSG_EnableOcMode : smu.Rsmu.SMU_MSG_DisableOcMode;
-                uint fallback = enabled ? smu.Mp1Smu.SMU_MSG_EnableOcMode : smu.Mp1Smu.SMU_MSG_DisableOcMode;
-
-                result.args[0] = arg;
-
-                SMU.Status status = SMU.Status.UNKNOWN_CMD;
-
-                if (olderSmu)
-                {
-                    // Apply BOTH commands: Disable Prochot (on supported systems), enable or disable prochot volt/freq override
-                    smu.SendRsmuCommand(cmd, ref result.args);
-                    // Reset args for the second command
-                    result.args = Utils.MakeCmdArgs(arg);
-                    status = smu.SendMp1Command(fallback, ref result.args);
-                }
-                else
-                {
-                    // Apply only one command, if failed apply fallback
-                    if (cmd != 0)
-                    {
-                        status = smu.SendRsmuCommand(cmd, ref result.args);
-
-                        if (status != SMU.Status.OK && fallback != 0)
-                        {
-                            result.args[0] = arg;
-                            status = smu.SendMp1Command(fallback, ref result.args);
-                        }
-                    }
-                    else if (fallback != 0)
-                    {
-                        status = smu.SendMp1Command(fallback, ref result.args);
-                    }
-                }
-
-                result.status = status;
-
-                // Reset the scalar to 1.0 when disabling OC mode. Auto-reset seems to be broken for some SMU versions
-                // The PBO Scalar is used to get the OC Mode (scalar = 0)
-                if (!enabled && result.Success)
-                    new SetPBOScalar(smu).Execute(1);
-            }
+            // Reset the scalar to 1.0 when disabling OC mode (auto-reset is broken on some SMU fw)
+            if (!enabled && result.Success && smu.SMU_TYPE != SMU.SmuType.TYPE_CPU9)
+                new SetPBOScalar(smu).Execute(1);
 
             return base.Execute();
+        }
+
+        private SMU.Status ExecuteBristolOcMode(bool enabled)
+        {
+            uint cmd = enabled ? smu.GpuMb.SMU_MSG_EnableOcMode : smu.GpuMb.SMU_MSG_DisableOcMode;
+            var status = smu.SendGpuMbCommand(cmd, ref result.args);
+
+            if (status != SMU.Status.OK && enabled)
+                status = smu.SendGpuMbCommand(smu.GpuMb.SMU_MSG_EnableOcModeAlt, ref result.args);
+
+            return status;
+        }
+
+        private SMU.Status ExecuteLegacyOcMode(bool enabled, uint arg)
+        {
+            if (enabled)
+                result.args[0] = 1;
+
+            uint cmd = enabled ? smu.Rsmu.SMU_MSG_EnableOcMode : smu.Rsmu.SMU_MSG_DisableOcMode;
+            uint fallback = enabled ? smu.Mp1Smu.SMU_MSG_EnableOcMode : smu.Mp1Smu.SMU_MSG_DisableOcMode;
+
+            // Apply BOTH commands: Disable PROCHOT + enable/disable volt/freq override
+            smu.SendRsmuCommand(cmd, ref result.args);
+
+            result.args = Utils.MakeCmdArgs(enabled ? 1U : arg);
+            return smu.SendMp1Command(fallback, ref result.args);
+        }
+
+        private SMU.Status ExecuteOcMode(bool enabled, uint arg)
+        {
+            uint cmd = enabled ? smu.Rsmu.SMU_MSG_EnableOcMode : smu.Rsmu.SMU_MSG_DisableOcMode;
+            uint fallback = enabled ? smu.Mp1Smu.SMU_MSG_EnableOcMode : smu.Mp1Smu.SMU_MSG_DisableOcMode;
+
+            SMU.Status status = SMU.Status.UNKNOWN_CMD;
+
+            if (cmd != 0)
+                status = smu.SendRsmuCommand(cmd, ref result.args);
+
+            if ((cmd == 0 || status != SMU.Status.OK) && fallback != 0)
+            {
+                result.args[0] = arg;
+                status = smu.SendMp1Command(fallback, ref result.args);
+            }
+
+            return status;
         }
     }
 }

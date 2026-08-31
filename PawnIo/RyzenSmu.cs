@@ -529,6 +529,12 @@ namespace ZenStates.Core.PawnIo
                 case CpuCodeName.Cezanne:
                     ConfigureCezannePmTableSize();
                     break;
+                
+                case CpuCodeName.Carrizo:
+                case CpuCodeName.BristolRidge:
+                case CpuCodeName.StoneyRidge:
+                    ConfigureCarrizoPmTableSize();
+                    break;
 
                 case CpuCodeName.Picasso:
                 case CpuCodeName.RavenRidge:
@@ -608,6 +614,11 @@ namespace ZenStates.Core.PawnIo
             uint pmTableSizeAlt = 0xA4;
             _pmTableSizeAlt = pmTableSizeAlt;
             _pmTableSize = 0x608 + pmTableSizeAlt;
+        }
+        
+        private void ConfigureCarrizoPmTableSize()
+        {
+            _pmTableSize = 180 * 4;
         }
 
         private void ConfigureRaphaelPmTableSize()
@@ -806,6 +817,9 @@ namespace ZenStates.Core.PawnIo
         TurinD,
         Bergamo,
         ShimadaPeak,
+        Carrizo,
+        BristolRidge,
+        StoneyRidge,
     }
 
     #endregion

@@ -111,6 +111,15 @@
         public uint SMU_MSG_SetDldoPsmMargin { get; set; } = 0x0;
 
         public uint SMU_MSG_SetAllDldoPsmMargin { get; set; } = 0x0;
+        
+        // Bristol specific
+        public uint SMU_MSG_SetGpuPsmMargin { get; set; } = 0x0; 
+        
+        public uint SMU_MSG_SetGpuPsmMarginAlt { get; set; } = 0x0;
+        
+        public uint SMU_MSG_GetDldoPsmMargin { get; set; } = 0x0;
+        
+        public uint SMU_MSG_GetSecondaryDldoPsmMargin { get; set; } = 0x0;
 
 
         // Boot Time Calibration
