@@ -56,7 +56,9 @@ namespace ZenStates.Core
             K10,
             K12,
             K16,
+            Carrizo,
             BristolRidge,
+            StoneyRidge,
             Vishera,
             SummitRidge,
             Whitehaven,
@@ -671,9 +673,14 @@ namespace ZenStates.Core
             {
                 switch (cpuInfo.model)
                 {
+                    case 0x60:
+                        codeName = CodeName.Carrizo;
+                        break;
                     case 0x65:
                         codeName = CodeName.BristolRidge;
                         break;
+                    case 0x70:
+                        codeName = CodeName.StoneyRidge;
                     case 0x2:
                         codeName = CodeName.Vishera;
                         break;
@@ -878,7 +885,9 @@ namespace ZenStates.Core
 
             switch (codeName)
             {
+                case CodeName.Carrizo:
                 case CodeName.BristolRidge:
+                case CodeName.StoneyRidge:
                     break;
 
                 //Zen, Zen+
