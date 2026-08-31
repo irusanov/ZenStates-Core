@@ -681,6 +681,7 @@ namespace ZenStates.Core
                         break;
                     case 0x70:
                         codeName = CodeName.StoneyRidge;
+                        break;
                     case 0x2:
                         codeName = CodeName.Vishera;
                         break;
