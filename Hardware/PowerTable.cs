@@ -108,6 +108,11 @@ namespace ZenStates.Core
         // version, size, FCLK, UCLK, MCLK, VDDCR_SOC, CLDO_VDDP, CLDO_VDDG_IOD, CLDO_VDDG_CCD, Cores Power Offset, MISC
         private static readonly PowerTableDef PowerTables = new PowerTableDef
         {
+            // Pre-Ryzen
+            { 0x2, 720, 0x204, -1, -1, 0x8C, -1, -1, -1, -1, -1 },
+            { 0x4, 720, 0x204, -1, -1, 0x8C, -1, -1, -1, -1, -1 },
+            { 0xC8, 720, 0x210, -1, -1, 0x98, -1, -1, -1, -1, -1 },
+            
             // Zen and Zen+ APU
             { 0x1E0001, 0x570, 0x460, 0x464, 0x468, 0x10C, 0xF8, -1, -1, -1, -1 },
             { 0x1E0002, 0x570, 0x474, 0x478, 0x47C, 0x10C, 0xF8, -1, -1, -1, -1 },
