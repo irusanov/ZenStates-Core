@@ -33,6 +33,12 @@ namespace ZenStates.Core.Hardware.Apob
         private const uint DATA_PARSE_LEAD_BYTES = 48;
         private const uint RTT_BLOCK_SIZE = 5;
 
+        // Expected first-byte signatures for each config block type
+        private const byte MAIN_CONFIG_BYTE0 = 0x01;
+        private const byte MAIN_CONFIG_BYTE4 = 0x19;
+        private const byte EXT_CONFIG_BYTE0 = 0x07;
+        private const byte EXT_CONFIG_BYTE4 = 0x03;
+
         private static readonly uint[] KnownAddresses = new uint[] { 0xA200000, 0x9F00000, 0x4000000 };
         private static readonly IODriver io = IODriver.Instance;
 
@@ -91,6 +97,7 @@ namespace ZenStates.Core.Hardware.Apob
             _cpuInfo = cpuInfo;
             _profile = ApobProfiles.Resolve(_cpuInfo);
 
+            // 1. Scan known physical addresses for the "APOB" signature.
             Address = FindApobAddress();
             if (!IsAvailable)
             {
@@ -98,6 +105,7 @@ namespace ZenStates.Core.Hardware.Apob
                 return;
             }
 
+            // 2. Read the table header.
             if (!TryParseHeader(Address, out ApobHeader header))
             {
                 ErrorReason = string.Format("Failed to read or parse APOB header at address 0x{0:X8}.", Address);
@@ -105,6 +113,7 @@ namespace ZenStates.Core.Hardware.Apob
             }
             Header = header;
 
+            // 3. Read the entire table
             RawTable = io.ReadMemory(new IntPtr(Address), unchecked((int)Header.TableSize));
             if (RawTable == null || RawTable.Length == 0)
             {
@@ -112,6 +121,7 @@ namespace ZenStates.Core.Hardware.Apob
                 return;
             }
 
+            // 4. Collect non-zero config entry offsets from the header region.
             ConfigOffsets = GetConfigOffsets(RawTable, Header);
             if (ConfigOffsets.Count == 0)
             {
@@ -119,6 +129,7 @@ namespace ZenStates.Core.Hardware.Apob
                 return;
             }
 
+            // 5. Locate and validate the primary config block.
             if (!TryGetMainConfig())
             {
                 ErrorReason = "Failed to locate or validate the primary APOB config block.";
@@ -221,7 +232,8 @@ namespace ZenStates.Core.Hardware.Apob
             if (secondOffset + 5 >= RawTable.Length)
                 return false;
 
-            if (RawTable[secondOffset] != 0x01 || RawTable[secondOffset + 4] != 0x19)
+            if (RawTable[secondOffset] != MAIN_CONFIG_BYTE0 ||
+                RawTable[secondOffset + 4] != MAIN_CONFIG_BYTE4)
                 return false;
 
             uint secondSize = Utils.ReadUInt32(RawTable, secondOffset + ENTRY_SIZE_OFFSET);
@@ -242,7 +254,8 @@ namespace ZenStates.Core.Hardware.Apob
                 if (offset + 5 >= RawTable.Length)
                     continue;
 
-                if (RawTable[offset] == 0x07 && RawTable[offset + 4] == 0x03)
+                if (RawTable[offset] == EXT_CONFIG_BYTE0 &&
+                    RawTable[offset + 4] == EXT_CONFIG_BYTE4)
                 {
                     if (offset + ENTRY_SIZE_OFFSET + 4 >= RawTable.Length)
                         return false;
@@ -301,6 +314,7 @@ namespace ZenStates.Core.Hardware.Apob
                 if (RawTable[i] == 0)
                     continue;
 
+                // Need at least 6 more bytes for RTT block extraction.
                 if (i + 6 >= end)
                     return;
 
