@@ -29,26 +29,14 @@ namespace ZenStates.Core.Hardware.Apob
         private const uint HASH_SIZE = 32;
         private const uint CONFIG_LIST_START = 0x30;
         private const uint ENTRY_SIZE_OFFSET = 0x0C;
-        private const uint DATA_MIN_SIZE = 4;
         private const uint DATA_PARSE_LEAD_BYTES = 48;
         private const uint RTT_BLOCK_SIZE = 5;
-        private const uint CCDL_BLOCK_OFFSET_ZEN4 = 0x28;
-        private const uint CCDL_BLOCK_OFFSET_ZEN5 = 0x0E;
-
-        // Expected first-byte signatures for each config block type
-        private const byte MAIN_CONFIG_BYTE0 = 0x01;
-        private const byte MAIN_CONFIG_BYTE4 = 0x19;
-        private const byte EXT_CONFIG_BYTE0 = 0x07;
-        private const byte EXT_CONFIG_BYTE4 = 0x03;
 
         private static readonly uint[] KnownAddresses = new uint[] { 0xA200000, 0x9F00000, 0x4000000 };
-
-        private static readonly byte[] CCDL_BLOCK_MAGIC_ZEN4 = new byte[] { 0x00, 0xD4, 0x30, 0x00 };
-        private static readonly byte[] CCDL_BLOCK_MAGIC_ZEN5 = new byte[] { 0x00, 0x50, 0xC3, 0x00 };
-
         private static readonly IODriver io = IODriver.Instance;
 
         private readonly CPUInfo _cpuInfo;
+        private readonly ApobProfile _profile;
 
         /// <summary>Gets a value indicating whether a valid APOB was located in physical memory.</summary>
         public bool IsAvailable { get { return Address != 0; } }
@@ -70,7 +58,7 @@ namespace ZenStates.Core.Hardware.Apob
         public CcdlData CcdlData { get; private set; } = new CcdlData();
 
         /// <summary>Offsets of all non-zero config entries found inside the header region.</summary>
-        public List<uint> ConfigOffsets { get; private set; }
+        public List<uint> ConfigOffsets { get; private set; } = new List<uint>();
 
         /// <summary>Raw bytes of the entire APOB table.</summary>
         public byte[] RawTable { get; private set; }
@@ -82,12 +70,12 @@ namespace ZenStates.Core.Hardware.Apob
 
         public byte[] RawData
         {
-            get { return SliceRawTable(DataOffset, DataSize); }
+            get { return Data.RawBytes; }
         }
 
         public byte[] RawExtendedData
         {
-            get { return SliceRawTable(ExtendedDataOffset, ExtendedDataSize); }
+            get { return ExtendedData.RawBytes; }
         }
 
         public Apob(CPUInfo cpuInfo)
@@ -100,8 +88,8 @@ namespace ZenStates.Core.Hardware.Apob
             }
 
             _cpuInfo = cpuInfo;
+            _profile = ApobProfiles.Resolve(_cpuInfo);
 
-            // 1. Scan known physical addresses for the "APOB" signature.
             Address = FindApobAddress();
             if (!IsAvailable)
             {
@@ -109,23 +97,20 @@ namespace ZenStates.Core.Hardware.Apob
                 return;
             }
 
-            // 2. Read the table header.
             if (!TryParseHeader(Address, out ApobHeader header))
             {
-                ErrorReason = $"Failed to read or parse APOB header at address 0x{Address:X8}.";
+                ErrorReason = string.Format("Failed to read or parse APOB header at address 0x{0:X8}.", Address);
                 return;
             }
             Header = header;
 
-            // 3. Read the entire table
             RawTable = io.ReadMemory(new IntPtr(Address), unchecked((int)Header.TableSize));
             if (RawTable == null || RawTable.Length == 0)
             {
-                ErrorReason = $"Failed to read APOB table body ({Header.TableSize} bytes) at address 0x{Address:X8}.";
+                ErrorReason = string.Format("Failed to read APOB table body ({0} bytes) at address 0x{1:X8}.", Header.TableSize, Address);
                 return;
             }
 
-            // 4. Collect non-zero config entry offsets from the header region.
             ConfigOffsets = GetConfigOffsets(RawTable, Header);
             if (ConfigOffsets.Count == 0)
             {
@@ -133,24 +118,15 @@ namespace ZenStates.Core.Hardware.Apob
                 return;
             }
 
-            // 5. Locate and validate the primary config block.
             if (!TryGetMainConfig())
             {
                 ErrorReason = "Failed to locate or validate the primary APOB config block.";
                 return;
             }
 
-            // 6. Optionally locate the extended config block, which may contain more data on some SKUs
             TryGetExtendedConfig();
-
-            // 7. Locate the channel start offset inside the extended data block
-            if (TryFindCcdlBlock(out uint ccdl, out uint ccdlrw, out uint ccdlrw2))
-            {
-                CcdlData = new CcdlData(ccdl, ccdlrw, ccdlrw2);
-            }
-
-            // 8. Parse data
-            ParseRawData();
+            TryGetCcdlBlock();
+            ParseDataBlocks();
         }
 
         /// <summary>Returns a copy of the requested region, or <c>null</c> when unavailable.</summary>
@@ -184,7 +160,7 @@ namespace ZenStates.Core.Hardware.Apob
         /// </summary>
         private static bool TryParseHeader(uint address, out ApobHeader header)
         {
-            header = default;
+            header = default(ApobHeader);
             try
             {
                 if (!io.GetPhysLong(new UIntPtr(address + ENTRY_SIZE_OFFSET), out uint headerSize) || headerSize == 0)
@@ -229,6 +205,9 @@ namespace ZenStates.Core.Hardware.Apob
 
         private bool TryGetMainConfig()
         {
+            if (ConfigOffsets == null || ConfigOffsets.Count == 0)
+                return false;
+
             uint firstOffset = ConfigOffsets[0];
             if (firstOffset + ENTRY_SIZE_OFFSET + 4 >= RawTable.Length)
                 return false;
@@ -241,12 +220,11 @@ namespace ZenStates.Core.Hardware.Apob
             if (secondOffset + 5 >= RawTable.Length)
                 return false;
 
-            if (RawTable[secondOffset] != MAIN_CONFIG_BYTE0 ||
-                RawTable[secondOffset + 4] != MAIN_CONFIG_BYTE4)
+            if (RawTable[secondOffset] != 0x01 || RawTable[secondOffset + 4] != 0x19)
                 return false;
 
             uint secondSize = Utils.ReadUInt32(RawTable, secondOffset + ENTRY_SIZE_OFFSET);
-            if (secondSize <= DATA_MIN_SIZE)
+            if (secondSize < (uint)_profile.MainLayout.BlockSize)
                 return false;
 
             DataOffset = secondOffset;
@@ -263,14 +241,31 @@ namespace ZenStates.Core.Hardware.Apob
                 if (offset + 5 >= RawTable.Length)
                     continue;
 
-                if (RawTable[offset] == EXT_CONFIG_BYTE0 &&
-                    RawTable[offset + 4] == EXT_CONFIG_BYTE4)
+                if (RawTable[offset] == 0x07 && RawTable[offset + 4] == 0x03)
                 {
                     if (offset + ENTRY_SIZE_OFFSET + 4 >= RawTable.Length)
                         return false;
 
                     ExtendedDataOffset = offset;
                     ExtendedDataSize = Utils.ReadUInt32(RawTable, offset + ENTRY_SIZE_OFFSET);
+
+                    if (ExtendedDataSize < (uint)_profile.ExtendedLayout.BlockSize)
+                    {
+                        ExtendedDataOffset = 0;
+                        ExtendedDataSize = 0;
+                        continue;
+                    }
+
+                    ApobData extendedData;
+                    if (ApobDataReader.TryRead(RawExtendedData, 0, _profile.ExtendedLayout, out extendedData))
+                    {
+                        ExtendedData = extendedData;
+                    }
+                    else
+                    {
+                        Debug.WriteLine("APOB extended block was found, but the configured layout did not fit the block size.");
+                    }
+
                     return true;
                 }
             }
@@ -278,52 +273,23 @@ namespace ZenStates.Core.Hardware.Apob
             return false;
         }
 
-        private bool TryFindCcdlBlock(out uint ccdl, out uint ccdlrw, out uint ccdrw2)
+        private void TryGetCcdlBlock()
         {
-            ccdl = 0;
-            ccdlrw = 0;
-            ccdrw2 = 0;
+            byte[] sourceData = _profile.CcdlLayout.SourceBlock == ApobBlockKind.Main ? RawData : RawExtendedData;
+            if (sourceData == null)
+                return;
 
-            if (ExtendedDataOffset == 0 || ExtendedDataSize == 0 || RawExtendedData == null)
+            uint ccdl;
+            uint ccdlrw;
+            uint ccdlrw2;
+
+            if (ApobDataReader.TryReadCcdl(sourceData, _profile.CcdlLayout, out ccdl, out ccdlrw, out ccdlrw2))
             {
-                return false;
+                CcdlData = new CcdlData(ccdl, ccdlrw, ccdlrw2);
             }
-
-            // TODO: This needs to be changed
-            // 19h desktop uses ZEN5 marker and uint16, while 19h mobile uses ZEN4 marker and uint32
-            // There needs to be a separation between desktop and mobile, or a better way to detect which one to use.
-
-            bool isDefault = _cpuInfo.family > Cpu.Family.FAMILY_19H;
-            bool isApu1Ah = _cpuInfo.family == Cpu.Family.FAMILY_1AH && _cpuInfo.packageType == Cpu.PackageType.FPX;
-
-            byte[] magic = isDefault && !isApu1Ah ? CCDL_BLOCK_MAGIC_ZEN5 : CCDL_BLOCK_MAGIC_ZEN4;
-            uint extraOffset = isDefault ? CCDL_BLOCK_OFFSET_ZEN5 : CCDL_BLOCK_OFFSET_ZEN4;
-
-            int matchIndex = Utils.FindSequence(RawExtendedData, 0, magic);
-            if (matchIndex < 0)
-            {
-                return false;
-            }
-
-            uint offset = (uint)(matchIndex + magic.Length + extraOffset);
-
-            if (isDefault)
-            {
-                ccdl = Utils.ReadUInt16(RawExtendedData, offset);
-                ccdlrw = Utils.ReadUInt16(RawExtendedData, offset + 2);
-                ccdrw2 = Utils.ReadUInt16(RawExtendedData, offset + 4);
-            }
-            else
-            {
-                ccdl = Utils.ReadUInt32(RawExtendedData, offset);
-                ccdlrw = Utils.ReadUInt32(RawExtendedData, offset + 4);
-                ccdrw2 = Utils.ReadUInt32(RawExtendedData, offset + 8);
-            }
-
-            return true;
         }
 
-        private void ParseRawData()
+        private void ParseDataBlocks()
         {
             if (DataSize == 0)
                 return;
@@ -339,11 +305,14 @@ namespace ZenStates.Core.Hardware.Apob
                 if (RawTable[i] == 0)
                     continue;
 
-                // Need at least 6 more bytes for RTT block extraction.
                 if (i + 6 >= end)
                     return;
 
-                Data = ApobDataReader.Read(RawTable, _cpuInfo.codeName, i);
+                ApobData data;
+                if (!ApobDataReader.TryRead(RawTable, i, _profile.MainLayout, out data))
+                    return;
+
+                Data = data;
 
                 byte[] rttBlock = new byte[RTT_BLOCK_SIZE];
                 Buffer.BlockCopy(RawTable, (int)i + 2, rttBlock, 0, (int)RTT_BLOCK_SIZE);
@@ -351,12 +320,19 @@ namespace ZenStates.Core.Hardware.Apob
                 if (Utils.AllZero(rttBlock))
                     return;
 
-                // Locate the same sequence inside the extended data block.
+                if (RawExtendedData == null)
+                    return;
+
                 int extendedMatch = Utils.FindSequence(RawExtendedData, 0, rttBlock);
                 if (extendedMatch < 2)
                     return;
 
-                ExtendedData = ApobDataReader.Read(RawExtendedData, _cpuInfo.codeName, (uint)(extendedMatch - 2));
+                ApobData extendedData;
+                if (ApobDataReader.TryRead(RawExtendedData, (uint)(extendedMatch - 2), _profile.ExtendedLayout, out extendedData))
+                {
+                    ExtendedData = extendedData;
+                }
+
                 return;
             }
         }
