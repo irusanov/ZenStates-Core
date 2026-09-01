@@ -429,6 +429,82 @@ namespace ZenStates.Core.Hardware.Aod
             }
         }
 
+        public string GetReport()
+        {
+            StringBuilder sb = new StringBuilder();
+
+            sb.AppendLine("ACPI: AOD Table");
+            sb.AppendLine();
+
+            try
+            {
+                if (Table == null || Table.AcpiTable == null)
+                {
+                    sb.AppendLine("<AOD table not available>");
+                    sb.AppendLine();
+                    return sb.ToString();
+                }
+
+                sb.AppendLine("-- Metadata -------------------------------------");
+                sb.AppendLine(string.Format("{0,-24}0x{1:X8}", "Signature:", Table.Signature));
+                sb.AppendLine(string.Format("{0,-24}0x{1:X16}", "OEM Table ID (raw):", Table.OemTableId));
+                sb.AppendLine(string.Format("{0,-24}0x{1:X8}", "Base Address:", Table.BaseAddress));
+                sb.AppendLine(string.Format("{0,-24}{1}", "Length:", Table.Length));
+                sb.AppendLine(string.Format("{0,-24}{1}", "Has Parsed Data:", Table.Data != null));
+                sb.AppendLine(string.Format("{0,-24}{1}", "Raw Table Bytes:", Table.RawAodTable != null ? Table.RawAodTable.Length : 0));
+                sb.AppendLine();
+
+                sb.AppendLine("-- Header ---------------------------------------");
+                var aodAcpiTableHeader = Table.AcpiTable.GetValueOrDefault().Header;
+                sb.AppendLine(string.Format("{0,-19}{1}", "Signature:", aodAcpiTableHeader.Signature));
+                sb.AppendLine(string.Format("{0,-19}{1}", "Length:", aodAcpiTableHeader.Length));
+                sb.AppendLine(string.Format("{0,-19}{1}", "Revision:", aodAcpiTableHeader.Revision));
+                sb.AppendLine(string.Format("{0,-19}{1}", "Checksum:", aodAcpiTableHeader.Checksum));
+                sb.AppendLine(string.Format("{0,-19}{1}", "OEMID:", aodAcpiTableHeader.OEMID));
+                sb.AppendLine(string.Format("{0,-19}{1}", "OEMTableID:", aodAcpiTableHeader.OEMTableID));
+                sb.AppendLine(string.Format("{0,-19}{1}", "OEMRevision:", aodAcpiTableHeader.OEMRevision));
+                sb.AppendLine(string.Format("{0,-19}{1}", "CreatorID:", aodAcpiTableHeader.CreatorID));
+                sb.AppendLine(string.Format("{0,-19}{1}", "CreatorRevision:", aodAcpiTableHeader.CreatorRevision));
+
+                sb.AppendLine();
+                sb.AppendLine("-- Data -----------------------------------------");
+                if (Table.Data != null)
+                {
+                    sb.Append(Table.Data.GetReport());
+                }
+                else
+                {
+                    sb.AppendLine("<AOD table data not available>");
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("-- Raw AOD Table --------------------------------");
+                if (!AppendRawAodTable(sb, Table.RawAodTable))
+                    sb.AppendLine("<AOD raw table not available>");
+
+                sb.AppendLine();
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine("<FAILED>");
+                sb.AppendLine(ex.Message);
+                sb.AppendLine();
+            }
+
+            return sb.ToString();
+        }
+
+        private static bool AppendRawAodTable(StringBuilder sb, byte[] rawAodTable)
+        {
+            if (rawAodTable == null || rawAodTable.Length == 0)
+                return false;
+
+            for (int i = 0; i < rawAodTable.Length; i++)
+                sb.AppendLine(string.Format("Index {0:D3}: {1:X2} ({1})", i, rawAodTable[i]));
+
+            return true;
+        }
+
         public static Dictionary<string, uint> GetWmiFunctions()
         {
             Dictionary<string, uint> dict = new Dictionary<string, uint>();

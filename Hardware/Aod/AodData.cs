@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+using System.Text;
 using ZenStates.Core.Common;
 
 namespace ZenStates.Core.Hardware.Aod
@@ -74,6 +76,85 @@ namespace ZenStates.Core.Hardware.Aod
         public static AodData CreateFromByteArray(byte[] byteArray, Dictionary<string, int> fieldDictionary)
         {
             return Utils.CreateFromByteArray<AodData>(byteArray, fieldDictionary);
+        }
+
+        public string GetReport()
+        {
+            StringBuilder sb = new StringBuilder();
+
+            AppendValue(sb, "SMTEn", SMTEn);
+            AppendValue(sb, "MemClk", MemClk);
+            AppendValue(sb, "Tcl", Tcl);
+            AppendValue(sb, "Trcd", Trcd);
+            AppendValue(sb, "TrcdWr", TrcdWr);
+            AppendValue(sb, "TrcdRd", TrcdRd);
+            AppendValue(sb, "Trp", Trp);
+            AppendValue(sb, "Tras", Tras);
+            AppendValue(sb, "Trc", Trc);
+            AppendValue(sb, "Twr", Twr);
+            AppendValue(sb, "Trfc", Trfc);
+            AppendValue(sb, "Trfc2", Trfc2);
+            AppendValue(sb, "Trfcsb", Trfcsb);
+            AppendValue(sb, "Trtp", Trtp);
+            AppendValue(sb, "TrrdL", TrrdL);
+            AppendValue(sb, "TrrdS", TrrdS);
+            AppendValue(sb, "Tfaw", Tfaw);
+            AppendValue(sb, "TwtrL", TwtrL);
+            AppendValue(sb, "TwtrS", TwtrS);
+            AppendValue(sb, "TrdrdScL", TrdrdScL);
+            AppendValue(sb, "TrdrdSc", TrdrdSc);
+            AppendValue(sb, "TrdrdSd", TrdrdSd);
+            AppendValue(sb, "TrdrdDd", TrdrdDd);
+            AppendValue(sb, "TwrwrScL", TwrwrScL);
+            AppendValue(sb, "TwrwrSc", TwrwrSc);
+            AppendValue(sb, "TwrwrSd", TwrwrSd);
+            AppendValue(sb, "TwrwrDd", TwrwrDd);
+            AppendValue(sb, "Twrrd", Twrrd);
+            AppendValue(sb, "Trdwr", Trdwr);
+
+            AppendValue(sb, "CadBusDrvStren", CadBusDrvStren);
+            AppendValue(sb, "ProcDataDrvStren", ProcDataDrvStren);
+            AppendValue(sb, "ProcOdt", ProcOdt);
+            AppendValue(sb, "ProcOdtPullUp", ProcOdtPullUp);
+            AppendValue(sb, "ProcOdtPullDown", ProcOdtPullDown);
+            AppendValue(sb, "ProcCaOdt", ProcCaOdt);
+            AppendValue(sb, "ProcCkOdt", ProcCkOdt);
+            AppendValue(sb, "ProcDqOdt", ProcDqOdt);
+            AppendValue(sb, "ProcDqsOdt", ProcDqsOdt);
+            AppendValue(sb, "ProcDataDrvStrenApu", ProcDataDrvStrenApu);
+            AppendValue(sb, "ProcCsDs", ProcCsDs);
+            AppendValue(sb, "ProcCkDs", ProcCkDs);
+            AppendValue(sb, "ProcDqDsPullUp", ProcDqDsPullUp);
+            AppendValue(sb, "ProcDqDsPullDown", ProcDqDsPullDown);
+            AppendValue(sb, "DramDataDrvStren", DramDataDrvStren);
+            AppendValue(sb, "DramDqDsPullUp", DramDqDsPullUp);
+            AppendValue(sb, "DramDqDsPullDown", DramDqDsPullDown);
+            AppendValue(sb, "RttNomWr", RttNomWr);
+            AppendValue(sb, "RttNomRd", RttNomRd);
+            AppendValue(sb, "RttWr", RttWr);
+            AppendValue(sb, "RttPark", RttPark);
+            AppendValue(sb, "RttParkDqs", RttParkDqs);
+            AppendValue(sb, "MemVddio", MemVddio);
+            AppendValue(sb, "MemVddq", MemVddq);
+            AppendValue(sb, "MemVpp", MemVpp);
+            AppendValue(sb, "ApuVddio", ApuVddio);
+
+            return sb.ToString();
+        }
+
+        private static void AppendValue(StringBuilder sb, string name, object value)
+        {
+            if (value is EncodedValueBase encodedValue)
+            {
+                string rawValue = encodedValue.RawValue.HasValue
+                    ? encodedValue.RawValue.Value.ToString(CultureInfo.InvariantCulture)
+                    : "null";
+
+                sb.AppendLine(string.Format("{0,-19}{1,-20}({2})", name + ":", value ?? "N/A", rawValue));
+                return;
+            }
+
+            sb.AppendLine(string.Format("{0,-19}{1}", name + ":", value ?? "N/A"));
         }
     }
 }

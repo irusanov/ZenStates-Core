@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Reflection;
+using System.Text;
 using ZenStates.Core.Common;
 
 namespace ZenStates.Core.Hardware.Apob
@@ -88,5 +91,29 @@ namespace ZenStates.Core.Hardware.Apob
         public ProcOdtImpedance ProcDqOdt { get { return ProcDqOdtRaw.HasValue ? new ProcOdtImpedance(ProcDqOdtRaw.Value) : null; } }
         public ProcOdtImpedance ProcDqsOdt { get { return ProcDqsOdtRaw.HasValue ? new ProcOdtImpedance(ProcDqsOdtRaw.Value) : null; } }
         public CadBusDrvStren ProcDataDsApu { get { return ProcDataDsApuRaw.HasValue ? new CadBusDrvStren(ProcDataDsApuRaw.Value) : null; } }
+
+        public string GetReport()
+        {
+            StringBuilder sb = new StringBuilder();
+            PropertyInfo[] properties = GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+            for (int i = 0; i < properties.Length; i++)
+            {
+                PropertyInfo property = properties[i];
+                object value = property.GetValue(this, null);
+                string rawValue = "null";
+
+                if (value is EncodedValueBase encodedValue)
+                {
+                    rawValue = encodedValue.RawValue.HasValue
+                        ? encodedValue.RawValue.Value.ToString(CultureInfo.InvariantCulture)
+                        : "null";
+                }
+
+                sb.AppendLine(string.Format("{0,-20}{1,-20}({2})", property.Name + ":", value ?? "N/A", rawValue));
+            }
+
+            return sb.ToString();
+        }
     }
 }
