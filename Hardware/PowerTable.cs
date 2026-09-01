@@ -147,16 +147,28 @@ namespace ZenStates.Core
             { 0x000012, 0x948, 0x664, 0x668, 0x66C, 0x19C, 0x8D4, -1, -1, -1, -1 },
 
             // KrackanPoint
-            { 0x650004, 0xB74, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
-            { 0x650005, 0xB78, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
-            { 0x650006, 0xB80, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
-            { 0x000650, 0xB80, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+            // CANDIDATE offsets, not confirmed yet. Derived from a single 0x650005 dump
+            // (Ryzen AI 7 350, DDR5-5600, AGESA StrixKrackanPI-FP8 1.1.0.0c):
+            //   0x4C8 = 1413.26  -> FCLK, sits between the 1400 and 1500 DPM steps at 0x22C
+            //   0x4CC = 1069.50  -> UCLK, inside the 500..1400 DPM range at 0x244
+            //   0x4D0 = 2139.00  -> MCLK, exactly 2 x UCLK, i.e. the 1:2 UCLK:MCLK lock
+            //   0x074 = 1.046026 -> VDDCR_SOC, same offset Phoenix (0x4C000x) uses
+            // These are time averaged values, which is why they are not equal to a DPM step.
+            // CLDO_VDDP / VDD_MISC have no plausible candidate in the dump, left unmapped.
+            { 0x650004, 0xB74, 0x4C8, 0x4CC, 0x4D0, 0x74, -1, -1, -1, -1, -1 },
+            { 0x650005, 0xB78, 0x4C8, 0x4CC, 0x4D0, 0x74, -1, -1, -1, -1, -1 },
+            { 0x650006, 0xB80, 0x4C8, 0x4CC, 0x4D0, 0x74, -1, -1, -1, -1, -1 },
+            // size is not confirmed
+            { 0x650007, 0xB80, 0x4C8, 0x4CC, 0x4D0, 0x74, -1, -1, -1, -1, -1 },
+            { 0x000650, 0xB80, 0x4C8, 0x4CC, 0x4D0, 0x74, -1, -1, -1, -1, -1 },
 
             // StrixPoint
-            { 0x5D0008, 0xD54, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
-            { 0x5D0009, 0xD58, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
-            { 0x5D000A, 0xD60, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
-            { 0x0005D0, 0xD60, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
+            // offsets updated from https://github.com/FlyGoat/RyzenAdj/blob/master/lib/api.c
+            { 0x5D0008, 0xD54, 0x4E0, 0x4E4, 0x4EC, -1, -1, -1, -1, -1, -1 },
+            { 0x5D0009, 0xD58, 0x4E0, 0x4E4, 0x4EC, -1, -1, -1, -1, -1, -1 },
+            { 0x5D000A, 0xD60, 0x4E0, 0x4E4, 0x4EC, -1, -1, -1, -1, -1, -1 },
+            { 0x5D000B, 0xD60, 0x4E0, 0x4E4, 0x4EC, -1, -1, -1, -1, -1, -1 },
+            { 0x0005D0, 0xD60, 0x4E0, 0x4E4, 0x4EC, -1, -1, -1, -1, -1, -1 },
 
             // StrixHalo
             { 0x640107, 0xDC0, -1, -1, -1, -1, -1, -1, -1, -1, -1 },
