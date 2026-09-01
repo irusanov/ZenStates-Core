@@ -1,167 +1,65 @@
-﻿using System;
-using System.Runtime.InteropServices;
+using System;
 
 namespace ZenStates.Core.Hardware.Apob
 {
-    public static class ApobDataReader
+    internal static class ApobDataReader
     {
-        public static ApobData Read(byte[] data, Cpu.CodeName codeName, uint offset = 0)
+        internal static bool TryRead(byte[] data, uint offset, ApobBlockLayout layout, out ApobData result)
         {
-            if (data == null)
-                throw new ArgumentNullException("data");
+            result = null;
+            if (data == null || layout == null)
+                return false;
 
-            // TODO: This should be the other way around - initialize everything in a centralized place/struct based on code name
-            switch (codeName)
+            try
             {
-                // 19H
-                case Cpu.CodeName.Milan:
-                case Cpu.CodeName.Chagall:
-                case Cpu.CodeName.Genoa:
-                case Cpu.CodeName.StormPeak:
-                case Cpu.CodeName.Vermeer:
-                case Cpu.CodeName.Raphael:
-                case Cpu.CodeName.DragonRange:
-                    return ReadV1(data, offset);
-                // 1AH
-                case Cpu.CodeName.Turin:
-                case Cpu.CodeName.TurinD:
-                case Cpu.CodeName.ShimadaPeak:
-                case Cpu.CodeName.StrixPoint:
-                case Cpu.CodeName.StrixHalo:
-                case Cpu.CodeName.KrackanPoint:
-                case Cpu.CodeName.KrackanPoint2:
-                case Cpu.CodeName.GraniteRidge:
-                case Cpu.CodeName.Bergamo:
-                    return ReadV2(data, offset);
-                // AM5 APU
-                case Cpu.CodeName.Rembrandt:
-                case Cpu.CodeName.HawkPoint:
-                case Cpu.CodeName.Phoenix:
-                case Cpu.CodeName.Phoenix2:
-                    return ReadV3(data, offset);
-                default:
-                    return ReadV2(data, offset);
+                result = new ApobData(data, offset, layout);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                return false;
             }
         }
 
-        private static ApobData ReadV1(byte[] data, uint offset)
+        internal static ApobData Read(byte[] data, uint offset, ApobBlockLayout layout)
         {
-#if NET20
-            int blockSize = Marshal.SizeOf(typeof(ApobData19h));
-#else
-            int blockSize = Marshal.SizeOf<ApobData19h>();
-#endif
-            ApobData19h raw = Read<ApobData19h>(data, blockSize, offset);
-
-            return new ApobData(
-                raw.RttNomRd,
-                raw.RttNomWr,
-                raw.RttWr,
-                raw.RttPark,
-                raw.RttParkDqs,
-                raw.DramDataDs,
-                raw.CkOdtA,
-                raw.CsOdtA,
-                raw.CaOdtA,
-                raw.CkOdtB,
-                raw.CsOdtB,
-                raw.CaOdtB,
-                raw.ProcOdt,
-                raw.ProcDqDs,
-                raw.ProcCaDs,
-                raw.ProcCkDs,
-                raw.ProcCsDs
-            );
+            return new ApobData(data, offset, layout);
         }
 
-        private static ApobData ReadV2(byte[] data, uint offset)
+        internal static bool TryReadCcdl(byte[] data, ApobCcdlLayout layout, out uint ccdl, out uint ccdlrw, out uint ccdlrw2)
         {
-#if NET20
-            int blockSize = Marshal.SizeOf(typeof(ApobData1Ah));
-#else
-            int blockSize = Marshal.SizeOf<ApobData1Ah>();
-#endif
-            ApobData1Ah raw = Read<ApobData1Ah>(data, blockSize, offset);
+            ccdl = 0;
+            ccdlrw = 0;
+            ccdlrw2 = 0;
 
-            return new ApobData(
-                raw.RttNomRd,
-                raw.RttNomWr,
-                raw.RttWr,
-                raw.RttPark,
-                raw.RttParkDqs,
-                raw.DramDataDs,
-                raw.CkOdtA,
-                raw.CsOdtA,
-                raw.CaOdtA,
-                raw.CkOdtB,
-                raw.CsOdtB,
-                raw.CaOdtB,
-                raw.ProcOdt,
-                raw.ProcDqDs,
-                raw.ProcCaDs,
-                raw.ProcCkDs,
-                raw.ProcCsDs,
-                raw.RttNomRdP0,
-                raw.RttNomWrP0,
-                raw.RttWrP0,
-                raw.RttParkP0,
-                raw.RttParkDqsP0,
-                raw.DramDqDsPullUpP0,
-                raw.DramDqDsPullDownP0,
-                raw.ProcOdtPullUpP0,
-                raw.ProcOdtPullDownP0,
-                raw.ProcDqDsPullUpP0,
-                raw.ProcDqDsPullDownP0
-            );
-        }
+            if (data == null)
+                throw new ArgumentNullException(nameof(data));
+            if (layout == null)
+                throw new ArgumentNullException(nameof(layout));
 
-        private static ApobData ReadV3(byte[] data, uint offset)
-        {
-#if NET20
-            int blockSize = Marshal.SizeOf(typeof(ApobData19h_8000));
-#else
-            int blockSize = Marshal.SizeOf<ApobData19h_8000>();
-#endif
-            ApobData19h_8000 raw = Read<ApobData19h_8000>(data, blockSize, offset);
+            int matchIndex = Utils.FindSequence(data, 0, layout.Magic);
+            if (matchIndex < 0)
+                return false;
 
-            return new ApobData(
-                raw.RttNomRd,
-                raw.RttNomWr,
-                raw.RttWr,
-                raw.RttPark,
-                raw.RttParkDqs,
-                raw.DramDataDs,
-                raw.CkOdtA,
-                raw.CsOdtA,
-                raw.CaOdtA,
-                raw.CkOdtB,
-                raw.CsOdtB,
-                raw.CaOdtB,
-                raw.ProcOdt,
-                raw.ProcDqDs,
-                raw.ProcCaDs,
-                null, null, null, null, null, null, null, null, null, null, null, null, null,
-                raw.ProcCaOdt,
-                raw.ProcCkOdt,
-                raw.ProcDqOdt,
-                raw.ProcDqsOdt,
-                raw.ProcDqDs
-            );
-        }
+            long offset = (long)matchIndex + layout.Magic.Length + layout.CcdlBlockOffset;
+            long requiredSize = layout.ValueWidth == ApobValueWidth.UInt16 ? 6 : 12;
+            if (offset < 0 || offset + requiredSize > data.Length)
+                return false;
 
-        private static T Read<T>(byte[] data, int blockSize, uint offset) where T : struct
-        {
-            if ((long)offset + blockSize > data.Length)
-                throw new ArgumentException(
-                    $"Buffer too small: need {blockSize} bytes at offset 0x{offset:X}, but buffer is only {data.Length} bytes.",
-                    nameof(data));
+            if (layout.ValueWidth == ApobValueWidth.UInt16)
+            {
+                ccdl = Utils.ReadUInt16(data, (uint)offset);
+                ccdlrw = Utils.ReadUInt16(data, (uint)(offset + 2));
+                ccdlrw2 = Utils.ReadUInt16(data, (uint)(offset + 4));
+            }
+            else
+            {
+                ccdl = Utils.ReadUInt32(data, (uint)offset);
+                ccdlrw = Utils.ReadUInt32(data, (uint)(offset + 4));
+                ccdlrw2 = Utils.ReadUInt32(data, (uint)(offset + 8));
+            }
 
-            byte[] buffer = new byte[blockSize];
-            Buffer.BlockCopy(data, (int)offset, buffer, 0, buffer.Length);
-
-#pragma warning disable IL2091 // T is constrained to struct (a blittable value-type layout); ByteArrayToStructure<T> marshals it via Marshal.PtrToStructure, which does not reflect over T's constructors at this call site.
-            return Utils.ByteArrayToStructure<T>(buffer);
-#pragma warning restore IL2091
+            return true;
         }
     }
 }

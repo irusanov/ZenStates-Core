@@ -14,16 +14,6 @@ namespace ZenStates.Core.Hardware.Apob
         [FieldOffset(0xc)]
         private readonly uint _headerSize; // First entry offset?
 
-
-        //[FieldOffset(0x30)]
-        //private readonly uint _configStartOffset;
-        //[FieldOffset(0x34)]
-        //private readonly uint _configEndOffset;
-        //[FieldOffset(0x38)]
-        //private readonly uint _config2StartOffset;
-        //[FieldOffset(0x3C)]
-        //private readonly uint _config3StartOffset;
-
         // Contains a hash (32 bytes) at the end
 
         // public
@@ -31,10 +21,5 @@ namespace ZenStates.Core.Hardware.Apob
         public uint Version => _version;
         public uint TableSize => _tableSize;
         public uint HeaderSize => _headerSize;
-
-        //public uint ConfigStartOffset => _configStartOffset;
-        //public uint ConfigEndOffset => _configEndOffset;
-        //public uint Config2StartOffset => _config2StartOffset;
-        //public uint Config3StartOffset => _config3StartOffset;
     }
 }
