@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Text;
 using ZenStates.Core.Drivers;
 using static ZenStates.Core.Cpu;
 
@@ -160,7 +161,7 @@ namespace ZenStates.Core.Hardware.Apob
         /// </summary>
         private static bool TryParseHeader(uint address, out ApobHeader header)
         {
-            header = default(ApobHeader);
+            header = default;
             try
             {
                 if (!io.GetPhysLong(new UIntPtr(address + ENTRY_SIZE_OFFSET), out uint headerSize) || headerSize == 0)
@@ -256,8 +257,7 @@ namespace ZenStates.Core.Hardware.Apob
                         continue;
                     }
 
-                    ApobData extendedData;
-                    if (ApobDataReader.TryRead(RawExtendedData, 0, _profile.ExtendedLayout, out extendedData))
+                    if (ApobDataReader.TryRead(RawExtendedData, 0, _profile.ExtendedLayout, out ApobData extendedData))
                     {
                         ExtendedData = extendedData;
                     }
@@ -279,11 +279,7 @@ namespace ZenStates.Core.Hardware.Apob
             if (sourceData == null)
                 return;
 
-            uint ccdl;
-            uint ccdlrw;
-            uint ccdlrw2;
-
-            if (ApobDataReader.TryReadCcdl(sourceData, _profile.CcdlLayout, out ccdl, out ccdlrw, out ccdlrw2))
+            if (ApobDataReader.TryReadCcdl(sourceData, _profile.CcdlLayout, out uint ccdl, out uint ccdlrw, out uint ccdlrw2))
             {
                 CcdlData = new CcdlData(ccdl, ccdlrw, ccdlrw2);
             }
@@ -308,8 +304,7 @@ namespace ZenStates.Core.Hardware.Apob
                 if (i + 6 >= end)
                     return;
 
-                ApobData data;
-                if (!ApobDataReader.TryRead(RawTable, i, _profile.MainLayout, out data))
+                if (!ApobDataReader.TryRead(RawTable, i, _profile.MainLayout, out ApobData data))
                     return;
 
                 Data = data;
@@ -328,14 +323,177 @@ namespace ZenStates.Core.Hardware.Apob
                 if (extendedMatch < 2)
                     return;
 
-                ApobData extendedData;
-                if (ApobDataReader.TryRead(RawExtendedData, (uint)(extendedMatch - 2), _profile.ExtendedLayout, out extendedData))
+                if (ApobDataReader.TryRead(RawExtendedData, (uint)(extendedMatch - 2), _profile.ExtendedLayout, out ApobData extendedData))
                 {
                     ExtendedData = extendedData;
                 }
 
                 return;
             }
+        }
+
+        public string GetReport()
+        {
+            StringBuilder sb = new StringBuilder();
+
+            sb.AppendLine("APOB");
+            sb.AppendLine();
+
+            try
+            {
+                if (!IsAvailable)
+                {
+                    sb.AppendLine("<APOB table not available>");
+                    if (!string.IsNullOrEmpty(ErrorReason))
+                        sb.AppendLine(ErrorReason);
+
+                    sb.AppendLine();
+                    return sb.ToString();
+                }
+
+                sb.AppendLine(string.Format("-- Address: 0x{0:X8}", Address));
+                sb.AppendLine(string.Format("-- Main Data Offset: 0x{0:X8}", DataOffset));
+                sb.AppendLine(string.Format("-- Main Data Size: 0x{0:X8} ({0})", DataSize));
+                sb.AppendLine(string.Format("-- Ext. Data Offset: 0x{0:X8}", ExtendedDataOffset));
+                sb.AppendLine(string.Format("-- Ext. Data Size: 0x{0:X8} ({0})", ExtendedDataSize));
+                sb.AppendLine();
+                sb.AppendLine("-- Metadata -------------------------------------");
+                sb.AppendLine(string.Format("{0,-28}{1}", "Config Offsets Count:", ConfigOffsets != null ? ConfigOffsets.Count : 0));
+                sb.AppendLine(string.Format("{0,-28}{1}", "Main Block Parsed:", Data != null));
+                sb.AppendLine(string.Format("{0,-28}{1}", "Extended Block Parsed:", ExtendedData != null));
+                sb.AppendLine(string.Format("{0,-28}{1}", "Raw Table Bytes:", RawTable != null ? RawTable.Length : 0));
+
+                if (ConfigOffsets != null && ConfigOffsets.Count > 0)
+                {
+                    for (int i = 0; i < ConfigOffsets.Count; i++)
+                    {
+                        sb.AppendLine(string.Format("{0,-28}0x{1:X8}", "Config Offset[" + i + "]:", ConfigOffsets[i]));
+                    }
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("-- Header ---------------------------------------");
+
+                var headerProperties = Header.GetType().GetProperties();
+                for (int i = 0; i < headerProperties.Length; i++)
+                {
+                    var property = headerProperties[i];
+                    object value = property.GetValue(Header, null);
+                    sb.AppendLine(string.Format("{0,-20}{1}", property.Name + ":", value));
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("-- Data -----------------------------------------");
+                if (Data != null)
+                {
+                    sb.Append(Data.GetReport());
+                }
+                else
+                {
+                    sb.AppendLine("<APOB table data not available>");
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("-- Extended Data --------------------------------");
+                if (ExtendedData != null)
+                {
+                    sb.Append(ExtendedData.GetReport());
+                }
+                else
+                {
+                    sb.AppendLine("<APOB extended data not available>");
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("-- CCDL Data ------------------------------------");
+                var ccdlFields = CcdlData.GetType().GetFields();
+                for (int i = 0; i < ccdlFields.Length; i++)
+                {
+                    var field = ccdlFields[i];
+                    object value = field.GetValue(CcdlData);
+                    sb.AppendLine(string.Format("{0,-20}{1}", field.Name + ":", value ?? "N/A"));
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("APOB: Raw");
+                sb.AppendLine();
+
+                sb.AppendLine("-- Raw Header -----------------------------------");
+                sb.AppendLine(string.Format("Length: {0}", RawHeader != null ? RawHeader.Length : 0));
+                try
+                {
+                    if (!AppendRawBinaryData(sb, RawHeader))
+                        sb.AppendLine("<APOB raw header not available>");
+                }
+                catch (Exception ex)
+                {
+                    sb.AppendLine("<FAILED>");
+                    sb.AppendLine(ex.Message);
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("-- Raw Data -------------------------------------");
+                sb.AppendLine(string.Format("Length: {0}", RawData != null ? RawData.Length : 0));
+                try
+                {
+                    if (!AppendRawBinaryData(sb, RawData))
+                        sb.AppendLine("<APOB raw data not available>");
+                }
+                catch (Exception ex)
+                {
+                    sb.AppendLine("<FAILED>");
+                    sb.AppendLine(ex.Message);
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("-- Raw Extended Data ----------------------------");
+                sb.AppendLine(string.Format("Length: {0}", RawExtendedData != null ? RawExtendedData.Length : 0));
+                try
+                {
+                    if (!AppendRawBinaryData(sb, RawExtendedData))
+                        sb.AppendLine("<APOB raw extended data not available>");
+                }
+                catch (Exception ex)
+                {
+                    sb.AppendLine("<FAILED>");
+                    sb.AppendLine(ex.Message);
+                }
+
+                sb.AppendLine();
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine("<FAILED>");
+                sb.AppendLine(ex.Message);
+                sb.AppendLine();
+            }
+
+            return sb.ToString();
+        }
+
+        private static bool AppendRawBinaryData(StringBuilder sb, byte[] data)
+        {
+            if (data == null || data.Length == 0)
+                return false;
+
+            for (int i = 0; i < data.Length; i += 16)
+            {
+                int length = Math.Min(16, data.Length - i);
+                sb.Append(i.ToString("X4"));
+                sb.Append(": ");
+
+                for (int j = 0; j < length; j++)
+                {
+                    if (j > 0)
+                        sb.Append(' ');
+
+                    sb.Append(data[i + j].ToString("X2"));
+                }
+
+                sb.AppendLine();
+            }
+
+            return true;
         }
     }
 }

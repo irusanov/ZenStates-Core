@@ -200,9 +200,7 @@ namespace ZenStates.Core.Hardware.Apob
             caOdtB: 0xD,
             procOdt: 0xE,
             procDqDs: 0xF,
-            procCaDs: 0x11,
-            procCkDs: 0x12,
-            procCsDs: 0x13);
+            procCaDs: 0x11);
 
         private static readonly ApobFieldOffsets Zen4ExtendedOffsets = new ApobFieldOffsets(
             rttNomRd: 0x2,
@@ -220,6 +218,7 @@ namespace ZenStates.Core.Hardware.Apob
             procOdt: 0xE,
             procDqDs: 0xF,
             procCaDs: 0x11,
+            // Zen4 extended properties
             procCkDs: 0x12,
             procCsDs: 0x13);
 
