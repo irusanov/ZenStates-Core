@@ -442,7 +442,7 @@ namespace ZenStates.Core
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
                 info.aod = new AOD(io, this);
-                info.apob = new Apob(info.codeName);
+                info.apob = new Apob(info);
                 systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
                 powerTable = new PowerTable(_pawnRyzenSmu, info.codeName);
 

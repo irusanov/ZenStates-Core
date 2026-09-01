@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using ZenStates.Core.Drivers;
+using static ZenStates.Core.Cpu;
 
 namespace ZenStates.Core.Hardware.Apob
 {
@@ -47,7 +48,7 @@ namespace ZenStates.Core.Hardware.Apob
 
         private static readonly IODriver io = IODriver.Instance;
 
-        private readonly Cpu.CodeName _codeName;
+        private readonly CPUInfo _cpuInfo;
 
         /// <summary>Gets a value indicating whether a valid APOB was located in physical memory.</summary>
         public bool IsAvailable { get { return Address != 0; } }
@@ -89,16 +90,16 @@ namespace ZenStates.Core.Hardware.Apob
             get { return SliceRawTable(ExtendedDataOffset, ExtendedDataSize); }
         }
 
-        public Apob(Cpu.CodeName codeName)
+        public Apob(CPUInfo cpuInfo)
         {
-            _codeName = codeName;
-
             if (io == null)
             {
                 ErrorReason = "IODriver instance is not available.";
                 Debug.WriteLine(ErrorReason);
                 return;
             }
+
+            _cpuInfo = cpuInfo;
 
             // 1. Scan known physical addresses for the "APOB" signature.
             Address = FindApobAddress();
@@ -288,27 +289,14 @@ namespace ZenStates.Core.Hardware.Apob
                 return false;
             }
 
-            bool isDefault;
-            switch (_codeName)
-            {
-                // TODO: Do not use codename, maybe use family
-                case Cpu.CodeName.Turin:
-                case Cpu.CodeName.TurinD:
-                case Cpu.CodeName.ShimadaPeak:
-                case Cpu.CodeName.StrixPoint:
-                case Cpu.CodeName.StrixHalo:
-                case Cpu.CodeName.KrackanPoint:
-                case Cpu.CodeName.KrackanPoint2:
-                case Cpu.CodeName.GraniteRidge:
-                case Cpu.CodeName.Bergamo:
-                    isDefault = true;
-                    break;
-                default:
-                    isDefault = false;
-                    break;
-            }
+            // TODO: This needs to be changed
+            // 19h desktop uses ZEN5 marker and uint16, while 19h mobile uses ZEN4 marker and uint32
+            // There needs to be a separation between desktop and mobile, or a better way to detect which one to use.
 
-            byte[] magic = isDefault ? CCDL_BLOCK_MAGIC_ZEN5 : CCDL_BLOCK_MAGIC_ZEN4;
+            bool isDefault = _cpuInfo.family > Cpu.Family.FAMILY_19H;
+            bool isApu1Ah = _cpuInfo.family == Cpu.Family.FAMILY_1AH && _cpuInfo.packageType == Cpu.PackageType.FPX;
+
+            byte[] magic = isDefault && !isApu1Ah ? CCDL_BLOCK_MAGIC_ZEN5 : CCDL_BLOCK_MAGIC_ZEN4;
             uint extraOffset = isDefault ? CCDL_BLOCK_OFFSET_ZEN5 : CCDL_BLOCK_OFFSET_ZEN4;
 
             int matchIndex = Utils.FindSequence(RawExtendedData, 0, magic);
@@ -355,7 +343,7 @@ namespace ZenStates.Core.Hardware.Apob
                 if (i + 6 >= end)
                     return;
 
-                Data = ApobDataReader.Read(RawTable, _codeName, i);
+                Data = ApobDataReader.Read(RawTable, _cpuInfo.codeName, i);
 
                 byte[] rttBlock = new byte[RTT_BLOCK_SIZE];
                 Buffer.BlockCopy(RawTable, (int)i + 2, rttBlock, 0, (int)RTT_BLOCK_SIZE);
@@ -368,7 +356,7 @@ namespace ZenStates.Core.Hardware.Apob
                 if (extendedMatch < 2)
                     return;
 
-                ExtendedData = ApobDataReader.Read(RawExtendedData, _codeName, (uint)(extendedMatch - 2));
+                ExtendedData = ApobDataReader.Read(RawExtendedData, _cpuInfo.codeName, (uint)(extendedMatch - 2));
                 return;
             }
         }
