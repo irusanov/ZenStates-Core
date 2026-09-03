@@ -62,7 +62,15 @@ namespace ZenStates.Core.Hardware
                     using (ManagementObjectEnumerator enumerator = results.GetEnumerator())
                     {
                         if (enumerator.MoveNext())
-                            return enumerator.Current as ManagementObject;
+                        {
+                            ManagementObject current = enumerator.Current as ManagementObject;
+                            if (current != null)
+                            {
+                                ManagementObject detached = new ManagementObject(current.Path.Path);
+                                detached.Get();
+                                return detached;
+                            }
+                        }
                     }
                 }
             }
@@ -81,8 +89,9 @@ namespace ZenStates.Core.Hardware
             {
                 using (ManagementClass nsClass = new ManagementClass(
                     new ManagementScope(root), new ManagementPath("__namespace"), null))
+                using (ManagementObjectCollection instances = nsClass.GetInstances())
                 {
-                    foreach (var obj in nsClass.GetInstances())
+                    foreach (var obj in instances)
                     {
                         using (var ns = (ManagementObject)obj)
                         {
@@ -164,12 +173,13 @@ namespace ZenStates.Core.Hardware
         {
             try
             {
-                ManagementBaseObject inParams = mo.GetMethodParameters(methodName);
+                using (ManagementBaseObject inParams = mo.GetMethodParameters(methodName))
+                {
+                    if (inParams != null && !String.IsNullOrEmpty(inParamName))
+                        inParams[inParamName] = arg;
 
-                if (inParams != null)
-                    inParams[inParamName] = arg;
-
-                return mo.InvokeMethod(methodName, inParams, null);
+                    return mo.InvokeMethod(methodName, inParams, null);
+                }
             }
             catch (ManagementException)
             {
@@ -196,26 +206,25 @@ namespace ZenStates.Core.Hardware
         {
             try
             {
-                // Obtain in-parameters for the method
-                ManagementBaseObject inParams = mo.GetMethodParameters("RunCommand");
+                using (ManagementBaseObject inParams = mo.GetMethodParameters("RunCommand"))
+                {
+                    byte[] buffer = new byte[8];
 
-                // Add the input parameters.
-                byte[] buffer = new byte[8];
+                    var cmd = BitConverter.GetBytes(commandID);
+                    var arg = BitConverter.GetBytes(commandArg);
 
-                var cmd = BitConverter.GetBytes(commandID);
-                var arg = BitConverter.GetBytes(commandArg);
+                    Buffer.BlockCopy(cmd, 0, buffer, 0, 4);
+                    Buffer.BlockCopy(arg, 0, buffer, 4, 4);
 
-                Buffer.BlockCopy(cmd, 0, buffer, 0, 4);
-                Buffer.BlockCopy(arg, 0, buffer, 4, 4);
+                    inParams["Inbuf"] = buffer;
 
-                inParams["Inbuf"] = buffer;
-
-                // Execute the method and obtain the return values.
-                ManagementBaseObject outParams = mo.InvokeMethod("RunCommand", inParams, null);
-
-                // return outParam
-                ManagementBaseObject pack = (ManagementBaseObject)outParams?.Properties["Outbuf"].Value;
-                return (byte[])pack?.GetPropertyValue("Result");
+                    using (ManagementBaseObject outParams = mo.InvokeMethod("RunCommand", inParams, null))
+                    using (ManagementBaseObject pack = (ManagementBaseObject)outParams?.Properties["Outbuf"].Value)
+                    {
+                        byte[] result = (byte[])pack?.GetPropertyValue("Result");
+                        return result != null ? (byte[])result.Clone() : null;
+                    }
+                }
             }
             catch (ManagementException ex)
             {

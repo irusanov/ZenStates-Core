@@ -476,7 +476,20 @@ namespace ZenStates.Core
 
         public static CommandExecutionResult ExecuteCommand(string command)
         {
-            var processInfo = new ProcessStartInfo("cmd.exe", "/c " + command)
+            if (command == null || command.Trim().Length == 0)
+                throw new ArgumentException("Command must not be empty.", nameof(command));
+
+            string trimmedCommand = command.Trim();
+            int separatorIndex = trimmedCommand.IndexOf(' ');
+            string fileName = separatorIndex >= 0 ? trimmedCommand.Substring(0, separatorIndex) : trimmedCommand;
+            string arguments = separatorIndex >= 0 ? trimmedCommand.Substring(separatorIndex + 1) : string.Empty;
+
+            return ExecuteCommand(fileName, arguments);
+        }
+
+        public static CommandExecutionResult ExecuteCommand(string fileName, string arguments)
+        {
+            var processInfo = new ProcessStartInfo(fileName, arguments ?? string.Empty)
             {
                 CreateNoWindow = true,
                 UseShellExecute = false,
@@ -508,16 +521,8 @@ namespace ZenStates.Core
                 result.StandardError = standardError.ToString();
                 result.ExitCode = process.ExitCode;
 
-                // Parse the state from the standard output
                 var stateMatch = StateRegex.Match(result.StandardOutput);
-                if (stateMatch.Success)
-                {
-                    result.State = stateMatch.Groups[1].Value;
-                }
-                else
-                {
-                    result.State = "Unknown";
-                }
+                result.State = stateMatch.Success ? stateMatch.Groups[1].Value : "Unknown";
             }
 
             return result;
@@ -546,7 +551,7 @@ namespace ZenStates.Core
 
         public static bool HasDependentServices(string serviceName)
         {
-            CommandExecutionResult result = ExecuteCommand($"sc.exe qc {serviceName}");
+            CommandExecutionResult result = ExecuteCommand("sc.exe", $"qc \"{serviceName}\"");
             string output = result.StandardOutput;
             bool hasDependents = false;
             foreach (var line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
@@ -566,7 +571,7 @@ namespace ZenStates.Core
 
         public static int GetServiceProcessId(string serviceName)
         {
-            CommandExecutionResult result = ExecuteCommand($"sc.exe queryex {serviceName}");
+            CommandExecutionResult result = ExecuteCommand("sc.exe", $"queryex \"{serviceName}\"");
             string output = result.StandardOutput;
 
             foreach (var line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
@@ -598,7 +603,7 @@ namespace ZenStates.Core
 
         public static bool ServiceExists(string serviceName)
         {
-            CommandExecutionResult result = ExecuteCommand($"sc query {serviceName}");
+            CommandExecutionResult result = ExecuteCommand("sc.exe", $"query \"{serviceName}\"");
             string output = result.StandardOutput;
 
             return !output.Contains("FAILED 1060");

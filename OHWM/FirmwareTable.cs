@@ -39,17 +39,24 @@ namespace ZenStates.Core.OHWM
             if (size <= 0)
                 return null;
 
-            IntPtr nativeBuffer = Marshal.AllocHGlobal(size);
-            NativeMethods.GetSystemFirmwareTable(provider, table, nativeBuffer, size);
+            IntPtr nativeBuffer = IntPtr.Zero;
+            try
+            {
+                nativeBuffer = Marshal.AllocHGlobal(size);
+                NativeMethods.GetSystemFirmwareTable(provider, table, nativeBuffer, size);
 
-            if (Marshal.GetLastWin32Error() != 0)
-                return null;
+                if (Marshal.GetLastWin32Error() != 0)
+                    return null;
 
-            byte[] buffer = new byte[size];
-            Marshal.Copy(nativeBuffer, buffer, 0, size);
-            Marshal.FreeHGlobal(nativeBuffer);
-
-            return buffer;
+                byte[] buffer = new byte[size];
+                Marshal.Copy(nativeBuffer, buffer, 0, size);
+                return buffer;
+            }
+            finally
+            {
+                if (nativeBuffer != IntPtr.Zero)
+                    Marshal.FreeHGlobal(nativeBuffer);
+            }
         }
 
         public static string[] EnumerateTables(Provider provider)
@@ -63,18 +70,29 @@ namespace ZenStates.Core.OHWM
             catch (DllNotFoundException) { return null; }
             catch (EntryPointNotFoundException) { return null; }
 
-            IntPtr nativeBuffer = Marshal.AllocHGlobal(size);
-            NativeMethods.EnumSystemFirmwareTables(
-              provider, nativeBuffer, size);
-            byte[] buffer = new byte[size];
-            Marshal.Copy(nativeBuffer, buffer, 0, size);
-            Marshal.FreeHGlobal(nativeBuffer);
+            if (size <= 0)
+                return null;
 
-            string[] result = new string[size / 4];
-            for (int i = 0; i < result.Length; i++)
-                result[i] = Encoding.ASCII.GetString(buffer, 4 * i, 4);
+            IntPtr nativeBuffer = IntPtr.Zero;
+            try
+            {
+                nativeBuffer = Marshal.AllocHGlobal(size);
+                NativeMethods.EnumSystemFirmwareTables(
+                  provider, nativeBuffer, size);
+                byte[] buffer = new byte[size];
+                Marshal.Copy(nativeBuffer, buffer, 0, size);
 
-            return result;
+                string[] result = new string[size / 4];
+                for (int i = 0; i < result.Length; i++)
+                    result[i] = Encoding.ASCII.GetString(buffer, 4 * i, 4);
+
+                return result;
+            }
+            finally
+            {
+                if (nativeBuffer != IntPtr.Zero)
+                    Marshal.FreeHGlobal(nativeBuffer);
+            }
         }
 
         public enum Provider : int

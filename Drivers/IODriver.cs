@@ -92,28 +92,35 @@ namespace ZenStates.Core.Drivers
 
         public byte[] ReadMemory(IntPtr baseAddress, int size)
         {
+            IntPtr memHandle = IntPtr.Zero;
+            IntPtr pdwLinAddr = IntPtr.Zero;
+
             try
             {
-                IntPtr pdwLinAddr = Utils.Is64Bit
-                    ? NativeMethodsX64.MapPhysToLin(baseAddress, (uint)size, out IntPtr memHandle64)
-                    : NativeMethodsX86.MapPhysToLin(baseAddress, (uint)size, out memHandle64);
+                pdwLinAddr = Utils.Is64Bit
+                    ? NativeMethodsX64.MapPhysToLin(baseAddress, (uint)size, out memHandle)
+                    : NativeMethodsX86.MapPhysToLin(baseAddress, (uint)size, out memHandle);
 
                 if (pdwLinAddr != IntPtr.Zero)
                 {
                     byte[] bytes = new byte[size];
                     Marshal.Copy(pdwLinAddr, bytes, 0, bytes.Length);
-
-                    if (Utils.Is64Bit)
-                        NativeMethodsX64.UnmapPhysicalMemory(memHandle64, pdwLinAddr);
-                    else
-                        NativeMethodsX86.UnmapPhysicalMemory(memHandle64, pdwLinAddr);
-
                     return bytes;
                 }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error reading memory: {ex.Message}");
+            }
+            finally
+            {
+                if (pdwLinAddr != IntPtr.Zero)
+                {
+                    if (Utils.Is64Bit)
+                        NativeMethodsX64.UnmapPhysicalMemory(memHandle, pdwLinAddr);
+                    else
+                        NativeMethodsX86.UnmapPhysicalMemory(memHandle, pdwLinAddr);
+                }
             }
 
             return null;

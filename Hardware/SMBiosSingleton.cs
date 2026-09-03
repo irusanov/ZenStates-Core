@@ -3,10 +3,9 @@ using ZenStates.Core.OHWM;
 
 namespace ZenStates.Core.Hardware
 {
-    internal sealed class SMBiosSingleton : IDisposable
+    internal static class SMBiosSingleton
     {
         private static SMBios instance = null;
-        private SMBiosSingleton() { }
 
         public static SMBios Instance
         {
@@ -17,17 +16,6 @@ namespace ZenStates.Core.Hardware
 
                 return instance;
             }
-        }
-
-        public void Dispose()
-        {
-            if (instance != null)
-                ((IDisposable)instance).Dispose();
-        }
-
-        ~SMBiosSingleton()
-        {
-            Dispose();
         }
     }
 }

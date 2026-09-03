@@ -544,44 +544,46 @@ namespace ZenStates.Core.Hardware.Aod
             {
                 string wmiAMDACPI = "AMD_ACPI";
                 string wmiScope = "root\\wmi";
-                ManagementBaseObject pack;
 
                 string instanceName = WMI.GetInstanceName(wmiScope, wmiAMDACPI);
 
                 if (String.IsNullOrEmpty(instanceName))
                     return dict;
 
-                ManagementObject classInstance = new ManagementObject(wmiScope,
+                using (ManagementObject classInstance = new ManagementObject(wmiScope,
                     $"{wmiAMDACPI}.InstanceName='{instanceName}'",
-                    null);
-
-                // Get function names with their IDs
-                string[] functionObjects = { "GetObjectID", "GetObjectID2" };
-
-                foreach (var functionObject in functionObjects)
+                    null))
                 {
-                    try
+                    // Get function names with their IDs
+                    string[] functionObjects = { "GetObjectID", "GetObjectID2" };
+
+                    foreach (var functionObject in functionObjects)
                     {
-                        pack = WMI.InvokeMethodAndGetValue(classInstance, functionObject, "pack", null, 0);
-
-                        if (pack != null)
+                        try
                         {
-                            var ID = (uint[])pack.GetPropertyValue("ID");
-                            var IDString = (string[])pack.GetPropertyValue("IDString");
-                            var Length = (byte)pack.GetPropertyValue("Length");
-
-                            for (var i = 0; i < Length; ++i)
+                            using (ManagementBaseObject outParams = WMI.InvokeMethod(classInstance, functionObject, null, 0))
+                            using (ManagementBaseObject pack = (ManagementBaseObject)outParams?.Properties["pack"].Value)
                             {
-                                if (IDString[i] == "")
-                                    break;
+                                if (pack != null)
+                                {
+                                    var ID = (uint[])pack.GetPropertyValue("ID");
+                                    var IDString = (string[])pack.GetPropertyValue("IDString");
+                                    var Length = (byte)pack.GetPropertyValue("Length");
 
-                                dict.Add(IDString[i], ID[i]);
+                                    for (var i = 0; i < Length; ++i)
+                                    {
+                                        if (IDString[i] == "")
+                                            break;
+
+                                        dict.Add(IDString[i], ID[i]);
+                                    }
+                                }
                             }
                         }
-                    }
-                    catch
-                    {
-                        // ignored
+                        catch
+                        {
+                            // ignored
+                        }
                     }
                 }
             }
