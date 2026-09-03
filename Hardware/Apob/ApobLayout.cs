@@ -17,6 +17,7 @@ namespace ZenStates.Core.Hardware.Apob
     public sealed class ApobFieldOffsets
     {
         public ApobFieldOffsets(
+            int gdm = -1,
             int rttNomRd = -1,
             int rttNomWr = -1,
             int rttWr = -1,
@@ -51,6 +52,8 @@ namespace ZenStates.Core.Hardware.Apob
             int procDqsOdt = -1,
             int procDataDsApu = -1)
         {
+            Gdm = gdm;
+
             RttNomRd = rttNomRd;
             RttNomWr = rttNomWr;
             RttWr = rttWr;
@@ -92,6 +95,7 @@ namespace ZenStates.Core.Hardware.Apob
             ProcDataDsApu = procDataDsApu;
         }
 
+        public int Gdm { get; private set; }
         public int RttNomRd { get; private set; }
         public int RttNomWr { get; private set; }
         public int RttWr { get; private set; }
@@ -186,6 +190,7 @@ namespace ZenStates.Core.Hardware.Apob
         private static readonly byte[] CCDL_BLOCK_MAGIC_ZEN5 = new byte[] { 0x00, 0x50, 0xC3, 0x00 };
 
         private static readonly ApobFieldOffsets Zen4MainOffsets = new ApobFieldOffsets(
+            gdm: 0x1,
             rttNomRd: 0x2,
             rttNomWr: 0x3,
             rttWr: 0x4,
@@ -203,6 +208,7 @@ namespace ZenStates.Core.Hardware.Apob
             procCaDs: 0x11);
 
         private static readonly ApobFieldOffsets Zen4ExtendedOffsets = new ApobFieldOffsets(
+            gdm: 0x1,
             rttNomRd: 0x2,
             rttNomWr: 0x3,
             rttWr: 0x4,
@@ -223,6 +229,7 @@ namespace ZenStates.Core.Hardware.Apob
             procCsDs: 0x13);
 
         private static readonly ApobFieldOffsets Zen4ApuMainOffsets = new ApobFieldOffsets(
+            gdm: 0x1,
             rttNomRd: 0x2,
             rttNomWr: 0x3,
             rttWr: 0x4,
@@ -237,11 +244,13 @@ namespace ZenStates.Core.Hardware.Apob
             caOdtB: 0xD,
             procOdt: 0xE,
             procDqDs: 0xF,
+            // unknown_10
             procCaDs: 0x11,
             procCkDs: 0x12,
             procCsDs: 0x13);
 
         private static readonly ApobFieldOffsets Zen4ApuExtendedOffsets = new ApobFieldOffsets(
+            gdm: 0x1,
             rttNomRd: 0x2,
             rttNomWr: 0x3,
             rttWr: 0x4,
@@ -256,6 +265,7 @@ namespace ZenStates.Core.Hardware.Apob
             caOdtB: 0xD,
             procOdt: 0xE,
             procDqDs: 0xF,
+            // unknown_10
             procCaDs: 0x11,
             procCkDs: 0x12,
             procCsDs: 0x13,
@@ -266,6 +276,7 @@ namespace ZenStates.Core.Hardware.Apob
             procDataDsApu: 0xF);
 
         private static readonly ApobFieldOffsets Zen5MainOffsets = new ApobFieldOffsets(
+            gdm: 0x1,
             rttNomRd: 0x2,
             rttNomWr: 0x3,
             rttWr: 0x4,
@@ -296,6 +307,7 @@ namespace ZenStates.Core.Hardware.Apob
             procDqDsPullDownP0: 0x24);
 
         private static readonly ApobFieldOffsets Zen5ExtendedOffsets = new ApobFieldOffsets(
+            gdm: 0x1,
             rttNomRd: 0x2,
             rttNomWr: 0x3,
             rttWr: 0x4,
@@ -325,13 +337,83 @@ namespace ZenStates.Core.Hardware.Apob
             procDqDsPullUpP0: 0x23,
             procDqDsPullDownP0: 0x24);
 
+
+        private static readonly ApobFieldOffsets Zen5ApuMainOffsets = new ApobFieldOffsets(
+            gdm: 0x1, // 0x00
+            rttNomRd: 0x2, // 0x00
+            rttNomWr: 0x3, // 0x00
+            rttWr: 0x4, // 0x000
+            rttPark: 0x5, // 0x04
+            rttParkDqs: 0x6, // 0x04
+            dramDataDs: 0x7, // 0x00
+            ckOdtA: 0x8, // 0x01
+            csOdtA: 0x9, // 0x01
+            caOdtA: 0xA, // 0x01
+            ckOdtB: 0xB, // 0x05
+            csOdtB: 0xC, // 0x05
+            caOdtB: 0xD, // 0x05
+            procOdt: 0xE, // 0x3c
+            procDqDs: 0xF, // 0x3c
+
+            // unknown_10 ? // 0x3c
+            procCaDs: 0x11, // 0x3c
+            procCkDs: 0x12, // 0x3c
+            procCsDs: 0x13 // 0x3c
+
+            // unknown_14 ? // 0x1e
+            // unknown_15 ? // 0x0c
+            // unknown_16 ? // 0x1e
+            // unknown_17 ? // 0x63
+            // unknown_18 ? // 0x3f
+            // unknown_19 ? // 0x2c
+            // unknown_1A ? // 0x2c
+            // unknown_1B ? // 0x01
+            // unknown_1C ? // 0x00
+         );
+
+
+        // There are total of 6 0x3C (60) values sitting at index 0xF for the main block and 0x1B for the extended
+        private static readonly ApobFieldOffsets Zen5ApuExtendedOffsets = new ApobFieldOffsets(
+            gdm: 0x1,
+            rttNomRd: 0x2,
+            rttNomWr: 0x3,
+            rttWr: 0x4,
+            rttPark: 0x5,
+            rttParkDqs: 0x6,
+            dramDataDs: 0x7,
+            ckOdtA: 0x8,
+            csOdtA: 0x9,
+            caOdtA: 0xA,
+            ckOdtB: 0xB,
+            csOdtB: 0xC,
+            caOdtB: 0xD,
+            procOdt: 0xE,
+
+            // These are probably incorrect, there are many 0x3C bytes
+            procDqDs: 0x1B,
+            procCaDs: 0x1C,
+            procCkDs: 0x1D,
+            procCsDs: 0x1E,
+
+            procCaOdt: 0xF,
+            procCkOdt: 0x10,
+            procDqOdt: 0x11,
+            procDqsOdt: 0x12,
+
+            procDataDsApu: 0x1B);
+
+
         private static readonly ApobBlockLayout Zen4MainLayout = new ApobBlockLayout("Zen4 19h main", 0x1A, Zen4MainOffsets);
         private static readonly ApobBlockLayout Zen4ExtendedLayout = new ApobBlockLayout("Zen4 19h extended", 0x1A, Zen4ExtendedOffsets);
         private static readonly ApobBlockLayout Zen4ApuMainLayout = new ApobBlockLayout("Zen4 APU main", 0x40, Zen4ApuMainOffsets);
         private static readonly ApobBlockLayout Zen4ApuExtendedLayout = new ApobBlockLayout("Zen4 APU extended", 0x40, Zen4ApuExtendedOffsets);
 
-        private static readonly ApobBlockLayout Zen5MainLayout = new ApobBlockLayout("Zen1A main", 0x30, Zen5MainOffsets);
-        private static readonly ApobBlockLayout Zen5ExtendedLayout = new ApobBlockLayout("Zen1A extended", 0x30, Zen5ExtendedOffsets);
+        private static readonly ApobBlockLayout Zen5MainLayout = new ApobBlockLayout("Zen5 main", 0x30, Zen5MainOffsets);
+        private static readonly ApobBlockLayout Zen5ExtendedLayout = new ApobBlockLayout("Zen5 extended", 0x30, Zen5ExtendedOffsets);
+        // TODO: maybe the same as Zen4 APU (8000 series), check 8000 dumps
+        private static readonly ApobBlockLayout Zen5ApuMainLayout = new ApobBlockLayout("Zen5 APU main", 0x1D, Zen5ApuMainOffsets);
+        // 0x5E seems to be the size of the whole block for a given memory stick/channel, but there are some repeating bytes
+        private static readonly ApobBlockLayout Zen5ApuExtendedLayout = new ApobBlockLayout("Zen5 APU extended", 0x5E, Zen5ApuExtendedOffsets);
 
         // Desktop Zen4, presumably server as well (untested)
         private static readonly ApobProfile Zen4DesktopProfile = new ApobProfile(
@@ -357,8 +439,8 @@ namespace ZenStates.Core.Hardware.Apob
         // Mobile Zen5 (KrackanPoint, KrackanPoint2, StrixPoint)
         private static readonly ApobProfile Zen5ApuProfile = new ApobProfile(
             "Zen5 APU",
-            Zen5MainLayout,
-            Zen5ExtendedLayout,
+            Zen5ApuMainLayout,
+            Zen5ApuExtendedLayout,
             new ApobCcdlLayout(ApobBlockKind.Extended, CCDL_BLOCK_MAGIC_ZEN4, 0x12, ApobValueWidth.UInt32));
 
 

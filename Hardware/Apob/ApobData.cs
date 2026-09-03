@@ -106,7 +106,7 @@ namespace ZenStates.Core.Hardware.Apob
                 if (value is EncodedValueBase encodedValue)
                 {
                     rawValue = encodedValue.RawValue.HasValue
-                        ? encodedValue.RawValue.Value.ToString(CultureInfo.InvariantCulture)
+                        ? string.Format("{0} / 0x{0:X}", encodedValue.RawValue.Value)
                         : "null";
                 }
 
