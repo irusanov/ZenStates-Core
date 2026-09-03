@@ -318,6 +318,7 @@ namespace ZenStates.Core.Hardware.Apob
                 if (RawExtendedData == null)
                     return;
 
+                // Locate the same sequence inside the extended data block.
                 int extendedMatch = Utils.FindSequence(RawExtendedData, 0, rttBlock);
                 if (extendedMatch < 2)
                     return;
