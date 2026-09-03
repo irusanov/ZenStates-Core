@@ -71,12 +71,12 @@ namespace ZenStates.Core.Hardware.Apob
 
         public byte[] RawData
         {
-            get { return Data.RawBytes; }
+            get { return Data?.RawBytes ?? SliceRawTable(DataOffset, DataSize); }
         }
 
         public byte[] RawExtendedData
         {
-            get { return ExtendedData.RawBytes; }
+            get { return ExtendedData?.RawBytes ?? SliceRawTable(ExtendedDataOffset, ExtendedDataSize); }
         }
 
         public Apob(CPUInfo cpuInfo)
