@@ -1,3 +1,4 @@
+using System;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
@@ -102,15 +103,36 @@ namespace ZenStates.Core.Hardware.Apob
                 PropertyInfo property = properties[i];
                 object value = property.GetValue(this, null);
                 string rawValue = "null";
+                string rawHexValue = "null";
 
                 if (value is EncodedValueBase encodedValue)
                 {
                     rawValue = encodedValue.RawValue.HasValue
-                        ? string.Format("{0} / 0x{0:X}", encodedValue.RawValue.Value)
+                        ? encodedValue.RawValue.Value.ToString(CultureInfo.InvariantCulture)
+                        : "null";
+
+                    rawHexValue = encodedValue.RawValue.HasValue
+                        ? string.Format("0x{0:X}", encodedValue.RawValue.Value)
                         : "null";
                 }
 
-                sb.AppendLine(string.Format("{0,-20}{1,-20}({2})", property.Name + ":", value ?? "N/A", rawValue));
+                sb.AppendLine(string.Format("{0,-20}{1,-20}{2,-10}{3}", property.Name + ":", value ?? "N/A", rawValue, rawHexValue));
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("RawBytes:");
+            for (int i = 0; i < RawBytes.Length; i += 16)
+            {
+                int length = Math.Min(16, RawBytes.Length - i);
+                for (int j = 0; j < length; j++)
+                {
+                    if (j > 0)
+                        sb.Append(' ');
+
+                    sb.Append(RawBytes[i + j].ToString("X2", CultureInfo.InvariantCulture));
+                }
+
+                sb.AppendLine();
             }
 
             return sb.ToString();

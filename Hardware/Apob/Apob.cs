@@ -49,8 +49,12 @@ namespace ZenStates.Core.Hardware.Apob
         public uint Address { get; private set; }
         public uint DataOffset { get; private set; }
         public uint DataSize { get; private set; }
+        public int MainLayoutDataOffset { get; private set; } = -1;
+        public int MainLayoutDataRelativeOffset { get; private set; } = -1;
         public uint ExtendedDataOffset { get; private set; }
         public uint ExtendedDataSize { get; private set; }
+        public int ExtendedLayoutDataOffset { get; private set; } = -1;
+        public int ExtendedLayoutDataRelativeOffset { get; private set; } = -1;
 
         public ApobHeader Header { get; private set; }
         public ApobData Data { get; private set; }
@@ -71,12 +75,12 @@ namespace ZenStates.Core.Hardware.Apob
 
         public byte[] RawData
         {
-            get { return Data?.RawBytes ?? SliceRawTable(DataOffset, DataSize); }
+            get { return SliceRawTable(DataOffset, DataSize); }
         }
 
         public byte[] RawExtendedData
         {
-            get { return ExtendedData?.RawBytes ?? SliceRawTable(ExtendedDataOffset, ExtendedDataSize); }
+            get { return SliceRawTable(ExtendedDataOffset, ExtendedDataSize); }
         }
 
         public Apob(CPUInfo cpuInfo)
@@ -257,15 +261,6 @@ namespace ZenStates.Core.Hardware.Apob
                         continue;
                     }
 
-                    if (ApobDataReader.TryRead(RawExtendedData, 0, _profile.ExtendedLayout, out ApobData extendedData))
-                    {
-                        ExtendedData = extendedData;
-                    }
-                    else
-                    {
-                        Debug.WriteLine("APOB extended block was found, but the configured layout did not fit the block size.");
-                    }
-
                     return true;
                 }
             }
@@ -308,6 +303,8 @@ namespace ZenStates.Core.Hardware.Apob
                     return;
 
                 Data = data;
+                MainLayoutDataOffset = (int)i;
+                MainLayoutDataRelativeOffset = (int)(i - DataOffset);
 
                 byte[] rttBlock = new byte[RTT_BLOCK_SIZE];
                 Buffer.BlockCopy(RawTable, (int)i + 2, rttBlock, 0, (int)RTT_BLOCK_SIZE);
@@ -326,6 +323,8 @@ namespace ZenStates.Core.Hardware.Apob
                 if (ApobDataReader.TryRead(RawExtendedData, (uint)(extendedMatch - 2), _profile.ExtendedLayout, out ApobData extendedData))
                 {
                     ExtendedData = extendedData;
+                    ExtendedLayoutDataRelativeOffset = (int)(extendedMatch - 2);
+                    ExtendedLayoutDataOffset = (int)(ExtendedDataOffset + ExtendedLayoutDataRelativeOffset);
                 }
 
                 return;
@@ -354,8 +353,12 @@ namespace ZenStates.Core.Hardware.Apob
                 sb.AppendLine(string.Format("-- Address: 0x{0:X8}", Address));
                 sb.AppendLine(string.Format("-- Main Data Offset: 0x{0:X8}", DataOffset));
                 sb.AppendLine(string.Format("-- Main Data Size: 0x{0:X8} ({0})", DataSize));
+                sb.AppendLine(string.Format("-- Main Layout Offset: 0x{0:X8}", MainLayoutDataOffset));
+                sb.AppendLine(string.Format("-- Main Layout Rel. Offset: 0x{0:X8} ({0})", MainLayoutDataRelativeOffset));
                 sb.AppendLine(string.Format("-- Ext. Data Offset: 0x{0:X8}", ExtendedDataOffset));
                 sb.AppendLine(string.Format("-- Ext. Data Size: 0x{0:X8} ({0})", ExtendedDataSize));
+                sb.AppendLine(string.Format("-- Ext. Layout Offset: 0x{0:X8}", ExtendedLayoutDataOffset));
+                sb.AppendLine(string.Format("-- Ext. Layout Rel. Offset: 0x{0:X8} ({0})", ExtendedLayoutDataRelativeOffset));
                 sb.AppendLine();
                 sb.AppendLine("-- Metadata -------------------------------------");
                 sb.AppendLine(string.Format("{0,-28}{1}", "Config Offsets Count:", ConfigOffsets != null ? ConfigOffsets.Count : 0));
@@ -407,11 +410,18 @@ namespace ZenStates.Core.Hardware.Apob
                 sb.AppendLine();
                 sb.AppendLine("-- CCDL Data ------------------------------------");
                 var ccdlFields = CcdlData.GetType().GetFields();
-                for (int i = 0; i < ccdlFields.Length; i++)
+                if (ccdlFields.Length == 0)
                 {
-                    var field = ccdlFields[i];
-                    object value = field.GetValue(CcdlData);
-                    sb.AppendLine(string.Format("{0,-20}{1}", field.Name + ":", value ?? "N/A"));
+                    sb.AppendLine("<APOB CCDL data not available>");
+                }
+                else
+                {
+                    for (int i = 0; i < ccdlFields.Length; i++)
+                    {
+                        var field = ccdlFields[i];
+                        object value = field.GetValue(CcdlData);
+                        sb.AppendLine(string.Format("{0,-20}{1}", field.Name + ":", value ?? "N/A"));
+                    }
                 }
 
                 sb.AppendLine();
@@ -479,8 +489,6 @@ namespace ZenStates.Core.Hardware.Apob
             for (int i = 0; i < data.Length; i += 16)
             {
                 int length = Math.Min(16, data.Length - i);
-                sb.Append(i.ToString("X4"));
-                sb.Append(": ");
 
                 for (int j = 0; j < length; j++)
                 {
