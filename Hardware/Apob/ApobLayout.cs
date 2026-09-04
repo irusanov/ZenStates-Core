@@ -372,7 +372,8 @@ namespace ZenStates.Core.Hardware.Apob
          );
 
 
-        // There are total of 6 0x3C (60) values sitting at index 0xF for the main block and 0x1B for the extended
+        // The extended block starts one byte later than the main block, so everything after
+        // ProcOdt is shifted by 12
         private static readonly ApobFieldOffsets Zen5ApuExtendedOffsets = new ApobFieldOffsets(
             gdm: 0x1,
             rttNomRd: 0x2,
@@ -389,18 +390,12 @@ namespace ZenStates.Core.Hardware.Apob
             caOdtB: 0xD,
             procOdt: 0xE,
 
-            // These are probably incorrect, there are many 0x3C bytes
+            // 0xF..0x1A unidentified
             procDqDs: 0x1B,
-            procCaDs: 0x1C,
-            procCkDs: 0x1D,
-            procCsDs: 0x1E,
-
-            procCaOdt: 0xF,
-            procCkOdt: 0x10,
-            procDqOdt: 0x11,
-            procDqsOdt: 0x12,
-
-            procDataDsApu: 0x1B);
+            // unknown_1C
+            procCaDs: 0x1D,
+            procCkDs: 0x1E,
+            procCsDs: 0x1F);
 
 
         private static readonly ApobBlockLayout Zen4MainLayout = new ApobBlockLayout("Zen4 19h main", 0x1A, Zen4MainOffsets);
@@ -412,8 +407,8 @@ namespace ZenStates.Core.Hardware.Apob
         private static readonly ApobBlockLayout Zen5ExtendedLayout = new ApobBlockLayout("Zen5 extended", 0x30, Zen5ExtendedOffsets);
         // TODO: maybe the same as Zen4 APU (8000 series), check 8000 dumps
         private static readonly ApobBlockLayout Zen5ApuMainLayout = new ApobBlockLayout("Zen5 APU main", 0x1D, Zen5ApuMainOffsets);
-        // 0x5E seems to be the size of the whole block for a given memory stick/channel, but there are some repeating bytes
-        private static readonly ApobBlockLayout Zen5ApuExtendedLayout = new ApobBlockLayout("Zen5 APU extended", 0x5E, Zen5ApuExtendedOffsets);
+        // Stride is 0x1F, the anchor sits one byte in front of the block
+        private static readonly ApobBlockLayout Zen5ApuExtendedLayout = new ApobBlockLayout("Zen5 APU extended", 0x20, Zen5ApuExtendedOffsets);
 
         // Desktop Zen4, presumably server as well (untested)
         private static readonly ApobProfile Zen4DesktopProfile = new ApobProfile(
@@ -441,7 +436,8 @@ namespace ZenStates.Core.Hardware.Apob
             "Zen5 APU",
             Zen5ApuMainLayout,
             Zen5ApuExtendedLayout,
-            new ApobCcdlLayout(ApobBlockKind.Extended, CCDL_BLOCK_MAGIC_ZEN4, 0x12, ApobValueWidth.UInt32));
+            // UInt16 at magic + 0x1A, reads 14 / 56 / 28 on a Krackan dump at MCLK 2800
+            new ApobCcdlLayout(ApobBlockKind.Extended, CCDL_BLOCK_MAGIC_ZEN4, 0x1A, ApobValueWidth.UInt16));
 
 
         public static ApobProfile Resolve(CPUInfo cpuInfo)
