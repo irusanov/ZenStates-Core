@@ -161,6 +161,7 @@ namespace ZenStates.Core
             public SVI2 svi2;
             public AOD aod;
             public Apob apob;
+            public SMU.SmuType smuType;
         }
 
         public readonly IODriver io = new IODriver();
@@ -408,6 +409,7 @@ namespace ZenStates.Core
                         var result = new CmdResult(6);
                         smu.SendRsmuCommand(0xE, ref result.args);
                     }
+                    info.smuType = smu.SMU_TYPE;
                 }
                 else
                 {

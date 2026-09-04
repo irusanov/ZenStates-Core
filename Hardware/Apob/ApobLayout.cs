@@ -462,8 +462,7 @@ namespace ZenStates.Core.Hardware.Apob
 
             if (cpuInfo.family == Family.FAMILY_1AH)
             {
-                // FireRange has the same CPUID as GraniteRidge and currently matches the same CodeName
-                if (cpuInfo.packageType == PackageType.FPX && cpuInfo.codeName != CodeName.GraniteRidge)
+                if (cpuInfo.smuType == SMU.SmuType.TYPE_APU2)
                 {
                     return Zen5ApuProfile;
                 }
