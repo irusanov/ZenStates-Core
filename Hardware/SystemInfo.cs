@@ -111,13 +111,17 @@ namespace ZenStates.Core.Hardware
         public string Vendor => _cpuInfo.vendor ?? "N/A";
         public string CodeName => _cpuInfo.codeName.ToString();
         public CpuId CpuId => _cpuInfo.cpuid;
+
+        public Family Family => _cpuInfo.family;
         public uint BaseModel => _cpuInfo.baseModel;
         public uint ExtendedModel => _cpuInfo.extModel;
         public uint Model => _cpuInfo.model;
         public uint Stepping => _cpuInfo.stepping;
         public uint PatchLevel => _cpuInfo.patchLevel;
+
         // This is not working correctly, it needs mappings for each generation
-        // public string PackageType => $"{_cpuInfo.packageType} ({(int)_cpuInfo.packageType})";
+         //public string PackageType => $"{_cpuInfo.packageType} ({(int)_cpuInfo.packageType})";
+         public int PackageType => (int)_cpuInfo.packageType;
 
         // Topology
         public int FusedCoreCount => (int)_cpuInfo.topology.cores;
