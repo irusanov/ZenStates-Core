@@ -232,7 +232,7 @@ namespace ZenStates.Core.Hardware.Aod
         // TODO: Make generic for all CPUs
         private BaseDictionary GetBaseDictionaryByFrequency()
         {
-            var mclk = ((((cpuInstance.memoryConfig?.Timings[0].Value as BaseDramTimings))))?.Ratio * 100 ?? 0;
+            var mclk = cpuInstance.memoryConfig?.Timings[0].Value?.Ratio * 100 ?? 0;
             if (mclk > 0)
             {
                 var tableIndex = Utils.FindLastSequence(this.Table.RawAodTable, 0, Utils.ToBytes2(mclk));
@@ -280,8 +280,9 @@ namespace ZenStates.Core.Hardware.Aod
 
         private Dictionary<string, int> GetAodDataDictionary(Cpu.CodeName codeName, uint patchLevel)
         {
-            if (Table.AcpiTable.Value.Header.OEMTableID == TableSignature.LENOVO_AOD)
-                return AodDictionaries.AodDataDictionaryV3;
+            // Disable this specific Lenovo case as it never worked properly and might hinder newer laptops with proper tables
+            //if (Table.AcpiTable.Value.Header.OEMTableID == TableSignature.LENOVO_AOD)
+            //    return AodDictionaries.AodDataDictionaryV3;
 
             var baseDictionary = GetBaseDictionaryByFrequency();
             var lastOffset = baseDictionary.LastOffset;
@@ -299,6 +300,10 @@ namespace ZenStates.Core.Hardware.Aod
                 case Cpu.CodeName.Phoenix:
                 case Cpu.CodeName.Phoenix2:
                 case Cpu.CodeName.HawkPoint:
+                case Cpu.CodeName.KrackanPoint:
+                case Cpu.CodeName.KrackanPoint2:
+                case Cpu.CodeName.StrixPoint:
+                case Cpu.CodeName.StrixHalo:
                     if (baseDictionary.Dict != null)
                     {
                         Dictionary<string, int> dict;
@@ -311,16 +316,31 @@ namespace ZenStates.Core.Hardware.Aod
                             { "ProcDqOdt", lastOffset + 16 },
                             { "ProcDqsOdt", lastOffset + 20 },
                             { "DramDataDrvStren", lastOffset + 24 },
+
                             { "RttNomWr", lastOffset + 28 },
                             { "RttNomRd", lastOffset + 32 },
-                            { "RttWr", lastOffset + 36 },
-                            { "RttPark", lastOffset + 40 },
+                            { "RttWr", lastOffset + 36 }, 
+                            { "RttPark", lastOffset + 40 }, 
                             { "RttParkDqs", lastOffset + 44 },
                         };
 
-                        if ((codeName == Cpu.CodeName.Phoenix || codeName == Cpu.CodeName.Phoenix2) && cpuInstance.info.cpuName.ToLowerInvariant().Contains("radeon"))
+                        if ((codeName == Cpu.CodeName.Phoenix || codeName == Cpu.CodeName.Phoenix2) 
+                            && cpuInstance.info.cpuName.ToLowerInvariant().Contains("radeon"))
                         {
                             lastOffset += 4;
+                        }
+
+                        // Based on a single KrackanPoint debug log, first voltage sits at base + lastOffset + 84 (8920 is base, 9108 is MemVddio)
+                        // lastOffset is base + 104 from the GetBaseDictionaryByFrequency()
+                        // 8920 + 104 + 84
+                        // Assuming other similar codenames use the same layout, since they share SMU commands and are more common than different
+                        if (Array.IndexOf(new[] { 
+                            Cpu.CodeName.KrackanPoint,
+                            Cpu.CodeName.KrackanPoint2,
+                            Cpu.CodeName.StrixPoint,
+                            Cpu.CodeName.StrixHalo }, codeName) >= 0)
+                        {
+                            lastOffset -= 4;
                         }
 
                         dict["MemVddio"] = lastOffset + 88;
