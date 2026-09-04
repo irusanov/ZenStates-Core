@@ -308,20 +308,21 @@ namespace ZenStates.Core
 
         public static uint ReadUInt32(byte[] data, uint offset)
         {
-            if (data == null || offset > int.MaxValue || data.Length < offset + 4)
+            if (data == null || offset + 4 > (uint)data.Length)
                 return 0;
 
-            return (uint)(data[offset]
-                | (data[offset + 1] << 8)
-                | (data[offset + 2] << 16)
-                | (data[offset + 3] << 24));
+            return (uint)data[offset]
+                | ((uint)data[offset + 1] << 8)
+                | ((uint)data[offset + 2] << 16)
+                | ((uint)data[offset + 3] << 24);
         }
 
         public static uint ReadUInt16(byte[] data, uint offset)
         {
             if (data == null || offset > int.MaxValue || data.Length < offset + 2)
                 return 0;
-            return (uint)(data[offset] | (data[offset + 1] << 8));
+
+            return (ushort)(data[offset] | (data[offset + 1] << 8));
         }
 
         /// <summary>Looks for the next occurrence of a sequence in a byte array</summary>
