@@ -23,16 +23,16 @@
         public uint SMU_MSG_SetMaxLclk { get; set; } = 0x0;
 
         public uint SMU_MSG_SetMinLclk { get; set; } = 0x0;
-        
+
         // Bristol specific
         public uint SMU_MSG_EnableOcMode { get; set; } = 0x0;
-        
+
         public uint SMU_MSG_EnableOcModeAlt { get; set; } = 0x0;
 
         public uint SMU_MSG_DisableOcMode { get; set; } = 0x0;
-        
+
         public uint SMU_MSG_GetSustainedPowerAndThmLimit { get; set; } = 0x0;
-        
+
         public uint SMU_MSG_GetMemoryFrequency { get; set; } = 0x0;
     }
 }

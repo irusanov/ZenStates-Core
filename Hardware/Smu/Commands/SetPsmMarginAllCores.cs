@@ -42,7 +42,7 @@ namespace ZenStates.Core.Hardware.Smu.Commands
 
             return base.Execute();
         }
-        
+
         private SMU.Status ExecuteBristolPsmMargin(int margin)
         {
             float[] gbvHi = ReadGbv(smu.Mp1Smu.SMU_MSG_GetSecondaryDldoPsmMargin);
@@ -93,7 +93,7 @@ namespace ZenStates.Core.Hardware.Smu.Commands
                 ? smu.SendMp1Command(smu.Mp1Smu.SMU_MSG_SetAllDldoPsmMargin, ref result.args)
                 : smu.SendRsmuCommand(smu.Rsmu.SMU_MSG_SetAllDldoPsmMargin, ref result.args);
         }
-        
+
         private float[] ReadGbv(uint cmdId)
         {
             uint[] args = new uint[6];

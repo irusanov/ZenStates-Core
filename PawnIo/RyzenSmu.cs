@@ -529,7 +529,7 @@ namespace ZenStates.Core.PawnIo
                 case CpuCodeName.Cezanne:
                     ConfigureCezannePmTableSize();
                     break;
-                
+
                 case CpuCodeName.Carrizo:
                 case CpuCodeName.BristolRidge:
                 case CpuCodeName.StoneyRidge:
@@ -615,7 +615,7 @@ namespace ZenStates.Core.PawnIo
             _pmTableSizeAlt = pmTableSizeAlt;
             _pmTableSize = 0x608 + pmTableSizeAlt;
         }
-        
+
         private void ConfigureCarrizoPmTableSize()
         {
             _pmTableSize = 180 * 4;

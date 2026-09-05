@@ -1,5 +1,4 @@
-﻿using System;
-using ZenStates.Core.OHWM;
+﻿using ZenStates.Core.OHWM;
 
 namespace ZenStates.Core.Hardware
 {

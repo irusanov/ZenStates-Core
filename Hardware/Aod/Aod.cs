@@ -232,9 +232,15 @@ namespace ZenStates.Core.Hardware.Aod
         // TODO: Make generic for all CPUs
         private BaseDictionary GetBaseDictionaryByFrequency()
         {
-            var mclk = cpuInstance.memoryConfig?.Timings[0].Value?.Ratio * 100 ?? 0;
+            var memoryConfig = cpuInstance.memoryConfig;
+            var mclk = memoryConfig?.Timings[0].Value?.Ratio * 100 ?? 0;
             if (mclk > 0)
             {
+                if (memoryConfig.Type == MemType.LPDDR5)
+                {
+                    mclk = mclk * 4;
+                }
+
                 var tableIndex = Utils.FindLastSequence(this.Table.RawAodTable, 0, Utils.ToBytes2(mclk));
                 if (tableIndex > -1)
                 {
@@ -297,6 +303,10 @@ namespace ZenStates.Core.Hardware.Aod
                 case Cpu.CodeName.Genoa:
                 case Cpu.CodeName.DragonRange:
                     return AodDictionaries.AodDataDictionaryV2;
+                //case Cpu.CodeName.Rembrandt:
+                //case Cpu.CodeName.VanGogh:
+                //case Cpu.CodeName.Mero:
+                //case Cpu.CodeName.Mendocino:
                 case Cpu.CodeName.Phoenix:
                 case Cpu.CodeName.Phoenix2:
                 case Cpu.CodeName.HawkPoint:
@@ -319,12 +329,12 @@ namespace ZenStates.Core.Hardware.Aod
 
                             { "RttNomWr", lastOffset + 28 },
                             { "RttNomRd", lastOffset + 32 },
-                            { "RttWr", lastOffset + 36 }, 
-                            { "RttPark", lastOffset + 40 }, 
+                            { "RttWr", lastOffset + 36 },
+                            { "RttPark", lastOffset + 40 },
                             { "RttParkDqs", lastOffset + 44 },
                         };
 
-                        if ((codeName == Cpu.CodeName.Phoenix || codeName == Cpu.CodeName.Phoenix2) 
+                        if ((codeName == Cpu.CodeName.Phoenix || codeName == Cpu.CodeName.Phoenix2)
                             && cpuInstance.info.cpuName.ToLowerInvariant().Contains("radeon"))
                         {
                             lastOffset += 4;
@@ -334,7 +344,7 @@ namespace ZenStates.Core.Hardware.Aod
                         // lastOffset is base + 104 from the GetBaseDictionaryByFrequency()
                         // 8920 + 104 + 84
                         // Assuming other similar codenames use the same layout, since they share SMU commands and are more common than different
-                        if (Array.IndexOf(new[] { 
+                        if (Array.IndexOf(new[] {
                             Cpu.CodeName.KrackanPoint,
                             Cpu.CodeName.KrackanPoint2,
                             Cpu.CodeName.StrixPoint,

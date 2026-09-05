@@ -38,7 +38,7 @@ namespace ZenStates.Core.Hardware.Smu.Commands
 
             return base.Execute();
         }
-        
+
         private float[] ReadGbv(uint cmdId)
         {
             uint[] args = new uint[6];

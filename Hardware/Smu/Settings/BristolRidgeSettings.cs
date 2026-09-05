@@ -9,8 +9,8 @@
             SMU_OFFSET_ADDR = 0xB8;
             SMU_OFFSET_DATA = 0xBC;
 
-            Rsmu.SMU_ADDR_MSG = 0xFFF00724; 
-            Rsmu.SMU_ADDR_RSP = 0xFFF00764; 
+            Rsmu.SMU_ADDR_MSG = 0xFFF00724;
+            Rsmu.SMU_ADDR_RSP = 0xFFF00764;
             Rsmu.SMU_ADDR_ARG = 0xFFF007A4;
 
             Rsmu.SMU_MSG_GetTableVersion = 0x40;
@@ -44,7 +44,7 @@
 
             // Overclock Options
             Mp1Smu.SMU_MSG_SetOverclockCpuVid = 0x88; // Removed on almost all platforms but persist on Desktop
-            
+
             // Curve Optimizer
             Mp1Smu.SMU_MSG_SetGpuPsmMargin = 0x3B;
             Mp1Smu.SMU_MSG_SetGpuPsmMarginAlt = 0x3A; // When motherboard don't have dedicated voltage rail for iGPU and use SoC voltage
@@ -54,12 +54,12 @@
 
             // Boot Time Calibration
             Mp1Smu.SMU_MSG_AcBtcStartCal = 0x77;
-            
+
             // AmdGpu
-            GpuMb.SMU_ADDR_MSG = 0xFFF00700; 
-            GpuMb.SMU_ADDR_RSP = 0xFFF00740; 
+            GpuMb.SMU_ADDR_MSG = 0xFFF00700;
+            GpuMb.SMU_ADDR_RSP = 0xFFF00740;
             GpuMb.SMU_ADDR_ARG = 0xFFF00780;
-            
+
             // Subsystem frequencies
             GpuMb.SMU_MSG_SetMaxGfxClkFreq = 0x13;
             GpuMb.SMU_MSG_SetMinGfxClkFreq = 0x14;
@@ -69,12 +69,12 @@
             GpuMb.SMU_MSG_SetMaxLclk = 0x19;
             GpuMb.SMU_MSG_SetMinFclkFreq = 0x28;
             GpuMb.SMU_MSG_SetMaxFclkFreq = 0x29;
-            
+
             // Overclock Options
             GpuMb.SMU_MSG_EnableOcMode = 0x2C;
             GpuMb.SMU_MSG_EnableOcModeAlt = 0x2A; // Soft pstates can still throttle
             GpuMb.SMU_MSG_DisableOcMode = 0x56;
-            
+
             // Debug
             GpuMb.SMU_MSG_GetSustainedPowerAndThmLimit = 0x4B;
             GpuMb.SMU_MSG_GetMemoryFrequency = 0x53;

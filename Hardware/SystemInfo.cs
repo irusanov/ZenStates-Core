@@ -120,8 +120,8 @@ namespace ZenStates.Core.Hardware
         public uint PatchLevel => _cpuInfo.patchLevel;
 
         // This is not working correctly, it needs mappings for each generation
-         //public string PackageType => $"{_cpuInfo.packageType} ({(int)_cpuInfo.packageType})";
-         public int PackageType => (int)_cpuInfo.packageType;
+        //public string PackageType => $"{_cpuInfo.packageType} ({(int)_cpuInfo.packageType})";
+        public int PackageType => (int)_cpuInfo.packageType;
 
         // Topology
         public int FusedCoreCount => (int)_cpuInfo.topology.cores;

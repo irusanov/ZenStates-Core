@@ -23,7 +23,8 @@ namespace ZenStates.Core.Hardware.Smu.Commands
                 default:
                     result.status = ExecuteOcMode(enabled, arg);
                     break;
-            };
+            }
+            ;
 
             // Reset the scalar to 1.0 when disabling OC mode (auto-reset is broken on some SMU fw)
             if (!enabled && result.Success && smu.SMU_TYPE != SMU.SmuType.TYPE_CPU9)
