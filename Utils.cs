@@ -672,5 +672,27 @@ namespace ZenStates.Core
                 Thread.SpinWait(10);
             }
         }
+
+        public static bool TryParseEnum<TEnum>(string value, out TEnum result) where TEnum : struct
+        {
+            result = default(TEnum);
+
+            if (string.IsNullOrEmpty(value))
+                return false;
+
+            try
+            {
+                object parsed = Enum.Parse(typeof(TEnum), value, true);
+                if (!Enum.IsDefined(typeof(TEnum), parsed))
+                    return false;
+
+                result = (TEnum)parsed;
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+        }
     }
 }

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using ZenStates.Core.Drivers;
 using static ZenStates.Core.Cpu;
 
@@ -132,6 +134,16 @@ namespace ZenStates.Core.Hardware.Apob
             TryGetExtendedConfig();
             TryGetCcdlBlock();
             ParseDataBlocks();
+        }
+
+        /// <summary>
+        /// Bypasses physical-memory access entirely. Used only by <see cref="CreateFromDebugReport"/>
+        /// to build a mock instance from previously captured debug report text.
+        /// </summary>
+        private Apob(CPUInfo cpuInfo, ApobProfile profile)
+        {
+            _cpuInfo = cpuInfo;
+            _profile = profile;
         }
 
         /// <summary>Returns a copy of the requested region, or <c>null</c> when unavailable.</summary>
@@ -329,6 +341,306 @@ namespace ZenStates.Core.Hardware.Apob
 
                 return;
             }
+        }
+
+        // ---------------------------------------------------------------------------------
+        // Debug support: rebuild a mock Apob purely from the text of a previously captured
+        // ZenTimings debug report (see DebugDialog / Apob.GetReport()), without touching
+        // physical memory. Useful for diagnosing APOB parsing issues from a user-supplied
+        // report on a machine that doesn't have the affected CPU.
+        //
+        // Nothing above this point is modified; everything below is purely additive and
+        // reuses the existing private TryGetCcdlBlock()/ParseDataBlocks() methods so the mock
+        // goes through the exact same block-scanning logic as real hardware.
+        // ---------------------------------------------------------------------------------
+
+        /// <summary>
+        /// Builds a mock <see cref="Apob"/> instance by re-parsing the "APOB" section of a
+        /// ZenTimings debug report. The CPU codename, family, package type and SMU type are
+        /// recovered from the report text and used to resolve the same <see cref="ApobProfile"/>
+        /// that would have been used on the reporting machine; the raw "Data" and "Extended Data"
+        /// byte blocks are then run through the normal block-scanning logic, so
+        /// <see cref="GetReport"/> and the decoded <see cref="Data"/>/<see cref="ExtendedData"/>
+        /// properties behave the same as they would have on the original machine.
+        /// </summary>
+        /// <param name="debugReportText">The full text of a ZenTimings debug report.</param>
+        /// <returns>
+        /// A non-null <see cref="Apob"/> instance. If the report's "Raw Data" section (the
+        /// minimum required input) cannot be located, <see cref="IsAvailable"/> is <c>false</c>
+        /// and <see cref="ErrorReason"/> explains why.
+        /// </returns>
+        /// <remarks>
+        /// Family is read from an explicit "Family:" line when present, otherwise derived from
+        /// the "CpuId:" (CPUID_Fn8000_0001_EAX) value using the same bit layout as
+        /// <c>Cpu.GetCodeName</c>. PackageType is read from a "PackageType:" line when present;
+        /// since it does not influence APOB profile resolution, it defaults to
+        /// <see cref="PackageType.FPX"/> when the report predates that field. CodeName falls
+        /// back to <see cref="CodeName.DEBUG"/> when it cannot be parsed.
+        /// </remarks>
+        public static Apob CreateFromDebugReport(string debugReportText)
+        {
+            if (debugReportText == null)
+                throw new ArgumentNullException(nameof(debugReportText));
+
+            string text = NormalizeLineEndings(debugReportText);
+
+            CPUInfo mockCpuInfo = new CPUInfo
+            {
+                family = ParseFamily(text),
+                codeName = ParseCodeName(text),
+                packageType = ParsePackageType(text),
+                smuType = ParseSmuType(text)
+            };
+
+            Apob apob = new Apob(mockCpuInfo, ApobProfiles.Resolve(mockCpuInfo));
+
+            byte[] rawHeaderBytes = ParseRawSection(text, "-- Raw Header");
+            byte[] rawDataBytes = ParseRawSection(text, "-- Raw Data");
+            byte[] rawExtendedDataBytes = ParseRawSection(text, "-- Raw Extended Data");
+
+            if (rawDataBytes == null || rawDataBytes.Length == 0)
+            {
+                apob.ErrorReason = "Could not locate an APOB 'Raw Data' section in the supplied debug report.";
+                return apob;
+            }
+
+            ApobHeader header = default;
+            if (rawHeaderBytes != null && rawHeaderBytes.Length > 0)
+            {
+                try
+                {
+                    header = Utils.ByteArrayToStructure<ApobHeader>(rawHeaderBytes);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(ex.Message);
+                }
+            }
+
+            uint dataOffset = ParseHexValue(text, "-- Main Data Offset:") ?? (uint)(rawHeaderBytes?.Length ?? 0);
+            uint dataSize = Math.Max(ParseHexValue(text, "-- Main Data Size:") ?? 0, (uint)rawDataBytes.Length);
+            uint extendedDataOffset = ParseHexValue(text, "-- Ext. Data Offset:") ?? (dataOffset + dataSize);
+            uint extendedDataSize = Math.Max(
+                ParseHexValue(text, "-- Ext. Data Size:") ?? 0,
+                (uint)(rawExtendedDataBytes?.Length ?? 0));
+
+            // Sized from the actual extracted byte counts (not just the declared "Length:"/size
+            // values) so a hand-edited or truncated report can't overrun the buffer below.
+            long tableLength = Math.Max(
+                header.HeaderSize,
+                Math.Max((long)dataOffset + dataSize, (long)extendedDataOffset + extendedDataSize));
+
+            byte[] rawTable = new byte[tableLength];
+            if (rawHeaderBytes != null)
+                Buffer.BlockCopy(rawHeaderBytes, 0, rawTable, 0, Math.Min(rawHeaderBytes.Length, rawTable.Length));
+
+            Buffer.BlockCopy(rawDataBytes, 0, rawTable, (int)dataOffset,
+                Math.Min(rawDataBytes.Length, rawTable.Length - (int)dataOffset));
+
+            if (rawExtendedDataBytes != null && rawExtendedDataBytes.Length > 0)
+                Buffer.BlockCopy(rawExtendedDataBytes, 0, rawTable, (int)extendedDataOffset,
+                    Math.Min(rawExtendedDataBytes.Length, rawTable.Length - (int)extendedDataOffset));
+
+            apob.Address = ParseHexValue(text, "-- Address:") ?? 0xFFFFFFFF; // sentinel: mock, no real physical address
+            apob.Header = header;
+            apob.RawTable = rawTable;
+            apob.DataOffset = dataOffset;
+            apob.DataSize = dataSize;
+            apob.ExtendedDataOffset = extendedDataOffset;
+            apob.ExtendedDataSize = extendedDataSize;
+            apob.ConfigOffsets = ParseConfigOffsets(text);
+
+            // Reuse the exact same block-scanning logic used for real hardware.
+            apob.ParseDataBlocks();
+            apob.TryGetCcdlBlock();
+
+            return apob;
+        }
+
+        private static string NormalizeLineEndings(string text)
+        {
+            return text.Replace("\r\n", "\n").Replace("\r", "\n");
+        }
+
+        private static Family ParseFamily(string text)
+        {
+            string raw = ParseLabelValue(text, "Family:");
+            if (raw != null)
+            {
+                if (Utils.TryParseEnum(raw, out Family family))
+                    return family;
+
+                if (TryParseNumeric(raw, out uint numericFamily))
+                    return (Family)numericFamily;
+            }
+
+            // Fall back to deriving it from CPUID_Fn8000_0001_EAX (same formula as Cpu.GetCodeName),
+            // since older debug reports don't print an explicit "Family:" line.
+            string cpuIdRaw = ParseLabelValue(text, "CpuId:");
+            if (cpuIdRaw != null &&
+                uint.TryParse(cpuIdRaw, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint eax))
+            {
+                return (Family)(((eax & 0xf00) >> 8) + ((eax & 0xff00000) >> 20));
+            }
+
+            return Family.UNSUPPORTED;
+        }
+
+        private static CodeName ParseCodeName(string text)
+        {
+            string raw = ParseLabelValue(text, "CodeName:");
+            if (raw != null && Utils.TryParseEnum(raw, out CodeName codeName))
+                return codeName;
+
+            // CodeName.DEBUG exists specifically for mocked/synthetic scenarios like this one.
+            return CodeName.DEBUG;
+        }
+
+        private static PackageType ParsePackageType(string text)
+        {
+            string raw = ParseLabelValue(text, "PackageType:");
+            if (raw != null)
+            {
+                if (Utils.TryParseEnum(raw, out PackageType packageType))
+                    return packageType;
+
+                if (TryParseNumeric(raw, out uint numericPackageType))
+                    return (PackageType)numericPackageType;
+            }
+
+            // Not present in older reports, and not used by ApobProfiles.Resolve, so any
+            // reasonable default is fine here.
+            return PackageType.FPX;
+        }
+
+        private static SMU.SmuType ParseSmuType(string text)
+        {
+            string raw = ParseLabelValue(text, "SmuType:");
+            if (raw != null && Utils.TryParseEnum(raw, out SMU.SmuType smuType))
+                return smuType;
+
+            return SMU.SmuType.TYPE_UNSUPPORTED;
+        }
+
+        private static bool TryParseNumeric(string raw, out uint value)
+        {
+            raw = raw.Trim();
+            if (raw.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                return uint.TryParse(raw.Substring(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value);
+
+            return uint.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
+        }
+
+        // Matches a "Label:value" line anchored at the start of a line (as produced by
+        // DebugDialog's fixed-width report formatting) and returns the first whitespace-delimited
+        // token after the label, or null if the label isn't present.
+        private static string ParseLabelValue(string text, string label)
+        {
+            Match match = Regex.Match(
+                text,
+                "^" + Regex.Escape(label) + @"[ \t]*(\S+)",
+                RegexOptions.IgnoreCase | RegexOptions.Multiline);
+
+            return match.Success ? match.Groups[1].Value : null;
+        }
+
+        // Same as ParseLabelValue, but for "Label: 0xHEXVALUE" lines such as
+        // "-- Main Data Offset: 0x00001DB4".
+        private static uint? ParseHexValue(string text, string label)
+        {
+            Match match = Regex.Match(
+                text,
+                "^" + Regex.Escape(label) + @"[ \t]*0x([0-9A-Fa-f]+)",
+                RegexOptions.IgnoreCase | RegexOptions.Multiline);
+
+            if (match.Success &&
+                uint.TryParse(match.Groups[1].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint value))
+                return value;
+
+            return null;
+        }
+
+        private static List<uint> ParseConfigOffsets(string text)
+        {
+            var list = new List<uint>();
+            foreach (Match match in Regex.Matches(
+                text,
+                @"^Config Offset\[\d+\]:[ \t]*0x([0-9A-Fa-f]+)",
+                RegexOptions.IgnoreCase | RegexOptions.Multiline))
+            {
+                if (uint.TryParse(match.Groups[1].Value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint offset))
+                    list.Add(offset);
+            }
+
+            return list;
+        }
+
+        // Parses one of the "-- Raw Header/Raw Data/Raw Extended Data --" sections produced by
+        // GetReport()/AppendRawBinaryData: a "Length: N" line followed by N bytes, formatted as
+        // space-separated hex pairs, 16 per line.
+        private static byte[] ParseRawSection(string text, string sectionHeaderPrefix)
+        {
+            string[] lines = text.Split('\n');
+
+            int headerLine = -1;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].TrimEnd().StartsWith(sectionHeaderPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    headerLine = i;
+                    break;
+                }
+            }
+
+            if (headerLine < 0)
+                return null;
+
+            int lengthLine = -1;
+            int expectedLength = -1;
+            for (int i = headerLine + 1; i < lines.Length && i < headerLine + 4; i++)
+            {
+                Match lengthMatch = Regex.Match(lines[i], @"Length:\s*(\d+)", RegexOptions.IgnoreCase);
+                if (lengthMatch.Success)
+                {
+                    lengthLine = i;
+                    expectedLength = int.Parse(lengthMatch.Groups[1].Value, CultureInfo.InvariantCulture);
+                    break;
+                }
+            }
+
+            if (lengthLine < 0 || expectedLength <= 0)
+                return null;
+
+            var bytes = new List<byte>(expectedLength);
+            for (int i = lengthLine + 1; i < lines.Length && bytes.Count < expectedLength; i++)
+            {
+                string line = lines[i].Trim();
+                if (line.Length == 0)
+                    break;
+
+                string[] tokens = line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                bool isHexLine = true;
+                foreach (string token in tokens)
+                {
+                    if (token.Length != 2 || !byte.TryParse(token, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out _))
+                    {
+                        isHexLine = false;
+                        break;
+                    }
+                }
+
+                if (!isHexLine)
+                    break;
+
+                foreach (string token in tokens)
+                {
+                    if (bytes.Count >= expectedLength)
+                        break;
+                    bytes.Add(byte.Parse(token, NumberStyles.HexNumber, CultureInfo.InvariantCulture));
+                }
+            }
+
+            return bytes.Count > 0 ? bytes.ToArray() : null;
         }
 
         public string GetReport()
