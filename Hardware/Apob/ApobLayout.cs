@@ -338,6 +338,10 @@ namespace ZenStates.Core.Hardware.Apob
             procDqDsPullDownP0: 0x24);
 
 
+        /// <summary>
+        /// Zen5 APU (KrackanPoint, KrackanPoint2, StrixPoint, StrixHalo) main block offsets.
+        /// These are impossible to figure out completely based on single dump and platforms without ability to adjust values from BIOS.
+        /// </summary>
         private static readonly ApobFieldOffsets Zen5ApuMainOffsets = new ApobFieldOffsets(
             gdm: 0x1, // 0x00
             rttNomRd: 0x2, // 0x00
@@ -355,20 +359,19 @@ namespace ZenStates.Core.Hardware.Apob
             procOdt: 0xE, // 0x3c
             procDqDs: 0xF, // 0x3c
 
-            // unknown_10 ? // 0x3c
-            procCaDs: 0x11, // 0x3c
-            procCkDs: 0x12, // 0x3c
-            procCsDs: 0x13 // 0x3c
-
-            // unknown_14 ? // 0x1e
+            procCaOdt: 0x10, // 0x3c
+            procCkOdt: 0x11, // 0x3c
+            procDqOdt: 0x12, // 0x3c
+            procDqsOdt: 0x13, // 0x3c
+            procDataDsApu: 0x14, // 0x1e
             // unknown_15 ? // 0x0c
+            procCaDs: 0x16 // 0x1e
             // unknown_16 ? // 0x1e
             // unknown_17 ? // 0x63
             // unknown_18 ? // 0x3f
             // unknown_19 ? // 0x2c
             // unknown_1A ? // 0x2c
             // unknown_1B ? // 0x01
-            // unknown_1C ? // 0x00
          );
 
 
@@ -389,13 +392,16 @@ namespace ZenStates.Core.Hardware.Apob
             csOdtB: 0xC,
             caOdtB: 0xD,
             procOdt: 0xE,
+            procCaDs: 0xF,
 
-            // 0xF..0x1A unidentified
+            procDataDsApu: 0x18,
+
+            // 0x11..0x1A unidentified
             procDqDs: 0x1B,
-            // unknown_1C
-            procCaDs: 0x1D,
-            procCkDs: 0x1E,
-            procCsDs: 0x1F);
+            procCaOdt: 0x1C,
+            procCkOdt: 0x1D,
+            procDqOdt: 0x1E,
+            procDqsOdt: 0x1F);
 
 
         private static readonly ApobBlockLayout Zen4MainLayout = new ApobBlockLayout("Zen4 19h main", 0x1A, Zen4MainOffsets);
