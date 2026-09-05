@@ -1545,8 +1545,8 @@ namespace ZenStates.Core
                     _pawnRyzenSmu?.Dispose();
                     _smbusPiix4?.Dispose();
                     _lpcIO?.Close();
-                    systemInfo.Dispose();
-                    io.Dispose();
+                    systemInfo?.Dispose();
+                    io?.Dispose();
                     Mutexes.Close();
                     Opcode.Close();
                 }
