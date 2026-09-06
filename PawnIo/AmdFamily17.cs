@@ -1,14 +1,14 @@
-﻿using OpenHardwareMonitor.Hardware;
-using System;
+﻿using System;
+using ZenStates.Core.OHWM;
 
-namespace ZenStates.Core
+namespace ZenStates.Core.PawnIo
 {
     public class AmdFamily17 : IDisposable
     {
-        private const string IOCTL_READ_SMN  = "ioctl_read_smn";
-        private const string IOCTL_READ_MSR  = "ioctl_read_msr";
+        private const string IOCTL_READ_SMN = "ioctl_read_smn";
+        private const string IOCTL_READ_MSR = "ioctl_read_msr";
         private const string IOCTL_WRITE_MSR = "ioctl_write_msr";
-        private const int    STATUS_SUCCESS   = 0;
+        private const int STATUS_SUCCESS = 0;
 
         private static readonly long[] _emptyOutputBuffer = new long[0];
 
@@ -39,7 +39,7 @@ namespace ZenStates.Core
 
         public bool ReadSmnNoLock(uint offset, out uint data)
         {
-            long[] input  = new long[] { offset };
+            long[] input = new long[] { offset };
             long[] output = new long[1];
 
             int status = _pawnIo.ExecuteHr(IOCTL_READ_SMN, input, 1, output, 1, out uint returnSize);

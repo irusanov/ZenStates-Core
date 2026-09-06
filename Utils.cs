@@ -2,18 +2,20 @@ using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using ZenStates.Core.Common;
 
 namespace ZenStates.Core
 {
     public static class Utils
     {
-        public static bool Is64Bit => OpenHardwareMonitor.Hardware.OperatingSystem.Is64BitOperatingSystem;
+        public static bool Is64Bit => OHWM.OperatingSystem.Is64BitOperatingSystem;
 
         public static uint SetBits(uint val, int offset, int n, uint newVal)
         {
@@ -76,6 +78,11 @@ namespace ZenStates.Core
             return 1.55 - vid * 0.00625;
         }
 
+        public static uint VoltageToVid(double voltage)
+        {
+            return (uint)Math.Round((1.55 - voltage) / 0.00625);
+        }
+
         public static double VidToVoltageSVI3(uint vid)
         {
             return Math.Round(0.245 + vid * 0.005, 3);
@@ -136,11 +143,11 @@ namespace ZenStates.Core
         public static uint CurveOptimizerToVid(int co)
         {
             if (co < -50) co = -50;
-            if (co > 50)  co = 50;
+            if (co > 50) co = 50;
 
             const double baseVoltage = 1.30;
-            const double maxOffset   = 0.200;
-            const double gamma       = 1.7;
+            const double maxOffset = 0.200;
+            const double gamma = 1.7;
 
             double normalized = Math.Abs(co) / 50.0;
             double curve = Math.Pow(normalized, gamma);
@@ -152,10 +159,54 @@ namespace ZenStates.Core
 
             double targetVoltage = baseVoltage + delta;
 
-            return VoltageToVidSVI3(targetVoltage);
+            return VoltageToVid(targetVoltage);
         }
 
+        public static uint CurveOptimizerToGfxArg(int co)
+        {
+            if (co < -50) co = -50;
+            else if (co > 50) co = 50;
+
+            const double baseVoltage = 1.00;
+            const double maxUnderOffset = 0.400;
+            const double maxOverOffset = 0.200;
+
+            double normalized = Math.Abs(co) / 50.0;
+            double curve = Math.Pow(normalized, 1.7);
+
+            double delta;
+            if (co < 0)
+                delta = -curve * maxUnderOffset;
+            else
+                delta = curve * maxOverOffset;
+
+            double targetVoltage = baseVoltage + delta;
+            if (targetVoltage < 0.60) targetVoltage = 0.60;
+            else if (targetVoltage > 1.25) targetVoltage = 1.25;
+
+            return (uint)Math.Round(targetVoltage * 4000.0);
+        }
+
+        public static float HexIeee754ToFloat(uint hex)
+        {
+            byte[] bytes = BitConverter.GetBytes(hex);
+            return BitConverter.ToSingle(bytes, 0);
+        }
+
+        public static uint FloatToHexIeee754(float value)
+        {
+            byte[] bytes = BitConverter.GetBytes(value);
+            return BitConverter.ToUInt32(bytes, 0);
+        }
+
+
+#if NET8_0_OR_GREATER
+        public static T ByteArrayToStructure<[DynamicallyAccessedMembers(
+            DynamicallyAccessedMemberTypes.PublicConstructors |
+            DynamicallyAccessedMemberTypes.NonPublicConstructors)] T>(byte[] byteArray) where T : new()
+#else
         public static T ByteArrayToStructure<T>(byte[] byteArray) where T : new()
+#endif
         {
             if (byteArray == null)
                 return default;
@@ -164,7 +215,11 @@ namespace ZenStates.Core
             GCHandle handle = GCHandle.Alloc(byteArray, GCHandleType.Pinned);
             try
             {
+#if NET8_0_OR_GREATER
+                structure = Marshal.PtrToStructure<T>(handle.AddrOfPinnedObject());  
+#else
                 structure = (T)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(T));
+#endif
             }
             finally
             {
@@ -173,6 +228,12 @@ namespace ZenStates.Core
             return structure;
         }
 
+#if NET8_0_OR_GREATER
+        [RequiresUnreferencedCode(
+            "Uses reflection (Type.GetProperty by name and Activator.CreateInstance with a " +
+            "runtime-discovered Type) to populate arbitrary T from a byte array; the property " +
+            "names, property types, and their constructors must not be trimmed.")]
+#endif
         public static T CreateFromByteArray<T>(byte[] byteArray, Dictionary<string, int> fieldDictionary) where T : new()
         {
             T data = new T();
@@ -245,15 +306,23 @@ namespace ZenStates.Core
             return Encoding.ASCII.GetString(value).Replace("\0", " ");
         }
 
-        public static uint ReadUInt32(byte[] data, int offset)
+        public static uint ReadUInt32(byte[] data, uint offset)
         {
-            if (data == null || offset < 0 || data.Length < offset + 4)
+            if (data == null || offset + 4 > (uint)data.Length)
                 return 0;
 
-            return (uint)(data[offset]
-                | (data[offset + 1] << 8)
-                | (data[offset + 2] << 16)
-                | (data[offset + 3] << 24));
+            return (uint)data[offset]
+                | ((uint)data[offset + 1] << 8)
+                | ((uint)data[offset + 2] << 16)
+                | ((uint)data[offset + 3] << 24);
+        }
+
+        public static uint ReadUInt16(byte[] data, uint offset)
+        {
+            if (data == null || offset > int.MaxValue || data.Length < offset + 2)
+                return 0;
+
+            return (ushort)(data[offset] | (data[offset + 1] << 8));
         }
 
         /// <summary>Looks for the next occurrence of a sequence in a byte array</summary>
@@ -408,7 +477,20 @@ namespace ZenStates.Core
 
         public static CommandExecutionResult ExecuteCommand(string command)
         {
-            var processInfo = new ProcessStartInfo("cmd.exe", "/c " + command)
+            if (command == null || command.Trim().Length == 0)
+                throw new ArgumentException("Command must not be empty.", nameof(command));
+
+            string trimmedCommand = command.Trim();
+            int separatorIndex = trimmedCommand.IndexOf(' ');
+            string fileName = separatorIndex >= 0 ? trimmedCommand.Substring(0, separatorIndex) : trimmedCommand;
+            string arguments = separatorIndex >= 0 ? trimmedCommand.Substring(separatorIndex + 1) : string.Empty;
+
+            return ExecuteCommand(fileName, arguments);
+        }
+
+        public static CommandExecutionResult ExecuteCommand(string fileName, string arguments)
+        {
+            var processInfo = new ProcessStartInfo(fileName, arguments ?? string.Empty)
             {
                 CreateNoWindow = true,
                 UseShellExecute = false,
@@ -440,16 +522,8 @@ namespace ZenStates.Core
                 result.StandardError = standardError.ToString();
                 result.ExitCode = process.ExitCode;
 
-                // Parse the state from the standard output
                 var stateMatch = StateRegex.Match(result.StandardOutput);
-                if (stateMatch.Success)
-                {
-                    result.State = stateMatch.Groups[1].Value;
-                }
-                else
-                {
-                    result.State = "Unknown";
-                }
+                result.State = stateMatch.Success ? stateMatch.Groups[1].Value : "Unknown";
             }
 
             return result;
@@ -478,7 +552,7 @@ namespace ZenStates.Core
 
         public static bool HasDependentServices(string serviceName)
         {
-            CommandExecutionResult result = ExecuteCommand($"sc.exe qc {serviceName}");
+            CommandExecutionResult result = ExecuteCommand("sc.exe", $"qc \"{serviceName}\"");
             string output = result.StandardOutput;
             bool hasDependents = false;
             foreach (var line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
@@ -498,7 +572,7 @@ namespace ZenStates.Core
 
         public static int GetServiceProcessId(string serviceName)
         {
-            CommandExecutionResult result = ExecuteCommand($"sc.exe queryex {serviceName}");
+            CommandExecutionResult result = ExecuteCommand("sc.exe", $"queryex \"{serviceName}\"");
             string output = result.StandardOutput;
 
             foreach (var line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
@@ -530,7 +604,7 @@ namespace ZenStates.Core
 
         public static bool ServiceExists(string serviceName)
         {
-            CommandExecutionResult result = ExecuteCommand($"sc query {serviceName}");
+            CommandExecutionResult result = ExecuteCommand("sc.exe", $"query \"{serviceName}\"");
             string output = result.StandardOutput;
 
             return !output.Contains("FAILED 1060");
@@ -540,6 +614,12 @@ namespace ZenStates.Core
         /// Attempts to convert a value to the specified target type.
         /// Supports implicit/explicit operators, enums, primitives, and nullable types.
         /// </summary>
+#if NET8_0_OR_GREATER
+        [RequiresUnreferencedCode(
+            "Reflects over the target type's op_Implicit/op_Explicit conversion operators by " +
+            "name; targetType is a runtime value, not statically annotatable, so its members " +
+            "must not be trimmed.")]
+#endif
         public static object ConvertValue(object value, Type targetType)
         {
             if (value == null)
@@ -590,6 +670,28 @@ namespace ZenStates.Core
             while ((Stopwatch.GetTimestamp() - start) < waitTicks)
             {
                 Thread.SpinWait(10);
+            }
+        }
+
+        public static bool TryParseEnum<TEnum>(string value, out TEnum result) where TEnum : struct
+        {
+            result = default(TEnum);
+
+            if (string.IsNullOrEmpty(value))
+                return false;
+
+            try
+            {
+                object parsed = Enum.Parse(typeof(TEnum), value, true);
+                if (!Enum.IsDefined(typeof(TEnum), parsed))
+                    return false;
+
+                result = (TEnum)parsed;
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                return false;
             }
         }
     }

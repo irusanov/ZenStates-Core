@@ -1,4 +1,3 @@
-using OpenHardwareMonitor.Hardware;
 using System;
 using System.Diagnostics;
 
@@ -7,9 +6,17 @@ using System.Globalization;
 #endif
 using System.Reflection;
 using System.Text.RegularExpressions;
-using ZenStates.Core.DRAM;
 using ZenStates.Core.Drivers;
-using ZenStates.Core.SMUCommands;
+using ZenStates.Core.PawnIo;
+using ZenStates.Core.Common;
+using ZenStates.Core.Hardware.DRAM;
+using ZenStates.Core.OHWM;
+using ZenStates.Core.Hardware.Smu.Commands;
+using ZenStates.Core.Hardware;
+using ZenStates.Core.Hardware.MutexLock;
+using ZenStates.Core.Hardware.Apob;
+using ZenStates.Core.Hardware.Aod;
+using ZenStates.Core.Hardware.Smu;
 
 namespace ZenStates.Core
 {
@@ -19,6 +26,7 @@ namespace ZenStates.Core
         private readonly AmdFamily17 _pawnAmd;
         private readonly RyzenSmu _pawnRyzenSmu;
         private readonly SmbusDriverBase _smbusPiix4;
+        private readonly LpcIO _lpcIO;
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
 
@@ -48,7 +56,9 @@ namespace ZenStates.Core
             K10,
             K12,
             K16,
+            Carrizo,
             BristolRidge,
+            StoneyRidge,
             Vishera,
             SummitRidge,
             Whitehaven,
@@ -88,6 +98,9 @@ namespace ZenStates.Core
             TurinD,
             Bergamo,
             ShimadaPeak,
+            Venice,
+            Annapurna,
+            MustangPeak,
         };
 
 
@@ -148,10 +161,11 @@ namespace ZenStates.Core
             public SVI2 svi2;
             public AOD aod;
             public Apob apob;
+            public SMU.SmuType smuType;
         }
 
         public readonly IODriver io = new IODriver();
-        private readonly AMD_MMIO mmio;
+        private readonly Mmio mmio;
         public readonly CPUInfo info;
         public readonly SystemInfo systemInfo;
         public readonly SMU smu;
@@ -331,71 +345,81 @@ namespace ZenStates.Core
 #if !NET20
             CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 #endif
-            Mutexes.Open();
-
-            if (!PawnIo.IsInstalled)
+            if (!PawnIo.PawnIo.IsInstalled)
             {
                 throw new ApplicationException("PawnIO is not installed.");
             }
 
-            Opcode.Open();
-
-            info.vendor = GetVendor();
-            if (info.vendor != Constants.VENDOR_AMD && info.vendor != Constants.VENDOR_HYGON)
-                throw new Exception("Not an AMD CPU");
-
             try
             {
-                _pawnAmd = new AmdFamily17();
-                _pawnRyzenSmu = new RyzenSmu();
-                _smbusPiix4 = SmbusProvider.Instance;
-            }
-            catch (Exception ex)
-            {
-                throw new ApplicationException("Error initializing PawnIO AMD module.", ex);
-            }
+                Opcode.Open();
 
-            mmio = new AMD_MMIO(io);
+                info.vendor = GetVendor();
+                if (info.vendor != Constants.VENDOR_AMD && info.vendor != Constants.VENDOR_HYGON)
+                    throw new Exception("Not an AMD CPU");
 
-            if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
-            {
-                info.cpuid = eax;
-                info.family = (Family)(((eax & 0xf00) >> 8) + ((eax & 0xff00000) >> 20));
-                info.baseModel = (eax & 0xf0) >> 4;
-                info.extModel = (eax & 0xf0000) >> 16;
-                info.model = info.baseModel + info.extModel * 0x10;
-                info.stepping = eax & 0xf;
-                // info.logicalCores = Utils.GetBits(ebx, 16, 8);
-            }
-            else
-            {
-                throw new ApplicationException(InitializationExceptionText);
-            }
+                Mutexes.Open();
 
-            info.cpuName = GetCpuName();
-
-            // Package type
-            if (Opcode.Cpuid(0x80000001, 0, out eax, out ebx, out ecx, out edx))
-            {
-                info.packageType = (PackageType)(ebx >> 28);
-                info.codeName = GetCodeName(info);
-                SMU.SetRyzenSmu(_pawnRyzenSmu);
-                smu = GetMaintainedSettings.GetByType(info.codeName);
-                smu.Hsmp.Init(this);
-                smu.Version = GetSmuVersion();
-                var tableVersionResult = GetTableVersion();
-                smu.TableVersion = tableVersionResult.TableVersion;
-                // Temporary workaround for pmt not refreshing with PawnIO module
-                // TODO: Fix in PawnIO RyzenSmu module and remove this
-                if (smu.SMU_TYPE <= SMU.SmuType.TYPE_CPU1)
+                try
                 {
-                    var result = new CmdResult(6);
-                    smu.SendRsmuCommand(0xE, ref result.args);
+                    _pawnAmd = new AmdFamily17();
+                    _pawnRyzenSmu = new RyzenSmu();
+                    _smbusPiix4 = SmbusProvider.Instance;
+                    _lpcIO = new LpcIO();
+                }
+                catch (Exception ex)
+                {
+                    throw new ApplicationException("Error initializing PawnIO AMD module.", ex);
+                }
+
+                mmio = new Mmio();
+
+                if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
+                {
+                    info.cpuid = eax;
+                    info.family = (Family)(((eax & 0xf00) >> 8) + ((eax & 0xff00000) >> 20));
+                    info.baseModel = (eax & 0xf0) >> 4;
+                    info.extModel = (eax & 0xf0000) >> 16;
+                    info.model = info.baseModel + info.extModel * 0x10;
+                    info.stepping = eax & 0xf;
+                    // info.logicalCores = Utils.GetBits(ebx, 16, 8);
+                }
+                else
+                {
+                    throw new ApplicationException(InitializationExceptionText);
+                }
+
+                info.cpuName = GetCpuName();
+
+                // Package type
+                if (Opcode.Cpuid(0x80000001, 0, out eax, out ebx, out ecx, out edx))
+                {
+                    info.packageType = (PackageType)(ebx >> 28);
+                    info.codeName = GetCodeName(info);
+                    SMU.SetRyzenSmu(_pawnRyzenSmu);
+                    smu = GetMaintainedSettings.GetByType(info.codeName);
+                    smu.Hsmp.Init(this);
+                    smu.Version = GetSmuVersion();
+                    var tableVersionResult = GetTableVersion();
+                    smu.TableVersion = tableVersionResult.TableVersion;
+                    // Temporary workaround for pmt not refreshing with PawnIO module
+                    // TODO: Fix in PawnIO RyzenSmu module and remove this
+                    if (smu.SMU_TYPE <= SMU.SmuType.TYPE_CPU1)
+                    {
+                        var result = new CmdResult(6);
+                        smu.SendRsmuCommand(0xE, ref result.args);
+                    }
+                    info.smuType = smu.SMU_TYPE;
+                }
+                else
+                {
+                    throw new ApplicationException(InitializationExceptionText);
                 }
             }
-            else
+            catch
             {
-                throw new ApplicationException(InitializationExceptionText);
+                Dispose(true);
+                throw;
             }
 
             // Non-critical block
@@ -420,7 +444,7 @@ namespace ZenStates.Core
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
                 info.aod = new AOD(io, this);
-                info.apob = new Apob(info.codeName);
+                info.apob = new Apob(info);
                 systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
                 powerTable = new PowerTable(_pawnRyzenSmu, info.codeName);
 
@@ -511,7 +535,10 @@ namespace ZenStates.Core
 
         public bool WriteDwordEx(uint addr, uint data, int maxRetries = 10)
         {
-            throw new NotSupportedException("WriteDwordEx is currently not supported by PawnIO");
+            using (new PciBusLock())
+            {
+                return _pawnRyzenSmu.SmuWriteRegNoLock(addr, data);
+            }
 
             //for (int retry = 0; retry < maxRetries; retry++)
             //{
@@ -648,8 +675,14 @@ namespace ZenStates.Core
             {
                 switch (cpuInfo.model)
                 {
+                    case 0x60:
+                        codeName = CodeName.Carrizo;
+                        break;
                     case 0x65:
                         codeName = CodeName.BristolRidge;
+                        break;
+                    case 0x70:
+                        codeName = CodeName.StoneyRidge;
                         break;
                     case 0x2:
                         codeName = CodeName.Vishera;
@@ -773,6 +806,9 @@ namespace ZenStates.Core
                     case 0x7C:
                         codeName = CodeName.HawkPoint;
                         break;
+                    case 0xA0:
+                        codeName = CodeName.Bergamo;
+                        break;
 
                     default:
                         codeName = CodeName.Unsupported;
@@ -784,6 +820,7 @@ namespace ZenStates.Core
                 switch (cpuInfo.model)
                 {
                     case 0x2:
+                        // Also known as Sorano?
                         codeName = CodeName.Turin;
                         break;
                     // https://github.com/InstLatx64/InstLatx64/commit/9e87330a805eb78a8c74f0b63fa767c0571c9e8b
@@ -798,6 +835,7 @@ namespace ZenStates.Core
                         codeName = CodeName.StrixPoint;
                         break;
                     case 0x44:
+                        // Fire Range is the mobile variant
                         codeName = CodeName.GraniteRidge;
                         break;
                     case 0x60:
@@ -810,8 +848,28 @@ namespace ZenStates.Core
                     case 0x70:
                         codeName = CodeName.StrixHalo;
                         break;
+
+                    // Zen5 based EPYC Embedded for Network Control Planes
+                    // https://github.com/InstLatx64/InstLatx64/commit/65da9371d13867485c11db0bb7835a79d1d5106f
+                    case 0xD0:
+                        codeName = CodeName.Annapurna;
+                        break;
+
+                    // Zen6
+                    // Do we need to distinguish Venice Dense from Venice Classic?
+                    // Dense
+                    case 0x50:
+                    case 0x90:
+                    // Classic
                     case 0xA0:
-                        codeName = CodeName.Bergamo;
+                    case 0xC0:
+                        codeName = CodeName.Venice;
+                        break;
+
+                    // Zen6 Threadripper
+                    // https://github.com/InstLatx64/InstLatx64/commit/f2711d446543d66ccabe4f9e19f401598b73563d
+                    case 0xA8:
+                        codeName = CodeName.MustangPeak;
                         break;
 
                     default:
@@ -830,7 +888,9 @@ namespace ZenStates.Core
 
             switch (codeName)
             {
+                case CodeName.Carrizo:
                 case CodeName.BristolRidge:
+                case CodeName.StoneyRidge:
                     break;
 
                 //Zen, Zen+
@@ -988,7 +1048,7 @@ namespace ZenStates.Core
 
         public double? GetBclk() => mmio.GetBclk();
 
-        public AMD_MMIO.ClkGen GetStrapStatus() => mmio.GetStrapStatus();
+        public Mmio.ClkGen GetStrapStatus() => mmio.GetStrapStatus();
 
         public bool SetBclk(double blck) => mmio.SetBclk(blck);
 
@@ -1274,6 +1334,11 @@ namespace ZenStates.Core
         public bool SetPsmMarginSingleCore(uint core, uint ccd, uint ccx, int margin) =>
             SetPsmMarginSingleCore(MakeCoreMask(core, ccd, ccx), margin);
 
+        public SMU.Status SetCurveShaperMargin(int marginHigh = 0, int marginMedium = 0, int marginLow = 0, int frequencyTier = 0) =>
+            new SetCurveShaperMargin(smu).Execute(marginHigh, marginMedium, marginLow, frequencyTier).status;
+
+        public uint[] GetAllCurveShaperMargins() => new GetAllCurveShaperMargins(smu).Execute().args;
+
         public bool SetFrequencyAllCore(uint frequency) => new SetFrequencyAllCore(smu)
             .Execute(frequency).Success;
 
@@ -1476,12 +1541,14 @@ namespace ZenStates.Core
             {
                 if (disposing)
                 {
-                    io.Dispose();
-                    Mutexes.Close();
-                    Opcode.Close();
                     _pawnAmd?.Close();
                     _pawnRyzenSmu?.Dispose();
                     _smbusPiix4?.Dispose();
+                    _lpcIO?.Close();
+                    systemInfo?.Dispose();
+                    io?.Dispose();
+                    Mutexes.Close();
+                    Opcode.Close();
                 }
 
                 disposedValue = true;

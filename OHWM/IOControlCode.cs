@@ -10,7 +10,7 @@
 
 using System.Runtime.InteropServices;
 
-namespace OpenHardwareMonitor.Hardware
+namespace ZenStates.Core.OHWM
 {
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]

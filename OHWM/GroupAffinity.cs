@@ -8,7 +8,7 @@
 	
 */
 
-namespace OpenHardwareMonitor.Hardware
+namespace ZenStates.Core.OHWM
 {
 
     /// <summary>

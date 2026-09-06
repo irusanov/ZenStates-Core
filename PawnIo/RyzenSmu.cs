@@ -2,8 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using ZenStates.Core.Hardware.MutexLock;
 
-namespace ZenStates.Core
+namespace ZenStates.Core.PawnIo
 {
     /// <summary>
     /// Provides access to AMD Ryzen SMU (System Management Unit) functionality
@@ -387,7 +388,7 @@ namespace ZenStates.Core
         {
             using (new PciBusLock())
             {
-                long[] result = _pawnIo.Execute(IOCTL_RESOLVE_PM_TABLE, new long[2], 2);
+                long[] result = _pawnIo.Execute(IOCTL_RESOLVE_PM_TABLE, new long[0], 2);
                 version = Convert.ToUInt32(result[0] & 0xffffffff);
                 baseAddress = result[1];
             }
@@ -395,7 +396,7 @@ namespace ZenStates.Core
 
         public long[] ReadPmTable(int size)
         {
-            long[] outArray = _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[size], size);
+            long[] outArray = _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[0], size);
             return outArray;
         }
 
@@ -529,6 +530,12 @@ namespace ZenStates.Core
                     ConfigureCezannePmTableSize();
                     break;
 
+                case CpuCodeName.Carrizo:
+                case CpuCodeName.BristolRidge:
+                case CpuCodeName.StoneyRidge:
+                    ConfigureCarrizoPmTableSize();
+                    break;
+
                 case CpuCodeName.Picasso:
                 case CpuCodeName.RavenRidge:
                 case CpuCodeName.RavenRidge2:
@@ -607,6 +614,11 @@ namespace ZenStates.Core
             uint pmTableSizeAlt = 0xA4;
             _pmTableSizeAlt = pmTableSizeAlt;
             _pmTableSize = 0x608 + pmTableSizeAlt;
+        }
+
+        private void ConfigureCarrizoPmTableSize()
+        {
+            _pmTableSize = 180 * 4;
         }
 
         private void ConfigureRaphaelPmTableSize()
@@ -761,7 +773,7 @@ namespace ZenStates.Core
     /// <summary>
     /// Defines the CPU code names for different AMD processor families.
     /// This enum should match the enum in RyzenSmu PawnIO module.
-    /// https://github.com/namazso/PawnIO.Modules/blob/5628d05dd7045d3fdf69fd2ed2dc8086e90f238c/RyzenSMU.p#L22
+    /// https://github.com/namazso/PawnIO.Modules/blob/main/RyzenSMU.p#L22
     /// </summary>
     public enum CpuCodeName
     {
@@ -805,6 +817,9 @@ namespace ZenStates.Core
         TurinD,
         Bergamo,
         ShimadaPeak,
+        Carrizo,
+        BristolRidge,
+        StoneyRidge,
     }
 
     #endregion

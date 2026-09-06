@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using ZenStates.Core.Hardware;
 
 namespace ZenStates.Core.Drivers
 {
-    internal sealed class SmbusPiix4InpOut : SmbusDriverBase
+    public sealed class SmbusPiix4InpOut : SmbusDriverBase
     {
         private static volatile SmbusPiix4InpOut _instance;
         private static readonly object _instanceLock = new object();
