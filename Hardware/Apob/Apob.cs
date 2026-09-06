@@ -721,17 +721,17 @@ namespace ZenStates.Core.Hardware.Apob
 
                 sb.AppendLine();
                 sb.AppendLine("-- CCDL Data ------------------------------------");
-                var ccdlFields = CcdlData.GetType().GetFields();
-                if (ccdlFields.Length == 0)
+                var ccdlProperties = CcdlData.GetType().GetProperties();
+                if (ccdlProperties.Length == 0)
                 {
                     sb.AppendLine("<APOB CCDL data not available>");
                 }
                 else
                 {
-                    for (int i = 0; i < ccdlFields.Length; i++)
+                    for (int i = 0; i < ccdlProperties.Length; i++)
                     {
-                        var field = ccdlFields[i];
-                        object value = field.GetValue(CcdlData);
+                        var field = ccdlProperties[i];
+                        object value = field.GetValue(CcdlData, null);
                         sb.AppendLine(string.Format("{0,-20}{1}", field.Name + ":", value ?? "N/A"));
                     }
                 }
