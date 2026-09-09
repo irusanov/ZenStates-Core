@@ -129,6 +129,12 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             if (ReadRegNoLock(smbus, pmicAddr, REG_SWC_CURRENT_OR_POWER, out byte swc))
                 pd.SwcTelemetryRaw = swc & 0x3F;
 
+            // Update power mode
+            if (ReadRegNoLock(smbus, pmicAddr, REG_POWER_MODE_CFG, out byte reg1A))
+                pd.TelemetryReportsTotalPower = (reg1A & 0x02) != 0;
+            if (ReadRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, out byte reg1B))
+                pd.TelemetryReportsPower = (reg1B & 0x40) != 0;
+
             Ddr5PmicDecoder.DecodeTelemetryWatts(pd);
         }
 
@@ -196,6 +202,37 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             finally
             {
                 Mutexes.ReleaseSmbus();
+            }
+        }
+
+        public static bool SetTotalPowerMode(byte pmicAddr, bool enable)
+        {
+            SmbusDriverBase smbus = SmbusProvider.Instance;
+
+            using (new SmbusLock())
+            {
+                smbus.ChangePortNoLock(PORT_DIMM, out int _);
+
+                if (!ReadRegNoLock(smbus, pmicAddr, REG_POWER_MODE_CFG, out byte reg1A))
+                    return false;
+                if (!ReadRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, out byte reg1B))
+                    return false;
+
+                if (enable)
+                {
+                    // Total power mode requires power reporting to be active (R0x1B [6]).
+                    // Without it the telemetry registers report current and R0x1A [1] is ignored.
+                    reg1B = (byte)(reg1B | 0x40);
+                    reg1A = (byte)(reg1A | 0x02);
+                }
+                else
+                {
+                    reg1A = (byte)(reg1A & ~0x02);
+                }
+
+                bool ok = WriteRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, reg1B);
+                ok &= WriteRegNoLock(smbus, pmicAddr, REG_POWER_MODE_CFG, reg1A);
+                return ok;
             }
         }
 
