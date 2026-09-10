@@ -115,7 +115,8 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                 chip == Chip.IT8655E ||
                 chip == Chip.IT8631E ||
                 chip == Chip.IT8638E ||
-                chip == Chip.IT8696E;
+                chip == Chip.IT8696E ||
+                chip == Chip.IT8772E;
 
             _hasAlt6thFanReg = chip == Chip.IT8665E || chip == Chip.IT8625E;
 
@@ -311,6 +312,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                     break;
                 case Chip.IT8720F:
                 case Chip.IT8721F:
+                case Chip.IT8772E:
                     _gpioCount = 8;
                     break;
                 default:
