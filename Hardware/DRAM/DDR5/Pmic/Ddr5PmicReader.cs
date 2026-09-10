@@ -129,6 +129,12 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             if (ReadRegNoLock(smbus, pmicAddr, REG_SWC_CURRENT_OR_POWER, out byte swc))
                 pd.SwcTelemetryRaw = swc & 0x3F;
 
+            // Update power mode
+            if (ReadRegNoLock(smbus, pmicAddr, REG_POWER_MODE_CFG, out byte reg1A))
+                pd.TelemetryReportsTotalPower = (reg1A & 0x02) != 0;
+            if (ReadRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, out byte reg1B))
+                pd.TelemetryReportsPower = (reg1B & 0x40) != 0;
+
             Ddr5PmicDecoder.DecodeTelemetryWatts(pd);
         }
 
@@ -196,6 +202,68 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             finally
             {
                 Mutexes.ReleaseSmbus();
+            }
+        }
+
+        public static bool SetTotalPowerMode(byte pmicAddr, bool enable)
+        {
+            SmbusDriverBase smbus = SmbusProvider.Instance;
+
+            using (new SmbusLock())
+            {
+                if (!smbus.ChangePortNoLock(PORT_DIMM, out int originalPort))
+                    return false;
+
+                try
+                {
+                    // Secure Mode: if the PMIC is locked, 0x1A/0x1B writes are not allowed
+                    if (!ReadRegNoLock(smbus, pmicAddr, REG_WRITE_PROTECT_FUNCTION_CONTROL, out byte reg2F))
+                        return false;
+                    bool programmableMode = (reg2F & MASK_R2F_SECURE_MODE) != 0;
+                    if (!programmableMode)
+                        return false;
+
+                    if (!ReadRegNoLock(smbus, pmicAddr, REG_POWER_MODE_CFG, out byte reg1A))
+                        return false;
+                    if (!ReadRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, out byte reg1B))
+                        return false;
+
+                    byte newReg1A, newReg1B;
+
+                    if (enable)
+                    {
+                        // Power reporting must be selected before OUTPUT_POWER_SELECT is
+                        // asserted, or R0x1A[1] is simply ignored (Table 114 Note 4).
+                        newReg1B = (byte)(reg1B | MASK_R1B_CURRENT_OR_POWER_METER_SELECT);
+                        newReg1A = (byte)(reg1A | MASK_R1A_OUTPUT_POWER_SELECT);
+                    }
+                    else
+                    {
+                        newReg1A = (byte)(reg1A & ~MASK_R1A_OUTPUT_POWER_SELECT);
+                        newReg1B = (byte)(reg1B & ~MASK_R1B_CURRENT_OR_POWER_METER_SELECT);
+                    }
+
+                    //if (newReg1B != reg1B && !WriteRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, newReg1B))
+                    //    return false;
+
+                    if (newReg1A != reg1A && !WriteRegNoLock(smbus, pmicAddr, REG_POWER_MODE_CFG, newReg1A))
+                    {
+                        //WriteRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, reg1B);
+                        return false;
+                    }
+
+                    // Read back to confirm the PMIC actually latched the change
+                    if (!ReadRegNoLock(smbus, pmicAddr, REG_POWER_MODE_CFG, out byte verify1A) ||
+                        !ReadRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, out byte verify1B))
+                        return false;
+
+                    return verify1A == newReg1A && verify1B == newReg1B;
+                }
+                finally
+                {
+                    // Restore the previous port
+                    smbus.ChangePortNoLock(originalPort, out int _);
+                }
             }
         }
 

@@ -216,7 +216,7 @@ namespace ZenStates.Core
             try
             {
 #if NET8_0_OR_GREATER
-                structure = Marshal.PtrToStructure<T>(handle.AddrOfPinnedObject());  
+                structure = Marshal.PtrToStructure<T>(handle.AddrOfPinnedObject());
 #else
                 structure = (T)Marshal.PtrToStructure(handle.AddrOfPinnedObject(), typeof(T));
 #endif

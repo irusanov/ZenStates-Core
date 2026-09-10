@@ -457,12 +457,12 @@ namespace ZenStates.Core.Hardware.Apob
             return apob;
         }
 
-        private static string NormalizeLineEndings(string text)
+        internal static string NormalizeLineEndings(string text)
         {
             return text.Replace("\r\n", "\n").Replace("\r", "\n");
         }
 
-        private static Family ParseFamily(string text)
+        internal static Family ParseFamily(string text)
         {
             string raw = ParseLabelValue(text, "Family:");
             if (raw != null)
@@ -486,7 +486,7 @@ namespace ZenStates.Core.Hardware.Apob
             return Family.UNSUPPORTED;
         }
 
-        private static CodeName ParseCodeName(string text)
+        internal static CodeName ParseCodeName(string text)
         {
             string raw = ParseLabelValue(text, "CodeName:");
             if (raw != null && Utils.TryParseEnum(raw, out CodeName codeName))
@@ -496,7 +496,7 @@ namespace ZenStates.Core.Hardware.Apob
             return CodeName.DEBUG;
         }
 
-        private static PackageType ParsePackageType(string text)
+        internal static PackageType ParsePackageType(string text)
         {
             string raw = ParseLabelValue(text, "PackageType:");
             if (raw != null)
@@ -513,7 +513,7 @@ namespace ZenStates.Core.Hardware.Apob
             return PackageType.FPX;
         }
 
-        private static SMU.SmuType ParseSmuType(string text)
+        internal static SMU.SmuType ParseSmuType(string text)
         {
             string raw = ParseLabelValue(text, "SmuType:");
             if (raw != null && Utils.TryParseEnum(raw, out SMU.SmuType smuType))
@@ -522,7 +522,7 @@ namespace ZenStates.Core.Hardware.Apob
             return SMU.SmuType.TYPE_UNSUPPORTED;
         }
 
-        private static bool TryParseNumeric(string raw, out uint value)
+        internal static bool TryParseNumeric(string raw, out uint value)
         {
             raw = raw.Trim();
             if (raw.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
@@ -534,7 +534,7 @@ namespace ZenStates.Core.Hardware.Apob
         // Matches a "Label:value" line anchored at the start of a line (as produced by
         // DebugDialog's fixed-width report formatting) and returns the first whitespace-delimited
         // token after the label, or null if the label isn't present.
-        private static string ParseLabelValue(string text, string label)
+        internal static string ParseLabelValue(string text, string label)
         {
             Match match = Regex.Match(
                 text,
@@ -546,7 +546,7 @@ namespace ZenStates.Core.Hardware.Apob
 
         // Same as ParseLabelValue, but for "Label: 0xHEXVALUE" lines such as
         // "-- Main Data Offset: 0x00001DB4".
-        private static uint? ParseHexValue(string text, string label)
+        internal static uint? ParseHexValue(string text, string label)
         {
             Match match = Regex.Match(
                 text,

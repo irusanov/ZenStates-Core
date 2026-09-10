@@ -4,8 +4,13 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Tables
     /// JEDEC JESD301-2 PMIC5100 register constants used by the expanded helper modules.
     /// This file intentionally keeps the original Ddr5PmicReader unchanged and adds a central map.
     /// </summary>
-    public static class JedecPmicRegisters
+    internal static class JedecPmicRegisters
     {
+        // Masks
+        public const byte MASK_R2F_SECURE_MODE = 0x04;                     // R2F[2]: 0 = Secure Mode, 1 = Programmable Mode
+        public const byte MASK_R1A_OUTPUT_POWER_SELECT = 0x02;             // R0x1A[1]: OUTPUT_POWER_SELECT. 0 = report each rail's power/current
+        public const byte MASK_R1B_CURRENT_OR_POWER_METER_SELECT = 0x40;   // R0x1B[6]: CURRENT_OR_POWER_METER_SELECT. 0 = current, 1 = power
+
         public const byte PMIC_ADDR_BASE = 0x48;
         public const byte PMIC_ADDR_LAST = 0x4F;
         public const byte SPD_PMIC_OFFSET = 0x08; // SPD_addr - PMIC_addr
