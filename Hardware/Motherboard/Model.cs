@@ -43,6 +43,7 @@ namespace ZenStates.Core.Hardware.Motherboard
         B850M_STEEL_LEGEND_WIFI,
         X870E_TAICHI,
         X870E_NOVA_WIFI,
+        B850I_LIGHTNING_WIFI,
 
         // ASUS
         CROSSHAIR_III_FORMULA,
