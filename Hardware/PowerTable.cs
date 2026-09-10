@@ -2,7 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
+using System.Text.RegularExpressions;
 using ZenStates.Core.Hardware;
+using ZenStates.Core.Hardware.Mock;
 using ZenStates.Core.PawnIo;
 
 namespace ZenStates.Core
@@ -421,6 +424,61 @@ namespace ZenStates.Core
             }
 
             this.Refresh();
+        }
+
+        private PowerTable()
+        {
+        }
+
+        public static PowerTable CreateFromDebugReport(string debugReportText)
+        {
+            if (debugReportText == null)
+                throw new ArgumentNullException(nameof(debugReportText));
+
+            string text = debugReportText.Replace("\r\n", "\n").Replace("\r", "\n");
+            var pt = new PowerTable();
+
+            string[] lines = text.Split('\n');
+            int start = MockSystemData.FindSectionContentStart(lines, "SMU: Power Table Detected Values");
+            if (start < 0)
+                return pt;
+
+            int end = MockSystemData.FindNextHeadingLine(lines, start);
+            var lineRegex = new Regex(@"^(?<name>[A-Za-z0-9_]+):\s*(?<value>.*)$");
+
+            for (int i = start; i < end; i++)
+            {
+                string line = lines[i].TrimEnd();
+                if (line.Trim().Length == 0)
+                    continue;
+
+                Match m = lineRegex.Match(line);
+                if (!m.Success)
+                    continue;
+
+                string name = m.Groups["name"].Value;
+                string rawValue = m.Groups["value"].Value.Trim();
+
+                if (!float.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out float value))
+                    continue; // e.g. "Instance:" (a type name, not a number) - intentionally skipped
+
+                switch (name)
+                {
+                    case "ConfiguredClockSpeed": pt.ConfiguredClockSpeed = value; break;
+                    case "MemRatio": pt.MemRatio = value; break;
+                    case "FCLK": pt.FCLK = value; break;
+                    case "MCLK": pt.MCLK = value; break;
+                    case "UCLK": pt.UCLK = value; break;
+                    case "VDDCR_SOC": pt.VDDCR_SOC = value; break;
+                    case "CLDO_VDDP": pt.CLDO_VDDP = value; break;
+                    case "CLDO_VDDG_IOD": pt.CLDO_VDDG_IOD = value; break;
+                    case "CLDO_VDDG_CCD": pt.CLDO_VDDG_CCD = value; break;
+                    case "VDD_MISC": pt.VDD_MISC = value; break;
+                        // "Table" never appears as a "Name: value" line (DebugDialog skips it explicitly).
+                }
+            }
+
+            return pt;
         }
 
         private float GetDiscreteValue(float[] pt, int byteIndex)
