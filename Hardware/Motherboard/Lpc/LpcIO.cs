@@ -417,11 +417,8 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                     {
                         case 0x92:
                             // MSI AM5/LGA1851 800 Series Motherboard Compatibility (Nuvoton NCT6687DR)
-                            if (motherboardVendor == Manufacturer.MSI && (SMBiosSingleton.Instance.Board.ProductName.ToString().IndexOf("B840", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                SMBiosSingleton.Instance.Board.ProductName.ToString().IndexOf("B850", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                SMBiosSingleton.Instance.Board.ProductName.ToString().IndexOf("B860", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                SMBiosSingleton.Instance.Board.ProductName.ToString().IndexOf("X870", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                SMBiosSingleton.Instance.Board.ProductName.ToString().IndexOf("Z890", StringComparison.OrdinalIgnoreCase) >= 0))
+                            // ZenStates-Core only supports AMD, we can only check for vendor here
+                            if (motherboardVendor == Manufacturer.MSI)
                             {
                                 chip = Chip.NCT6687DR;
                             }
