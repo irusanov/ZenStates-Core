@@ -157,6 +157,7 @@ namespace ZenStates.Core.Hardware.Apob
         {
             SourceBlock = sourceBlock;
             Magic = magic;
+            // start of CCD_L block relative to the end of the magic sequence
             CcdlBlockOffset = ccdlBlockOffset;
             ValueWidth = valueWidth;
         }
@@ -428,7 +429,7 @@ namespace ZenStates.Core.Hardware.Apob
             "Zen4 APU",
             Zen4ApuMainLayout,
             Zen4ApuExtendedLayout,
-            new ApobCcdlLayout(ApobBlockKind.Extended, CCDL_BLOCK_MAGIC_ZEN4, 0x0E, ApobValueWidth.UInt16));
+            new ApobCcdlLayout(ApobBlockKind.Extended, CCDL_BLOCK_MAGIC_ZEN4, 0x28, ApobValueWidth.UInt32));
 
         // Desktop Zen5 and mobile counterparts, like FireRange
         private static readonly ApobProfile Zen5DesktopProfile = new ApobProfile(

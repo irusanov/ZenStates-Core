@@ -12,6 +12,8 @@ namespace ZenStates.Core.Hardware.Apob
         {
         }
 
+        public ApobData Clone() => new ApobData(RawBytes, Offset, Layout);
+
         private byte? RttNomRdRaw { get { return ReadRawValue(Layout.Offsets.RttNomRd); } }
         private byte? RttNomWrRaw { get { return ReadRawValue(Layout.Offsets.RttNomWr); } }
         private byte? RttWrRaw { get { return ReadRawValue(Layout.Offsets.RttWr); } }

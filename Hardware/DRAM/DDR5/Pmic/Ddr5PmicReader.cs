@@ -180,12 +180,53 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             return pd;
         }
 
-        // DDR5 PMICs reside on SMBus port 2 (DDR5/TSI port on KernCZ/AMD FCH)
+        // DDR5 PMICs reside on SMBus port 2 (DDR5/TSI port on KernCZ/AMD FCH) on most
+        // AMD platforms. Some boards route DDR5 through port 0 instead. PORT_DIMM is the
+        // compile-time default; ActiveDimmPort is set at runtime once the actual port is discovered.
+        public const int PORT_UNDEFINED = -1;
         public const int PORT_DIMM = 2;
         public const int PORT_BOARD = 0;
 
+
+        private static int ActiveDimmPort = PORT_UNDEFINED;
+
+        private static bool CheckActiveDimmPort(SmbusDriverBase smbus)
+        {
+            if (ActiveDimmPort != PORT_UNDEFINED)
+                return true;
+
+            smbus.ChangePortNoLock(-1, out int previousPort);
+
+            try
+            {
+                int[] ports = { PORT_DIMM, PORT_BOARD };
+                foreach (int port in ports)
+                {
+                    smbus.ChangePortNoLock(port, out int _);
+                    for (byte addr = PMIC_ADDR_BASE; addr <= PMIC_ADDR_LAST; addr++)
+                    {
+                        if (DetectNoLock(smbus, addr))
+                        {
+                            Debug.WriteLine($"[PMIC] PMICs found on port {port}; setting ActiveDimmPort");
+                            ActiveDimmPort = port;
+                            return true;      
+                        }
+                    }
+                }
+
+            }
+            finally
+            {
+                smbus.ChangePortNoLock(previousPort, out int _);
+            }
+
+            Debug.WriteLine("[PMIC] CheckActiveDimmPort: no PMICs found on any port");
+            return false;
+        }
+
         /// <summary>
-        /// Read single Pmic
+        /// Read single Pmic. Switches to <see cref="ActiveDimmPort"/> if not already
+        /// there and restores the previous port on exit.
         /// </summary>
         public static Ddr5PmicData ReadPmic(SmbusDriverBase smbus, byte pmicAddr)
         {
@@ -197,7 +238,25 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 
             try
             {
-                return ReadPmicNoLock(smbus, pmicAddr);
+                if (!CheckActiveDimmPort(smbus))
+                    return new Ddr5PmicData();
+
+                smbus.ChangePortNoLock(-1, out int originalPort);
+
+                bool needsSwitch = originalPort != ActiveDimmPort;
+
+                if (needsSwitch)
+                    smbus.ChangePortNoLock(ActiveDimmPort, out int _);
+
+                try
+                {
+                    return ReadPmicNoLock(smbus, pmicAddr);
+                }
+                finally
+                {
+                    if (needsSwitch)
+                        smbus.ChangePortNoLock(originalPort, out int _);
+                }
             }
             finally
             {
@@ -211,7 +270,13 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 
             using (new SmbusLock())
             {
-                if (!smbus.ChangePortNoLock(PORT_DIMM, out int originalPort))
+                if (!CheckActiveDimmPort(smbus))
+                    return false;
+
+                smbus.ChangePortNoLock(-1, out int originalPort);
+                bool needsSwitch = originalPort != ActiveDimmPort;
+
+                if (needsSwitch && !smbus.ChangePortNoLock(ActiveDimmPort, out int _))
                     return false;
 
                 try
@@ -219,6 +284,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                     // Secure Mode: if the PMIC is locked, 0x1A/0x1B writes are not allowed
                     if (!ReadRegNoLock(smbus, pmicAddr, REG_WRITE_PROTECT_FUNCTION_CONTROL, out byte reg2F))
                         return false;
+
                     bool programmableMode = (reg2F & MASK_R2F_SECURE_MODE) != 0;
                     if (!programmableMode)
                         return false;
@@ -243,12 +309,15 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                         newReg1B = (byte)(reg1B & ~MASK_R1B_CURRENT_OR_POWER_METER_SELECT);
                     }
 
-                    //if (newReg1B != reg1B && !WriteRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, newReg1B))
-                    //    return false;
+                    if (newReg1B != reg1B && !WriteRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, newReg1B))
+                        return false;
 
                     if (newReg1A != reg1A && !WriteRegNoLock(smbus, pmicAddr, REG_POWER_MODE_CFG, newReg1A))
                     {
-                        //WriteRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, reg1B);
+                        // Try to roll back R0x1B so we don't leave the PMIC in a half-configured state
+                        if (newReg1B != reg1B)
+                            WriteRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, reg1B);
+
                         return false;
                     }
 
@@ -261,8 +330,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                 }
                 finally
                 {
-                    // Restore the previous port
-                    smbus.ChangePortNoLock(originalPort, out int _);
+                    // Restore the previous port only if we actually changed it.
+                    if (needsSwitch)
+                        smbus.ChangePortNoLock(originalPort, out int _);
                 }
             }
         }
@@ -282,29 +352,63 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
         {
             using (new SmbusLock())
             {
-                smbus.ChangePortNoLock(PORT_DIMM, out int _);
-                bool ok = WriteRegNoLock(smbus, pmicAddr, REG_SWA_VID, vddRegByte);
-                ok &= WriteRegNoLock(smbus, pmicAddr, REG_SWB_VID, vddqRegByte);
-                ok &= WriteRegNoLock(smbus, pmicAddr, REG_SWC_VID, vppRegByte);
-                return ok;
+                if (!CheckActiveDimmPort(smbus))
+                    return false;
+
+                smbus.ChangePortNoLock(-1, out int originalPort);
+                bool needsSwitch = originalPort != ActiveDimmPort;
+
+                if (needsSwitch)
+                    smbus.ChangePortNoLock(ActiveDimmPort, out int _);
+
+                try
+                {
+                    bool ok = WriteRegNoLock(smbus, pmicAddr, REG_SWA_VID, vddRegByte);
+                    ok &= WriteRegNoLock(smbus, pmicAddr, REG_SWB_VID, vddqRegByte);
+                    ok &= WriteRegNoLock(smbus, pmicAddr, REG_SWC_VID, vppRegByte);
+                    return ok;
+                }
+                finally
+                {
+                    if (needsSwitch)
+                        smbus.ChangePortNoLock(originalPort, out int _);
+                }
             }
         }
 
-        /// <summary>Read PMIC data for all detected DIMMs by scanning 0x48-0x4F.</summary>
-        /// <summary>Read PMIC data for all detected DIMMs by scanning 0x48-0x4F.</summary>
+        /// <summary>
+        /// Read PMIC data for all detected DIMMs by scanning 0x48–0x4F on
+        /// <see cref="ActiveDimmPort"/>. If the port is not yet known,
+        /// <see cref="EnsureActiveDimmPortNoLock"/> probes <see cref="PORT_DIMM"/> then
+        /// <see cref="PORT_BOARD"/> to discover it. The original bus port is restored on exit.
+        /// </summary>
         internal static Dictionary<byte, Ddr5PmicData> ReadAllPmicsNoLock(SmbusDriverBase smbus)
         {
-            Dictionary<byte, Ddr5PmicData> results = new Dictionary<byte, Ddr5PmicData>();
+            if (!CheckActiveDimmPort(smbus))
+                return new Dictionary<byte, Ddr5PmicData>();
 
-            smbus.ChangePortNoLock(PORT_DIMM, out int _);
+            smbus.ChangePortNoLock(-1, out int originalPort);
 
-            for (byte addr = PMIC_ADDR_BASE; addr <= PMIC_ADDR_LAST; addr++)
+            bool needsSwitch = originalPort != ActiveDimmPort;
+
+            if (needsSwitch)
+                smbus.ChangePortNoLock(ActiveDimmPort, out int _);
+
+            try
             {
-                if (DetectNoLock(smbus, addr))
-                    results[addr] = ReadPmicNoLock(smbus, addr);
+                var results = new Dictionary<byte, Ddr5PmicData>();
+                for (byte addr = PMIC_ADDR_BASE; addr <= PMIC_ADDR_LAST; addr++)
+                {
+                    if (DetectNoLock(smbus, addr))
+                        results[addr] = ReadPmicNoLock(smbus, addr);
+                }
+                return results;
             }
-
-            return results;
+            finally
+            {
+                if (needsSwitch)
+                    smbus.ChangePortNoLock(originalPort, out int _);
+            }
         }
 
         public static Dictionary<byte, Ddr5PmicData> ReadAllPmics(SmbusDriverBase smbus)

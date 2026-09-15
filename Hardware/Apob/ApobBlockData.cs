@@ -13,14 +13,18 @@ namespace ZenStates.Core.Hardware.Apob
             if (layout == null)
                 throw new ArgumentNullException(nameof(layout));
 
-            long end = (long)offset + layout.BlockSize;
+            Offset = offset;
+
+            long end = (long)Offset + layout.BlockSize;
             if (end > data.Length)
                 throw new ArgumentException("Buffer too small for the configured APOB block layout.", nameof(data));
 
             _rawBytes = new byte[layout.BlockSize];
-            Buffer.BlockCopy(data, (int)offset, _rawBytes, 0, _rawBytes.Length);
+            Buffer.BlockCopy(data, (int)Offset, _rawBytes, 0, _rawBytes.Length);
             Layout = layout;
         }
+
+        protected uint Offset { get; private set; }
 
         protected ApobBlockLayout Layout { get; private set; }
 
