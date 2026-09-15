@@ -243,8 +243,8 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                         newReg1B = (byte)(reg1B & ~MASK_R1B_CURRENT_OR_POWER_METER_SELECT);
                     }
 
-                    //if (newReg1B != reg1B && !WriteRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, newReg1B))
-                    //    return false;
+                    if (newReg1B != reg1B && !WriteRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, newReg1B))
+                        return false;
 
                     if (newReg1A != reg1A && !WriteRegNoLock(smbus, pmicAddr, REG_POWER_MODE_CFG, newReg1A))
                     {
@@ -261,7 +261,8 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                 }
                 finally
                 {
-                    // Restore the previous port
+                   // Restore the previous port
+                   if (originalPort != PORT_DIMM)
                     smbus.ChangePortNoLock(originalPort, out int _);
                 }
             }
