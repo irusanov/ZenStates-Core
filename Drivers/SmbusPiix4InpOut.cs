@@ -46,6 +46,7 @@ namespace ZenStates.Core.Drivers
 
         // SMBHSTCNT bits
         private const byte SMBHSTCNT_START = 0x40;
+        private const byte SMBHSTCNT_KILL = 0x02;
 
         // Default SMBus IO base on KernCZ in your PawnIO driver
         private readonly ushort _smba;
@@ -229,6 +230,41 @@ namespace ZenStates.Core.Drivers
             return true;
         }
 
+        /// <summary>
+        /// Force-aborts an in-flight transaction and waits for HOST_BUSY to clear.
+        /// Equivalent to piix4_kill() in the PawnIO module. Must only be called
+        /// when the controller is known to be stuck (HOST_BUSY did not clear within
+        /// MAX_TIMEOUT_MS after issuing START).
+        /// </summary>
+        private void Kill()
+        {
+            // Write KILL as the complete control value; the protocol bits are
+            // reprogrammed before the next transaction (same pattern as the module).
+            IoOut8(SMBHSTCNT, SMBHSTCNT_KILL);
+            Utils.DelayMicroseconds(1000);
+            IoOut8(SMBHSTCNT, 0);
+
+            // Give the controller up to MAX_TIMEOUT_MS to leave HOST_BUSY.
+            long deadline = GetTimestamp() + MillisecondsToStopwatchTicks(MAX_TIMEOUT_MS);
+            byte temp;
+
+            do
+            {
+                temp = IoIn8(SMBHSTSTS);
+                if ((temp & SMBHSTSTS_HOST_BUSY) == 0)
+                    break;
+                Utils.DelayMicroseconds(1000);
+            }
+            while (GetTimestamp() < deadline);
+
+            // Flush any completion/error flags the reset produced.
+            if (temp != 0x00)
+                IoOut8(SMBHSTSTS, temp);
+
+            if ((temp & SMBHSTSTS_HOST_BUSY) != 0)
+                Debug.WriteLine($"[PIIX4] Kill failed: controller still busy (SMBHSTSTS=0x{temp:X2})");
+        }
+
         private bool Transaction(int size, out byte statusByte)
         {
             statusByte = 0;
@@ -283,17 +319,25 @@ namespace ZenStates.Core.Drivers
 
             statusByte = temp;
 
-            bool success =
-                ((temp & SMBHSTSTS_HOST_BUSY) == 0) &&
-                ((temp & SMBHSTSTS_FAILED) == 0) &&
-                ((temp & SMBHSTSTS_BUS_ERR) == 0) &&
-                ((temp & SMBHSTSTS_DEV_ERR) == 0) &&
-                ((temp & SMBHSTSTS_INTR) != 0);
+            // If HOST_BUSY is still set we timed out. Force-abort the transaction so the
+            // controller doesn't stay stuck — a stuck HOST_BUSY would cause every future
+            // IsBusyNoLock() to fail permanently. This mirrors piix4_kill() in the module.
+            if ((temp & SMBHSTSTS_HOST_BUSY) != 0)
+            {
+                Debug.WriteLine($"[PIIX4] SMBus timeout (SMBHSTSTS=0x{temp:X2}), killing transaction");
+                Kill();
+                return false;
+            }
 
+            // Clear latched W1C flags (INTR, DEV_ERR, BUS_ERR, FAILED).
             if (temp != 0x00)
                 IoOut8(SMBHSTSTS, temp);
 
-            return success;
+            return
+                (temp & SMBHSTSTS_FAILED) == 0 &&
+                (temp & SMBHSTSTS_BUS_ERR) == 0 &&
+                (temp & SMBHSTSTS_DEV_ERR) == 0 &&
+                (temp & SMBHSTSTS_INTR) != 0;
         }
 
         // FCH PM register for port MUX (same as PawnIO driver)

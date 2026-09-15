@@ -55,11 +55,13 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             {
                 smbusDriver.ChangePortNoLock(ports[p]);
                 List<byte> found = new List<byte>();
+
                 for (int i = SPD_HUB_ADDR_FIRST; i <= SPD_HUB_ADDR_LAST; i++)
                 {
                     if (smbusDriver.ReadByteDataNoLock((byte)i, 0x00, out byte _))
                         found.Add((byte)i);
                 }
+
                 if (found.Count > 0)
                     return found;
             }
@@ -114,10 +116,12 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         internal static Dictionary<byte, Ddr5SpdInfo> ReadDdr5SpdAllNoLock()
         {
             smbusDriver.ChangePortNoLock(-1, out int savedPort);
+
             try
             {
                 Dictionary<byte, Ddr5SpdInfo> list = new Dictionary<byte, Ddr5SpdInfo>();
                 List<byte> addresses = ScanDdr5SpdHubsNoLock();
+
                 if (addresses.Count == 0)
                     throw new InvalidOperationException("No DDR5 DIMMs found on any SMBus port.");
 
@@ -275,6 +279,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         internal static Dictionary<byte, Ddr5SpdInfo> ReadDdr5SpdInitInfoAllNoLock()
         {
             smbusDriver.ChangePortNoLock(-1, out int savedPort);
+
             try
             {
                 Dictionary<byte, Ddr5SpdInfo> result = new Dictionary<byte, Ddr5SpdInfo>();
@@ -321,6 +326,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             try
             {
                 byte pmicAddr = Ddr5PmicReader.CalculatePmicAddrFromSpd(addr7);
+
+                smbusDriver.ChangePortNoLock(-1, out int savedPort);
+
                 if (Ddr5PmicReader.DetectNoLock(smbus, pmicAddr))
                     info.PmicData = Ddr5PmicReader.ReadPmicNoLock(smbus, pmicAddr);
             }
@@ -356,19 +364,20 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         }
 
         // Read single DDR5 SPD minimal
-        public static Ddr5SpdInfo ReadDdr5SpdInitInfo(byte addr7)
-        {
-            if (!Mutexes.WaitSmbus(5000))
-                return null;
-            try
-            {
-                return ReadDdr5SpdInitInfoNoLock(addr7);
-            }
-            finally
-            {
-                Mutexes.ReleaseSmbus();
-            }
-        }
+        //public static Ddr5SpdInfo ReadDdr5SpdInitInfo(byte addr7)
+        //{
+        //    if (!Mutexes.WaitSmbus(5000))
+        //        return null;
+
+        //    try
+        //    {
+        //        return ReadDdr5SpdInitInfoNoLock(addr7);
+        //    }
+        //    finally
+        //    {
+        //        Mutexes.ReleaseSmbus();
+        //    }
+        //}
 
         // Read all SPD
         public static Dictionary<byte, Ddr5SpdInfo> ReadDdr5SpdAll()
