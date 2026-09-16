@@ -372,8 +372,6 @@ namespace ZenStates.Core
                     throw new ApplicationException("Error initializing PawnIO AMD module.", ex);
                 }
 
-                mmio = new Mmio();
-
                 if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
                 {
                     info.cpuid = eax;
@@ -415,6 +413,8 @@ namespace ZenStates.Core
                 {
                     throw new ApplicationException(InitializationExceptionText);
                 }
+
+                mmio = new Mmio(info.family);
             }
             catch
             {
