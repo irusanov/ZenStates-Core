@@ -3673,11 +3673,11 @@ namespace ZenStates.Core.Hardware.Motherboard
                             break;
 
                         case Model.X570_Phantom_Gaming_4: // NCT6796D (-R?)
-                                                          // internal on NCT6796D have a 1/2 voltage divider (by way of two 34kOhm resistors)
-                                                          // "Six internal signals connected to the power supplies (CPUVCORE, AVSB, VBAT, VTT, 3VSB, 3VCC)"
-                                                          // "All the internal inputs of the ADC, AVSB, VBAT, 3VSB, 3VCC utilize an integrated voltage divider
-                                                          //  with both resistors equal to 34kOhm"
-                                                          // it seems that VTT doesn't actually have the 1/2 divider
+                            // internal on NCT6796D have a 1/2 voltage divider (by way of two 34kOhm resistors)
+                            // "Six internal signals connected to the power supplies (CPUVCORE, AVSB, VBAT, VTT, 3VSB, 3VCC)"
+                            // "All the internal inputs of the ADC, AVSB, VBAT, 3VSB, 3VCC utilize an integrated voltage divider
+                            //  with both resistors equal to 34kOhm"
+                            // it seems that VTT doesn't actually have the 1/2 divider
 
                             // external sources can have whatever divider that gets them in the 0V to 2.048V range
 
@@ -3900,7 +3900,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             break;
 
                         case Model.X870E_NOVA_WIFI: //NCT6796D-S
-                                                    // Voltages: (VHIF and VIN10 are monitored in HWiNFO but not identified here yet)
+                            // Voltages: (VHIF and VIN10 are monitored in HWiNFO but not identified here yet)
                             v.Add(new Voltage("Vcore", 0)); // CPU Core Voltage
                             v.Add(new Voltage("+12V", 1, 56, 10));  // +12V
                             v.Add(new Voltage("Analog VCC", 2, 34, 34)); // AVCC
@@ -3948,6 +3948,55 @@ namespace ZenStates.Core.Hardware.Motherboard
                             c.Add(new Control("Water Pump", 4)); // W_PUMP
                             c.Add(new Control("Chassis Fan #2", 5)); // CHA_FAN2
                             c.Add(new Control("Chassis Fan #3", 6)); // CHA_FAN3
+                            break;
+
+                        case Model.B650M_HDV_M_2: //NCT6796D-S
+                            v.Add(new Voltage("Vcore", 0)); // CPU Core Voltage
+                            v.Add(new Voltage("+12V", 1, 56, 10)); // +12V
+                            v.Add(new Voltage("Analog VCC", 2, 34, 34)); // AVCC
+                            v.Add(new Voltage("+3.3V", 3, 34, 34));
+                            v.Add(new Voltage("+5V", 4, 20, 10));
+                            v.Add(new Voltage("+1.05V Standby", 5, 0, 1)); // +1.05V_ALW
+                            v.Add(new Voltage("Voltage #7", 6, 0, 1)); // VIN4
+                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
+                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
+                            v.Add(new Voltage("Voltage #10", 9, 1, 1)); // VTT
+                            v.Add(new Voltage("CPU NB/SoC", 10, 1, 1));
+                            v.Add(new Voltage("VDD_MISC", 11, 34, 34)); // FIXED: was "CPU Misc"
+                            v.Add(new Voltage("Voltage #13", 12, 0, 1)); // VIN2
+                            v.Add(new Voltage("+1.8V", 13, 10, 10));
+                            v.Add(new Voltage("CPU VDDIO", 14, 0, 1)); // VDDIO
+                            v.Add(new Voltage("VIN9", 15, 0, 1));
+                            v.Add(new Voltage("VHIF", 16, 34, 34));
+                            v.Add(new Voltage("Voltage #18", 17, 0, 1)); // VIN10
+
+                            t.Add(new Temperature("CPU", 0));
+                            t.Add(new Temperature("Motherboard", 1));
+                            t.Add(new Temperature("Auxiliary #0", 2));
+                            t.Add(new Temperature("Auxiliary #1", 3));
+                            t.Add(new Temperature("T_SEN #1", 4));
+                            t.Add(new Temperature("T_SEN #2", 5));
+                            t.Add(new Temperature("Auxiliary #4", 6));
+                            t.Add(new Temperature("T_SEN #3", 7));
+                            t.Add(new Temperature("PCH TSI0", 8));
+                            t.Add(new Temperature("CPU (PECI)", 9));
+                            t.Add(new Temperature("Virtual", 10));
+
+                            f.Add(new Fan("Chassis Fan #1", 0));
+                            f.Add(new Fan("CPU Fan #1", 1)); // CPU1
+                            f.Add(new Fan("CPU Fan #2", 2));
+                            f.Add(new Fan("AIO Pump", 3));
+                            f.Add(new Fan("Chassis Fan #2", 4)); // Chassis2
+                            f.Add(new Fan("Fan #6", 5));
+                            f.Add(new Fan("Chassis Fan #3", 6));
+
+                            c.Add(new Control("Chassis Fan #1", 0));
+                            c.Add(new Control("CPU Fan #1", 1));
+                            c.Add(new Control("CPU Fan #2", 2));
+                            c.Add(new Control("AIO Pump", 3));
+                            c.Add(new Control("Chassis Fan #2", 4));
+                            c.Add(new Control("Fan #6", 5));
+                            c.Add(new Control("Chassis Fan #3", 6));
                             break;
 
                         default:
