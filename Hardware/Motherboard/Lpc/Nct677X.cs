@@ -261,8 +261,9 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                     // min value that could be transferred to 16-bit RPM registers
                     _minFanCount = 0x15;
 
-                    Voltages = new float?[16];
-                    _voltageRegisters = new ushort[] { 0x480, 0x481, 0x482, 0x483, 0x484, 0x485, 0x486, 0x487, 0x488, 0x489, 0x48A, 0x48B, 0x48C, 0x48D, 0x48E, 0x48F };
+                    Voltages = new float?[18];
+                    // #16 (0x470, VHIF) and #17 (0x471, VIN10) added at the end to not break existing mappings
+                    _voltageRegisters = new ushort[] { 0x480, 0x481, 0x482, 0x483, 0x484, 0x485, 0x486, 0x487, 0x488, 0x489, 0x48A, 0x48B, 0x48C, 0x48D, 0x48E, 0x48F, 0x470, 0x471 };
                     _voltageVBatRegister = 0x488;
                     List<TemperatureSourceData> temperaturesSources = new List<TemperatureSourceData>();
 

@@ -3960,9 +3960,9 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("Voltage #7", 6, 0, 1)); // VIN4
                             v.Add(new Voltage("+3V Standby", 7, 34, 34));
                             v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("Voltage #10", 9, 1, 1)); // VTT
-                            v.Add(new Voltage("CPU NB/SoC", 10, 1, 1));
-                            v.Add(new Voltage("VDD_MISC", 11, 34, 34)); // FIXED: was "CPU Misc"
+                            v.Add(new Voltage("VTT", 9, 1, 1)); // VTT
+                            v.Add(new Voltage("CPU NB/SoC", 10, 1, 1)); // VDDCR_SOC
+                            v.Add(new Voltage("CPU Misc", 11, 34, 34)); // VDD_MISC
                             v.Add(new Voltage("Voltage #13", 12, 0, 1)); // VIN2
                             v.Add(new Voltage("+1.8V", 13, 10, 10));
                             v.Add(new Voltage("CPU VDDIO", 14, 0, 1)); // VDDIO
@@ -3970,17 +3970,17 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("VHIF", 16, 34, 34));
                             v.Add(new Voltage("Voltage #18", 17, 0, 1)); // VIN10
 
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Motherboard", 1));
-                            t.Add(new Temperature("Auxiliary #0", 2));
-                            t.Add(new Temperature("Auxiliary #1", 3));
-                            t.Add(new Temperature("T_SEN #1", 4));
-                            t.Add(new Temperature("T_SEN #2", 5));
-                            t.Add(new Temperature("Auxiliary #4", 6));
-                            t.Add(new Temperature("T_SEN #3", 7));
-                            t.Add(new Temperature("PCH TSI0", 8));
-                            t.Add(new Temperature("CPU (PECI)", 9));
-                            t.Add(new Temperature("Virtual", 10));
+                            t.Add(new Temperature("CPU Socket", 0)); // CPUTIN
+                            t.Add(new Temperature("Motherboard", 1)); // SYSTIN
+                            t.Add(new Temperature("Auxiliary #0", 2)); // AUXTIN0
+                            t.Add(new Temperature("Auxiliary #1", 3)); // AUXTIN1
+                            t.Add(new Temperature("T_SEN #1", 4)); // AUXTIN2 (T_SEN1)
+                            t.Add(new Temperature("T_SEN #2", 5)); // AUXTIN3 (T_SEN2)
+                            t.Add(new Temperature("Auxiliary #4", 6)); // AUXTIN4
+                            t.Add(new Temperature("T_SEN #3", 7)); // AUXTIN5 (T_SEN3)
+                            t.Add(new Temperature("CPU Core", 8)); // SMBUSMASTER0 (CPU Core)
+                            t.Add(new Temperature("CPU (PECI)", 9)); // CPU (PECI)
+                            t.Add(new Temperature("Virtual", 10)); // VIRTUAL_TEMP
 
                             f.Add(new Fan("Chassis Fan #1", 0));
                             f.Add(new Fan("CPU Fan #1", 1)); // CPU1
