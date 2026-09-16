@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
@@ -817,7 +817,7 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                         default:
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("Voltage #2", 1, true));
+                            v.Add(new Voltage("+3.3V", 1));
                             v.Add(new Voltage("Voltage #3", 2, true));
                             v.Add(new Voltage("Voltage #4", 3, true));
                             v.Add(new Voltage("Voltage #5", 4, true));
@@ -1158,9 +1158,9 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                         default:
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1, true));
-                            v.Add(new Voltage("+3.3V", 2, true));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10, 0, true));
+                            v.Add(new Voltage("VDIMM", 1));
+                            v.Add(new Voltage("+3.3V", 2));
+                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
                             v.Add(new Voltage("Voltage #5", 4, true));
                             v.Add(new Voltage("Voltage #6", 5, true));
                             v.Add(new Voltage("Voltage #7", 6, true));
@@ -1367,13 +1367,13 @@ namespace ZenStates.Core.Hardware.Motherboard
                         default:
                             v.Add(new Voltage("Vcore", 0));
                             v.Add(new Voltage("Voltage #2", 1, true));
-                            v.Add(new Voltage("Voltage #3", 2, true));
-                            v.Add(new Voltage("Voltage #4", 3, true));
-                            v.Add(new Voltage("Voltage #5", 4, true));
+                            v.Add(new Voltage("+12V", 2, 5, 1));
+                            v.Add(new Voltage("+5V", 3, 1.5f, 1));
+                            v.Add(new Voltage("Voltage #4", 4, true));
                             v.Add(new Voltage("Voltage #6", 5, true));
                             v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("Voltage #8", 7, true));
-                            v.Add(new Voltage("CMOS Battery", 8));
+                            v.Add(new Voltage("+3.3V", 7, 10, 10));
+                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
 
                             for (int i = 0; i < superIO.Temperatures.Length; i++)
                                 t.Add(new Temperature("Temperature #" + (i + 1), i));
@@ -2555,14 +2555,14 @@ namespace ZenStates.Core.Hardware.Motherboard
                             break;
 
                         default:
-                            v.Add(new Voltage("Voltage #1", 0, true));
-                            v.Add(new Voltage("Voltage #2", 1, true));
-                            v.Add(new Voltage("Voltage #3", 2, true));
-                            v.Add(new Voltage("Voltage #4", 3, true));
-                            v.Add(new Voltage("Voltage #5", 4, true));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10, 0, true));
+                            v.Add(new Voltage("Vcore", 0, 0, 1));
+                            v.Add(new Voltage("+3.3V", 1, 6.5f, 10));
+                            v.Add(new Voltage("+12V", 2, 5, 1));
+                            v.Add(new Voltage("+5V", 3, 1.5f, 1));
+                            v.Add(new Voltage("CPU NB/SoC", 4, 0, 1));
+                            v.Add(new Voltage("VDDP", 5, 0, 1));
+                            v.Add(new Voltage("VDIMM", 6, 0, 1));
+                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10));
 
                             for (int i = 0; i < superIO.Temperatures.Length; i++)
@@ -2873,15 +2873,15 @@ namespace ZenStates.Core.Hardware.Motherboard
                             break;
 
                         default:
-                            v.Add(new Voltage("Voltage #1", 0, true));
-                            v.Add(new Voltage("Voltage #2", 1, true));
-                            v.Add(new Voltage("Voltage #3", 2, true));
+                            v.Add(new Voltage("VIN0", 0));
+                            v.Add(new Voltage("DDR I/O", 1));
+                            v.Add(new Voltage("Chipset Core", 2));
                             v.Add(new Voltage("Voltage #4", 3, true));
-                            v.Add(new Voltage("Voltage #5", 4, true));
+                            v.Add(new Voltage("CPU VDD18", 4));
                             v.Add(new Voltage("Voltage #6", 5, true));
                             v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10, 0, true));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
+                            v.Add(new Voltage("+3V Standby", 7, 1f, 1f));
+                            v.Add(new Voltage("CMOS Battery", 8, 1f, 1f));
 
                             for (int i = 0; i < superIO.Temperatures.Length; i++)
                                 t.Add(new Temperature("Temperature #" + (i + 1), i));
@@ -4000,28 +4000,68 @@ namespace ZenStates.Core.Hardware.Motherboard
                             break;
 
                         default:
-                            v.Add(new Voltage("Vcore", 0, 10, 10));
-                            v.Add(new Voltage("Voltage #2", 1, true));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("Voltage #5", 4, true));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9));
-                            v.Add(new Voltage("Voltage #11", 10, true));
-                            v.Add(new Voltage("Voltage #12", 11, true));
-                            v.Add(new Voltage("Voltage #13", 12, true));
-                            v.Add(new Voltage("Voltage #14", 13, true));
-                            v.Add(new Voltage("Voltage #15", 14, true));
-                            t.Add(new Temperature("CPU Core", 0));
-                            t.Add(new Temperature("Temperature #1", 1));
-                            t.Add(new Temperature("Temperature #2", 2));
-                            t.Add(new Temperature("Temperature #3", 3));
-                            t.Add(new Temperature("Temperature #4", 4));
-                            t.Add(new Temperature("Temperature #5", 5));
-                            t.Add(new Temperature("Temperature #6", 6));
+                            bool isAm5Era = superIO.Chip == Chip.NCT6796D || superIO.Chip == Chip.NCT6796DR ||
+                                            superIO.Chip == Chip.NCT6796DS || superIO.Chip == Chip.NCT6797D ||
+                                            superIO.Chip == Chip.NCT6798D || superIO.Chip == Chip.NCT6799D ||
+                                            superIO.Chip == Chip.NCT6701D;
+
+                            if (isAm5Era)
+                            {
+                                v.Add(new Voltage("Vcore", 0));
+                                v.Add(new Voltage("+12V", 1, 56, 10));
+                                v.Add(new Voltage("AVCC", 2, 34, 34));
+                                v.Add(new Voltage("+3.3V", 3, 34, 34));
+                                v.Add(new Voltage("+5V", 4, 20, 10));
+                                v.Add(new Voltage("+1.05V Standby", 5, 0, 1));
+                                v.Add(new Voltage("Voltage #7", 6, true));
+                                v.Add(new Voltage("+3V Standby", 7, 34, 34));
+                                v.Add(new Voltage("CMOS Battery", 8, 34, 34));
+                                v.Add(new Voltage("CPU Termination", 9, 1, 1));
+                                v.Add(new Voltage("CPU NB/SoC", 10, 1, 1));
+                                v.Add(new Voltage("Voltage #12", 11, true));
+                                v.Add(new Voltage("Voltage #13", 12, true));
+                                v.Add(new Voltage("+1.8V", 13, 10, 10));
+                                v.Add(new Voltage("CPU VDDIO", 14, 0, 1));
+                                v.Add(new Voltage("Voltage #16", 15, true));
+
+                                t.Add(new Temperature("CPU", 0));
+                                t.Add(new Temperature("Motherboard", 1));
+                                t.Add(new Temperature("Auxiliary #0", 2));
+                                t.Add(new Temperature("Auxiliary #1", 3));
+                                t.Add(new Temperature("Auxiliary #2", 4));
+                                t.Add(new Temperature("Auxiliary #3", 5));
+                                t.Add(new Temperature("Auxiliary #4", 6));
+                                t.Add(new Temperature("Auxiliary #5", 7));
+                                t.Add(new Temperature("PCH TSI0", 8));
+                                t.Add(new Temperature("CPU (PECI)", 9));
+                                t.Add(new Temperature("Virtual", 10));
+                            }
+                            else
+                            {
+                                v.Add(new Voltage("Vcore", 0, 10, 10));
+                                v.Add(new Voltage("+12V", 1, 56, 10));
+                                v.Add(new Voltage("AVCC", 2, 34, 34));
+                                v.Add(new Voltage("+3.3V", 3, 34, 34));
+                                v.Add(new Voltage("Voltage #5", 4, true));
+                                v.Add(new Voltage("Voltage #6", 5, true));
+                                v.Add(new Voltage("Voltage #7", 6, true));
+                                v.Add(new Voltage("+3V Standby", 7, 34, 34));
+                                v.Add(new Voltage("CMOS Battery", 8, 34, 34));
+                                v.Add(new Voltage("CPU Termination", 9));
+                                v.Add(new Voltage("Voltage #11", 10, true));
+                                v.Add(new Voltage("Voltage #12", 11, true));
+                                v.Add(new Voltage("Voltage #13", 12, true));
+                                v.Add(new Voltage("Voltage #14", 13, true));
+                                v.Add(new Voltage("Voltage #15", 14, true));
+
+                                t.Add(new Temperature("CPU Core", 0));
+                                t.Add(new Temperature("Temperature #1", 1));
+                                t.Add(new Temperature("Temperature #2", 2));
+                                t.Add(new Temperature("Temperature #3", 3));
+                                t.Add(new Temperature("Temperature #4", 4));
+                                t.Add(new Temperature("Temperature #5", 5));
+                                t.Add(new Temperature("Temperature #6", 6));
+                            }
 
                             for (int i = 0; i < superIO.Fans.Length; i++)
                                 f.Add(new Fan("Fan #" + (i + 1), i));
@@ -5464,23 +5504,23 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                         default:
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("Voltage #2", 1, true));
+                            v.Add(new Voltage("+5V", 1, 4, 1));
                             v.Add(new Voltage("AVCC", 2, 34, 34));
                             v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("Voltage #5", 4, true));
+                            v.Add(new Voltage("+12V", 4, 11, 1));
                             v.Add(new Voltage("Voltage #6", 5, true));
                             v.Add(new Voltage("Voltage #7", 6, true));
                             v.Add(new Voltage("+3V Standby", 7, 34, 34));
                             v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9));
-                            v.Add(new Voltage("Voltage #11", 10, true));
+                            v.Add(new Voltage("CPU Termination", 9, true));
+                            v.Add(new Voltage("CPU VDDIO", 10, 1, 1));
                             v.Add(new Voltage("Voltage #12", 11, true));
                             v.Add(new Voltage("Voltage #13", 12, true));
                             v.Add(new Voltage("Voltage #14", 13, true));
                             v.Add(new Voltage("Voltage #15", 14, true));
                             t.Add(new Temperature("CPU Core", 0));
                             t.Add(new Temperature("Temperature #1", 1));
-                            t.Add(new Temperature("Temperature #2", 2));
+                            t.Add(new Temperature("Motherboard", 2));
                             t.Add(new Temperature("Temperature #3", 3));
                             t.Add(new Temperature("Temperature #4", 4));
                             t.Add(new Temperature("Temperature #5", 5));
@@ -5722,10 +5762,10 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                         default:
                             v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("Voltage #2", 1, true));
+                            v.Add(new Voltage("+5V", 1, 4, 1));
                             v.Add(new Voltage("AVCC", 2, 34, 34));
                             v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("Voltage #5", 4, true));
+                            v.Add(new Voltage("+12V", 4, 11, 1));
                             v.Add(new Voltage("Voltage #6", 5, true));
                             v.Add(new Voltage("Voltage #7", 6, true));
                             v.Add(new Voltage("+3V Standby", 7, 34, 34));
@@ -5733,16 +5773,16 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("CPU Termination", 9));
                             v.Add(new Voltage("Voltage #11", 10, true));
                             v.Add(new Voltage("Voltage #12", 11, true));
-                            v.Add(new Voltage("Voltage #13", 12, true));
-                            v.Add(new Voltage("Voltage #14", 13, true));
+                            v.Add(new Voltage("CPU NB/SoC", 12));
+                            v.Add(new Voltage("VDIMM", 13, 1, 1));
                             v.Add(new Voltage("Voltage #15", 14, true));
+
                             t.Add(new Temperature("CPU Core", 0));
                             t.Add(new Temperature("Temperature #1", 1));
-                            t.Add(new Temperature("Temperature #2", 2));
-                            t.Add(new Temperature("Temperature #3", 3));
+                            t.Add(new Temperature("System", 2));
+                            t.Add(new Temperature("VRM MOS", 3));
                             t.Add(new Temperature("Temperature #4", 4));
-                            t.Add(new Temperature("Temperature #5", 5));
-                            t.Add(new Temperature("Temperature #6", 6));
+                            t.Add(new Temperature("Chipset", 5));
 
                             for (int i = 0; i < superIO.Fans.Length; i++)
                                 f.Add(new Fan("Fan #" + (i + 1), i));
