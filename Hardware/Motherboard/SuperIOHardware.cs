@@ -3900,7 +3900,6 @@ namespace ZenStates.Core.Hardware.Motherboard
                             break;
 
                         case Model.X870E_NOVA_WIFI: //NCT6796D-S
-                            // Voltages: (VHIF and VIN10 are monitored in HWiNFO but not identified here yet)
                             v.Add(new Voltage("Vcore", 0)); // CPU Core Voltage
                             v.Add(new Voltage("+12V", 1, 56, 10));  // +12V
                             v.Add(new Voltage("Analog VCC", 2, 34, 34)); // AVCC
@@ -3917,6 +3916,8 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+1.8V", 13, 10, 10, 0)); // +1.8V
                             v.Add(new Voltage("Voltage #7", 14, 0, 1, 0)); // VIN7
                             v.Add(new Voltage("Voltage #9", 15)); // VIN9
+                            v.Add(new Voltage("VHIF", 16, 34, 34));
+                            v.Add(new Voltage("Voltage #18", 17, 0, 1)); // VIN10
 
                             // Temperatures
                             t.Add(new Temperature("CPU Socket", 0)); // CPUTIN
