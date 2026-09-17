@@ -27,7 +27,7 @@ namespace ZenStates.Core.Hardware.Mock
     /// </remarks>
     public sealed class MockSystemData
     {
-        /// <summary>Mocked CPU identity info (family, codename, package/smu type), as consumed by APOB profile resolution.</summary>
+        /// <summary>Mocked CPU identity info (family, codename, package/smu type, core and thread counts), as consumed by APOB profile resolution.</summary>
         public CPUInfo CpuInfo { get; private set; }
 
         /// <summary>DRAM type. Read from an explicit "MemType:" line when present (new reports), otherwise inferred (see <see cref="ParseMemType"/>).</summary>
@@ -54,6 +54,9 @@ namespace ZenStates.Core.Hardware.Mock
         public string BiosVersion { get; private set; }
         public string AgesaVersion { get; private set; }
         public string SmuVersion { get; private set; }
+
+        /// <summary>Version of the ZenTimings build that wrote the report, e.g. "140.557+558e9cb". Null when its header line is missing.</summary>
+        public string ReportVersion { get; private set; }
 
         /// <summary>Non-fatal problems hit while parsing, e.g. sections that couldn't be located. Empty on a clean parse.</summary>
         public List<string> Warnings { get; } = new List<string>();
@@ -82,6 +85,11 @@ namespace ZenStates.Core.Hardware.Mock
                 smuType = ApobTable.ParseSmuType(text),
                 cpuName = ApobTable.ParseLabelValue(text, "CpuName:")?.Replace('_', ' '),
                 vendor = ApobTable.ParseLabelValue(text, "Vendor:"),
+                topology = new CpuTopology
+                {
+                    cores = ParseUInt(ApobTable.ParseLabelValue(text, "FusedCoreCount:")),
+                    logicalCores = ParseUInt(ApobTable.ParseLabelValue(text, "Threads:")),
+                },
             };
 
             data.CpuName = ParseCpuNameLine(text) ?? data.CpuInfo.cpuName;
@@ -90,6 +98,7 @@ namespace ZenStates.Core.Hardware.Mock
             data.BiosVersion = ApobTable.ParseLabelValue(text, "BiosVersion:");
             data.SmuVersion = ApobTable.ParseLabelValue(text, "SmuVersion:");
             data.AgesaVersion = ParseAgesaVersionLine(text);
+            data.ReportVersion = ParseReportVersion(text);
 
             // -- Memory type --
             data.MemoryType = ParseMemType(text);
@@ -105,14 +114,19 @@ namespace ZenStates.Core.Hardware.Mock
             data.TotalCapacity = new Capacity(totalBytes);
 
             // -- Timings --
-            uint dctOffset = data.Modules.Count > 0 ? data.Modules[0].DctOffset : 0;
-            BaseDramTimings timings = CreateTimingsInstance(data.MemoryType);
-            if (timings != null)
+            // Every module's channel is decoded from the register dump; a report without one falls back to
+            // the single channel its "Memory Config" section describes.
+            if (!ParseChannelTimings(text, data))
             {
-                if (!ParseTimings(text, timings))
-                    data.Warnings.Add("Could not locate a 'Memory Config' section in the debug report.");
+                uint dctOffset = data.Modules.Count > 0 ? data.Modules[0].DctOffset : 0;
+                BaseDramTimings timings = CreateTimingsInstance(data.MemoryType);
+                if (timings != null)
+                {
+                    if (!ParseTimings(text, timings))
+                        data.Warnings.Add("Could not locate a 'Memory Config' section in the debug report.");
 
-                data.Timings.Add(new KeyValuePair<uint, BaseDramTimings>(dctOffset, timings));
+                    data.Timings.Add(new KeyValuePair<uint, BaseDramTimings>(dctOffset, timings));
+                }
             }
 
             // -- APOB (delegates to the existing, already-shipped parser) --
@@ -132,6 +146,13 @@ namespace ZenStates.Core.Hardware.Mock
             // so this needs the rest of the line rather than the single-token ParseLabelValue.
             Match match = Regex.Match(text, @"^CpuName:[ \t]*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Multiline);
             return match.Success ? match.Groups[1].Value.TrimEnd() : null;
+        }
+
+        private static string ParseReportVersion(string text)
+        {
+            // "ZenTimings 140.557+558e9cb Debug Report"
+            Match match = Regex.Match(text, @"^\S+[ \t]+(\S+)[ \t]+Debug Report[ \t]*$", RegexOptions.Multiline);
+            return match.Success ? match.Groups[1].Value : null;
         }
 
         private static string ParseAgesaVersionLine(string text)
@@ -408,6 +429,61 @@ namespace ZenStates.Core.Hardware.Mock
             }
 
             timings[name] = value;
+        }
+
+        /// <summary>
+        /// Decodes every module's channel from the "Memory Channels Info" section, which dumps the whole UMC
+        /// block of each enabled channel. One entry per module in module order, as in MemoryConfig.Timings, so
+        /// indices match <see cref="Modules"/>. False, adding nothing, when a module's channel has no dump.
+        /// </summary>
+        private static bool ParseChannelTimings(string text, MockSystemData data)
+        {
+            Dictionary<uint, uint> registers = ParseRegisterDump(text);
+            var timingsPerModule = new List<KeyValuePair<uint, BaseDramTimings>>();
+
+            foreach (MemoryModule module in data.Modules)
+            {
+                BaseDramTimings timings = CreateTimingsInstance(data.MemoryType);
+                if (timings == null || !registers.ContainsKey(module.DctOffset | 0x50200))
+                    return false;
+
+                timings.ReadFromDump(registers, module.DctOffset);
+                timingsPerModule.Add(new KeyValuePair<uint, BaseDramTimings>(module.DctOffset, timings));
+            }
+
+            data.Timings.AddRange(timingsPerModule);
+            return timingsPerModule.Count > 0;
+        }
+
+        /// <summary>Address/value pairs of the "Memory Channels Info" section, e.g. "   0x00050200: 0x00000D10".</summary>
+        private static Dictionary<uint, uint> ParseRegisterDump(string text)
+        {
+            var registers = new Dictionary<uint, uint>();
+            string[] lines = text.Split('\n');
+
+            int start = FindSectionContentStart(lines, "Memory Channels Info");
+            if (start < 0)
+                return registers;
+
+            var pairRegex = new Regex(@"^\s*0x(?<address>[0-9A-Fa-f]{8}):\s*0x(?<value>[0-9A-Fa-f]{8})\s*$");
+            for (int i = start, end = FindNextHeadingLine(lines, start); i < end; i++)
+            {
+                Match m = pairRegex.Match(lines[i]);
+                if (m.Success)
+                    registers[ParseHex(m.Groups["address"].Value)] = ParseHex(m.Groups["value"].Value);
+            }
+
+            return registers;
+        }
+
+        private static uint ParseHex(string value)
+        {
+            return uint.Parse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+        }
+
+        private static uint ParseUInt(string value)
+        {
+            return uint.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint result) ? result : 0;
         }
 
         /// <summary>

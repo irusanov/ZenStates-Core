@@ -195,7 +195,7 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public override void Read(uint offset = 0)
         {
-            if (cpu.TryReadDwordNoLock(offset | 0x50200, out uint ratioReg))
+            if (TryReadRegister(offset | 0x50200, out uint ratioReg))
             {
                 Ratio = Utils.BitSlice(ratioReg, 15, 0) / 100.0f;
             }
@@ -203,10 +203,10 @@ namespace ZenStates.Core.Hardware.DRAM
 
             // TRFC
             // define as separate variables to avoid false-positives on virus scans
-            cpu.TryReadDwordNoLock(offset | 0x50260, out uint trfcTimings0);
-            cpu.TryReadDwordNoLock(offset | 0x50264, out uint trfcTimings1);
-            cpu.TryReadDwordNoLock(offset | 0x50268, out uint trfcTimings2);
-            cpu.TryReadDwordNoLock(offset | 0x5026C, out uint trfcTimings3);
+            TryReadRegister(offset | 0x50260, out uint trfcTimings0);
+            TryReadRegister(offset | 0x50264, out uint trfcTimings1);
+            TryReadRegister(offset | 0x50268, out uint trfcTimings2);
+            TryReadRegister(offset | 0x5026C, out uint trfcTimings3);
             uint trfcRegValue = 0;
 			bool trfcFound = false;
 
@@ -228,10 +228,10 @@ namespace ZenStates.Core.Hardware.DRAM
             }
 
             // TRFCsb
-            cpu.TryReadDwordNoLock(offset | 0x502c0, out uint trfcsbTimings0);
-            cpu.TryReadDwordNoLock(offset | 0x502c4, out uint trfcsbTimings1);
-            cpu.TryReadDwordNoLock(offset | 0x502c8, out uint trfcsbTimings2);
-            cpu.TryReadDwordNoLock(offset | 0x502cc, out uint trfcsbTimings3);
+            TryReadRegister(offset | 0x502c0, out uint trfcsbTimings0);
+            TryReadRegister(offset | 0x502c4, out uint trfcsbTimings1);
+            TryReadRegister(offset | 0x502c8, out uint trfcsbTimings2);
+            TryReadRegister(offset | 0x502cc, out uint trfcsbTimings3);
             ddr5Regs = new[] { trfcTimings0, trfcTimings1, trfcTimings2, trfcTimings3 };
 
             foreach (uint value in ddr5Regs)
@@ -243,13 +243,13 @@ namespace ZenStates.Core.Hardware.DRAM
                 }
             }
 
-            if (cpu.TryReadDwordNoLock(offset | 0x50284, out uint nitroReg))
+            if (TryReadRegister(offset | 0x50284, out uint nitroReg))
             {
                 Nitro = new NitroSettings(Utils.BitSlice(nitroReg, 11, 0));
             }
 
             // Refresh mode
-			if (cpu.TryReadDwordNoLock(offset | 0x5012C, out uint refreshModeValue))
+			if (TryReadRegister(offset | 0x5012C, out uint refreshModeValue))
             {
             	FGR = Utils.BitSlice(refreshModeValue, 18, 16);
 	            //var allBankRefresh = Utils.GetBit(refreshModeValue, 19);
