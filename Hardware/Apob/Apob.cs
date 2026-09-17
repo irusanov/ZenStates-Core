@@ -407,7 +407,8 @@ namespace ZenStates.Core.Hardware.Apob
                 smuType = ParseSmuType(text)
             };
 
-            Apob apob = new Apob(mockCpuInfo, ApobProfiles.Resolve(mockCpuInfo));
+            var profile = ApobProfiles.Resolve(mockCpuInfo);
+            Apob apob = new Apob(mockCpuInfo, profile);
 
             byte[] rawHeaderBytes = ParseRawSection(text, "-- Raw Header");
             byte[] rawDataBytes = ParseRawSection(text, "-- Raw Data");
@@ -465,7 +466,7 @@ namespace ZenStates.Core.Hardware.Apob
             apob.ExtendedDataSize = extendedDataSize;
             apob.ConfigOffsets = ParseConfigOffsets(text);
 
-            if (apob.IsValid)
+            if (profile != null)
             {
                 apob.ParseDataBlocks();
                 apob.TryGetCcdlBlock();
