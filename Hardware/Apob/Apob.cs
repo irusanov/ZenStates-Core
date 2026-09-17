@@ -44,6 +44,11 @@ namespace ZenStates.Core.Hardware.Apob
         /// <summary>Gets a value indicating whether a valid APOB was located in physical memory.</summary>
         public bool IsAvailable { get { return Address != 0; } }
 
+        /// <summary>
+        /// Indicates whether the APOB was successfully read and parsed, and contains at least one valid data block.
+        /// </summary>
+        public bool IsValid { get { return IsAvailable && (Data != null || ExtendedData != null); } }
+
         /// <summary>Human-readable reason why APOB initialisation failed, or <c>null</c> on success.</summary>
         public string ErrorReason { get; private set; }
 
@@ -95,6 +100,7 @@ namespace ZenStates.Core.Hardware.Apob
             }
 
             _cpuInfo = cpuInfo;
+            // Might be not defined, but we still need to get raw data
             _profile = ApobProfiles.Resolve(_cpuInfo);
 
             Address = FindApobAddress();
@@ -132,6 +138,15 @@ namespace ZenStates.Core.Hardware.Apob
             }
 
             TryGetExtendedConfig();
+
+            // Abort if profile is not defined for this CPU family
+            if (_profile == null)
+            {
+                ErrorReason = string.Format("Unsupported CPU family ({0}) for APOB parsing; refusing to guess an offset layout.", cpuInfo.family);
+                Debug.WriteLine(ErrorReason);
+                return;
+            }
+
             TryGetCcdlBlock();
             ParseDataBlocks();
         }
@@ -241,7 +256,7 @@ namespace ZenStates.Core.Hardware.Apob
                 return false;
 
             uint secondSize = Utils.ReadUInt32(RawTable, secondOffset + ENTRY_SIZE_OFFSET);
-            if (secondSize < (uint)_profile.MainLayout.BlockSize)
+            if (_profile != null && secondSize < (uint)_profile?.MainLayout?.BlockSize)
                 return false;
 
             DataOffset = secondOffset;
@@ -266,7 +281,7 @@ namespace ZenStates.Core.Hardware.Apob
                     ExtendedDataOffset = offset;
                     ExtendedDataSize = Utils.ReadUInt32(RawTable, offset + ENTRY_SIZE_OFFSET);
 
-                    if (ExtendedDataSize < (uint)_profile.ExtendedLayout.BlockSize)
+                    if (_profile != null && ExtendedDataSize < (uint)_profile?.ExtendedLayout?.BlockSize)
                     {
                         ExtendedDataOffset = 0;
                         ExtendedDataSize = 0;
@@ -450,9 +465,11 @@ namespace ZenStates.Core.Hardware.Apob
             apob.ExtendedDataSize = extendedDataSize;
             apob.ConfigOffsets = ParseConfigOffsets(text);
 
-            // Reuse the exact same block-scanning logic used for real hardware.
-            apob.ParseDataBlocks();
-            apob.TryGetCcdlBlock();
+            if (apob.IsValid)
+            {
+                apob.ParseDataBlocks();
+                apob.TryGetCcdlBlock();
+            }
 
             return apob;
         }

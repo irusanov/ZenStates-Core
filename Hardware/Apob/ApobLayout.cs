@@ -472,8 +472,8 @@ namespace ZenStates.Core.Hardware.Apob
                 return Zen5DesktopProfile;
             }
 
-            // treat as default?
-            return Zen5DesktopProfile;
+			// Unsupported
+            return null;
         }
     }
 }

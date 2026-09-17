@@ -117,7 +117,7 @@ namespace ZenStates.Core.Hardware.Mock
 
             // -- APOB (delegates to the existing, already-shipped parser) --
             data.Apob = ApobTable.CreateFromDebugReport(debugReportText);
-            if (!data.Apob.IsAvailable)
+            if (String.IsNullOrEmpty(data?.Apob?.ErrorReason) == false)
                 data.Warnings.Add("APOB: " + data.Apob.ErrorReason);
 
             // -- Power table (FCLK/MCLK/UCLK/voltages) --
