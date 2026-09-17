@@ -17,12 +17,12 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public override void Read(uint offset = 0)
         {
-            Ratio = Utils.GetBits(cpu.ReadDwordNoLock(offset | 0x50200), 0, 7) / 3.0f;
+            Ratio = Utils.GetBits(ReadRegister(offset | 0x50200), 0, 7) / 3.0f;
 
             base.Read(offset);
 
-            uint trfcTimings0 = this.cpu.ReadDwordNoLock(offset | 0x50260);
-            uint trfcTimings1 = this.cpu.ReadDwordNoLock(offset | 0x50264);
+            uint trfcTimings0 = ReadRegister(offset | 0x50260);
+            uint trfcTimings1 = ReadRegister(offset | 0x50264);
             uint trfcRegValue = trfcTimings0 != trfcTimings1 ? (trfcTimings0 != 0x21060138 ? trfcTimings0 : trfcTimings1) : trfcTimings0;
 
             if (trfcRegValue != 0)
@@ -33,7 +33,7 @@ namespace ZenStates.Core.Hardware.DRAM
             }
 
             // Refresh mode
-            uint refreshModeValue = cpu.ReadDwordNoLock(offset | 0x5012C);
+            uint refreshModeValue = ReadRegister(offset | 0x5012C);
             FGR = Utils.BitSlice(refreshModeValue, 18, 16);
             //var allBankRefresh = Utils.GetBit(refreshModeValue, 19);
 

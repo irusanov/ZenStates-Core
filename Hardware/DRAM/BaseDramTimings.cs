@@ -55,9 +55,44 @@ namespace ZenStates.Core.Hardware.DRAM
         internal readonly Cpu cpu;
         internal Dictionary<uint, TimingDef[]> Dict { get; set; }
 
+        // Captured UMC registers to decode instead of the live controller, set only during ReadFromDump.
+        [NonSerialized]
+        private IDictionary<uint, uint> registerDump;
+
         public BaseDramTimings(Cpu cpuInstance)
         {
             cpu = cpuInstance;
+        }
+
+        /// <summary>
+        /// Decodes the channel at <paramref name="offset"/> from captured UMC registers, such as the dump in a
+        /// debug report, instead of the live controller.
+        /// </summary>
+        public void ReadFromDump(IDictionary<uint, uint> registers, uint offset = 0)
+        {
+            registerDump = registers;
+            try
+            {
+                Read(offset);
+            }
+            finally
+            {
+                registerDump = null;
+            }
+        }
+
+        protected bool TryReadRegister(uint address, out uint value)
+        {
+            if (registerDump != null)
+                return registerDump.TryGetValue(address, out value);
+
+            return cpu.TryReadDwordNoLock(address, out value);
+        }
+
+        protected uint ReadRegister(uint address)
+        {
+            uint value;
+            return TryReadRegister(address, out value) ? value : 0;
         }
 
         public object this[string propertyName]
@@ -112,10 +147,10 @@ namespace ZenStates.Core.Hardware.DRAM
         public virtual void ReadBankGroupSwap(uint offset = 0)
         {
             bool ok = true;
-            ok &= cpu.TryReadDwordNoLock(offset | 0x500D0, out uint bgsa0);
-            ok &= cpu.TryReadDwordNoLock(offset | 0x500D4, out uint bgsa1);
-            ok &= cpu.TryReadDwordNoLock(offset | 0x50050, out uint bgs0);
-            ok &= cpu.TryReadDwordNoLock(offset | 0x50058, out uint bgs1);
+            ok &= TryReadRegister(offset | 0x500D0, out uint bgsa0);
+            ok &= TryReadRegister(offset | 0x500D4, out uint bgsa1);
+            ok &= TryReadRegister(offset | 0x50050, out uint bgs0);
+            ok &= TryReadRegister(offset | 0x50058, out uint bgs1);
 
             if (!ok)
             {
@@ -136,7 +171,7 @@ namespace ZenStates.Core.Hardware.DRAM
                 {
                     if (this[def.Name] != null)
                     {
-                        if (cpu.TryReadDwordNoLock(offset | entry.Key, out uint data))
+                        if (TryReadRegister(offset | entry.Key, out uint data))
                         {
                         	this[def.Name] = Utils.BitSlice(data, def.HiBit, def.LoBit);
                     	}
