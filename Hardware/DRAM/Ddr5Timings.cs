@@ -207,10 +207,11 @@ namespace ZenStates.Core.Hardware.DRAM
             TryReadRegister(offset | 0x50264, out uint trfcTimings1);
             TryReadRegister(offset | 0x50268, out uint trfcTimings2);
             TryReadRegister(offset | 0x5026C, out uint trfcTimings3);
+
             uint trfcRegValue = 0;
 			bool trfcFound = false;
-
             uint[] ddr5Regs = new[] { trfcTimings0, trfcTimings1, trfcTimings2, trfcTimings3 };
+
             foreach (uint reg in ddr5Regs)
             {
                 if (reg > 0 && reg != 0x00C00138)
@@ -228,11 +229,19 @@ namespace ZenStates.Core.Hardware.DRAM
             }
 
             // TRFCsb
+            // Failed read on any of these would result in a 0 value,
+            // so we can just read them all and take the first non-zero value
             TryReadRegister(offset | 0x502c0, out uint trfcsbTimings0);
             TryReadRegister(offset | 0x502c4, out uint trfcsbTimings1);
             TryReadRegister(offset | 0x502c8, out uint trfcsbTimings2);
             TryReadRegister(offset | 0x502cc, out uint trfcsbTimings3);
-            ddr5Regs = new[] { trfcTimings0, trfcTimings1, trfcTimings2, trfcTimings3 };
+
+            ddr5Regs = new[] { 
+                Utils.BitSlice(trfcsbTimings0, 10, 0),
+                Utils.BitSlice(trfcsbTimings1, 10, 0),
+                Utils.BitSlice(trfcsbTimings2, 10, 0),
+                Utils.BitSlice(trfcsbTimings3, 10, 0)
+            };
 
             foreach (uint value in ddr5Regs)
             {
