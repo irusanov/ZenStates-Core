@@ -124,21 +124,21 @@ namespace ZenStates.Core.Hardware
          */
         public bool SetBclk(double bclk)
         {
+            if (GetStrapStatus() != ClkGen.INTERNAL)
+                return false; // external clocking mode or error
+
             if (IsFam15)
             {
-                // Family 15h (Bristol Ridge / Carrizo)
-                // CGPLLConfig3 has a different bit shape here than the 16h layout used below:
-                // [9:0]=REFDIV, [21:10]=FBDIV (12 bits), [25:22]=FBDIV_Fraction (4 bits, tenths:
-                // 1h-9h => *0.1, 0h/Ah-Fh => 0). The 16h path's index/fraction offsets ([4:9]/[25:4]) and
-                // the XOR-based CalculateBclkIndex don't apply to this family's PLL at all.
-                if (GetStrapStatus() != ClkGen.INTERNAL)
-                    return false; // external clocking mode or error
-
                 if (bclk > 151)
                     bclk = 151;
                 else if (bclk < 96)
                     bclk = 96;
 
+                // Family 15h (Bristol Ridge / Carrizo)
+                // CGPLLConfig3 has a different bit shape here than the 16h layout used below:
+                // [9:0]=REFDIV, [21:10]=FBDIV (12 bits), [25:22]=FBDIV_Fraction (4 bits, tenths:
+                // 1h-9h => *0.1, 0h/Ah-Fh => 0). The 16h path's index/fraction offsets ([4:9]/[25:4]) and
+                // the XOR-based CalculateBclkIndex don't apply to this family's PLL at all.
                 if (!io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out uint cfg3))
                     return false;
 
@@ -214,12 +214,11 @@ namespace ZenStates.Core.Hardware
 
         public double? GetBclk()
         {
+            if (GetStrapStatus() != ClkGen.INTERNAL)
+                return null;
+
             if (IsFam15)
             {
-                // Family 15h (Bristol Ridge / Carrizo)
-                if (GetStrapStatus() != ClkGen.INTERNAL)
-                    return null;
-
                 if (!io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out uint cfg3))
                     return null;
 
