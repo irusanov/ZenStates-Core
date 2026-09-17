@@ -193,12 +193,16 @@ namespace ZenStates.Core.Hardware.DRAM
             }
         }
 
-        public override void Read(uint offset = 0)
+        public override void ReadRatio(uint offset = 0)
         {
             if (TryReadRegister(offset | 0x50200, out uint ratioReg))
             {
                 Ratio = Utils.BitSlice(ratioReg, 15, 0) / 100.0f;
             }
+        }
+
+        public override void Read(uint offset = 0)
+        {
             base.Read(offset);
 
             // TRFC

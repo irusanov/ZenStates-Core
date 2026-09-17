@@ -15,10 +15,16 @@ namespace ZenStates.Core.Hardware.DRAM
         public uint RFC4 { get; set; }
         public new float RFCns { get; private set; }
 
+        public override void ReadRatio(uint offset = 0)
+        {
+            if (TryReadRegister(offset | 0x50200, out uint ratioReg))
+            {
+                Ratio = Utils.GetBits(ratioReg, 0, 7) / 3.0f;
+            }
+        }
+
         public override void Read(uint offset = 0)
         {
-            Ratio = Utils.GetBits(ReadRegister(offset | 0x50200), 0, 7) / 3.0f;
-
             base.Read(offset);
 
             uint trfcTimings0 = ReadRegister(offset | 0x50260);

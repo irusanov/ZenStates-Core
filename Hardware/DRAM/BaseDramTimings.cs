@@ -144,6 +144,8 @@ namespace ZenStates.Core.Hardware.DRAM
             return GetType().GetProperty(propertyName);
         }
 
+        public abstract void ReadRatio(uint offset = 0);
+
         public virtual void ReadBankGroupSwap(uint offset = 0)
         {
             bool ok = true;
@@ -163,6 +165,7 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public virtual void Read(uint offset = 0)
         {
+            ReadRatio(offset);
             ReadBankGroupSwap(offset);
 
             foreach (KeyValuePair<uint, TimingDef[]> entry in Dict)
