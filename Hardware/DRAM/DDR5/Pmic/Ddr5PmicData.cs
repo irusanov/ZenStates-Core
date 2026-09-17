@@ -116,6 +116,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 
         // Current limiter settings (R0x20)
 
+		/// <summary>Raw R0x20 byte, undecoded.</summary>
+        public byte CurrentLimitRaw;
+
         /// <summary>SWA current limit in milliamps (R0x20 [7:6]).</summary>
         public int SwaCurrentLimitMa;
 
@@ -265,6 +268,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             }
 
             sb.AppendLine();
+            sb.AppendFormat("  Current limit (raw): 0x{0:X2}\n", CurrentLimitRaw);
             sb.AppendFormat("  SWA current limit  : {0} mA\n", SwaCurrentLimitMa);
             sb.AppendFormat("  SWA phase count    : {0}\n", SwaPhaseCount);
             sb.AppendFormat("  SWB current limit  : {0} mA\n", SwbCurrentLimitMa);

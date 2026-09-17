@@ -284,6 +284,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 
             // Current limiter
             byte clim = pd.RawRegisters[REG_CURRENT_LIMIT];
+            pd.CurrentLimitRaw = clim;
             pd.SwaCurrentLimitMa = Ddr5PmicDecoder.DecodeSwabCurrentLimit((clim >> 6) & 0x03);
             pd.SwbCurrentLimitMa = Ddr5PmicDecoder.DecodeSwabCurrentLimit((clim >> 2) & 0x03);
             pd.SwcCurrentLimitMa = Ddr5PmicDecoder.DecodeSwcCurrentLimit(clim & 0x03);

@@ -69,9 +69,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 
         internal static void ReadAllAdcVoltagesNoLock(SmbusDriverBase smbus, byte pmicAddr, Ddr5PmicData pd)
         {
+            bool success = ReadRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, out byte originalReg30);
 
-            ReadRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, out byte originalReg30);
-
+            // Do we need to still try reading ADC voltages when the first read fails?
             try
             {
                 int mv;
@@ -84,7 +84,8 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             }
             finally
             {
-                WriteRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, originalReg30);
+                if (success)
+                    WriteRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, originalReg30);
             }
         }
 
