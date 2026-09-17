@@ -282,53 +282,28 @@ namespace ZenStates.Core.Hardware.Motherboard
                     break;
 
                 case Chip.NCT610XD:
-                    switch (manufacturer)
-                    {
-                        case Manufacturer.Supermicro when model == Model.X11SWN_E:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+12V", 1, 94, 10.25f));
-                            v.Add(new Voltage("AVSB", 2, 34, 34));
-                            v.Add(new Voltage("3VCC", 3, 34, 34));
-                            v.Add(new Voltage("+5V", 4, 14, 8.2f));
-                            v.Add(new Voltage("VDIMM", 5));
-                            v.Add(new Voltage("3VSB", 6, 34, 34));
-                            v.Add(new Voltage("VBat", 7, 34, 34));
-                            t.Add(new Temperature("System", 1));
-                            t.Add(new Temperature("Peripheral", 2));
-                            t.Add(new Temperature("CPU Core", 4));
+                    v.Add(new Voltage("Vcore", 0));
+                    v.Add(new Voltage("Voltage #0", 1, true));
+                    v.Add(new Voltage("AVCC", 2, 34, 34));
+                    v.Add(new Voltage("+3.3V", 3, 34, 34));
+                    v.Add(new Voltage("Voltage #1", 4, true));
+                    v.Add(new Voltage("Voltage #2", 5, true));
+                    v.Add(new Voltage("Reserved", 6, true));
+                    v.Add(new Voltage("+3V Standby", 7, 34, 34));
+                    v.Add(new Voltage("CMOS Battery", 8, 34, 34));
+                    v.Add(new Voltage("Voltage #10", 9, true));
+                    t.Add(new Temperature("CPU Core", 0));
+                    t.Add(new Temperature("Auxiliary", 1));
+                    t.Add(new Temperature("System0", 2));
+                    t.Add(new Temperature("System1", 3));
+                    t.Add(new Temperature("System2", 4));
+                    t.Add(new Temperature("System3", 5));
 
-                            f.Add(new Fan("Fan #1", 1));
+                    for (int i = 0; i < superIO.Fans.Length; i++)
+                        f.Add(new Fan("Fan #" + (i + 1), i));
 
-                            c.Add(new Control("Fan #1", 1));
-
-                            break;
-
-                        default:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("Voltage #0", 1, true));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("Voltage #1", 4, true));
-                            v.Add(new Voltage("Voltage #2", 5, true));
-                            v.Add(new Voltage("Reserved", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("Voltage #10", 9, true));
-                            t.Add(new Temperature("CPU Core", 0));
-                            t.Add(new Temperature("Auxiliary", 1));
-                            t.Add(new Temperature("System0", 2));
-                            t.Add(new Temperature("System1", 3));
-                            t.Add(new Temperature("System2", 4));
-                            t.Add(new Temperature("System3", 5));
-
-                            for (int i = 0; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("Fan #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Controls.Length; i++)
-                                c.Add(new Control("Fan #" + (i + 1), i));
-
-                            break;
-                    }
+                    for (int i = 0; i < superIO.Controls.Length; i++)
+                        c.Add(new Control("Fan #" + (i + 1), i));
 
                     break;
 
@@ -353,25 +328,6 @@ namespace ZenStates.Core.Hardware.Motherboard
                 case Chip.NCT6687D:
                     switch (manufacturer)
                     {
-                        case Manufacturer.ASRock when model == Model.Z790_Taichi:
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Motherboard", 1));
-                            t.Add(new Temperature("MOS", 2));
-
-                            f.Add(new Fan("CPU Fan #1", 0));
-                            f.Add(new Fan("Chassis Fan #4", 1));
-                            f.Add(new Fan("CPU Fan #2", 2));
-                            f.Add(new Fan("Chassis Fan #2", 3));
-                            f.Add(new Fan("Chassis Fan #1", 4));
-                            f.Add(new Fan("MOS Fan #1", 5));
-
-                            c.Add(new Control("CPU Fan #1", 0));
-                            c.Add(new Control("Chassis Fan #4", 1));
-                            c.Add(new Control("CPU Fan #2", 2));
-                            c.Add(new Control("Chassis Fan #2", 3));
-                            c.Add(new Control("Chassis Fan #1", 4));
-                            c.Add(new Control("MOS Fan #1", 5));
-                            break;
                         case Manufacturer.ASRock when model == Model.X870E_TAICHI:
                             t.Add(new Temperature("CPU", 0));
                             t.Add(new Temperature("VRM MOS", 2));
@@ -384,6 +340,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             c.Add(new Control("Chassis Fan #3", 1)); // CHA_FAN3
                             c.Add(new Control("Chassis Fan #4", 2)); // CHA_FAN4
                             break;
+
                         case Manufacturer.ASRock when model == Model.B850I_LIGHTNING_WIFI:
                             v.Add(new Voltage("+12V", 0));
                             v.Add(new Voltage("+5V", 1));
@@ -407,6 +364,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             c.Add(new Control("AIO Pump", 1)); // AIO_PUMP
                             c.Add(new Control("Chassis Fan", 3)); // CHA_FAN1
                             break;
+
                         case Manufacturer.MSI when model == Model.B550A_PRO:
                             v.Add(new Voltage("+12V", 0));
                             v.Add(new Voltage("+5V", 1));
@@ -477,57 +435,6 @@ namespace ZenStates.Core.Hardware.Motherboard
                             c.Add(new Control("System Fan #1", 2));
                             c.Add(new Control("System Fan #2", 3));
                             c.Add(new Control("System Fan #3", 4));
-
-                            break;
-
-                        case Manufacturer.MSI when model == Model.Z790_GODLIKE_MAX: // NCT6687D
-                            v.Add(new Voltage("+12V", 0));
-                            v.Add(new Voltage("+5V", 1));
-                            v.Add(new Voltage("Vcore", 2));
-                            v.Add(new Voltage("Voltage #1", 3));
-                            v.Add(new Voltage("VDIMM", 4));
-                            v.Add(new Voltage("CPU I/O", 5));
-                            v.Add(new Voltage("CPU SA", 6));
-                            v.Add(new Voltage("Voltage #2", 7));
-                            v.Add(new Voltage("AVCC3", 8));
-                            v.Add(new Voltage("CPU Termination", 9));
-                            v.Add(new Voltage("VRef", 10));
-                            v.Add(new Voltage("VSB", 11));
-                            v.Add(new Voltage("AVSB", 12));
-                            v.Add(new Voltage("CMOS Battery", 13));
-
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("System", 1));
-                            t.Add(new Temperature("VRM MOS", 2));
-                            t.Add(new Temperature("PCH", 3));
-                            t.Add(new Temperature("CPU Socket", 4));
-                            t.Add(new Temperature("T_SEN 1", 5));
-                            t.Add(new Temperature("T_SEN 2", 6));
-                            t.Add(new Temperature("PCIe #1", 7));
-                            t.Add(new Temperature("PCIe #2", 8));
-                            t.Add(new Temperature("M2 #1", 9));
-                            t.Add(new Temperature("M2 #4", 10));
-
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("Pump Fan #1", 1));
-                            f.Add(new Fan("Pump Fan #2", 8));
-                            f.Add(new Fan("System Fan #1", 2));
-                            f.Add(new Fan("System Fan #2", 3));
-                            f.Add(new Fan("System Fan #3", 4));
-                            f.Add(new Fan("System Fan #4", 5));
-                            f.Add(new Fan("System Fan #5", 6));
-                            f.Add(new Fan("System Fan #6", 7));
-                            f.Add(new Fan("System Fan #7", 16));
-                            f.Add(new Fan("EZ-Connect Fan", 9));
-
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("Pump Fan #1", 1));
-                            c.Add(new Control("System Fan #1", 2));
-                            c.Add(new Control("System Fan #2", 3));
-                            c.Add(new Control("System Fan #3", 4));
-                            c.Add(new Control("System Fan #4", 5));
-                            c.Add(new Control("System Fan #5", 6));
-                            c.Add(new Control("System Fan #6", 7));
 
                             break;
 
@@ -681,55 +588,6 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                             break;
 
-                        case Model.Z890_CARBON_WIFI:
-                        case Model.Z890_TOMAHAWK_WIFI:
-                        case Model.Z890_ACE:
-                        case Model.Z890_UNIFY_X:
-                            v.Add(new Voltage("+12V", 0));
-                            v.Add(new Voltage("+5V", 1));
-                            v.Add(new Voltage("Vcore", 2));
-                            v.Add(new Voltage("VIN5", 3));
-                            v.Add(new Voltage("VDIMM", 4));
-                            v.Add(new Voltage("Chipset", 5));
-                            //v.Add(new Voltage("CPU SA", 6));
-                            v.Add(new Voltage("VIN7", 7));
-                            v.Add(new Voltage("+3.3V", 8));
-                            v.Add(new Voltage("VTT", 9));
-                            v.Add(new Voltage("+1.8V", 10));
-                            v.Add(new Voltage("+3V Standby", 11));
-                            v.Add(new Voltage("AVSB", 12));
-                            v.Add(new Voltage("CMOS Battery", 13));
-
-                            t.Add(new Temperature("CPU Socket", 4));
-                            t.Add(new Temperature("PCIe x1", 5));
-                            t.Add(new Temperature("M2 #1", 6));
-
-                            break;
-
-                        case Model.Z890_EDGE_TI_WIFI:
-                        case Model.Z890I_EDGE_TI_WIFI:
-                        case Model.Z890P_PRO_WIFI:
-                        case Model.Z890A_PRO_WIFI:
-                        case Model.Z890S_PRO_WIFI:
-                        case Model.Z890_GAMING_PLUS_WIFI:
-                        case Model.Z890S_PRO_WIFI_PROJECT_ZERO:
-                            v.Add(new Voltage("+12V", 0));
-                            v.Add(new Voltage("+5V", 1));
-                            v.Add(new Voltage("Vcore", 2));
-                            v.Add(new Voltage("VIN5", 3));
-                            v.Add(new Voltage("VDIMM", 4));
-                            v.Add(new Voltage("Chipset", 5));
-                            //v.Add(new Voltage("CPU SA", 6));
-                            v.Add(new Voltage("Unknown_3", 7));
-                            v.Add(new Voltage("+3.3V", 8));
-                            v.Add(new Voltage("VTT", 9));
-                            v.Add(new Voltage("+1.8V", 10));
-                            v.Add(new Voltage("+3V Standby", 11));
-                            v.Add(new Voltage("AVSB", 12));
-                            v.Add(new Voltage("CMOS Battery", 13));
-
-                            break;
-
                         default:
                             v.Add(new Voltage("+12V", 0));
                             v.Add(new Voltage("+5V", 1));
@@ -780,40 +638,6 @@ namespace ZenStates.Core.Hardware.Motherboard
                 case Manufacturer.ASUS:
                     switch (model)
                     {
-                        case Model.CROSSHAIR_III_FORMULA: // IT8720F
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("CPU", 0));
-
-                            for (int i = 0; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("Fan #" + (i + 1), i));
-
-                            break;
-
-                        case Model.M2N_SLI_Deluxe:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+3.3V", 1));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("+12V", 4, 30, 10));
-                            v.Add(new Voltage("+5VSB", 7, 6.8f, 10));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Motherboard", 1));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("Chassis Fan #1", 1));
-                            f.Add(new Fan("Power Fan", 2));
-
-                            break;
-
-                        case Model.M4A79XTD_EVO: // IT8720F
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Motherboard", 1));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("Chassis Fan #1", 1));
-                            f.Add(new Fan("Chassis Fan #2", 2));
-
-                            break;
 
                         default:
                             v.Add(new Voltage("Vcore", 0));
@@ -863,299 +687,10 @@ namespace ZenStates.Core.Hardware.Motherboard
                     }
 
                     break;
-                case Manufacturer.DFI:
-                    switch (model)
-                    {
-                        case Model.LP_BI_P45_T2RS_Elite: // IT8718F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("CPU Termination", 1));
-                            v.Add(new Voltage("+3.3V", 2));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("+12V", 4, 30, 10));
-                            v.Add(new Voltage("NB Core", 5));
-                            v.Add(new Voltage("VDIMM", 6));
-                            v.Add(new Voltage("+5VSB", 7, 6.8f, 10));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("System", 1));
-                            t.Add(new Temperature("Chipset", 2));
-                            f.Add(new Fan("Fan #1", 0));
-                            f.Add(new Fan("Fan #2", 1));
-                            f.Add(new Fan("Fan #3", 2));
 
-                            break;
-
-                        case Model.LP_DK_P55_T3EH9: // IT8720F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("CPU Termination", 1));
-                            v.Add(new Voltage("+3.3V", 2));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("+12V", 4, 30, 10));
-                            v.Add(new Voltage("PLL", 5));
-                            v.Add(new Voltage("VDIMM", 6));
-                            v.Add(new Voltage("+5VSB", 7, 6.8f, 10));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("Chipset", 0));
-                            t.Add(new Temperature("CPU PWM", 1));
-                            t.Add(new Temperature("CPU", 2));
-                            f.Add(new Fan("Fan #1", 0));
-                            f.Add(new Fan("Fan #2", 1));
-                            f.Add(new Fan("Fan #3", 2));
-
-                            break;
-
-                        default:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("CPU Termination", 1, true));
-                            v.Add(new Voltage("+3.3V", 2, true));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10, 0, true));
-                            v.Add(new Voltage("+12V", 4, 30, 10, 0, true));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("VDIMM", 6, true));
-                            v.Add(new Voltage("+5VSB", 7, 6.8f, 10, 0, true));
-                            v.Add(new Voltage("CMOS Battery", 8));
-
-                            for (int i = 0; i < superIO.Temperatures.Length; i++)
-                                t.Add(new Temperature("Temperature #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("Fan #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Controls.Length; i++)
-                                c.Add(new Control("Fan #" + (i + 1), i));
-
-                            break;
-                    }
-
-                    break;
                 case Manufacturer.Gigabyte:
                     switch (model)
                     {
-                        case Model._965P_S3: // IT8718F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("+3.3V", 2));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("+12V", 7, 24.3f, 8.2f));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan", 1));
-
-                            break;
-
-                        case Model.EP45_DS3R: // IT8718F
-                        case Model.EP45_UD3R:
-                        case Model.X38_DS5:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("+3.3V", 2));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("+12V", 7, 24.3f, 8.2f));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #2", 1));
-                            f.Add(new Fan("Power Fan", 2));
-                            f.Add(new Fan("System Fan #1", 3));
-
-                            break;
-
-                        case Model.EX58_EXTREME: // IT8720F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            t.Add(new Temperature("Northbridge", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #2", 1));
-                            f.Add(new Fan("Power Fan", 2));
-                            f.Add(new Fan("System Fan #1", 3));
-
-                            break;
-
-                        case Model.P35_DS3: // IT8718F
-                        case Model.P35_DS3L: // IT8718F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("+3.3V", 2));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("+12V", 7, 24.3f, 8.2f));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("Power Fan", 3));
-
-                            break;
-
-                        case Model.P55_UD4: // IT8720F
-                        case Model.P55A_UD3: // IT8720F
-                        case Model.P55M_UD4: // IT8720F
-                        case Model.H55_USB3: // IT8720F
-                        case Model.EX58_UD3R: // IT8720F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("+3.3V", 2));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("+12V", 5, 24.3f, 8.2f));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #2", 1));
-                            f.Add(new Fan("Power Fan", 2));
-                            f.Add(new Fan("System Fan #1", 3));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan #2", 1));
-
-                            break;
-
-                        case Model.H55N_USB3: // IT8720F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("+3.3V", 2));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("+12V", 5, 24.3f, 8.2f));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan", 1));
-
-                            break;
-
-                        case Model.G41M_COMBO: // IT8718F
-                        case Model.G41MT_S2: // IT8718F
-                        case Model.G41MT_S2P: // IT8718F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("+3.3V", 2));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("+12V", 7, 24.3f, 8.2f));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("CPU", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan", 1));
-
-                            break;
-
-                        case Model._970A_UD3: // IT8720F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("+3.3V", 2));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("+12V", 4, 24.3f, 8.2f));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("Power Fan", 4));
-                            c.Add(new Control("PWM #1", 0));
-                            c.Add(new Control("PWM #2", 1));
-                            c.Add(new Control("PWM #3", 2));
-
-                            break;
-
-                        case Model.MA770T_UD3: // IT8720F
-                        case Model.MA770T_UD3P: // IT8720F
-                        case Model.MA790X_UD3P: // IT8720F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("+3.3V", 2));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("+12V", 4, 24.3f, 8.2f));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("Power Fan", 3));
-
-                            break;
-
-                        case Model.MA78LM_S2H: // IT8718F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("+3.3V", 2));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("+12V", 4, 24.3f, 8.2f));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            t.Add(new Temperature("VRM", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("Power Fan", 3));
-
-                            break;
-
-                        case Model.MA790X_DS4: // IT8718F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("+3.3V", 2));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("+12V", 4, 24.3f, 8.2f));
-                            v.Add(new Voltage("VBat", 8));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("Power Fan", 4));
-                            //Depending on the active mode of the processor fan (DC or PWM fan), only the corresponding one should be used.
-                            //The incorrect one will always read and act as "100%" when it's in his "default" states, but it can be set and reset to "default".
-                            //It's possible to control both at the same time, but this will have wierd or no effect.
-                            c.Add(new Control("CPU Fan DC Control", 0));
-                            c.Add(new Control("CPU Fan PWM Control", 2));
-
-                            c.Add(new Control("System Fan #1 Control", 1));//DC mode only
-
-                            break;
-
-                        case Model.MA785GM_US2H: // IT8718F
-                        case Model.MA785GMT_UD2H: // IT8718F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("+3.3V", 2));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("+12V", 4, 24.3f, 8.2f));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan", 1));
-                            f.Add(new Fan("Northbridge Fan", 2));
-
-                            break;
-
-                        case Model.X58A_UD3R: // IT8720F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("+3.3V", 2));
-                            v.Add(new Voltage("+5V", 3, 6.8f, 10));
-                            v.Add(new Voltage("+12V", 5, 24.3f, 8.2f));
-                            v.Add(new Voltage("CMOS Battery", 8));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            t.Add(new Temperature("Northbridge", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #2", 1));
-                            f.Add(new Fan("Power Fan", 2));
-                            f.Add(new Fan("System Fan #1", 3));
-
-                            break;
-
                         default:
                             v.Add(new Voltage("Vcore", 0));
                             v.Add(new Voltage("VDIMM", 1));
@@ -1388,205 +923,14 @@ namespace ZenStates.Core.Hardware.Motherboard
                     }
 
                     break;
-                case Manufacturer.ECS:
-                    switch (model)
-                    {
-                        case Model.A890GXM_A: // IT8721F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("Northbridge", 2));
-                            v.Add(new Voltage("AVCC", 3, 10, 10));
-                            // v.Add(new Voltage("VDIMM", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("System", 1));
-                            t.Add(new Temperature("Northbridge", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan", 1));
-                            f.Add(new Fan("Power Fan", 2));
 
-                            break;
-
-                        default:
-                            v.Add(new Voltage("Voltage #1", 0, true));
-                            v.Add(new Voltage("Voltage #2", 1, true));
-                            v.Add(new Voltage("Voltage #3", 2, true));
-                            v.Add(new Voltage("AVCC", 3, 10, 10, 0, true));
-                            v.Add(new Voltage("Voltage #5", 4, true));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10, 0, true));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-
-                            for (int i = 0; i < superIO.Temperatures.Length; i++)
-                                t.Add(new Temperature("Temperature #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("Fan #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Controls.Length; i++)
-                                c.Add(new Control("Fan #" + (i + 1), i));
-
-                            break;
-                    }
-
-                    break;
                 case Manufacturer.Gigabyte:
                     switch (model)
                     {
-                        case Model.H61M_DS2_REV_1_2: // IT8728F
-                        case Model.H61M_USB3_B3_REV_2_0: // IT8728F
-                            v.Add(new Voltage("CPU Termination", 0));
-                            v.Add(new Voltage("+12V", 2, 30.9f, 10));
-                            v.Add(new Voltage("Vcore", 5));
-                            v.Add(new Voltage("VDIMM", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan", 1));
-
-                            break;
-
-                        case Model.H67A_UD3H_B3: // IT8728F
-                        case Model.H67A_USB3_B3: // IT8728F
-                            v.Add(new Voltage("CPU Termination", 0));
-                            v.Add(new Voltage("+5V", 1, 15, 10));
-                            v.Add(new Voltage("+12V", 2, 30.9f, 10));
-                            v.Add(new Voltage("Vcore", 5));
-                            v.Add(new Voltage("VDIMM", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("Power Fan", 2));
-                            f.Add(new Fan("System Fan #2", 3));
-
-                            break;
-
-                        case Model.B75M_D3H: // IT8728F
-                            v.Add(new Voltage("CPU Termination", 0));
-                            v.Add(new Voltage("+3.3V", 1, 6.49f, 10));
-                            v.Add(new Voltage("+5V", 3, 15, 10));
-                            v.Add(new Voltage("+12V", 2, 10, 2));
-                            v.Add(new Voltage("iGPU VAXG", 4));
-                            v.Add(new Voltage("Vcore", 5));
-                            v.Add(new Voltage("VDIMM", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan", 1));
-                            c.Add(new Control("CPU Fan", 2));
-                            c.Add(new Control("System Fan", 1));
-
-                            break;
-
-                        case Model._970A_DS3P: // IT8620E
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("+12V", 2, 5, 1));
-                            v.Add(new Voltage("+5V", 3, 1.5f, 1));
-                            v.Add(new Voltage("+3.3V", 4, 6.5f, 10));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU Package", 1));
-                            t.Add(new Temperature("CPU Cores", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("Power Fan", 4));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan #1", 1));
-                            c.Add(new Control("System Fan #2", 2));
-
-                            break;
-
-                        case Model.H81M_HD3: //IT8620E
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+3.3V", 1, 6.5f, 10));
-                            v.Add(new Voltage("+12V", 2, 5, 1));
-                            v.Add(new Voltage("+5V", 3, 1.5f, 1));
-                            v.Add(new Voltage("iGPU", 4));
-                            v.Add(new Voltage("CPU Input Auxiliary", 5));
-                            v.Add(new Voltage("VDIMM", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            t.Add(new Temperature("CPU", 2));
-                            t.Add(new Temperature("System", 0));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan", 1));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan", 1));
-
-                            break;
-
-                        case Model.H97_D3H: //IT8620E
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+3.3V", 1, 6.5f, 10));
-                            v.Add(new Voltage("+12V", 2, 5, 1));
-                            v.Add(new Voltage("+5V", 3, 1.5f, 1));
-                            v.Add(new Voltage("iGPU", 4));
-                            v.Add(new Voltage("CPU Input Auxiliary", 5));
-                            v.Add(new Voltage("VDIMM", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-
-                            t.Add(new Temperature("CPU", 2));
-                            t.Add(new Temperature("System", 0));
-
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("CPU Optional Fan", 1));
-                            f.Add(new Fan("System Fan #1", 4));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("System Fan #3", 3));
-
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("CPU Optional Fan", 1));
-                            c.Add(new Control("System Fan #1", 4));
-                            c.Add(new Control("System Fan #2", 2));
-                            c.Add(new Control("System Fan #3", 3));
-
-                            break;
-
-                        case Model.Z170N_WIFI: // ITE IT8628E
-                            v.Add(new Voltage("Vcore", 0, 0, 1));
-                            v.Add(new Voltage("+3.3V", 1, 6.5F, 10));
-                            v.Add(new Voltage("+12V", 2, 5, 1));
-                            v.Add(new Voltage("+5V", 3, 1.5F, 1));
-                            // NO DIMM C/D channels on this motherboard; gives a very tiny voltage reading
-                            // v.Add(new Voltage("DIMM C/D", 4, 0, 1));
-                            v.Add(new Voltage("iGPU VAXG", 5, 0, 1));
-                            v.Add(new Voltage("DIMM A/B", 6, 0, 1));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            v.Add(new Voltage("AVCC3", 9, 54, 10));
-
-                            t.Add(new Temperature("System #1", 0));
-                            t.Add(new Temperature("PCH", 1));
-                            t.Add(new Temperature("CPU", 2));
-                            t.Add(new Temperature("PCIe x16", 3));
-                            t.Add(new Temperature("VRM", 4));
-                            t.Add(new Temperature("System #2", 5));
-
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan", 1));
-
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan", 1));
-
-                            break;
-
                         case Model.AX370_Gaming_K7: // IT8686E
                         case Model.AX370_Gaming_5:
                         case Model.AB350_Gaming_3: // IT8686E
-                                                   // Note: v3.3, v12, v5, and AVCC3 might be slightly off.
+                            // Note: v3.3, v12, v5, and AVCC3 might be slightly off.
                             v.Add(new Voltage("Vcore", 0));
                             v.Add(new Voltage("+3.3V", 1, 0.65f, 1));
                             v.Add(new Voltage("+12V", 2, 5, 1));
@@ -1602,31 +946,6 @@ namespace ZenStates.Core.Hardware.Motherboard
                             t.Add(new Temperature("CPU", 2));
                             t.Add(new Temperature("PCIe x16", 3));
                             t.Add(new Temperature("VRM MOS", 4));
-
-                            for (int i = 0; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("Fan #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Controls.Length; i++)
-                                c.Add(new Control("Fan #" + (i + 1), i));
-
-                            break;
-
-                        case Model.X399_AORUS_Gaming_7: // ITE IT8686E
-                            v.Add(new Voltage("Vcore", 0, 0, 1));
-                            v.Add(new Voltage("+3.3V", 1, 6.5F, 10));
-                            v.Add(new Voltage("+12V", 2, 5, 1));
-                            v.Add(new Voltage("+5V", 3, 1.5F, 1));
-                            v.Add(new Voltage("DIMM C/D", 4, 0, 1));
-                            v.Add(new Voltage("Vcore SoC", 5, 0, 1));
-                            v.Add(new Voltage("DIMM A/B", 6, 0, 1));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            v.Add(new Voltage("AVCC3", 9, 54, 10));
-                            t.Add(new Temperature("System #1", 0));
-                            t.Add(new Temperature("Chipset", 1));
-                            t.Add(new Temperature("CPU", 2));
-                            t.Add(new Temperature("PCIe x16", 3));
-                            t.Add(new Temperature("VRM", 4));
 
                             for (int i = 0; i < superIO.Fans.Length; i++)
                                 f.Add(new Fan("Fan #" + (i + 1), i));
@@ -1772,38 +1091,6 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                             break;
 
-                        case Model.B560M_AORUS_ELITE: // IT8689E
-                        case Model.B560M_AORUS_PRO:
-                        case Model.B560M_AORUS_PRO_AX:
-                        case Model.B560I_AORUS_PRO_AX:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+3.3V", 1, 29.4f, 45.3f));
-                            v.Add(new Voltage("+12V", 2, 10f, 2f));
-                            v.Add(new Voltage("+5V", 3, 15f, 10f));
-                            v.Add(new Voltage("iGPU VAGX", 4));
-                            v.Add(new Voltage("CPU SA", 5));
-                            v.Add(new Voltage("VDIMM", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 10f, 10f));
-                            v.Add(new Voltage("CMOS Battery", 8, 10f, 10f));
-                            v.Add(new Voltage("AVCC3", 9, 59.9f, 9.8f));
-                            t.Add(new Temperature("System #1", 0));
-                            t.Add(new Temperature("PCH", 1));
-                            t.Add(new Temperature("CPU", 2));
-                            t.Add(new Temperature("PCIe x16", 3));
-                            t.Add(new Temperature("VRM MOS", 4));
-                            t.Add(new Temperature("System #2", 5));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("System Fan #3", 3));
-                            f.Add(new Fan("CPU Optional Fan", 4));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan #1", 1));
-                            c.Add(new Control("System Fan #2", 2));
-                            c.Add(new Control("System Fan #3", 3));
-                            c.Add(new Control("CPU Optional Fan", 4));
-
-                            break;
 
                         case Model.B650_EAGLE_AX: // IT8689E
                         case Model.B650_AORUS_ELITE: // IT8689E
@@ -1913,54 +1200,6 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                             break;
 
-                        case Model.B360M_H: // IT8686E
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+3.3V", 1, 29.4f, 45.3f));
-                            v.Add(new Voltage("+12V", 2, 10f, 2f));
-                            v.Add(new Voltage("+5V", 3, 15f, 10f));
-                            v.Add(new Voltage("VCCSA", 5));
-                            v.Add(new Voltage("DIMM A/B", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 1, 1));
-                            v.Add(new Voltage("CMOS Battery", 8, 1, 1));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("PCH", 1));
-                            t.Add(new Temperature("CPU", 2));
-                            t.Add(new Temperature("VRM MOS", 4));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan", 1));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan", 1));
-
-                            break;
-
-                        case Model.B360_AORUS_GAMING_3_WIFI_CF: // IT8688E
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+3.3V", 1, 29.4f, 45.3f));
-                            v.Add(new Voltage("+12V", 2, 10f, 2f));
-                            v.Add(new Voltage("+5V", 3, 15f, 10f));
-                            v.Add(new Voltage("CPU Vcore", 4, 0, 1));
-                            v.Add(new Voltage("CPU SA", 5, 0, 1));
-                            v.Add(new Voltage("DIMM A/B", 6, 0, 1));
-                            v.Add(new Voltage("+3V Standby", 7, 1, 1));
-                            v.Add(new Voltage("CMOS Battery", 8, 1, 1));
-                            t.Add(new Temperature("System #1", 0));
-                            t.Add(new Temperature("Sensor #1", 1));
-                            t.Add(new Temperature("CPU", 2));
-                            t.Add(new Temperature("PCIe x16", 3));
-                            t.Add(new Temperature("VRM MOS", 4));
-                            t.Add(new Temperature("PCH", 5));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("PCH Fan", 3));
-                            f.Add(new Fan("CPU Optional Fan", 4));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan #1", 1));
-                            c.Add(new Control("System Fan #2", 2));
-                            c.Add(new Control("PCH Fan", 3));
-                            c.Add(new Control("CPU Optional Fan", 4));
-
-                            break;
 
                         case Model.X570_AORUS_MASTER: // IT8688E
                         case Model.X570_AORUS_ULTRA:
@@ -2048,162 +1287,6 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                             break;
 
-                        case Model.Z390_M_GAMING: // IT8688E
-                        case Model.Z390_AORUS_ULTRA:
-                        case Model.Z390_UD:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+3.3V", 1, 6.49f, 10));
-                            v.Add(new Voltage("+12V", 2, 5f, 1));
-                            v.Add(new Voltage("+5V", 3, 1.5f, 1));
-                            v.Add(new Voltage("CPU VCCGT", 4));
-                            v.Add(new Voltage("CPU SA", 5));
-                            v.Add(new Voltage("VDDQ", 6));
-                            v.Add(new Voltage("DDRVTT", 7));
-                            v.Add(new Voltage("PCHCore", 8));
-                            v.Add(new Voltage("CPU VCCIO", 9));
-                            v.Add(new Voltage("DDRVPP", 10));
-                            t.Add(new Temperature("System #1", 0));
-                            t.Add(new Temperature("PCH", 1));
-                            t.Add(new Temperature("CPU", 2));
-                            t.Add(new Temperature("PCIe x16", 3));
-                            t.Add(new Temperature("VRM MOS", 4));
-                            t.Add(new Temperature("System #2", 5));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("System Fan #3", 3));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan #1", 1));
-                            c.Add(new Control("System Fan #2", 2));
-                            c.Add(new Control("System Fan #3", 3));
-
-                            break;
-
-                        case Model.Z390_AORUS_PRO:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+3.3V", 1, 6.49f, 10));
-                            v.Add(new Voltage("+12V", 2, 5f, 1));
-                            v.Add(new Voltage("+5V", 3, 1.5f, 1));
-                            v.Add(new Voltage("CPU VCCGT", 4));
-                            v.Add(new Voltage("CPU SA", 5));
-                            v.Add(new Voltage("DDR", 6));
-                            v.Add(new Voltage("Voltage #7", 7, true));
-                            v.Add(new Voltage("+3V Standby", 8, 1f, 1f, -0.312f));
-                            v.Add(new Voltage("CMOS Battery", 9, 6f, 1f, 0.01f));
-                            v.Add(new Voltage("AVCC3", 10, 6f, 1f, 0.048f));
-                            t.Add(new Temperature("System #1", 0));
-                            t.Add(new Temperature("PCH", 1));
-                            t.Add(new Temperature("CPU", 2));
-                            t.Add(new Temperature("PCIe x16", 3));
-                            t.Add(new Temperature("VRM MOS", 4));
-                            t.Add(new Temperature("Sensor #1/System #2", 5));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("System Fan #3", 3));
-                            f.Add(new Fan("CPU Optional Fan", 4));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan #1", 1));
-                            c.Add(new Control("System Fan #2", 2));
-                            c.Add(new Control("System Fan #3", 3));
-                            c.Add(new Control("CPU Optional Fan", 4));
-
-                            break;
-
-                        case Model.Z790_UD: // ITE IT8689E
-                        case Model.Z790_UD_AC: // ITE IT8689E
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+3.3V", 1, 6.49f, 10));
-                            v.Add(new Voltage("+12V", 2, 5f, 1));
-                            v.Add(new Voltage("+5V", 3, 1.5f, 1));
-                            v.Add(new Voltage("iGPU", 4));
-                            v.Add(new Voltage("CPU Input Auxiliary", 5));
-                            v.Add(new Voltage("Dual DDR5 5V", 6, 1.5f, 1));
-                            v.Add(new Voltage("+3V Standby", 7, 1, 1));
-                            v.Add(new Voltage("CMOS Battery", 8, 1, 1));
-                            v.Add(new Voltage("AVCC3", 9, true));
-                            t.Add(new Temperature("System #1", 0));
-                            t.Add(new Temperature("Chipset", 1));
-                            t.Add(new Temperature("CPU", 2));
-                            t.Add(new Temperature("PCIe x16", 3));
-                            t.Add(new Temperature("VRM MOS", 4));
-                            t.Add(new Temperature("System #2", 5));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("System Fan #3 / Pump", 3));
-                            f.Add(new Fan("CPU Optional Fan", 4));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan #1", 1));
-                            c.Add(new Control("System Fan #2", 2));
-                            c.Add(new Control("System Fan #3 / Pump", 3));
-                            c.Add(new Control("CPU Optional Fan", 4));
-                            break;
-
-                        case Model.Z790_GAMING_X: // ITE IT8689E
-                        case Model.Z790_GAMING_X_AX: // ITE IT8689E
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+3.3V", 1, 6.49f, 10));
-                            v.Add(new Voltage("+12V", 2, 5f, 1));
-                            v.Add(new Voltage("+5V", 3, 1.5f, 1));
-                            v.Add(new Voltage("iGPU", 4));
-                            v.Add(new Voltage("CPU Input Auxiliary", 5));
-                            v.Add(new Voltage("Dual DDR5 5V", 6, 1.5f, 1));
-                            v.Add(new Voltage("+3V Standby", 7, 1, 1));
-                            v.Add(new Voltage("CMOS Battery", 8, 1, 1));
-                            v.Add(new Voltage("AVCC3", 9, true));
-                            t.Add(new Temperature("System #1", 0));
-                            t.Add(new Temperature("Chipset", 1));
-                            t.Add(new Temperature("CPU", 2));
-                            t.Add(new Temperature("PCIe x16", 3));
-                            t.Add(new Temperature("VRM MOS", 4));
-                            t.Add(new Temperature("System #2", 5));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("System Fan #3", 3));
-                            f.Add(new Fan("System Fan #4 / Pump", 4));
-                            f.Add(new Fan("CPU Optional Fan", 5));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan #1", 1));
-                            c.Add(new Control("System Fan #2", 2));
-                            c.Add(new Control("System Fan #3", 3));
-                            c.Add(new Control("System Fan #4 / Pump", 4));
-                            c.Add(new Control("CPU Optional Fan", 5));
-                            break;
-
-                        case Model.Z790_AORUS_PRO_X: // ITE IT8689E
-                        case Model.Z690_AORUS_PRO:
-                        case Model.Z690_AORUS_ULTRA: // ITE IT8689E
-                        case Model.Z690_AORUS_MASTER: // ITE IT8689E
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+3.3V", 1, 6.49f, 10));
-                            v.Add(new Voltage("+12V", 2, 5f, 1));
-                            v.Add(new Voltage("+5V", 3, 1.5f, 1));
-                            v.Add(new Voltage("iGPU VAXG", 4));
-                            v.Add(new Voltage("CPU Input Auxiliary", 5));
-                            v.Add(new Voltage("Dual DDR5 5V", 6, 1.5f, 1));
-                            v.Add(new Voltage("+3V Standby", 7, 1f, 1f));
-                            v.Add(new Voltage("CMOS Battery", 8, 1f, 1f));
-                            v.Add(new Voltage("AVCC3", 9, true));
-                            t.Add(new Temperature("System #1", 0));
-                            t.Add(new Temperature("PCH", 1));
-                            t.Add(new Temperature("CPU", 2));
-                            t.Add(new Temperature("PCIe x16", 3));
-                            t.Add(new Temperature("VRM MOS", 4));
-                            t.Add(new Temperature("External #1", 5));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("System Fan #3 / Pump", 3));
-                            f.Add(new Fan("CPU Optional Fan", 4));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan #1", 1));
-                            c.Add(new Control("System Fan #2", 2));
-                            c.Add(new Control("System Fan #3 / Pump", 3));
-                            c.Add(new Control("CPU Optional Fan", 4));
-                            break;
-
                         case Model.X870_AORUS_ELITE_WIFI7: // ITE IT8696E
                         case Model.X870_AORUS_ELITE_WIFI7_ICE: // ITE IT8696E
                             v.Add(new Voltage("Vcore", 0));
@@ -2231,112 +1314,6 @@ namespace ZenStates.Core.Hardware.Motherboard
                             c.Add(new Control("System Fan #2", 2));
                             c.Add(new Control("System Fan #3", 3));
                             c.Add(new Control("CPU Optional Fan", 4));
-                            break;
-
-                        case Model.Z690_GAMING_X_DDR4:
-                            t.Add(new Temperature("System #1", 0));
-                            t.Add(new Temperature("PCH", 1));
-                            t.Add(new Temperature("CPU", 2));
-                            t.Add(new Temperature("PCIe x16", 3));
-                            t.Add(new Temperature("VRM MOS", 4));
-                            t.Add(new Temperature("System #2", 5));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("System Fan #3", 3));
-                            f.Add(new Fan("CPU Optional Fan", 4));
-                            f.Add(new Fan("System Fan #4 / Pump", 5));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan #1", 1));
-                            c.Add(new Control("System Fan #2", 2));
-                            c.Add(new Control("System Fan #3", 3));
-                            c.Add(new Control("CPU Optional Fan", 4));
-                            c.Add(new Control("System Fan #4 / Pump", 5));
-                            break;
-
-                        case Model.Z68A_D3H_B3: // IT8728F
-                            v.Add(new Voltage("CPU Termination", 0));
-                            v.Add(new Voltage("+3.3V", 1, 6.49f, 10));
-                            v.Add(new Voltage("+12V", 2, 30.9f, 10));
-                            v.Add(new Voltage("+5V", 3, 7.15f, 10));
-                            v.Add(new Voltage("Vcore", 5));
-                            v.Add(new Voltage("VDIMM", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("Power Fan", 2));
-                            f.Add(new Fan("System Fan #2", 3));
-
-                            break;
-
-                        case Model.P67A_UD3_B3: // IT8728F
-                        case Model.P67A_UD3R_B3: // IT8728F
-                        case Model.P67A_UD4_B3: // IT8728F
-                        case Model.Z68AP_D3: // IT8728F
-                        case Model.Z68X_UD3H_B3: // IT8728F
-                        case Model.Z68XP_UD3R: // IT8728F
-                            v.Add(new Voltage("CPU Termination", 0));
-                            v.Add(new Voltage("+3.3V", 1, 6.49f, 10));
-                            v.Add(new Voltage("+12V", 2, 30.9f, 10));
-                            v.Add(new Voltage("+5V", 3, 7.15f, 10));
-                            v.Add(new Voltage("Vcore", 5));
-                            v.Add(new Voltage("VDIMM", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #2", 1));
-                            f.Add(new Fan("Power Fan", 2));
-                            f.Add(new Fan("System Fan #1", 3));
-
-                            break;
-
-                        case Model.Z68X_UD7_B3: // IT8728F
-                            v.Add(new Voltage("CPU Termination", 0));
-                            v.Add(new Voltage("+3.3V", 1, 6.49f, 10));
-                            v.Add(new Voltage("+12V", 2, 30.9f, 10));
-                            v.Add(new Voltage("+5V", 3, 7.15f, 10));
-                            v.Add(new Voltage("Vcore", 5));
-                            v.Add(new Voltage("VDIMM", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            t.Add(new Temperature("System #3", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("Power Fan", 1));
-                            f.Add(new Fan("System Fan #1", 2));
-                            f.Add(new Fan("System Fan #2", 3));
-                            f.Add(new Fan("System Fan #3", 4));
-
-                            break;
-
-                        case Model.X79_UD3: // IT8728F
-                            v.Add(new Voltage("CPU Termination", 0));
-                            v.Add(new Voltage("DIMM A/B", 1));
-                            v.Add(new Voltage("+12V", 2, 10, 2));
-                            v.Add(new Voltage("+5V", 3, 15, 10));
-                            v.Add(new Voltage("VIN4", 4));
-                            v.Add(new Voltage("VCore", 5));
-                            v.Add(new Voltage("DIMM C/D", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 1, 1));
-                            v.Add(new Voltage("CMOS Battery", 8, 1, 1));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            t.Add(new Temperature("Northbridge", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("System Fan #3", 3));
-                            f.Add(new Fan("System Fan #4", 4));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan #1", 1));
-                            c.Add(new Control("System Fan #2", 2));
-
                             break;
 
                         case Model.B550_AORUS_MASTER:
@@ -2436,61 +1413,6 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                             break;
 
-                        case Model.B660_DS3H_DDR4:
-                        case Model.B660_DS3H_AC_DDR4:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+3.3V", 1, 6.5F, 10));
-                            v.Add(new Voltage("+12V", 2, 5, 1));
-                            v.Add(new Voltage("+5V", 3, 1.5F, 1));
-                            v.Add(new Voltage("iGPU", 4));
-                            v.Add(new Voltage("CPU Input Auxiliary", 5));
-                            v.Add(new Voltage("VDIMM", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            t.Add(new Temperature("System #1", 0));
-                            t.Add(new Temperature("Chipset", 1));
-                            t.Add(new Temperature("CPU", 2));
-                            t.Add(new Temperature("PCIe x16", 3));
-                            t.Add(new Temperature("VRM MOS", 4));
-                            t.Add(new Temperature("System #2", 5));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 1));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("System Fan #3 / Pump", 3));
-                            f.Add(new Fan("CPU Optional Fan", 4));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan #1", 1));
-                            c.Add(new Control("System Fan #2", 2));
-                            c.Add(new Control("System Fan #3 / Pump", 3));
-                            c.Add(new Control("CPU Optional Fan", 4));
-
-                            break;
-
-                        case Model.B660M_DS3H_AX_DDR4:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VAXG", 1));
-                            v.Add(new Voltage("CPU Input Auxiliary", 2));
-                            v.Add(new Voltage("DIMM A/B", 3));
-                            v.Add(new Voltage("+12V", 4));
-                            v.Add(new Voltage("+3.3V", 5));
-                            v.Add(new Voltage("+5V", 6));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("PCH", 1));
-                            t.Add(new Temperature("PCIe x16", 2));
-                            t.Add(new Temperature("System #1", 3));
-                            t.Add(new Temperature("System #2", 4));
-                            t.Add(new Temperature("VRAM MOS", 5));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("System Fan #1", 2));
-                            f.Add(new Fan("System Fan #2", 3));
-                            f.Add(new Fan("System Fan #3", 4));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("System Fan #1", 2));
-                            c.Add(new Control("System Fan #2", 3));
-                            c.Add(new Control("System Fan #3", 4));
-
-                            break;
-
                         case Model.X670E_AORUS_XTREME: // IT8689E
                         case Model.X870E_AORUS_PRO: // ITE IT8696E
                         case Model.X870E_AORUS_PRO_ICE: // ITE IT8696E
@@ -2582,19 +1504,19 @@ namespace ZenStates.Core.Hardware.Motherboard
                     switch (model)
                     {
                         case Model.B660GTN: //IT8613E
-                                            // This board has some problems with their app controlling fans that I was able to replicate here so I guess is a BIOS problem with the pins.
-                                            // Biostar is aware so expect changes in the control pins with new bios.
-                                            // In the meantime, it's possible to control CPUFAN and CPUOPT1m but not SYSFAN1.
-                                            // The parameters are extracted from the Biostar app config file.
+                            // This board has some problems with their app controlling fans that I was able to replicate here so I guess is a BIOS problem with the pins.
+                            // Biostar is aware so expect changes in the control pins with new bios.
+                            // In the meantime, it's possible to control CPUFAN and CPUOPT1m but not SYSFAN1.
+                            // The parameters are extracted from the Biostar app config file.
                             v.Add(new Voltage("Vcore", 0, 0, 1));
                             v.Add(new Voltage("VDIMM", 1, 0, 1));
                             v.Add(new Voltage("+12V", 2, 5, 1)); // Reads higher than it should.
                             v.Add(new Voltage("+5V", 3, 147, 100)); // Reads higher than it should.
-                                                                    // Commented because I don't know if it makes sense.
-                                                                    //v.Add(new Voltage("VCC ST", 4)); // Reads 4.2V.
-                                                                    //v.Add(new Voltage("CPU Input Auxiliary", 5)); // Reads 2.2V.
-                                                                    //v.Add(new Voltage("CPU GT", 6)); // Reads 2.6V.
-                                                                    //v.Add(new Voltage("+3V Standby", 7, 10, 10)); // Reads 5.8V ?
+                            // Commented because I don't know if it makes sense.
+                            //v.Add(new Voltage("VCC ST", 4)); // Reads 4.2V.
+                            //v.Add(new Voltage("CPU Input Auxiliary", 5)); // Reads 2.2V.
+                            //v.Add(new Voltage("CPU GT", 6)); // Reads 2.6V.
+                            //v.Add(new Voltage("+3V Standby", 7, 10, 10)); // Reads 5.8V ?
                             v.Add(new Voltage("CMOS Battery", 8, 10, 10)); // Reads higher than it should at 3.4V.
                             t.Add(new Temperature("System 1", 0));
                             t.Add(new Temperature("System 2", 1)); // Not sure what sensor is this.
@@ -2659,48 +1581,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                     }
 
                     break;
-                case Manufacturer.Shuttle:
-                    switch (model)
-                    {
-                        case Model.FH67: // IT8772E
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("VDIMM", 1));
-                            v.Add(new Voltage("PCH VCCIO", 2));
-                            v.Add(new Voltage("CPU VCCIO", 3));
-                            v.Add(new Voltage("Graphics", 4));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            t.Add(new Temperature("System", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            f.Add(new Fan("Fan #1", 0));
-                            f.Add(new Fan("CPU Fan", 1));
 
-                            break;
-
-                        default:
-                            v.Add(new Voltage("Voltage #1", 0, true));
-                            v.Add(new Voltage("Voltage #2", 1, true));
-                            v.Add(new Voltage("Voltage #3", 2, true));
-                            v.Add(new Voltage("Voltage #4", 3, true));
-                            v.Add(new Voltage("Voltage #5", 4, true));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10, 0, true));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-
-                            for (int i = 0; i < superIO.Temperatures.Length; i++)
-                                t.Add(new Temperature("Temperature #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("Fan #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Controls.Length; i++)
-                                c.Add(new Control("Fan #" + (i + 1), i));
-
-                            break;
-                    }
-
-                    break;
 
                 default:
                     v.Add(new Voltage("Voltage #1", 0, true));
@@ -2780,51 +1661,6 @@ namespace ZenStates.Core.Hardware.Motherboard
                             for (int i = 0; i < superIO.Controls.Length; i++)
                                 c.Add(new Control("Fan #" + (i + 1), i));
 
-                            break;
-
-                        case Model.Z390_AORUS_PRO: // IT879XE
-                            v.Add(new Voltage("VCore", 0));
-                            v.Add(new Voltage("DDRVTT AB", 1));
-                            v.Add(new Voltage("Chipset Core", 2));
-                            v.Add(new Voltage("VIN3", 3, true));
-                            v.Add(new Voltage("VCCIO", 4));
-                            v.Add(new Voltage("Voltage #7", 5, true));
-                            v.Add(new Voltage("DDR VPP", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 1f, 1f));
-                            v.Add(new Voltage("CMOS Battery", 8, 1f, 1f));
-                            t.Add(new Temperature("PCIe x8", 0));
-                            t.Add(new Temperature("External #2", 1));
-                            t.Add(new Temperature("System #2", 2));
-                            f.Add(new Fan("System Fan #5 / Pump", 0));
-                            f.Add(new Fan("System Fan #6 / Pump", 1));
-                            f.Add(new Fan("System Fan #4", 2));
-                            c.Add(new Control("System Fan #5 / Pump", 0));
-                            c.Add(new Control("System Fan #6 / Pump", 1));
-                            c.Add(new Control("System Fan #4", 2));
-
-                            break;
-
-                        case Model.Z790_AORUS_PRO_X: // ITE IT87952E
-                        case Model.Z690_AORUS_PRO:
-                        case Model.Z690_AORUS_MASTER: // ITE IT87952E
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("DIMM I/O", 1));
-                            v.Add(new Voltage("Chipset +0.82V", 2));
-                            v.Add(new Voltage("Voltage #4", 3, true));
-                            v.Add(new Voltage("CPU SA", 4));
-                            v.Add(new Voltage("Chipset +1.8V", 5));
-                            v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            t.Add(new Temperature("PCIe x4", 0));
-                            t.Add(new Temperature("External #2", 1));
-                            t.Add(new Temperature("System #2", 2));
-                            f.Add(new Fan("System Fan #5 / Pump", 0));
-                            f.Add(new Fan("System Fan #6 / Pump", 1));
-                            f.Add(new Fan("System Fan #4", 2));
-                            c.Add(new Control("System Fan #5 / Pump", 0));
-                            c.Add(new Control("System Fan #6 / Pump", 1));
-                            c.Add(new Control("System Fan #4", 2));
                             break;
 
                         case Model.X870E_AORUS_PRO:
@@ -2923,390 +1759,49 @@ namespace ZenStates.Core.Hardware.Motherboard
 
         private static void GetFintekConfiguration(ISuperIO superIO, Manufacturer manufacturer, Model model, IList<Voltage> v, IList<Temperature> t, IList<Fan> f, IList<Control> c)
         {
-            switch (manufacturer)
-            {
-                case Manufacturer.EVGA:
-                    switch (model)
-                    {
-                        case Model.X58_SLI_Classified: // F71882
-                            v.Add(new Voltage("VCC3V", 0, 150, 150));
-                            v.Add(new Voltage("Vcore", 1, 47, 100));
-                            v.Add(new Voltage("VDIMM", 2, 47, 100));
-                            v.Add(new Voltage("CPU Termination", 3, 24, 100));
-                            v.Add(new Voltage("IOH Vcore", 4, 24, 100));
-                            v.Add(new Voltage("+5V", 5, 51, 12));
-                            v.Add(new Voltage("+12V", 6, 56, 6.8f));
-                            v.Add(new Voltage("+3V Standby", 7, 150, 150));
-                            v.Add(new Voltage("CMOS Battery", 8, 150, 150));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("VREG", 1));
-                            t.Add(new Temperature("System", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("Power Fan", 1));
-                            f.Add(new Fan("Chassis Fan", 2));
+            v.Add(new Voltage("VCC3V", 0, 150, 150));
+            v.Add(new Voltage("Vcore", 1));
+            v.Add(new Voltage("Voltage #3", 2, true));
+            v.Add(new Voltage("Voltage #4", 3, true));
+            v.Add(new Voltage("Voltage #5", 4, true));
+            v.Add(new Voltage("Voltage #6", 5, true));
+            if (superIO.Chip != Chip.F71808E)
+                v.Add(new Voltage("Voltage #7", 6, true));
 
-                            break;
+            v.Add(new Voltage("VSB3V", 7, 150, 150));
+            v.Add(new Voltage("CMOS Battery", 8, 150, 150));
 
-                        case Model.X58_3X_SLI: // F71882
-                            v.Add(new Voltage("VCC3V", 0, 150, 150));
-                            v.Add(new Voltage("Vcore", 1, 47, 100));
-                            v.Add(new Voltage("VDIMM", 2, 47, 100));
-                            v.Add(new Voltage("CPU Termination", 3, 24, 100));
-                            v.Add(new Voltage("IOH Vcore", 4, 24, 100));
-                            v.Add(new Voltage("+5V", 5, 51, 12));
-                            v.Add(new Voltage("+12V", 6, 56, 6.8f));
-                            v.Add(new Voltage("+3V Standby", 7, 150, 150));
-                            v.Add(new Voltage("CMOS Battery", 8, 150, 150));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("VREG", 1));
-                            t.Add(new Temperature("System", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("Power Fan", 1));
-                            f.Add(new Fan("Chassis Fan", 2));
-                            f.Add(new Fan("Chipset Fan", 3));
-                            c.Add(new Control("CPU Fan", 0));
-                            c.Add(new Control("Power Fan", 1));
-                            c.Add(new Control("Chassis Fan", 2));
-                            c.Add(new Control("Chipset Fan", 3));
+            for (int i = 0; i < superIO.Temperatures.Length; i++)
+                t.Add(new Temperature("Temperature #" + (i + 1), i));
 
-                            break;
+            for (int i = 0; i < superIO.Fans.Length; i++)
+                f.Add(new Fan("Fan #" + (i + 1), i));
 
-                        default:
-                            v.Add(new Voltage("VCC3V", 0, 150, 150));
-                            v.Add(new Voltage("Vcore", 1));
-                            v.Add(new Voltage("Voltage #3", 2, true));
-                            v.Add(new Voltage("Voltage #4", 3, true));
-                            v.Add(new Voltage("Voltage #5", 4, true));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("VSB3V", 7, 150, 150));
-                            v.Add(new Voltage("CMOS Battery", 8, 150, 150));
-
-                            for (int i = 0; i < superIO.Temperatures.Length; i++)
-                                t.Add(new Temperature("Temperature #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("Fan #" + (i + 1), i));
-
-                            break;
-                    }
-
-                    break;
-                case Manufacturer.MSI:
-                    switch (model)
-                    {
-                        case Model.Z77_MS7751: // F71889AD
-                        case Model.Z68_MS7672: // F71889AD
-                            v.Add(new Voltage("VCC3V", 0, 150, 150));
-                            v.Add(new Voltage("Vcore", 1));
-                            v.Add(new Voltage("iGPU", 2));
-                            v.Add(new Voltage("+5V", 3, 20, 4.7f));
-                            v.Add(new Voltage("+12V", 4, 68, 6.8f));
-                            v.Add(new Voltage("VDIMM", 5, 150, 150));
-                            v.Add(new Voltage("CPU I/O", 6));
-                            v.Add(new Voltage("+3.3V", 7, 150, 150));
-                            v.Add(new Voltage("CMOS Battery", 8, 150, 150));
-
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Probe", 1));
-                            t.Add(new Temperature("System", 2));
-
-                            f.Add(new Fan("CPU Fan", 0));
-                            for (int i = 1; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("System Fan #" + i, i));
-
-                            c.Add(new Control("CPU Fan", 0));
-                            for (int i = 1; i < superIO.Controls.Length; i++)
-                                c.Add(new Control("System Fan #" + i, i));
-
-                            break;
-                        default:
-                            v.Add(new Voltage("VCC3V", 0, 150, 150));
-                            v.Add(new Voltage("Vcore", 1));
-                            v.Add(new Voltage("Voltage #3", 2, true));
-                            v.Add(new Voltage("Voltage #4", 3, true));
-                            v.Add(new Voltage("Voltage #5", 4, true));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-
-                            if (superIO.Chip != Chip.F71808E)
-                                v.Add(new Voltage("Voltage #7", 6, true));
-
-                            v.Add(new Voltage("VSB3V", 7, 150, 150));
-                            v.Add(new Voltage("CMOS Battery", 8, 150, 150));
-
-                            for (int i = 0; i < superIO.Temperatures.Length; i++)
-                                t.Add(new Temperature("Temperature #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("Fan #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Controls.Length; i++)
-                                c.Add(new Control("Fan Control #" + (i + 1), i));
-
-                            break;
-                    }
-
-                    break;
-
-                default:
-                    v.Add(new Voltage("VCC3V", 0, 150, 150));
-                    v.Add(new Voltage("Vcore", 1));
-                    v.Add(new Voltage("Voltage #3", 2, true));
-                    v.Add(new Voltage("Voltage #4", 3, true));
-                    v.Add(new Voltage("Voltage #5", 4, true));
-                    v.Add(new Voltage("Voltage #6", 5, true));
-                    if (superIO.Chip != Chip.F71808E)
-                        v.Add(new Voltage("Voltage #7", 6, true));
-
-                    v.Add(new Voltage("VSB3V", 7, 150, 150));
-                    v.Add(new Voltage("CMOS Battery", 8, 150, 150));
-
-                    for (int i = 0; i < superIO.Temperatures.Length; i++)
-                        t.Add(new Temperature("Temperature #" + (i + 1), i));
-
-                    for (int i = 0; i < superIO.Fans.Length; i++)
-                        f.Add(new Fan("Fan #" + (i + 1), i));
-
-                    for (int i = 0; i < superIO.Controls.Length; i++)
-                        c.Add(new Control("Fan #" + (i + 1), i));
-
-                    break;
-            }
+            for (int i = 0; i < superIO.Controls.Length; i++)
+                c.Add(new Control("Fan #" + (i + 1), i));
         }
 
         private static void GetNuvotonConfigurationF(ISuperIO superIO, Manufacturer manufacturer, Model model, IList<Voltage> v, IList<Temperature> t, IList<Fan> f, IList<Control> c)
         {
-            switch (manufacturer)
-            {
-                case Manufacturer.ASUS:
-                    switch (model)
-                    {
-                        case Model.P8P67: // NCT6776F
-                        case Model.P8P67_EVO: // NCT6776F
-                        case Model.P8P67_PRO: // NCT6776F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+12V", 1, 11, 1));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+5V", 4, 12, 3));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Auxiliary", 2));
-                            t.Add(new Temperature("Motherboard", 3));
-                            f.Add(new Fan("Chassis Fan #1", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("Power Fan", 2));
-                            f.Add(new Fan("Chassis Fan #2", 3));
-                            c.Add(new Control("Chassis Fan #2", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("Chassis Fan #1", 2));
+            v.Add(new Voltage("Vcore", 0));
+            v.Add(new Voltage("Voltage #2", 1, true));
+            v.Add(new Voltage("AVCC", 2, 34, 34));
+            v.Add(new Voltage("+3.3V", 3, 34, 34));
+            v.Add(new Voltage("Voltage #5", 4, true));
+            v.Add(new Voltage("Voltage #6", 5, true));
+            v.Add(new Voltage("Voltage #7", 6, true));
+            v.Add(new Voltage("+3V Standby", 7, 34, 34));
+            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
+            t.Add(new Temperature("CPU Core", 0));
+            t.Add(new Temperature("Temperature #1", 1));
+            t.Add(new Temperature("Temperature #2", 2));
+            t.Add(new Temperature("Temperature #3", 3));
 
-                            break;
+            for (int i = 0; i < superIO.Fans.Length; i++)
+                f.Add(new Fan("Fan #" + (i + 1), i));
 
-                        case Model.P8P67_M_PRO: // NCT6776F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+12V", 1, 11, 1));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+5V", 4, 12, 3));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Motherboard", 3));
-                            f.Add(new Fan("Chassis Fan #1", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("Chassis Fan #2", 2));
-                            f.Add(new Fan("Power Fan", 3));
-                            f.Add(new Fan("Auxiliary Fan", 4));
-
-                            break;
-
-                        case Model.P8Z68_V_PRO: // NCT6776F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+12V", 1, 11, 1));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+5V", 4, 12, 3));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Auxiliary", 2));
-                            t.Add(new Temperature("Motherboard", 3));
-
-                            for (int i = 0; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("Fan #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Controls.Length; i++)
-                                c.Add(new Control("Fan #" + (i + 1), i));
-
-                            break;
-
-                        case Model.P9X79: // NCT6776F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+12V", 1, 11, 1));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+5V", 4, 12, 3));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Motherboard", 3));
-
-                            for (int i = 0; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("Fan #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Controls.Length; i++)
-                                c.Add(new Control("Fan #" + (i + 1), i));
-
-                            break;
-
-                        default:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("Voltage #2", 1, true));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("Voltage #5", 4, true));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            t.Add(new Temperature("CPU Core", 0));
-                            t.Add(new Temperature("Temperature #1", 1));
-                            t.Add(new Temperature("Temperature #2", 2));
-                            t.Add(new Temperature("Temperature #3", 3));
-
-                            for (int i = 0; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("Fan #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Controls.Length; i++)
-                                c.Add(new Control("Fan #" + (i + 1), i));
-
-                            break;
-                    }
-
-                    break;
-                case Manufacturer.ASRock:
-                    switch (model)
-                    {
-                        case Model.H61M_DGS: // NCT6776F
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+12V", 1, 28, 5));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("#Voltage #5", 4, 0, 1, 0, true));
-                            v.Add(new Voltage("+5V", 5, 2, 1));
-                            v.Add(new Voltage("#Voltage #7", 6, 0, 1, 0, true));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            t.Add(new Temperature("CPU", 1));
-                            //t.Add(new Temperature("Auxiliary", 2)); // not in bios, duplicate motherboard temp
-                            t.Add(new Temperature("Motherboard", 3));
-                            f.Add(new Fan("Chassis Fan", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("Power Fan", 2));
-                            c.Add(new Control("Chassis Fan", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            //c.Add(new Control("Power Fan", 2)); // not in bios, always 100%
-
-                            break;
-                        case Model.B85M_DGS:
-                            {
-                                v.Add(new Voltage("Vcore", 0, 1, 1));
-                                v.Add(new Voltage("+12V", 1, 56, 10));
-                                v.Add(new Voltage("AVCC", 2, 34, 34));
-                                v.Add(new Voltage("+3.3V", 3, 34, 34));
-                                v.Add(new Voltage("VIN1", 4, true));
-                                v.Add(new Voltage("+5V", 5, 12, 3));
-                                v.Add(new Voltage("VIN3", 6, true));
-                                v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                                t.Add(new Temperature("CPU", 0));
-                                t.Add(new Temperature("Auxiliary", 2));
-                                t.Add(new Temperature("Motherboard", 3));
-                                f.Add(new Fan("Chassis Fan #1", 0));
-                                f.Add(new Fan("CPU Fan", 1));
-                                f.Add(new Fan("Power Fan", 2));
-                                f.Add(new Fan("Chassis Fan #2", 3));
-                                c.Add(new Control("Chassis Fan #2", 0));
-                                c.Add(new Control("CPU Fan", 1));
-                                c.Add(new Control("Chassis Fan #1", 2));
-                            }
-
-                            break;
-                        case Model.Z77Pro4M: //NCT6776F
-                            v.Add(new Voltage("Vcore", 0, 0, 1));
-                            v.Add(new Voltage("+12V", 1, 56, 10));
-                            v.Add(new Voltage("AVCC", 2, 10, 10));
-                            v.Add(new Voltage("+3.3V", 3, 10, 10));
-                            //v.Add(new Voltage("#Unused #4", 4, 0, 1, 0, true));
-                            v.Add(new Voltage("+5V", 5, 20, 10));
-                            //v.Add(new Voltage("#Unused #6", 6, 0, 1, 0, true));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            t.Add(new Temperature("CPU Core", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            t.Add(new Temperature("Auxiliary", 2));
-                            t.Add(new Temperature("Motherboard", 3));
-
-                            for (int i = 0; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("Fan #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Controls.Length; i++)
-                                c.Add(new Control("Fan #" + (i + 1), i));
-
-                            break;
-
-                        default:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("Voltage #2", 1, true));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("Voltage #5", 4, true));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            t.Add(new Temperature("CPU Core", 0));
-                            t.Add(new Temperature("Temperature #1", 1));
-                            t.Add(new Temperature("Temperature #2", 2));
-                            t.Add(new Temperature("Temperature #3", 3));
-
-                            for (int i = 0; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("Fan #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Controls.Length; i++)
-                                c.Add(new Control("Fan #" + (i + 1), i));
-
-                            break;
-                    }
-
-                    break;
-
-                default:
-                    v.Add(new Voltage("Vcore", 0));
-                    v.Add(new Voltage("Voltage #2", 1, true));
-                    v.Add(new Voltage("AVCC", 2, 34, 34));
-                    v.Add(new Voltage("+3.3V", 3, 34, 34));
-                    v.Add(new Voltage("Voltage #5", 4, true));
-                    v.Add(new Voltage("Voltage #6", 5, true));
-                    v.Add(new Voltage("Voltage #7", 6, true));
-                    v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                    v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                    t.Add(new Temperature("CPU Core", 0));
-                    t.Add(new Temperature("Temperature #1", 1));
-                    t.Add(new Temperature("Temperature #2", 2));
-                    t.Add(new Temperature("Temperature #3", 3));
-
-                    for (int i = 0; i < superIO.Fans.Length; i++)
-                        f.Add(new Fan("Fan #" + (i + 1), i));
-
-                    for (int i = 0; i < superIO.Controls.Length; i++)
-                        c.Add(new Control("Fan #" + (i + 1), i));
-
-                    break;
-            }
+            for (int i = 0; i < superIO.Controls.Length; i++)
+                c.Add(new Control("Fan #" + (i + 1), i));
         }
 
         private static void GetNuvotonConfigurationD(ISuperIO superIO, Manufacturer manufacturer, Model model, int index, IList<Voltage> v, IList<Temperature> t, IList<Fan> f, IList<Control> c)
@@ -3459,37 +1954,6 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                             break;
 
-                        case Model.X399_Phantom_Gaming_6: //NCT6779D
-                            v.Add(new Voltage("Vcore", 0, 10, 10));
-                            v.Add(new Voltage("Chipset 1.05V", 1, 0, 1));
-                            v.Add(new Voltage("AVCC", 2, 10, 10));
-                            v.Add(new Voltage("+3.3V", 3, 10, 10));
-                            v.Add(new Voltage("+12V", 4, 56, 10));
-                            v.Add(new Voltage("VDDCR_SOC", 5, 0, 1));
-                            v.Add(new Voltage("VDIMM", 6, 0, 1));
-                            v.Add(new Voltage("+3V Standby", 7, 10, 10));
-                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
-                            //v.Add(new Voltage("#Unused", 9, 0, 1, 0, true));
-                            //v.Add(new Voltage("#Unused", 10, 0, 1, 0, true));
-                            //v.Add(new Voltage("#Unused", 11, 0, 1, 0, true));
-                            v.Add(new Voltage("+5V", 12, 20, 10));
-                            v.Add(new Voltage("+1.8V", 13, 10, 10));
-                            //v.Add(new Voltage("unused", 14, 34, 34, 0, true));
-                            t.Add(new Temperature("CPU Core", 0));
-                            t.Add(new Temperature("Motherboard", 1));
-                            t.Add(new Temperature("Auxiliary", 2));
-                            t.Add(new Temperature("Chipset", 3));
-                            t.Add(new Temperature("Core VRM", 4));
-                            t.Add(new Temperature("Core SoC", 5));
-
-                            for (int i = 0; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("Fan #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Controls.Length; i++)
-                                c.Add(new Control("Fan #" + (i + 1), i));
-
-                            break;
-
                         case Model.X570_Taichi:
                             v.Add(new Voltage("Vcore", 0, 10, 10));
                             v.Add(new Voltage("Voltage #2", 1, true));
@@ -3558,118 +2022,6 @@ namespace ZenStates.Core.Hardware.Motherboard
                             c.Add(new Control("Chassis Fan", 1));
                             c.Add(new Control("CPU Fan #2", 2));
                             c.Add(new Control("Chipset Fan", 3));
-                            break;
-
-                        case Model.Z690_Extreme:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+5V", 1, 20, 10));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 110, 10));
-                            v.Add(new Voltage("CPU Input Auxiliary", 5, 1, 1));
-                            v.Add(new Voltage("VDIMM", 6));
-                            v.Add(new Voltage("+3.3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9, 1, 1));
-                            v.Add(new Voltage("CPU 1.05V", 10, 1, 1));
-                            v.Add(new Voltage("Chipset 0.82V", 11, 1, 1));
-                            v.Add(new Voltage("Chipset 1.0V", 12));
-                            v.Add(new Voltage("CPU SA", 13, 1, 1));
-                            v.Add(new Voltage("+5V Standby", 14, 2.35f, 1));
-
-                            f.Add(new Fan("CPU Fan #1", 1));
-                            f.Add(new Fan("CPU Fan #2", 2));
-                            f.Add(new Fan("Chassis Fan #1", 3));
-                            f.Add(new Fan("Chassis Fan #2", 4));
-                            f.Add(new Fan("Chassis Fan #3", 0));
-                            f.Add(new Fan("Chassis Fan #4", 5));
-                            f.Add(new Fan("Chassis Fan #5", 6));
-
-                            c.Add(new Control("CPU Fan #1", 1)); // CPU_FAN1
-                            c.Add(new Control("CPU Fan #2", 2)); // CPU_FAN2/WP
-                            c.Add(new Control("Chassis Fan #1", 3)); // CHA_FAN1/WP
-                            c.Add(new Control("Chassis Fan #2", 4)); // CHA_FAN2/WP
-                            c.Add(new Control("Chassis Fan #3", 0)); // CHA_FAN3/WP
-                            c.Add(new Control("Chassis Fan #4", 5)); // CHA_FAN4/WP
-                            c.Add(new Control("Chassis Fan #5", 6)); // CHA_FAN5/WP
-
-                            t.Add(new Temperature("CPU Core", 0));
-                            t.Add(new Temperature("Motherboard", 2));
-                            break;
-
-                        case Model.Z690_Steel_Legend:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+5V", 1, 20, 10));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 110, 10));
-                            v.Add(new Voltage("CPU Input Auxiliary", 5, 1, 1));
-                            v.Add(new Voltage("DRAM", 6));
-                            v.Add(new Voltage("+3.3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9, 1, 1));
-                            v.Add(new Voltage("CPU 1.05V", 10, 1, 1));
-                            v.Add(new Voltage("Chipset 0.82V", 11, 1, 1));
-                            v.Add(new Voltage("Chipset 1.0V", 12));
-                            v.Add(new Voltage("CPU SA", 13, 1, 1));
-                            v.Add(new Voltage("+5V Standby", 14, 2.35f, 1));
-
-                            f.Add(new Fan("CPU Fan #1", 1));
-                            f.Add(new Fan("CPU Fan #2", 2));
-                            f.Add(new Fan("Chassis Fan #1", 3));
-                            f.Add(new Fan("Chassis Fan #2", 4));
-                            f.Add(new Fan("Chassis Fan #3", 0));
-                            f.Add(new Fan("Chassis Fan #4", 5));
-                            f.Add(new Fan("Chassis Fan #5", 6));
-
-                            c.Add(new Control("CPU Fan #1", 1)); // CPU_FAN1
-                            c.Add(new Control("CPU Fan #2", 2)); // CPU_FAN2/WP
-                            c.Add(new Control("Chassis Fan #1", 3)); // CHA_FAN1/WP
-                            c.Add(new Control("Chassis Fan #2", 4)); // CHA_FAN2/WP
-                            c.Add(new Control("Chassis Fan #3", 0)); // CHA_FAN3/WP
-                            c.Add(new Control("Chassis Fan #4", 5)); // CHA_FAN4/WP
-                            c.Add(new Control("Chassis Fan #5", 6)); // CHA_FAN5/WP
-
-                            t.Add(new Temperature("CPU Core", 0));
-                            t.Add(new Temperature("VRM", 1));
-                            t.Add(new Temperature("Motherboard", 2));
-                            break;
-
-                        case Model.Z790_Pro_RS:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+5V", 1, 20, 10));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 110, 10));
-                            v.Add(new Voltage("CPU Input Auxiliary", 5, 1, 1));
-                            v.Add(new Voltage("Integrated Memory Controller", 6));
-                            v.Add(new Voltage("+3.3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9, 1, 1));
-                            v.Add(new Voltage("CPU 1.05V", 10, 1, 1));
-                            v.Add(new Voltage("Chipset 0.82V", 11, 1, 1));
-                            v.Add(new Voltage("Chipset 1.0V", 12));
-                            v.Add(new Voltage("CPU SA", 13, 1, 1));
-                            v.Add(new Voltage("+5V Standby", 14, 2.35f, 1));
-
-                            f.Add(new Fan("CPU Fan #1", 1));
-                            f.Add(new Fan("CPU Fan #2", 2));
-                            f.Add(new Fan("Chassis Fan #1", 3));
-                            f.Add(new Fan("Chassis Fan #2", 4));
-                            f.Add(new Fan("Chassis Fan #3", 0));
-                            f.Add(new Fan("Chassis Fan #4", 5));
-                            f.Add(new Fan("Chassis Fan #5", 6));
-
-                            c.Add(new Control("CPU Fan #1", 1)); // CPU_FAN1
-                            c.Add(new Control("CPU Fan #2", 2)); // CPU_FAN2/WP
-                            c.Add(new Control("Chassis Fan #1", 3)); // CHA_FAN1/WP
-                            c.Add(new Control("Chassis Fan #2", 4)); // CHA_FAN2/WP
-                            c.Add(new Control("Chassis Fan #3", 0)); // CHA_FAN3/WP
-                            c.Add(new Control("Chassis Fan #4", 5)); // CHA_FAN4/WP
-                            c.Add(new Control("Chassis Fan #5", 6)); // CHA_FAN5/WP
-
-                            t.Add(new Temperature("CPU Core", 0));
-                            t.Add(new Temperature("Motherboard", 2));
                             break;
 
                         case Model.X570_Phantom_Gaming_4: // NCT6796D (-R?)
@@ -3741,72 +2093,6 @@ namespace ZenStates.Core.Hardware.Motherboard
                             // fan/control 6 is not exposed to a header
                             //f.Add(new Fan("Fan #7", 6));
                             //c.Add(new Control("Fan #7", 6));
-
-                            break;
-
-                        case Model.Z790_Taichi:
-                            v.Add(new Voltage("+1.8V", 0));
-                            v.Add(new Voltage("Chipset 0.82V", 1));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("CPU 1.05V", 4));
-                            v.Add(new Voltage("Chipset 1.05V", 12, 5, 100));
-
-                            f.Add(new Fan("Chassis Fan #5", 0));
-                            f.Add(new Fan("Chassis Fan #6", 1));
-                            f.Add(new Fan("Chassis Fan #3", 6));
-
-                            c.Add(new Control("Chassis Fan #5", 0));
-                            c.Add(new Control("Chassis Fan #6", 1));
-                            c.Add(new Control("Chassis Fan #3", 6));
-                            break;
-
-                        case Model.Z790_Nova_WiFi:
-                            if (index != 0)
-                            {
-                                // second SIO
-                                v.Add(new Voltage("1.05V CPU", 0));
-                                v.Add(new Voltage("CPU I/O", 1));
-                                v.Add(new Voltage("0.82V Chipset", 4));
-                                v.Add(new Voltage("1.05V Chipset", 12, 5, 100));
-
-                                f.Add(new Fan("VRM", 0));
-                                f.Add(new Fan("MOS", 1));
-
-                                c.Add(new Control("VRM", 0));
-                                c.Add(new Control("MOS", 1));
-                            }
-                            else
-                            {
-                                v.Add(new Voltage("Vcore", 0));
-                                v.Add(new Voltage("+5V", 1, 20, 10));
-                                v.Add(new Voltage("+3.3V", 3, 34, 34));
-                                v.Add(new Voltage("+12V", 4, 110, 10));
-                                v.Add(new Voltage("CPU Input Auxiliary", 5, 1, 1));
-                                v.Add(new Voltage("CPU SA", 13, 1, 1));
-                                v.Add(new Voltage("+5V Standby", 14, 235, 100));
-
-                                f.Add(new Fan("Chassis #3", 0));
-                                f.Add(new Fan("CPU #1", 1));
-                                f.Add(new Fan("CPU #2", 2));
-                                f.Add(new Fan("Chassis #1", 3));
-                                f.Add(new Fan("Chassis #2", 4));
-                                f.Add(new Fan("Chassis #4", 5));
-                                f.Add(new Fan("Chassis #5", 6));
-
-                                c.Add(new Control("Chassis #3", 0));
-                                c.Add(new Control("CPU #1", 1));
-                                c.Add(new Control("CPU #2", 2));
-                                c.Add(new Control("Chassis #1", 3));
-                                c.Add(new Control("Chassis #2", 4));
-                                c.Add(new Control("Chassis #4", 5));
-                                c.Add(new Control("Chassis #5", 6));
-
-                                t.Add(new Temperature("CPU Core", 0));
-                                t.Add(new Temperature("Motherboard", 2));
-                                t.Add(new Temperature("External #1", 3));
-                                t.Add(new Temperature("External #2", 4));
-                                t.Add(new Temperature("External #3", 5));
-                            }
 
                             break;
 
@@ -4078,141 +2364,6 @@ namespace ZenStates.Core.Hardware.Motherboard
                     string[] fanControlNames;
                     switch (model)
                     {
-                        case Model.P8Z77_V: // NCT6779D
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("Voltage #2", 1, true));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("Voltage #5", 4, true));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9));
-                            v.Add(new Voltage("Voltage #11", 10, true));
-                            v.Add(new Voltage("Voltage #12", 11, true));
-                            v.Add(new Voltage("Voltage #13", 12, true));
-                            v.Add(new Voltage("Voltage #14", 13, true));
-                            v.Add(new Voltage("Voltage #15", 14, true));
-                            t.Add(new Temperature("CPU Core", 0));
-                            t.Add(new Temperature("Auxiliary", 1));
-                            t.Add(new Temperature("Motherboard", 2));
-                            f.Add(new Fan("Chassis Fan #1", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("Chassis Fan #2", 2));
-                            f.Add(new Fan("Chassis Fan #3", 3));
-                            c.Add(new Control("Chassis Fan #1", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("Chassis Fan #2", 2));
-                            c.Add(new Control("Chassis Fan #3", 3));
-
-                            break;
-
-                        case Model.ROG_MAXIMUS_X_APEX: // NCT6793D
-                            v.Add(new Voltage("Vcore", 0, 2, 2));
-                            v.Add(new Voltage("+5V", 1, 4, 1));
-                            v.Add(new Voltage("AVSB", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 11, 1));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("CPU Graphics", 6, 2, 2));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9));
-                            v.Add(new Voltage("VDIMM", 10, 1, 1));
-                            v.Add(new Voltage("CPU SA", 11));
-                            v.Add(new Voltage("PCH Core", 12));
-                            v.Add(new Voltage("PLL", 13));
-                            v.Add(new Voltage("CPU VCCIO/IMC", 14));
-                            t.Add(new Temperature("CPU (PECI)", 0));
-                            t.Add(new Temperature("T2", 1));
-                            t.Add(new Temperature("T1", 2));
-                            t.Add(new Temperature("CPU", 3));
-                            t.Add(new Temperature("PCH", 4));
-                            t.Add(new Temperature("Temperature #4", 5));
-                            t.Add(new Temperature("Temperature #5", 6));
-                            f.Add(new Fan("Chassis Fan #1", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("Chassis Fan #2", 2));
-                            f.Add(new Fan("Chassis Fan #3", 3));
-                            f.Add(new Fan("AIO Pump", 4));
-                            c.Add(new Control("Chassis Fan #1", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("Chassis Fan #2", 2));
-                            c.Add(new Control("Chassis Fan #3", 3));
-                            c.Add(new Control("AIO Pump", 4));
-
-                            break;
-
-                        case Model.Z170_A: //NCT6793D
-                            v.Add(new Voltage("Vcore", 0, 2, 2));
-                            v.Add(new Voltage("+5V", 1, 4, 1));
-                            v.Add(new Voltage("AVSB", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 11, 1));
-                            v.Add(new Voltage("Voltage #6", 5, 0, 1, 0, true));
-                            v.Add(new Voltage("CPU Graphics", 6, 2, 2));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9));
-                            v.Add(new Voltage("VDIMM", 10, 1, 1));
-                            v.Add(new Voltage("CPU SA", 11));
-                            v.Add(new Voltage("PCH Core", 12));
-                            v.Add(new Voltage("PLL", 13));
-                            v.Add(new Voltage("CPU VCCIO/IMC", 14));
-                            t.Add(new Temperature("CPU (PECI)", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            t.Add(new Temperature("Motherboard", 2));
-                            t.Add(new Temperature("CPU", 3));
-                            t.Add(new Temperature("PCH", 4));
-                            t.Add(new Temperature("Temperature #4", 5));
-                            t.Add(new Temperature("Temperature #5", 6));
-
-                            // CPU Fan Optional uses the same fancontrol as CPU Fan.
-                            // Water Pump speed can only be read from the EC.
-                            string[] fanNames = new string[] { "Chassis Fan 1", "CPU Fan", "Chassis Fan 2", "Chassis Fan 3", "Chassis Fan 4", "CPU Fan Optional" };
-                            fanControlNames = new string[] { "Chassis Fan 1", "CPU Fan", "Chassis Fan 2", "Chassis Fan 3", "Chassis Fan 4", "Water Pump" };
-
-                            for (int i = 0; i < fanNames.Length; i++)
-                                f.Add(new Fan(fanNames[i], i));
-
-                            for (int i = 0; i < fanControlNames.Length; i++)
-                                c.Add(new Control(fanControlNames[i], i));
-
-                            break;
-
-                        case Model.B150M_C: //NCT6791D
-                        case Model.B150M_C_D3: //NCT6791D
-                            v.Add(new Voltage("Vcore", 0, 2, 2));
-                            v.Add(new Voltage("+5V", 1, 4, 1));
-                            v.Add(new Voltage("AVSB", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 11, 1));
-                            //v.Add(new Voltage("Voltage #6", 5, 0, 1, 0, true));
-                            //v.Add(new Voltage("CPU Graphics", 6, 2, 2));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("PCH", 9));
-                            //v.Add(new Voltage("VDIMM", 10, 1, 1));
-                            //v.Add(new Voltage("CPU SA", 11));
-                            //v.Add(new Voltage("PCH Core", 12));
-                            //v.Add(new Voltage("PLL", 13));
-                            //v.Add(new Voltage("CPU VCCIO/IMC", 14));
-
-                            t.Add(new Temperature("CPU (PECI)", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            t.Add(new Temperature("Motherboard", 2));
-
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("Chassis Fan #1", 0));
-                            f.Add(new Fan("Chassis Fan #2", 2));
-
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("System Fan #1", 0));
-                            c.Add(new Control("System Fan #2", 2));
-
-                            break;
-
                         case Model.TUF_GAMING_X570_PLUS_WIFI: //NCT6798D
                             v.Add(new Voltage("Vcore", 0));
                             v.Add(new Voltage("+5V", 1, 4, 1));
@@ -4244,6 +2395,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             c.Add(new Control("AIO Pump", 5));
 
                             break;
+
                         case Model.TUF_GAMING_B550M_PLUS_WIFI: //NCT6798D
                             v.Add(new Voltage("Vcore", 0));
                             v.Add(new Voltage("Voltage #2", 1, true));
@@ -4290,45 +2442,6 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                             for (int i = 0; i < superIO.Controls.Length; i++)
                                 c.Add(new Control("Fan #" + (i + 1), i));
-
-                            break;
-
-                        case Model.TUF_GAMING_B760M_PLUS_WIFI_D4: //NCT6798D
-                            v.Add(new Voltage("Vcore", 0, 15, 136));
-                            v.Add(new Voltage("+5V", 1, 4, 1));
-                            v.Add(new Voltage("AVSB", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 11, 1));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("VTT", 9, 1, 1));
-                            v.Add(new Voltage("DRAM", 10, 1, 1));
-                            v.Add(new Voltage("Voltage #12", 11, true));
-                            v.Add(new Voltage("Voltage #13", 12, true));
-                            v.Add(new Voltage("Voltage #14", 13, true));
-                            v.Add(new Voltage("Voltage #15", 14, true));
-                            v.Add(new Voltage("Voltage #16", 15, true));
-                            v.Add(new Voltage("Voltage #17", 16, true));
-                            t.Add(new Temperature("CPU Package", 0));
-                            t.Add(new Temperature("Temperature #2", 1));
-                            t.Add(new Temperature("Motherboard", 2));
-                            t.Add(new Temperature("Temperature #4", 3));
-                            t.Add(new Temperature("CPU", 23));
-
-                            fanControlNames = new string[] { "Chassis Fan 1", "CPU Fan", "CPU Optional Fan", "Chassis Fan 2", "Chassis Fan 3", "AIO Pump" };
-                            System.Diagnostics.Debug.Assert(fanControlNames.Length == superIO.Fans.Length,
-                                                            $"Expected {fanControlNames.Length} fan register in the SuperIO chip");
-
-                            System.Diagnostics.Debug.Assert(superIO.Fans.Length == superIO.Controls.Length,
-                                                            "Expected counts of cans controls and fan speed registers to be equal");
-
-                            for (int i = 0; i < fanControlNames.Length; i++)
-                                f.Add(new Fan(fanControlNames[i], i));
-
-                            for (int i = 0; i < fanControlNames.Length; i++)
-                                c.Add(new Control(fanControlNames[i], i));
 
                             break;
 
@@ -4388,390 +2501,6 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                             for (int i = 0; i < fanControlNames.Length; i++)
                                 c.Add(new Control(fanControlNames[i], i));
-
-                            break;
-
-                        case Model.ROG_MAXIMUS_XI_FORMULA: //NC6798D
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+5V", 1, 4, 1));
-                            v.Add(new Voltage("AVSB", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 11, 1));
-                            v.Add(new Voltage("VIN8", 5));
-                            v.Add(new Voltage("CPU Graphics", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9, 1, 1));
-                            v.Add(new Voltage("VDIMM", 10));
-                            v.Add(new Voltage("CPU VCCIO", 11, 1, 1));
-                            v.Add(new Voltage("PCH Core", 12));
-                            v.Add(new Voltage("PLL", 13));
-                            v.Add(new Voltage("CPU SA", 14));
-
-                            t.Add(new Temperature("Motherboard", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            t.Add(new Temperature("Motherboard", 2));
-                            t.Add(new Temperature("CPU (Weighted)", 6));
-                            t.Add(new Temperature("CPU (PECI)", 7));
-                            t.Add(new Temperature("CPU", 8));
-
-                            fanControlNames = new string[] { "Chassis Fan 1", "CPU Fan", "Chassis Fan 2", "Chassis Fan 3", "High Amp Fan", "Water Pump+", "AIO Pump" };
-                            System.Diagnostics.Debug.Assert(fanControlNames.Length == superIO.Fans.Length,
-                                                            $"Expected {fanControlNames.Length} fan register in the SuperIO chip");
-
-                            System.Diagnostics.Debug.Assert(superIO.Fans.Length == superIO.Controls.Length,
-                                                            "Expected counts of cans controls and fan speed registers to be equal");
-
-                            for (int i = 0; i < fanControlNames.Length; i++)
-                                f.Add(new Fan(fanControlNames[i], i));
-
-                            for (int i = 0; i < fanControlNames.Length; i++)
-                                c.Add(new Control(fanControlNames[i], i));
-
-                            break;
-
-                        case Model.ROG_MAXIMUS_XII_Z490_FORMULA: //NCT6798D
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+5V", 1, 4, 1));
-                            v.Add(new Voltage("AVSB", 2, 34, 34));
-                            v.Add(new Voltage("3VCC", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 11, 1));
-                            v.Add(new Voltage("IVR Atom L2 Cluster #1", 5));
-                            v.Add(new Voltage("Voltage #7", 6));
-                            v.Add(new Voltage("3VSB", 7, 34, 34));
-                            v.Add(new Voltage("VBat", 8, 34, 34));
-                            v.Add(new Voltage("VTT", 9, 1, 1));
-                            v.Add(new Voltage("Voltage #11", 10));
-                            v.Add(new Voltage("IVR Atom L2 Cluster #0", 11, 1, 1));
-                            v.Add(new Voltage("PCH", 12));
-                            v.Add(new Voltage("Voltage #14", 13));
-                            v.Add(new Voltage("Voltage #15", 14));
-
-                            t.Add(new Temperature("Temperature #1", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            t.Add(new Temperature("Motherboard", 2));
-                            t.Add(new Temperature("Temperature #4", 4));
-                            t.Add(new Temperature("Temperature #5", 5));
-                            t.Add(new Temperature("Temperature #6", 6));
-                            t.Add(new Temperature("Temperature #7", 7));
-                            t.Add(new Temperature("PCH", 12));
-                            t.Add(new Temperature("Temperature #9", 21));
-
-                            fanControlNames = new string[] { "Chassis Fan 1", "CPU Fan", "Chassis Fan 2", "Chassis Fan 3", "Chassis Fan 4", "Waterpump", "AIO Pump" };
-
-                            System.Diagnostics.Debug.Assert(fanControlNames.Length == superIO.Fans.Length,
-                                                            $"Expected {fanControlNames.Length} fan register in the SuperIO chip");
-
-                            System.Diagnostics.Debug.Assert(superIO.Fans.Length == superIO.Controls.Length,
-                                                            "Expected counts of cans controls and fan speed registers to be equal");
-
-                            for (int i = 0; i < fanControlNames.Length; i++)
-                                f.Add(new Fan(fanControlNames[i], i));
-
-                            for (int i = 0; i < fanControlNames.Length; i++)
-                                c.Add(new Control(fanControlNames[i], i));
-
-                            break;
-
-                        case Model.ROG_MAXIMUS_X_HERO_WIFI_AC: //NCT6793D
-                            v.Add(new Voltage("Vcore", 0, 2, 2));
-                            v.Add(new Voltage("+5V", 1, 4, 1));
-                            v.Add(new Voltage("AVSB", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 11, 1));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("CPU Graphics", 6, 2, 2));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9));
-                            v.Add(new Voltage("VDIMM", 10, 1, 1));
-                            v.Add(new Voltage("CPU SA", 11));
-                            v.Add(new Voltage("PCH Core", 12));
-                            v.Add(new Voltage("PLL", 13));
-                            v.Add(new Voltage("CPU VCCIO/IMC", 14));
-                            t.Add(new Temperature("CPU (PECI)", 0));
-                            t.Add(new Temperature("T2", 1));
-                            t.Add(new Temperature("Motherboard", 2)); //Verified via BIOS and HWinfo. HWinfo had T1 and Motherboard, but thye were the same.
-                            t.Add(new Temperature("Temperature #3", 4));
-                            t.Add(new Temperature("Temperature #4", 5));
-                            t.Add(new Temperature("Temperature #5", 6));
-
-                            // note: CPU_Opt, W_Pump+, EXT_FAN 1 & 2 are on the ASUS EC controller. Together with VRM og PCH temperatures. And additional voltages and power
-                            fanControlNames = new string[] { "Chassis Fan 1", "CPU Fan", "Chassis Fan 2", "Chassis Fan 3", "AIO Pump", "HAMP" };
-
-                            for (int i = 0; i < fanControlNames.Length; i++)
-                                f.Add(new Fan(fanControlNames[i], i));
-
-                            for (int i = 0; i < fanControlNames.Length; i++)
-                                c.Add(new Control(fanControlNames[i], i));
-
-                            break;
-
-                        case Model.ROG_MAXIMUS_Z690_FORMULA: //NCT6798D
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+5V", 1, 4, 1));
-                            v.Add(new Voltage("AVSB", 2, 34, 34));
-                            v.Add(new Voltage("3VCC", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 11, 1));
-                            v.Add(new Voltage("IVR Atom L2 Cluster #1", 5));
-                            v.Add(new Voltage("Voltage #7", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9, 1, 1));
-                            v.Add(new Voltage("Voltage #10", 10));
-                            v.Add(new Voltage("IVR Atom L2 Cluster #0", 11, 1, 1));
-                            v.Add(new Voltage("PCH", 12));
-                            v.Add(new Voltage("Voltage #14", 13));
-                            v.Add(new Voltage("Voltage #15", 14));
-
-                            t.Add(new Temperature("Temperature #1", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            t.Add(new Temperature("Motherboard", 2));
-                            t.Add(new Temperature("Temperature #4", 4));
-                            t.Add(new Temperature("Temperature #5", 5));
-                            t.Add(new Temperature("Temperature #6", 6));
-                            t.Add(new Temperature("Temperature #7", 7));
-                            t.Add(new Temperature("PCH", 12));
-                            t.Add(new Temperature("Temperature #9", 21));
-
-                            fanControlNames = new string[] { "Chassis Fan 1", "CPU Fan", "Chassis Fan 2", "Chassis Fan 3", "Chassis Fan 4", "Waterpump", "AIO Pump" };
-
-                            System.Diagnostics.Debug.Assert(fanControlNames.Length == superIO.Fans.Length,
-                                                            $"Expected {fanControlNames.Length} fan register in the SuperIO chip");
-
-                            System.Diagnostics.Debug.Assert(superIO.Fans.Length == superIO.Controls.Length,
-                                                            "Expected counts of cans controls and fan speed registers to be equal");
-
-                            for (int i = 0; i < fanControlNames.Length; i++)
-                                f.Add(new Fan(fanControlNames[i], i));
-
-                            for (int i = 0; i < fanControlNames.Length; i++)
-                                c.Add(new Control(fanControlNames[i], i));
-
-                            break;
-
-                        case Model.ROG_MAXIMUS_Z690_HERO: //NCT6798D
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+5V", 1, 4, 1));
-                            v.Add(new Voltage("AVSB", 2, 34, 34));
-                            v.Add(new Voltage("3VCC", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 11, 1));
-                            v.Add(new Voltage("IVR Atom L2 Cluster #1", 5));
-                            v.Add(new Voltage("Voltage #7", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9, 1, 1));
-                            v.Add(new Voltage("Voltage #11", 10));
-                            v.Add(new Voltage("IVR Atom L2 Cluster #0", 11, 1, 1));
-                            v.Add(new Voltage("PCH", 12));
-                            v.Add(new Voltage("Voltage #14 ", 13));
-                            v.Add(new Voltage("Voltage #15", 14));
-
-                            t.Add(new Temperature("CPU Package", 0)); // Matches CPU Package in HWinfo & Armoury Crate.
-                            t.Add(new Temperature("CPU (Weighted)", 1)); // Unsure about this one. HWinfo & Armoury Crate doesn't have anything that match my values. Varies from 34 (idle) to 42C (under load). Hwinfo is 31-32C for same.
-
-                            t.Add(new Temperature("Motherboard", 2)); // Matches MB in HWinfo & Armoury Crate.
-                                                                      //t.Add(new Temperature("Temperature #4", 4));  // Constant at 15C
-                                                                      //t.Add(new Temperature("Temperature #5", 5));  // Varies from 15C to 123C. Probably bogus
-                                                                      //t.Add(new Temperature("Temperature #6", 6));  // Constant at 32C
-                                                                      //t.Add(new Temperature("Temperature #7", 7));  // Varies from 14C to 124C. Probably bogus
-                            t.Add(new Temperature("PCH", 12)); // Chipset. Match HWinfo & Armoury Crate
-                            t.Add(new Temperature("CPU", 21)); // Matches CPU in HWinfo & Armoury Crate.
-
-                            // note that CPU Opt Fan is on the ASUS EC controller. Together with VRM, Temperature Sensor, WaterIn, WaterOut and WaterFlow + additional sensors.
-                            fanControlNames = new string[] { "Chassis Fan 1", "CPU Fan", "Chassis Fan 2", "Chassis Fan 3", "Chassis Fan 4", "Waterpump", "AIO Pump" };
-
-                            System.Diagnostics.Debug.Assert(fanControlNames.Length == superIO.Fans.Length,
-                                                            $"Expected {fanControlNames.Length} fan register in the SuperIO chip");
-
-                            System.Diagnostics.Debug.Assert(superIO.Fans.Length == superIO.Controls.Length,
-                                                            "Expected counts of cans controls and fan speed registers to be equal");
-
-                            for (int i = 0; i < fanControlNames.Length; i++)
-                                f.Add(new Fan(fanControlNames[i], i));
-
-                            for (int i = 0; i < fanControlNames.Length; i++)
-                                c.Add(new Control(fanControlNames[i], i));
-
-                            break;
-
-                        case Model.ROG_MAXIMUS_Z690_EXTREME_GLACIAL: //NCT6798D
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+5V", 1, 4, 1));
-                            v.Add(new Voltage("AVSB", 2, 34, 34));
-                            v.Add(new Voltage("3VCC", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 11, 1));
-                            v.Add(new Voltage("IVR Atom L2 Cluster #1", 5));
-                            v.Add(new Voltage("Voltage #7", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9, 1, 1));
-                            v.Add(new Voltage("Voltage #11", 10));
-                            v.Add(new Voltage("IVR Atom L2 Cluster #0", 11, 1, 1));
-                            v.Add(new Voltage("PCH", 12));
-                            v.Add(new Voltage("Voltage #14", 13));
-                            v.Add(new Voltage("Voltage #15", 14));
-
-                            t.Add(new Temperature("Temperature #1", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            t.Add(new Temperature("Motherboard", 2));
-                            //t.Add(new Temperature("Temperature 03", 3));
-                            t.Add(new Temperature("Temperature #4", 4));
-                            t.Add(new Temperature("Temperature #5", 5));
-                            t.Add(new Temperature("Temperature #6", 6));
-                            t.Add(new Temperature("Temperature #7", 7));
-                            t.Add(new Temperature("PCH", 12));
-                            t.Add(new Temperature("Temperature #9", 21));
-
-                            fanControlNames = new string[] { "Chassis Fan 1", "CPU Fan", "Radiator Fan 1", "Radiator Fan 2", "Chassis Fan 2", "Water Pump 1", "Water Pump 2" };
-                            System.Diagnostics.Debug.Assert(fanControlNames.Length == superIO.Fans.Length,
-                                                            $"Expected {fanControlNames.Length} fan register in the SuperIO chip");
-
-                            System.Diagnostics.Debug.Assert(superIO.Fans.Length == superIO.Controls.Length,
-                                                            "Expected counts of fan controls and fan speed registers to be equal");
-
-                            for (int i = 0; i < fanControlNames.Length; i++)
-                                f.Add(new Fan(fanControlNames[i], i));
-
-                            for (int i = 0; i < fanControlNames.Length; i++)
-                                c.Add(new Control(fanControlNames[i], i));
-
-                            break;
-
-                        case Model.ROG_MAXIMUS_Z790_HERO: //NCT6798D
-                            t.Add(new Temperature("CPU Package", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            t.Add(new Temperature("Motherboard", 2));
-                            //t.Add(new Temperature("Temperature #3", 3));
-                            //t.Add(new Temperature("Temperature #4", 4));
-                            //t.Add(new Temperature("Temperature #5", 5));
-                            //t.Add(new Temperature("Temperature #6", 6));
-                            //t.Add(new Temperature("Temperature #7", 7));
-                            t.Add(new Temperature("Temperature #8", 8));
-                            t.Add(new Temperature("Temperature #9", 9));
-                            t.Add(new Temperature("Temperature #10", 10));
-                            t.Add(new Temperature("Temperature #11", 11));
-                            t.Add(new Temperature("Temperature #12", 12));
-                            t.Add(new Temperature("Chipset", 13));
-                            t.Add(new Temperature("Temperature #14", 14));
-                            t.Add(new Temperature("Temperature #15", 15));
-                            t.Add(new Temperature("Temperature #16", 16));
-                            t.Add(new Temperature("Temperature #17", 17));
-                            t.Add(new Temperature("Temperature #18", 18));
-                            t.Add(new Temperature("Temperature #19", 19));
-                            t.Add(new Temperature("Temperature #20", 20));
-                            t.Add(new Temperature("Temperature #21", 21));
-
-                            for (int i = 0; i < superIO.Fans.Length; i++)
-                                f.Add(new Fan("Fan #" + (i + 1), i));
-
-                            for (int i = 0; i < superIO.Controls.Length; i++)
-                                c.Add(new Control("Fan #" + (i + 1), i));
-
-                            break;
-
-                        case Model.ROG_MAXIMUS_Z790_DARK_HERO: //NCT6798D
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+5V", 1, 4, 1));
-                            v.Add(new Voltage("AVSB", 2, 34, 34));
-                            v.Add(new Voltage("3VCC", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 11, 1));
-                            v.Add(new Voltage("IVR Atom L2 Cluster #1", 5));
-                            v.Add(new Voltage("Voltage #6", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9, 1, 1));
-                            v.Add(new Voltage("Voltage #11", 10, 1, 1));
-                            v.Add(new Voltage("IVR Atom L2 Cluster #0", 11, 1, 1));
-                            v.Add(new Voltage("PCH", 12));
-                            v.Add(new Voltage("CPU SA", 13, 1, 1));
-                            v.Add(new Voltage("CPU Input Auxiliary", 14, 1, 1));
-                            v.Add(new Voltage("Voltage #15", 15));
-
-                            t.Add(new Temperature("CPU Package", 0));
-                            t.Add(new Temperature("Motherboard", 2));
-                            t.Add(new Temperature("Chipset", 12));
-                            t.Add(new Temperature("PCH", 13));
-                            t.Add(new Temperature("CPU", 22));
-
-                            f.Add(new Fan("Chassis Fan #1", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("Chassis Fan #2", 2));
-                            f.Add(new Fan("Chassis Fan #3", 3));
-                            f.Add(new Fan("Chassis Fan #4", 4));
-                            f.Add(new Fan("Water Pump", 5));
-                            f.Add(new Fan("AIO Pump", 6));
-
-                            c.Add(new Control("Chassis Fan #1", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("Chassis Fan #2", 2));
-                            c.Add(new Control("Chassis Fan #3", 3));
-                            c.Add(new Control("Chassis Fan #4", 4));
-                            c.Add(new Control("Water Pump", 5));
-                            c.Add(new Control("AIO Pump", 6));
-
-                            break;
-
-                        case Model.ROG_STRIX_B760_I_GAMING_WIFI: //NCT6798D
-
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+5V", 1, 4, 1));
-                            v.Add(new Voltage("AVSB", 2, 34, 34));
-                            v.Add(new Voltage("3VCC", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 11, 1));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9, 1, 1));
-                            v.Add(new Voltage("IMC VDD", 10, 1, 1));
-                            v.Add(new Voltage("Voltage #12", 11, true));
-                            v.Add(new Voltage("Voltage #13", 12, true));
-                            v.Add(new Voltage("Voltage #14", 13, true));
-                            v.Add(new Voltage("Voltage #15", 14, true));
-                            v.Add(new Voltage("Voltage #16", 15, true));
-
-                            t.Add(new Temperature("CPU Package", 0));
-                            t.Add(new Temperature("CPU", 1));
-                            t.Add(new Temperature("Motherboard", 2));
-                            t.Add(new Temperature("VRM", 3));
-                            t.Add(new Temperature("T_SEN", 8));
-                            t.Add(new Temperature("PCH", 13));
-                            t.Add(new Temperature("CPU Calibrated", 22));
-
-                            f.Add(new Fan("Chassis Fan", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("AIO Pump", 5));
-
-                            c.Add(new Control("Chassis Fan", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("AIO Pump", 5));
-
-                            break;
-
-                        case Model.ROG_STRIX_Z790_E_GAMING_WIFI_II: //NCT6798D
-
-                            t.Add(new Temperature("CPU Package", 0));
-                            t.Add(new Temperature("Motherboard", 2));
-                            t.Add(new Temperature("Chipset", 12));
-                            t.Add(new Temperature("PCH", 13));
-                            t.Add(new Temperature("CPU", 22));
-
-                            f.Add(new Fan("Chassis Fan #1", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("Chassis Fan #2", 2));
-                            f.Add(new Fan("Chassis Fan #3", 3));
-                            f.Add(new Fan("Chassis Fan #4", 4));
-                            f.Add(new Fan("Chassis FAN #5", 5));
-                            f.Add(new Fan("AIO Pump", 6));
-
-                            c.Add(new Control("Chassis Fan #1", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("Chassis Fan #2", 2));
-                            c.Add(new Control("Chassis Fan #3", 3));
-                            c.Add(new Control("Chassis Fan #4", 4));
-                            c.Add(new Control("Chassis Fan #5", 5));
-                            c.Add(new Control("AIO Pump", 6));
 
                             break;
 
@@ -5304,48 +3033,6 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                             break;
 
-                        case Model.PROART_B760_CREATOR_D4: // NCT6798D
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+5V", 1, 4, 1));
-                            v.Add(new Voltage("AVSB", 2, 34, 34));
-                            v.Add(new Voltage("3VCC", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 11, 1));
-                            v.Add(new Voltage("IVR Atom L2 Cluster #1", 5));
-                            v.Add(new Voltage("Voltage #7", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9, 1, 1));
-                            v.Add(new Voltage("Voltage #11", 10));
-                            v.Add(new Voltage("IVR Atom L2 Cluster #0", 11, 1, 1));
-                            v.Add(new Voltage("PCH", 12));
-                            v.Add(new Voltage("Voltage #14", 13));
-                            v.Add(new Voltage("Voltage #15", 14));
-
-                            t.Add(new Temperature("CPU Package", 0)); // PECI_0, CPU Package
-                            t.Add(new Temperature("CPU", 1)); // CPUTIN, CPU
-                            t.Add(new Temperature("Motherboard", 2)); // SYSTIN, MOTHERBOARD
-                            t.Add(new Temperature("T_SEN", 8)); // TSENSOR
-                            t.Add(new Temperature("PCH", 13)); // PCH_CHIP_TEMP
-                            t.Add(new Temperature("PECI 0 Calibrated", 22)); // PECI_0_CAL, CPU
-
-                            f.Add(new Fan("Chassis Fan #1", 0)); // CHA_FAN_1
-                            f.Add(new Fan("CPU Fan", 1)); // CPU_FAN
-                            f.Add(new Fan("Chassis Fan #2", 2)); // CHA_FAN_2
-                            f.Add(new Fan("Chassis Fan #3", 3)); // CHA_FAN_3
-                            f.Add(new Fan("Chassis Fan #4", 4)); // CHA_FAN_4
-                            f.Add(new Fan("CPU Optional Fan", 5)); // CPU_OPT
-                            f.Add(new Fan("AIO Pump", 6)); // AIO_PUMP
-
-                            c.Add(new Control("Chassis Fan #1", 0)); // CHA_FAN_1
-                            c.Add(new Control("CPU Fan", 1)); // CPU_FAN
-                            c.Add(new Control("Chassis Fan #2", 2)); // CHA_FAN_2
-                            c.Add(new Control("Chassis Fan #3", 3)); // CHA_FAN_3
-                            c.Add(new Control("Chassis Fan #4", 4)); // CHA_FAN_4
-                            c.Add(new Control("CPU Optional Fan", 5)); // CPU_OPT
-                            c.Add(new Control("AIO Pump", 6)); // AIO_PUMP
-
-                            break;
-
                         case Model.ROG_STRIX_B850_A_GAMING_WIFI: // NCT6701D
                         case Model.TUF_GAMING_B850_BTF_WIFI_W: // NCT6701D
                         case Model.TUF_GAMING_X870_PRO_WIFI7_W_NEO: // NCT6701D
@@ -5604,39 +3291,6 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                             break;
 
-                        case Model.Z270_PC_MATE: // NCT6795D
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+5V", 1, 4, 1));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+12V", 4, 11, 1));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("CPU I/O", 6));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9));
-                            v.Add(new Voltage("CPU SA", 10));
-                            v.Add(new Voltage("Voltage #12", 11, true));
-                            v.Add(new Voltage("PCH", 12));
-                            v.Add(new Voltage("VDIMM", 13, 1, 1));
-                            v.Add(new Voltage("Voltage #15", 14, true));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Auxiliary", 1));
-                            t.Add(new Temperature("Motherboard", 2));
-                            f.Add(new Fan("Pump Fan", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("System Fan #1", 2));
-                            f.Add(new Fan("System Fan #2", 3));
-                            f.Add(new Fan("System Fan #3", 4));
-                            f.Add(new Fan("System Fan #4", 5));
-                            c.Add(new Control("Pump Fan", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("System Fan #1", 2));
-                            c.Add(new Control("System Fan #2", 3));
-                            c.Add(new Control("System Fan #3", 4));
-                            c.Add(new Control("System Fan #4", 5));
-
-                            break;
-
                         case Model.X570_Gaming_Plus:
                             // NCT6797D
                             // NCT771x : PCIe 1, M.2 1, not supported
@@ -5729,38 +3383,6 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                             break;
 
-                        case Model.Z390_GAMING_EDGE_AC: // NCT6797D
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("CPU Termination", 9));
-                            v.Add(new Voltage("+5V", 1, ri: 4, rf: 1));
-
-                            t.Add(new Temperature("System", 2));
-                            t.Add(new Temperature("MOS", 1));
-                            t.Add(new Temperature("CPU Core", 0));
-                            t.Add(new Temperature("M.2", 3));
-                            t.Add(new Temperature("PCI-E", 4));
-                            t.Add(new Temperature("CPU Socket", 5));
-
-                            c.Add(new Control("Pump Fan", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("System Fan #1", 5));
-                            c.Add(new Control("System Fan #2", 2));
-                            c.Add(new Control("System Fan #3", 4));
-                            c.Add(new Control("System Fan #4", 3));
-                            c.Add(new Control("System Fan #5", 6));
-
-                            f.Add(new Fan("Pump Fan", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("System Fan #1", 5));
-                            f.Add(new Fan("System Fan #2", 2));
-                            f.Add(new Fan("System Fan #3", 4));
-                            f.Add(new Fan("System Fan #4", 3));
-                            f.Add(new Fan("System Fan #5", 6));
-                            break;
-
                         default:
                             v.Add(new Voltage("Vcore", 0));
                             v.Add(new Voltage("+5V", 1, 4, 1));
@@ -5832,233 +3454,51 @@ namespace ZenStates.Core.Hardware.Motherboard
 
         private static void GetWinbondConfigurationEhf(Manufacturer manufacturer, Model model, IList<Voltage> v, IList<Temperature> t, IList<Fan> f, IList<Control> c)
         {
-            switch (manufacturer)
-            {
-                case Manufacturer.ASRock:
-                    switch (model)
-                    {
-                        case Model.AOD790GX_128M: // W83627EHF
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 4, 10, 10));
-                            v.Add(new Voltage("+5V", 5, 20, 10));
-                            v.Add(new Voltage("+12V", 6, 28, 5));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Motherboard", 2));
-                            f.Add(new Fan("CPU Fan", 0));
-                            f.Add(new Fan("Chassis Fan", 1));
-                            c.Add(new Control("System Fan", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("Auxiliary Fan", 2));
-
-                            break;
-
-                        default:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("Voltage #2", 1, true));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("Voltage #5", 4, true));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            v.Add(new Voltage("Voltage #10", 9, true));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Auxiliary", 1));
-                            t.Add(new Temperature("System", 2));
-                            f.Add(new Fan("System Fan", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("Auxiliary Fan", 2));
-                            f.Add(new Fan("CPU Fan #2", 3));
-                            f.Add(new Fan("Auxiliary Fan #2", 4));
-                            c.Add(new Control("System Fan", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("Auxiliary Fan", 2));
-
-                            break;
-                    }
-
-                    break;
-
-                default:
-                    v.Add(new Voltage("Vcore", 0));
-                    v.Add(new Voltage("Voltage #2", 1, true));
-                    v.Add(new Voltage("AVCC", 2, 34, 34));
-                    v.Add(new Voltage("+3.3V", 3, 34, 34));
-                    v.Add(new Voltage("Voltage #5", 4, true));
-                    v.Add(new Voltage("Voltage #6", 5, true));
-                    v.Add(new Voltage("Voltage #7", 6, true));
-                    v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                    v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                    v.Add(new Voltage("Voltage #10", 9, true));
-                    t.Add(new Temperature("CPU", 0));
-                    t.Add(new Temperature("Auxiliary", 1));
-                    t.Add(new Temperature("System", 2));
-                    f.Add(new Fan("System Fan", 0));
-                    f.Add(new Fan("CPU Fan", 1));
-                    f.Add(new Fan("Auxiliary Fan", 2));
-                    f.Add(new Fan("CPU Fan #2", 3));
-                    f.Add(new Fan("Auxiliary Fan #2", 4));
-                    c.Add(new Control("System Fan", 0));
-                    c.Add(new Control("CPU Fan", 1));
-                    c.Add(new Control("Auxiliary Fan", 2));
-
-                    break;
-            }
+            v.Add(new Voltage("Vcore", 0));
+            v.Add(new Voltage("Voltage #2", 1, true));
+            v.Add(new Voltage("AVCC", 2, 34, 34));
+            v.Add(new Voltage("+3.3V", 3, 34, 34));
+            v.Add(new Voltage("Voltage #5", 4, true));
+            v.Add(new Voltage("Voltage #6", 5, true));
+            v.Add(new Voltage("Voltage #7", 6, true));
+            v.Add(new Voltage("+3V Standby", 7, 34, 34));
+            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
+            v.Add(new Voltage("Voltage #10", 9, true));
+            t.Add(new Temperature("CPU", 0));
+            t.Add(new Temperature("Auxiliary", 1));
+            t.Add(new Temperature("System", 2));
+            f.Add(new Fan("System Fan", 0));
+            f.Add(new Fan("CPU Fan", 1));
+            f.Add(new Fan("Auxiliary Fan", 2));
+            f.Add(new Fan("CPU Fan #2", 3));
+            f.Add(new Fan("Auxiliary Fan #2", 4));
+            c.Add(new Control("System Fan", 0));
+            c.Add(new Control("CPU Fan", 1));
+            c.Add(new Control("Auxiliary Fan", 2));
         }
 
         private static void GetWinbondConfigurationHg(Manufacturer manufacturer, Model model, IList<Voltage> v, IList<Temperature> t, IList<Fan> f, IList<Control> c)
         {
-            switch (manufacturer)
-            {
-                case Manufacturer.ASRock:
-                    switch (model)
-                    {
-                        case Model._880GMH_USB3: // W83627DHG-P
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+5V", 5, 15, 7.5f));
-                            v.Add(new Voltage("+12V", 6, 56, 10));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Motherboard", 2));
-                            f.Add(new Fan("Chassis Fan", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("Power Fan", 2));
-                            c.Add(new Control("System Fan", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("Auxiliary Fan", 2));
-
-                            break;
-
-                        default:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("Voltage #2", 1, true));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("Voltage #5", 4, true));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Auxiliary", 1));
-                            t.Add(new Temperature("System", 2));
-                            f.Add(new Fan("System Fan", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("Auxiliary Fan", 2));
-                            f.Add(new Fan("CPU Fan #2", 3));
-                            f.Add(new Fan("Auxiliary Fan #2", 4));
-                            c.Add(new Control("System Fan", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("Auxiliary Fan", 2));
-
-                            break;
-                    }
-
-                    break;
-                case Manufacturer.ASUS:
-                    switch (model)
-                    {
-                        case Model.P6T: // W83667HG
-                        case Model.P6X58D_E: // W83667HG
-                        case Model.RAMPAGE_II_GENE: // W83667HG
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+12V", 1, 11.5f, 1.91f));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+5V", 4, 15, 7.5f));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Motherboard", 2));
-                            f.Add(new Fan("Chassis Fan #1", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("Power Fan", 2));
-                            f.Add(new Fan("Chassis Fan #2", 3));
-                            f.Add(new Fan("Chassis Fan #3", 4));
-                            c.Add(new Control("System Fan", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("Auxiliary Fan", 2));
-
-                            break;
-
-                        case Model.RAMPAGE_EXTREME: // W83667HG
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("+12V", 1, 12, 2));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("+5V", 4, 15, 7.5f));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Motherboard", 2));
-                            f.Add(new Fan("Chassis Fan #1", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("Power Fan", 2));
-                            f.Add(new Fan("Chassis Fan #2", 3));
-                            f.Add(new Fan("Chassis Fan #3", 4));
-                            c.Add(new Control("System Fan", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("Auxiliary Fan", 2));
-
-                            break;
-
-                        default:
-                            v.Add(new Voltage("Vcore", 0));
-                            v.Add(new Voltage("Voltage #2", 1, true));
-                            v.Add(new Voltage("AVCC", 2, 34, 34));
-                            v.Add(new Voltage("+3.3V", 3, 34, 34));
-                            v.Add(new Voltage("Voltage #5", 4, true));
-                            v.Add(new Voltage("Voltage #6", 5, true));
-                            v.Add(new Voltage("Voltage #7", 6, true));
-                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                            t.Add(new Temperature("CPU", 0));
-                            t.Add(new Temperature("Auxiliary", 1));
-                            t.Add(new Temperature("System", 2));
-                            f.Add(new Fan("System Fan", 0));
-                            f.Add(new Fan("CPU Fan", 1));
-                            f.Add(new Fan("Auxiliary Fan", 2));
-                            f.Add(new Fan("CPU Fan #2", 3));
-                            f.Add(new Fan("Auxiliary Fan #2", 4));
-                            c.Add(new Control("System Fan", 0));
-                            c.Add(new Control("CPU Fan", 1));
-                            c.Add(new Control("Auxiliary Fan", 2));
-
-                            break;
-                    }
-
-                    break;
-
-                default:
-                    v.Add(new Voltage("Vcore", 0));
-                    v.Add(new Voltage("Voltage #2", 1, true));
-                    v.Add(new Voltage("AVCC", 2, 34, 34));
-                    v.Add(new Voltage("+3.3V", 3, 34, 34));
-                    v.Add(new Voltage("Voltage #5", 4, true));
-                    v.Add(new Voltage("Voltage #6", 5, true));
-                    v.Add(new Voltage("Voltage #7", 6, true));
-                    v.Add(new Voltage("+3V Standby", 7, 34, 34));
-                    v.Add(new Voltage("CMOS Battery", 8, 34, 34));
-                    t.Add(new Temperature("CPU", 0));
-                    t.Add(new Temperature("Auxiliary", 1));
-                    t.Add(new Temperature("System", 2));
-                    f.Add(new Fan("System Fan", 0));
-                    f.Add(new Fan("CPU Fan", 1));
-                    f.Add(new Fan("Auxiliary Fan", 2));
-                    f.Add(new Fan("CPU Fan #2", 3));
-                    f.Add(new Fan("Auxiliary Fan #2", 4));
-                    c.Add(new Control("System Fan", 0));
-                    c.Add(new Control("CPU Fan", 1));
-                    c.Add(new Control("Auxiliary Fan", 2));
-
-                    break;
-            }
+            v.Add(new Voltage("Vcore", 0));
+            v.Add(new Voltage("Voltage #2", 1, true));
+            v.Add(new Voltage("AVCC", 2, 34, 34));
+            v.Add(new Voltage("+3.3V", 3, 34, 34));
+            v.Add(new Voltage("Voltage #5", 4, true));
+            v.Add(new Voltage("Voltage #6", 5, true));
+            v.Add(new Voltage("Voltage #7", 6, true));
+            v.Add(new Voltage("+3V Standby", 7, 34, 34));
+            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
+            t.Add(new Temperature("CPU", 0));
+            t.Add(new Temperature("Auxiliary", 1));
+            t.Add(new Temperature("System", 2));
+            f.Add(new Fan("System Fan", 0));
+            f.Add(new Fan("CPU Fan", 1));
+            f.Add(new Fan("Auxiliary Fan", 2));
+            f.Add(new Fan("CPU Fan #2", 3));
+            f.Add(new Fan("Auxiliary Fan #2", 4));
+            c.Add(new Control("System Fan", 0));
+            c.Add(new Control("CPU Fan", 1));
+            c.Add(new Control("Auxiliary Fan", 2));
         }
 
         public string GetReport()
