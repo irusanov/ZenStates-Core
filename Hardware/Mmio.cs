@@ -127,13 +127,13 @@ namespace ZenStates.Core.Hardware
             if (GetStrapStatus() != ClkGen.INTERNAL)
                 return false; // external clocking mode or error
 
+            if (bclk > 151)
+                bclk = 151;
+            else if (bclk < 96)
+                bclk = 96;
+
             if (IsFam15)
             {
-                if (bclk > 151)
-                    bclk = 151;
-                else if (bclk < 96)
-                    bclk = 96;
-
                 // Family 15h (Bristol Ridge / Carrizo)
                 // CGPLLConfig3 has a different bit shape here than the 16h layout used below:
                 // [9:0]=REFDIV, [21:10]=FBDIV (12 bits), [25:22]=FBDIV_Fraction (4 bits, tenths:
@@ -191,8 +191,10 @@ namespace ZenStates.Core.Hardware
             DisableSpreadSpectrum();
 
             // CCG1PLL_FBDIV_Enable, bit 25
-            bool res = io.GetPhysLong((UIntPtr)MISC_ClkCntl1, out uint value);
-            res = io.SetPhysLong((UIntPtr)MISC_ClkCntl1, Utils.SetBit(value, 25));
+            if (!io.GetPhysLong((UIntPtr)MISC_ClkCntl1, out uint value))
+                return false;
+
+            bool res = io.SetPhysLong((UIntPtr)MISC_ClkCntl1, Utils.SetBit(value, 25));
 
             if (res)
             {
