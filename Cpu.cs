@@ -525,6 +525,12 @@ namespace ZenStates.Core
             return data;
         }
 
+        public bool TryReadDwordNoLock(uint addr, out uint data, int maxRetries = 10)
+        {
+            data = 0;
+            return ReadDwordExNoLock(addr, ref data, maxRetries);
+        }
+
         public uint ReadDword(uint addr, int maxRetries = 10)
         {
             using (new PciBusLock())
