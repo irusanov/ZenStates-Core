@@ -213,7 +213,7 @@ namespace ZenStates.Core.Hardware.DRAM
             TryReadRegister(offset | 0x5026C, out uint trfcTimings3);
 
             uint trfcRegValue = 0;
-			bool trfcFound = false;
+            bool trfcFound = false;
             uint[] ddr5Regs = new[] { trfcTimings0, trfcTimings1, trfcTimings2, trfcTimings3 };
 
             foreach (uint reg in ddr5Regs)
@@ -240,7 +240,7 @@ namespace ZenStates.Core.Hardware.DRAM
             TryReadRegister(offset | 0x502c8, out uint trfcsbTimings2);
             TryReadRegister(offset | 0x502cc, out uint trfcsbTimings3);
 
-            ddr5Regs = new[] { 
+            ddr5Regs = new[] {
                 Utils.BitSlice(trfcsbTimings0, 10, 0),
                 Utils.BitSlice(trfcsbTimings1, 10, 0),
                 Utils.BitSlice(trfcsbTimings2, 10, 0),
@@ -262,11 +262,11 @@ namespace ZenStates.Core.Hardware.DRAM
             }
 
             // Refresh mode
-			if (TryReadRegister(offset | 0x5012C, out uint refreshModeValue))
+            if (TryReadRegister(offset | 0x5012C, out uint refreshModeValue))
             {
-            	FGR = Utils.BitSlice(refreshModeValue, 18, 16);
-	            //var allBankRefresh = Utils.GetBit(refreshModeValue, 19);
-	            var perBankRefresh = Utils.GetBit(refreshModeValue, 1);
+                FGR = Utils.BitSlice(refreshModeValue, 18, 16);
+                //var allBankRefresh = Utils.GetBit(refreshModeValue, 19);
+                var perBankRefresh = Utils.GetBit(refreshModeValue, 1);
 
 
                 if (/*allBankRefresh == 1 && */perBankRefresh == 0)

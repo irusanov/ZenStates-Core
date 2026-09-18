@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Reflection;
 using static ZenStates.Core.Hardware.DRAM.MemoryConfig;
 
@@ -141,7 +142,19 @@ namespace ZenStates.Core.Hardware.DRAM
 
         private PropertyInfo GetPropertyInfo(string propertyName)
         {
-            return GetType().GetProperty(propertyName);
+            PropertyInfo info = GetType().GetProperty(propertyName);
+
+            // Under a trimmed or NativeAOT build a missing property means the member was
+            // trimmed, not that the name was wrong — and the callers' null checks turn that
+            // into every timing silently reading as unset. Make it visible.
+            if (info == null)
+            {
+                Debug.WriteLine(
+                    $"{GetType().Name}: no property '{propertyName}'. In a trimmed/AOT build this " +
+                    "usually means it was trimmed; check AotRoots.xml.");
+            }
+
+            return info;
         }
 
         public abstract void ReadRatio(uint offset = 0);
@@ -156,7 +169,7 @@ namespace ZenStates.Core.Hardware.DRAM
 
             if (!ok)
             {
-            	return;
+                return;
             }
 
             BGS = (bgs0 == 0x87654321 && bgs1 == 0x87654321) ? 0 : 1U;
@@ -176,14 +189,20 @@ namespace ZenStates.Core.Hardware.DRAM
                     {
                         if (TryReadRegister(offset | entry.Key, out uint data))
                         {
-                        	this[def.Name] = Utils.BitSlice(data, def.HiBit, def.LoBit);
-                    	}
+                            this[def.Name] = Utils.BitSlice(data, def.HiBit, def.LoBit);
+                        }
                     }
                 }
             }
         }
 
         //public MemType Type { get; set; } = MemType.UNKNOWN;
+
+        /// <summary>
+        /// Default reference clock used when the live BCLK cannot be read.
+        /// </summary>
+        private const double DefaultBclk = 100.0;
+
         public float Frequency
         {
             get
@@ -194,8 +213,8 @@ namespace ZenStates.Core.Hardware.DRAM
                     return mclk * 2;
                 }
 
-                double? bclk = Mmio.Instance.GetBclk() ?? 100;
-                return Ratio * (float)(bclk) * 2;
+                double bclk = Mmio.Instance?.GetBclk() ?? DefaultBclk;
+                return Ratio * (float)bclk * 2;
             }
         }
         public float Ratio { get; internal set; }

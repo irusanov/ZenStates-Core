@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using ZenStates.Core.Hardware;
 using ZenStates.Core.Hardware.Smu;
 using ZenStates.Core.Hardware.Smu.Mailboxes;
@@ -11,6 +12,8 @@ namespace ZenStates.Core
     public abstract class SMU
     {
         private const ushort SMU_TIMEOUT = 8192;
+        private const int SMU_HANG_GUARD_MS = 500;
+
         public enum MailboxType
         {
             UNSUPPORTED = 0,
@@ -106,13 +109,20 @@ namespace ZenStates.Core
             bool res;
             ushort timeout = SMU_TIMEOUT;
             uint data = 0;
+            long deadline = Stopwatch.GetTimestamp() + (Stopwatch.Frequency * SMU_HANG_GUARD_MS) / 1000L;
 
-            // Retry until response register is non-zero and reading RSP register is successful
             do
+            {
                 res = SmuReadRegNoLock(mailbox.SMU_ADDR_RSP, out data);
-            while ((!res || data == 0) && --timeout > 0);
+                if (res && data != 0)
+                    return true;
 
-            return timeout != 0 && data > 0;
+                if (--timeout == 0)
+                    break;
+            }
+            while (Stopwatch.GetTimestamp() < deadline);
+
+            return res && data > 0;
         }
 
         // Check all the arguments and don't execute if invalid
@@ -146,6 +156,11 @@ namespace ZenStates.Core
 
                 uint maxValidArgAddress = uint.MaxValue - mailbox.MAX_ARGS * 4;
 
+                if (mailbox.SMU_ADDR_ARG > maxValidArgAddress)
+                {
+                    return Status.FAILED;
+                }
+
                 // Clear response register
                 if (!SmuWriteRegNoLock(mailbox.SMU_ADDR_RSP, 0))
                 {
@@ -158,9 +173,6 @@ namespace ZenStates.Core
 
                 for (int i = 0; i < cmdArgs.Length; ++i)
                 {
-                    if (mailbox.SMU_ADDR_ARG > maxValidArgAddress)
-                        continue;
-
                     if (!SmuWriteRegNoLock(mailbox.SMU_ADDR_ARG + (uint)(i * 4), cmdArgs[i]))
                     {
                         // PCI write failed
@@ -197,12 +209,11 @@ namespace ZenStates.Core
 
                 if (unchecked((Status)status) == Status.OK)
                 {
-                    // Read back args
-                    for (int i = 0; i < args.Length; ++i)
-                    {
-                        if (mailbox.SMU_ADDR_ARG > maxValidArgAddress)
-                            continue;
+                    // Read back args. Bounded by the mailbox's own argument count: iterating
+                    int readBackCount = (int)Math.Min((uint)args.Length, mailbox.MAX_ARGS);
 
+                    for (int i = 0; i < readBackCount; ++i)
+                    {
                         if (!SmuReadRegNoLock(mailbox.SMU_ADDR_ARG + (uint)(i * 4), out uint argVal))
                         {
                             // PCI read failed

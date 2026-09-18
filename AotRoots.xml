@@ -5,16 +5,28 @@
   Add types here that are loaded dynamically (e.g. via reflection, Activator.CreateInstance,
   Type.GetType, or COM interop) so the linker does not trim them away.
 
-  Example:
-  <assembly fullname="ZenStates-Core">
-    <type fullname="ZenStates.Core.SomeReflectedType" preserve="all" />
-  </assembly>
+  NOTE ON SYNTAX: the descriptor format does not support a namespace-prefix wildcard. A
+  `fullname="ZenStates.Core.*"` entry matches no type at all, so the previous version of this
+  file rooted nothing and the reflection-driven paths below were silently trimmable. Only an
+  exact type name, or `preserve="all"` on the <assembly> element, has any effect.
+
+  The whole assembly is preserved because this is a library whose consumers reflect into it,
+  and because several internal paths resolve members by name at runtime:
+
+    * BaseDramTimings.this[string] resolves every DRAM timing property by name
+      (GetType().GetProperty) on each read. If those properties are trimmed, GetProperty
+      returns null, the caller's null check fails quietly, and every timing reads as unset
+      with no exception and no warning.
+    * Utils.CreateFromByteArray and Utils.ConvertValue reflect over property names and
+      conversion operators of types supplied at runtime.
+    * AodData and ApobData are populated by name from byte arrays.
+
+  If assembly-wide preservation becomes too costly for binary size, replace the element below
+  with individual <type fullname="..."/> entries for at least these types and their derived
+  classes, and verify with `dotnet publish -p:PublishAot=true` that timings still populate.
 
   See: https://learn.microsoft.com/dotnet/core/deploying/trimming/trimming-options#root-descriptors
 -->
 <linker>
-  <assembly fullname="ZenStates-Core">
-    <!-- Preserve all public API surface so consumers can P/Invoke / reflect into this library -->
-    <type fullname="ZenStates.Core.*" preserve="all" />
-  </assembly>
+  <assembly fullname="ZenStates-Core" preserve="all" />
 </linker>

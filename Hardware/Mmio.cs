@@ -242,11 +242,15 @@ namespace ZenStates.Core.Hardware
                 if (fraction > 15)
                     fraction = 15;
 
-                res = io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out value);
+                if (!io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out value))
+                    return false;
+
                 value = Utils.SetBits(value, 4, 9, (uint)index);
                 value = Utils.SetBits(value, 25, 4, fraction);
                 if (io.SetPhysLong((UIntPtr)MISC_CGPLLConfig3, value))
                     return CG1AtomicUpdate();
+
+                return false;
             }
 
             return res;

@@ -36,7 +36,7 @@ namespace ZenStates.Core.Hardware.Apob
         private const uint RTT_BLOCK_SIZE = 5;
 
         private static readonly uint[] KnownAddresses = new uint[] { 0xA200000, 0x9F00000, 0x4000000 };
-        private static readonly IODriver io = IODriver.Instance;
+        private static IODriver io => IODriver.Instance;
 
         private readonly CPUInfo _cpuInfo;
         private readonly ApobProfile _profile;
@@ -225,10 +225,10 @@ namespace ZenStates.Core.Hardware.Apob
 
             uint regionEnd = CONFIG_LIST_START + (uint)regionLength;
 
-            for (uint i = CONFIG_LIST_START; i + 3 < regionEnd && i + 3 < table.Length; i += 4)
+            for (long i = CONFIG_LIST_START; i + 3 < regionEnd && i + 3 < table.Length; i += 4)
             {
-                uint offset = Utils.ReadUInt32(table, i);
-                if (offset != 0 && offset + ENTRY_SIZE_OFFSET + 4 < table.Length)
+                uint offset = Utils.ReadUInt32(table, (uint)i);
+                if (offset != 0 && (long)offset + ENTRY_SIZE_OFFSET + 4 < table.Length)
                     list.Add(offset);
             }
 
@@ -240,14 +240,14 @@ namespace ZenStates.Core.Hardware.Apob
             if (ConfigOffsets == null || ConfigOffsets.Count == 0)
                 return false;
 
-            uint firstOffset = ConfigOffsets[0];
+            long firstOffset = ConfigOffsets[0];
             if (firstOffset + ENTRY_SIZE_OFFSET + 4 >= RawTable.Length)
                 return false;
 
-            uint firstEntrySize = Utils.ReadUInt32(RawTable, firstOffset + ENTRY_SIZE_OFFSET);
-            uint secondOffset = firstOffset + firstEntrySize;
+            uint firstEntrySize = Utils.ReadUInt32(RawTable, (uint)firstOffset + ENTRY_SIZE_OFFSET);
+            long secondOffset = firstOffset + firstEntrySize;
 
-            if (secondOffset + ENTRY_SIZE_OFFSET + 4 >= RawTable.Length)
+            if (secondOffset < 0 || secondOffset + ENTRY_SIZE_OFFSET + 4 >= RawTable.Length)
                 return false;
             if (secondOffset + 5 >= RawTable.Length)
                 return false;
@@ -255,11 +255,12 @@ namespace ZenStates.Core.Hardware.Apob
             if (RawTable[secondOffset] != 0x01 || RawTable[secondOffset + 4] != 0x19)
                 return false;
 
-            uint secondSize = Utils.ReadUInt32(RawTable, secondOffset + ENTRY_SIZE_OFFSET);
-            if (_profile != null && secondSize < (uint)_profile?.MainLayout?.BlockSize)
+            uint secondSize = Utils.ReadUInt32(RawTable, (uint)secondOffset + ENTRY_SIZE_OFFSET);
+
+            if (_profile?.MainLayout != null && secondSize < (uint)_profile.MainLayout.BlockSize)
                 return false;
 
-            DataOffset = secondOffset;
+            DataOffset = (uint)secondOffset;
             DataSize = secondSize;
             return true;
         }
@@ -268,7 +269,7 @@ namespace ZenStates.Core.Hardware.Apob
         {
             for (int i = 0; i < ConfigOffsets.Count; i++)
             {
-                uint offset = ConfigOffsets[i];
+                long offset = ConfigOffsets[i];
 
                 if (offset + 5 >= RawTable.Length)
                     continue;
@@ -278,10 +279,10 @@ namespace ZenStates.Core.Hardware.Apob
                     if (offset + ENTRY_SIZE_OFFSET + 4 >= RawTable.Length)
                         return false;
 
-                    ExtendedDataOffset = offset;
-                    ExtendedDataSize = Utils.ReadUInt32(RawTable, offset + ENTRY_SIZE_OFFSET);
+                    ExtendedDataOffset = (uint)offset;
+                    ExtendedDataSize = Utils.ReadUInt32(RawTable, (uint)offset + ENTRY_SIZE_OFFSET);
 
-                    if (_profile != null && ExtendedDataSize < (uint)_profile?.ExtendedLayout?.BlockSize)
+                    if (_profile?.ExtendedLayout != null && ExtendedDataSize < (uint)_profile.ExtendedLayout.BlockSize)
                     {
                         ExtendedDataOffset = 0;
                         ExtendedDataSize = 0;
@@ -297,6 +298,9 @@ namespace ZenStates.Core.Hardware.Apob
 
         private void TryGetCcdlBlock()
         {
+            if (_profile?.CcdlLayout == null)
+                return;
+
             byte[] sourceData = _profile.CcdlLayout.SourceBlock == ApobBlockKind.Main ? RawData : RawExtendedData;
             if (sourceData == null)
                 return;
@@ -312,13 +316,13 @@ namespace ZenStates.Core.Hardware.Apob
             if (DataSize == 0)
                 return;
 
-            uint start = DataOffset + DATA_PARSE_LEAD_BYTES;
-            uint end = DataOffset + DataSize;
+            long start = (long)DataOffset + DATA_PARSE_LEAD_BYTES;
+            long end = (long)DataOffset + DataSize;
 
             if (start >= end || end > RawTable.Length)
                 return;
 
-            for (uint i = start; i < end; i++)
+            for (long i = start; i < end; i++)
             {
                 if (RawTable[i] == 0)
                     continue;
@@ -326,7 +330,7 @@ namespace ZenStates.Core.Hardware.Apob
                 if (i + 6 >= end)
                     return;
 
-                if (!ApobDataReader.TryRead(RawTable, i, _profile.MainLayout, out ApobData data))
+                if (!ApobDataReader.TryRead(RawTable, (uint)i, _profile.MainLayout, out ApobData data))
                     return;
 
                 Data = data;

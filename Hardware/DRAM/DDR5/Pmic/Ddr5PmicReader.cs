@@ -210,7 +210,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                         {
                             Debug.WriteLine($"[PMIC] PMICs found on port {port}; setting ActiveDimmPort");
                             ActiveDimmPort = port;
-                            return true;      
+                            return true;
                         }
                     }
                 }

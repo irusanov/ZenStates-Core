@@ -19,8 +19,42 @@ namespace ZenStates.Core.OHWM
 
         private static IntPtr codeBuffer;
         private static ulong size;
+
+        // Open()/Close() manipulate process-wide executable memory, but callers (Cpu) create and
+        // dispose independently. Without a reference count the second Open leaks the first buffer
+        // and the first Close frees the buffer the survivor is still calling into.
+        private static int refCount;
+        private static readonly object openLock = new object();
+
+        /// <summary>True when the RDTSC/CPUID thunks are allocated and callable.</summary>
+        public static bool IsOpen => codeBuffer != IntPtr.Zero;
+
         public static void Open()
         {
+            lock (openLock)
+            {
+                if (codeBuffer != IntPtr.Zero)
+                {
+                    // Already initialised by another Cpu instance; just take a reference.
+                    refCount++;
+                    return;
+                }
+
+                OpenCore();
+                refCount = 1;
+            }
+        }
+
+        private static void OpenCore()
+        {
+            // The thunks below are hand-assembled x86/x64 machine code. Executing them on any
+            // other architecture jumps into garbage, so refuse rather than crash the host.
+            if (!IsSupportedArchitecture())
+            {
+                throw new PlatformNotSupportedException(
+                    "Opcode requires an x86 or x64 process; the RDTSC/CPUID thunks are machine code.");
+            }
+
             byte[] rdtscCode;
             byte[] cpuidCode;
             if (IntPtr.Size == 4)
@@ -84,6 +118,13 @@ namespace ZenStates.Core.OHWM
             }
 #endif
 
+            // VirtualAlloc/mmap returns null on failure; copying into address 0 faults the process.
+            if (codeBuffer == IntPtr.Zero)
+            {
+                throw new InvalidOperationException(
+                    "Failed to allocate executable memory for the RDTSC/CPUID thunks.");
+            }
+
             Marshal.Copy(rdtscCode, 0, codeBuffer, rdtscCode.Length);
 #if NET20
             Rdtsc = Marshal.GetDelegateForFunctionPointer(codeBuffer, typeof(RdtscDelegate)) as RdtscDelegate;
@@ -105,7 +146,46 @@ namespace ZenStates.Core.OHWM
 #endif
         }
 
+        private static bool IsSupportedArchitecture()
+        {
+#if NET20
+            return true; // net20 only ever ran on x86/x64.
+#else
+            switch (System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture)
+            {
+                case Architecture.X86:
+                case Architecture.X64:
+                    return true;
+                default:
+                    return false;
+            }
+#endif
+        }
+
         public static void Close()
+        {
+            lock (openLock)
+            {
+                if (refCount > 0)
+                    refCount--;
+
+                // Another live Cpu still holds this buffer; freeing it now would leave that
+                // instance's Rdtsc/Cpuid delegates pointing at released executable memory.
+                if (refCount > 0)
+                    return;
+
+                if (codeBuffer == IntPtr.Zero)
+                {
+                    Rdtsc = null;
+                    Cpuid = null;
+                    return;
+                }
+
+                CloseCore();
+            }
+        }
+
+        private static void CloseCore()
         {
             Rdtsc = null;
             Cpuid = null;
@@ -130,6 +210,11 @@ namespace ZenStates.Core.OHWM
                   FreeType.RELEASE);
             }
 #endif
+
+            // Must be cleared: a stale non-zero pointer makes a later Open() believe the
+            // buffer is still live and hand out delegates into freed memory.
+            codeBuffer = IntPtr.Zero;
+            size = 0;
         }
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]

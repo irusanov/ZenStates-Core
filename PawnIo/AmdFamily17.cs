@@ -102,13 +102,35 @@ namespace ZenStates.Core.PawnIo
         public bool ReadMsrTx(uint index, out uint eax, out uint edx, GroupAffinity affinity)
         {
             GroupAffinity previousAffinity = ThreadAffinity.Set(affinity);
+
+            // Undefined means the affinity change did not take. Reading anyway would return
+            // whichever core the thread happens to be on and report it as the requested one.
+            if (previousAffinity == GroupAffinity.Undefined)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"ReadMsrTx: could not set affinity to group {affinity.Group}/0x{affinity.Mask:X}; skipping MSR 0x{index:X}.");
+                eax = edx = 0;
+                return false;
+            }
+
             try
             {
                 return ReadMsr(index, out eax, out edx);
             }
             finally
             {
-                ThreadAffinity.Set(previousAffinity);
+                RestoreAffinity(previousAffinity);
+            }
+        }
+
+        private static void RestoreAffinity(GroupAffinity previousAffinity)
+        {
+            // A failed restore leaves the calling thread pinned to one core for good, which
+            // matters most on a UI or timer thread that polls repeatedly.
+            if (ThreadAffinity.Set(previousAffinity) == GroupAffinity.Undefined)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    "Failed to restore the previous thread affinity; this thread may stay pinned.");
             }
         }
 
@@ -138,13 +160,23 @@ namespace ZenStates.Core.PawnIo
         public bool WriteMsrTx(uint index, uint eax, uint edx, GroupAffinity affinity)
         {
             GroupAffinity previousAffinity = ThreadAffinity.Set(affinity);
+
+            // Writing to the wrong core is worse than reading from it: this path carries
+            // per-core frequency and curve-optimiser changes.
+            if (previousAffinity == GroupAffinity.Undefined)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    $"WriteMsrTx: could not set affinity to group {affinity.Group}/0x{affinity.Mask:X}; refusing to write MSR 0x{index:X}.");
+                return false;
+            }
+
             try
             {
                 return WriteMsr(index, eax, edx);
             }
             finally
             {
-                ThreadAffinity.Set(previousAffinity);
+                RestoreAffinity(previousAffinity);
             }
         }
 

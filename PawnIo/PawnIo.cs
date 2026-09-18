@@ -1,4 +1,4 @@
-﻿using Microsoft.Win32;
+using Microsoft.Win32;
 using Microsoft.Win32.SafeHandles;
 using System;
 using System.IO;
@@ -22,20 +22,54 @@ namespace ZenStates.Core.PawnIo
         private readonly SafeFileHandle _handle;
         private static readonly Version _version;
 
+        private const string UninstallKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO";
+
         static PawnIo()
         {
-            // .NET 2.0 framework defaults to system architecture (x86 or x64)
-            using (RegistryKey subKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PawnIO"))
+            // A throw here would be wrapped in a TypeInitializationException and poison the type
+            // for the life of the process, so every path is guarded.
+            try
             {
-                if (subKey != null)
-                {
-                    object val = subKey.GetValue("DisplayVersion");
-                    if (!TryParseVersion(val, out _version))
-                    {
-                        _version = null;
-                    }
-                }
+                _version = ReadInstalledVersion();
             }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Could not determine the installed PawnIO version: " + ex.Message);
+                _version = null;
+            }
+        }
+
+        private static Version ReadInstalledVersion()
+        {
+#if NET20
+            // .NET 2.0 framework defaults to system architecture (x86 or x64)
+            using (RegistryKey subKey = Registry.LocalMachine.OpenSubKey(UninstallKeyPath))
+            {
+                if (subKey != null && TryParseVersion(subKey.GetValue("DisplayVersion"), out Version parsed))
+                    return parsed;
+            }
+
+            return null;
+#else
+            // A 32-bit process is redirected to Wow6432Node, where a 64-bit PawnIO install is
+            // not visible — that made IsInstalled false and Cpu's constructor throw "PawnIO is
+            // not installed". Check the native 64-bit view first, then the 32-bit one.
+            RegistryView[] views = Utils.Is64Bit
+                ? new[] { RegistryView.Registry64, RegistryView.Registry32 }
+                : new[] { RegistryView.Registry32 };
+
+            foreach (RegistryView view in views)
+            {
+                using (RegistryKey baseKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, view))
+                using (RegistryKey subKey = baseKey?.OpenSubKey(UninstallKeyPath))
+                {
+                    if (subKey != null && TryParseVersion(subKey.GetValue("DisplayVersion"), out Version parsed))
+                        return parsed;
+            }
+        }
+
+            return null;
+#endif
         }
 
         private PawnIo(SafeFileHandle handle) => _handle = handle;
@@ -129,8 +163,9 @@ namespace ZenStates.Core.PawnIo
 
             if (success && read > 0)
             {
-                long[] result = new long[read / 8];
-                Buffer.BlockCopy(output, 0, result, 0, (int)read);
+                int copyBytes = (int)Math.Min(read, (uint)output.Length);
+                long[] result = new long[outLength];
+                Buffer.BlockCopy(output, 0, result, 0, Math.Min(copyBytes, result.Length * 8));
                 return result;
             }
 

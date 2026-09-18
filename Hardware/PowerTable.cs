@@ -549,28 +549,40 @@ namespace ZenStates.Core
 
         private bool TryRefreshOnce()
         {
-            if (Table == null || Table.Length == 0)
-                Table = new float[(int)smu.PmTableSize / 4];
+            uint tableBytes = smu.PmTableSize;
+            float[] current = Table;
+
+            // PmTableSize has a public setter, so the cached buffer can be the wrong size by the
+            // time we get here. Reallocate whenever it no longer matches.
+            int wantedLength = (int)((tableBytes + 3) / 4);
+
+            if (current == null || current.Length != wantedLength)
+                current = new float[wantedLength];
 
             long[] rawTempTable = smu.ReadPmTable(NUM_ELEMENTS_TO_COMPARE / 2);
             float[] tempTable = new float[NUM_ELEMENTS_TO_COMPARE];
-            Buffer.BlockCopy(rawTempTable, 0, tempTable, 0, NUM_ELEMENTS_TO_COMPARE * 4);
 
-            if (Utils.AllZero(Table) ||
+            RyzenSmu.CopyClamped(rawTempTable, tempTable, NUM_ELEMENTS_TO_COMPARE * 4);
+
+            if (Utils.AllZero(current) ||
                 Utils.AllZero(tempTable) ||
-                Utils.ArrayMembersEqual(Table, tempTable, tempTable.Length) ||
+                Utils.ArrayMembersEqual(current, tempTable, tempTable.Length) ||
                 tempTable[0] < 0 || tempTable[1] < 0 || tempTable[2] < 0 || tempTable[3] < 0)
             {
                 smu.UpdatePmTable();
             }
 
-            long[] fullTable = smu.ReadPmTable(((int)smu.PmTableSize + 7) / 8);
-            Buffer.BlockCopy(fullTable, 0, Table, 0, (int)smu.PmTableSize);
+            float[] next = new float[wantedLength];
+            long[] fullTable = smu.ReadPmTable(((int)tableBytes + 7) / 8);
 
-            if (Utils.AllZero(Table))
+            if (RyzenSmu.CopyClamped(fullTable, next, tableBytes) == 0)
                 return false;
 
-            ParseTable(Table);
+            if (Utils.AllZero(next))
+                return false;
+
+            Table = next;
+            ParseTable(next);
             return true;
         }
 
