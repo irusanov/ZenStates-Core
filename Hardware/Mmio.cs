@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core.Hardware
@@ -18,15 +19,19 @@ namespace ZenStates.Core.Hardware
         internal const uint MISC_CGPLLConfig3 = MISC_BASE_ADDRESS + 0x10;
         internal const uint MISC_CGPLLConfig4 = MISC_BASE_ADDRESS + 0x14;
         internal const uint MISC_CGPLLConfig5 = MISC_BASE_ADDRESS + 0x18;
+        internal const uint MISC_CGPLLConfig6 = MISC_BASE_ADDRESS + 0x1C;
         internal const uint MISC_ClkCntl1 = MISC_BASE_ADDRESS + 0x40;
         internal const uint MISC_ClkCntl2 = MISC_BASE_ADDRESS + 0x44;
         internal const uint MISC_StrapStatus = MISC_BASE_ADDRESS + 0x80;
+        internal const uint MISC_EclkModeStatus = AMD_MMIO_BASE_ADDRESS + 0xEAC;
         internal const uint SMBUS_BASE_ADDRESS_REG = 0x300;
         // internal const uint IOMUX_LPCCLK1 = IOMUX_BASE + 0x1F;
 
         private static Mmio _instance;
         private readonly IODriver io;
         private readonly Cpu.Family _family = Cpu.Family.UNSUPPORTED;
+        private readonly EclkMode _eclkMode = EclkMode.UNKNOWN;
+        private readonly ClkGen _clkGen = ClkGen.ERROR;
 
         public static Mmio Instance => _instance;
 
@@ -37,11 +42,21 @@ namespace ZenStates.Core.Hardware
             INTERNAL = 1,
         }
 
+        public enum EclkMode : int
+        {
+            UNKNOWN = -1,
+            AUTO = 0,
+            SYNC = 1,   // eCLK0 - CPU cores and the rest of the platform share one external reference
+            ASYNC = 2,  // eCLK1 - CPU cores get their own external reference, split from the platform's
+        }
+
         public Mmio(Cpu.Family family = Cpu.Family.UNSUPPORTED)
         {
             this.io = IODriver.Instance;
             _family = family;
             _instance = this;
+            _eclkMode = GetEclkMode();
+            _clkGen = GetStrapStatus();
         }
 
         private bool IsFam15 => _family == Cpu.Family.FAMILY_15H;
@@ -90,6 +105,24 @@ namespace ZenStates.Core.Hardware
             return ClkGen.ERROR;
         }
 
+        /// <summary>
+        /// Reads the eCLK sync/async/auto BIOS selection from MISC_EclkModeStatus
+        /// Only tested on a single board (MSI X870E Unify-X) with a single CPU (Ryzen 9 9950X3D).
+        /// </summary>
+        public EclkMode GetEclkMode()
+        {
+            if (!io.GetPhysLong((UIntPtr)MISC_EclkModeStatus, out uint value))
+                return EclkMode.UNKNOWN;
+
+            switch (Utils.GetBits(value, 16, 8))
+            {
+                case 0x00: return EclkMode.AUTO;
+                case 0x60: return EclkMode.SYNC;
+                case 0xA0: return EclkMode.ASYNC;
+                default: return EclkMode.UNKNOWN;
+            }
+        }
+
         private bool DisableSpreadSpectrum()
         {
             if (io.GetPhysLong((UIntPtr)MISC_CGPLLConfig1, out uint value))
@@ -124,9 +157,6 @@ namespace ZenStates.Core.Hardware
          */
         public bool SetBclk(double bclk)
         {
-            if (GetStrapStatus() != ClkGen.INTERNAL)
-                return false; // external clocking mode or error
-
             if (bclk > 151)
                 bclk = 151;
             else if (bclk < 96)
@@ -134,10 +164,13 @@ namespace ZenStates.Core.Hardware
 
             if (IsFam15)
             {
+                if (_clkGen != ClkGen.INTERNAL)
+                    return false; // external clocking mode or error
+
                 // Family 15h (Bristol Ridge / Carrizo)
-                // CGPLLConfig3 has a different bit shape here than the 16h layout used below:
+                // CGPLLConfig3 has a different bit shape here than the layout used below:
                 // [9:0]=REFDIV, [21:10]=FBDIV (12 bits), [25:22]=FBDIV_Fraction (4 bits, tenths:
-                // 1h-9h => *0.1, 0h/Ah-Fh => 0). The 16h path's index/fraction offsets ([4:9]/[25:4]) and
+                // 1h-9h => *0.1, 0h/Ah-Fh => 0). The generic path's index/fraction offsets ([4:9]/[25:4]) and
                 // the XOR-based CalculateBclkIndex don't apply to this family's PLL at all.
                 if (!io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out uint cfg3))
                     return false;
@@ -184,9 +217,14 @@ namespace ZenStates.Core.Hardware
                 if (!io.SetPhysLong((UIntPtr)MISC_ClkCntl2, Utils.SetBit(cfg44, 0)))
                     return false;
 
-                // Same Atomic_Update bit (30) as the 16h path below
+                // Same Atomic_Update bit (30) as the path below
                 return CG1AtomicUpdate();
             }
+
+            // Has no effect when in External mode, even though the MISC_CGPLLConfig3 is writable and can be read back.
+            // TODO: Check AUTO mode (still External on MSI X870E Unify-X)
+            if (_clkGen != ClkGen.INTERNAL)
+                return false;
 
             DisableSpreadSpectrum();
 
@@ -216,11 +254,17 @@ namespace ZenStates.Core.Hardware
 
         public double? GetBclk()
         {
-            if (GetStrapStatus() != ClkGen.INTERNAL)
-                return null;
+            // On MSI X870E Unify-X BCLK1 is correctly detected when in eCLK1 mode (async)
+            // in eCLK0 mode (sync) it always reads 100 and setting any value has no effect.
+            // In both cases StrapStatus is EXTERNAL
+            //if (GetStrapStatus() != ClkGen.INTERNAL)
+            //    return null;
 
             if (IsFam15)
             {
+                if (_clkGen != ClkGen.INTERNAL)
+                    return null;
+
                 if (!io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out uint cfg3))
                     return null;
 
@@ -240,6 +284,14 @@ namespace ZenStates.Core.Hardware
                 return 48.0 * (fbdiv - fraction15h) / (refDiv * coreClkPostDiv * 4.0);
             }
 
+            // Seems to be reading fine in eCLK0 (sync) on MSI X870E Unify-X.
+            // In eCLK1 (async) mode, it reads the previously saved value in eCLK0, at least on MSI X870E Unify-X.
+            // Writing has no real effect in External mode, except that the value is stored in the register and can be read back.
+            // TODO: Check for 19h
+            // TODO: Check on a board that has no external PLL
+            if (_clkGen == ClkGen.EXTERNAL && _eclkMode == EclkMode.ASYNC)
+                return null;
+
             if (io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out uint value))
             {
                 uint index = Utils.GetBits(value, 4, 9);
@@ -247,6 +299,29 @@ namespace ZenStates.Core.Hardware
                 return CalculateBclkFromIndex((int)index) + fMul * 0.0625f;
             }
             return null;
+        }
+
+        public string GetReport()
+        {
+            StringBuilder sb = new StringBuilder();
+
+            sb.AppendLine("MMIO");
+            sb.AppendLine();
+
+            sb.AppendLine(string.Format("-- StrapStatus: {0}", GetStrapStatus()));
+            sb.AppendLine(string.Format("-- EclkMode: {0}", GetEclkMode()));
+            sb.AppendLine();
+            sb.AppendLine("-- Raw Data");
+
+            for (int i = 0; i < 0xFED8FFFF - 0xFED80000; i += 4)
+            {
+                if (io.GetPhysLong((UIntPtr)(AMD_MMIO_BASE_ADDRESS + i), out uint value))
+                {
+                    sb.AppendLine(string.Format("0x{0:X8}: 0x{1:X8}", AMD_MMIO_BASE_ADDRESS + i, value));
+                }
+            }
+
+            return sb.ToString();
         }
     }
 }
