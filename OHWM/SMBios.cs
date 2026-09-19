@@ -713,7 +713,9 @@ namespace ZenStates.Core.OHWM
             ManufacturerName = manufacturerName;
             ProductName = productName;
             Version = version;
+#if PRINT_SERIALS
             SerialNumber = serialNumber;
+#endif
             Family = family;
             WakeUp = wakeUp;
         }
@@ -723,7 +725,9 @@ namespace ZenStates.Core.OHWM
             ManufacturerName = GetString(0x04);
             ProductName = GetString(0x05);
             Version = GetString(0x06);
+#if PRINT_SERIALS
             SerialNumber = GetString(0x07);
+#endif
             Family = GetString(0x1A);
             WakeUp = (SystemWakeUp)GetByte(0x18);
         }
@@ -773,7 +777,9 @@ namespace ZenStates.Core.OHWM
         {
             ManufacturerName = GetString(0x04).Trim();
             Version = GetString(0x06).Trim();
+#if PRINT_SERIALS
             SerialNumber = GetString(0x07).Trim();
+#endif
             AssetTag = GetString(0x08).Trim();
             RackHeight = GetByte(0x11);
             PowerCords = GetByte(0x12);
@@ -864,7 +870,9 @@ namespace ZenStates.Core.OHWM
             ManufacturerName = manufacturerName;
             ProductName = productName;
             Version = version;
+#if PRINT_SERIALS
             SerialNumber = serialNumber;
+#endif
         }
 
         internal BaseBoardInformation(byte[] data, IList<string> strings) : base(data, strings)
@@ -872,7 +880,9 @@ namespace ZenStates.Core.OHWM
             ManufacturerName = GetString(0x04).Trim();
             ProductName = GetString(0x05).Trim();
             Version = GetString(0x06).Trim();
+#if PRINT_SERIALS
             SerialNumber = GetString(0x07).Trim();
+#endif
         }
 
         /// <summary>
@@ -912,7 +922,9 @@ namespace ZenStates.Core.OHWM
             ExternalClock = GetWord(0x12);
             MaxSpeed = GetWord(0x14);
             CurrentSpeed = GetWord(0x16);
+#if PRINT_SERIALS
             Serial = GetString(0x20).Trim();
+#endif
             Id = GetQword(0x08);
             Handle = GetWord(0x02);
 
@@ -1119,7 +1131,9 @@ namespace ZenStates.Core.OHWM
             DeviceLocator = GetString(0x10).Trim();
             BankLocator = GetString(0x11).Trim();
             ManufacturerName = GetString(0x17).Trim();
+#if PRINT_SERIALS
             SerialNumber = GetString(0x18).Trim();
+#endif
             PartNumber = GetString(0x1A).Trim();
             Speed = GetWord(0x15);
             ConfiguredSpeed = GetWord(0x20);
@@ -1445,7 +1459,11 @@ namespace ZenStates.Core.OHWM
                 r.Append("Motherboard Version: ");
                 r.AppendLine(Board.Version);
                 r.Append("Motherboard Serial: ");
+#if PRINT_SERIALS
                 r.AppendLine(Board.SerialNumber);
+#else
+                r.AppendLine("****");
+#endif
                 r.AppendLine();
             }
 
@@ -1458,7 +1476,11 @@ namespace ZenStates.Core.OHWM
                 r.Append("System Enclosure Version: ");
                 r.AppendLine(SystemEnclosure.Version);
                 r.Append("System Enclosure Serial: ");
+#if PRINT_SERIALS
                 r.AppendLine(SystemEnclosure.SerialNumber);
+#else
+                r.AppendLine("****");
+#endif
                 r.Append("System Enclosure Asset Tag: ");
                 r.AppendLine(SystemEnclosure.AssetTag);
                 if (!string.IsNullOrEmpty(SystemEnclosure.SKU))
@@ -1499,7 +1521,11 @@ namespace ZenStates.Core.OHWM
                     r.Append("Processor Version: ");
                     r.AppendLine(processor.Version);
                     r.Append("Processor Serial: ");
+#if PRINT_SERIALS
                     r.AppendLine(processor.Serial);
+#else
+                    r.AppendLine("****");
+#endif
                     r.Append("Processor Socket Designation: ");
                     r.AppendLine(processor.SocketDesignation);
                     r.Append("Processor Socket: ");
