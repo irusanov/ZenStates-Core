@@ -439,11 +439,11 @@ namespace ZenStates.Core
             var pt = new PowerTable();
 
             string[] lines = text.Split('\n');
-            int start = MockSystemData.FindSectionContentStart(lines, "SMU: Power Table Detected Values");
+            int start = DebugReportParser.FindSectionContentStart(lines, "SMU: Power Table Detected Values");
             if (start < 0)
                 return pt;
 
-            int end = MockSystemData.FindNextHeadingLine(lines, start);
+            int end = DebugReportParser.FindNextHeadingLine(lines, start);
             var lineRegex = new Regex(@"^(?<name>[A-Za-z0-9_]+):\s*(?<value>.*)$");
 
             for (int i = start; i < end; i++)

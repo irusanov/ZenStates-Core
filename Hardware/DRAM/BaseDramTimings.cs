@@ -56,44 +56,30 @@ namespace ZenStates.Core.Hardware.DRAM
         internal readonly Cpu cpu;
         internal Dictionary<uint, TimingDef[]> Dict { get; set; }
 
-        // Captured UMC registers to decode instead of the live controller, set only during ReadFromDump.
-        [NonSerialized]
-        private IDictionary<uint, uint> registerDump;
-
         public BaseDramTimings(Cpu cpuInstance)
         {
             cpu = cpuInstance;
         }
 
         /// <summary>
-        /// Decodes the channel at <paramref name="offset"/> from captured UMC registers, such as the dump in a
-        /// debug report, instead of the live controller.
+        /// Reads one UMC register.
         /// </summary>
-        public void ReadFromDump(IDictionary<uint, uint> registers, uint offset = 0)
+        /// <returns>False when the register could not be read; <paramref name="value"/> is then 0.</returns>
+        protected virtual bool TryReadRegister(uint address, out uint value)
         {
-            registerDump = registers;
-            try
+            // A null Cpu is legitimate for subclasses that never touch hardware.
+            if (cpu == null)
             {
-                Read(offset);
+                value = 0;
+                return false;
             }
-            finally
-            {
-                registerDump = null;
-            }
-        }
-
-        protected bool TryReadRegister(uint address, out uint value)
-        {
-            if (registerDump != null)
-                return registerDump.TryGetValue(address, out value);
 
             return cpu.TryReadDwordNoLock(address, out value);
         }
 
         protected uint ReadRegister(uint address)
         {
-            uint value;
-            return TryReadRegister(address, out value) ? value : 0;
+            return TryReadRegister(address, out uint value) ? value : 0;
         }
 
         public object this[string propertyName]
@@ -201,9 +187,14 @@ namespace ZenStates.Core.Hardware.DRAM
         /// <summary>
         /// Default reference clock used when the live BCLK cannot be read.
         /// </summary>
-        private const double DefaultBclk = 100.0;
+        protected const double DefaultBclk = 100.0;
 
-        public float Frequency
+        /// <summary>
+        /// Effective memory data rate in MT/s. Several timings are reported in nanoseconds and are
+        /// derived from this, so a subclass that decodes captured registers must override it too —
+        /// otherwise it would read the clocks of whatever machine happens to be running the code.
+        /// </summary>
+        public virtual float Frequency
         {
             get
             {
