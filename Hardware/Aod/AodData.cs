@@ -136,6 +136,7 @@ namespace ZenStates.Core.Hardware.Aod
             report.AppendEncodedValue("RttPark", RttPark);
             report.AppendEncodedValue("RttParkDqs", RttParkDqs);
 
+            report.AppendValue("MemVddio", MemVddio, TimingLabelWidth);
             report.AppendValue("MemVddq", MemVddq, TimingLabelWidth);
             report.AppendValue("MemVpp", MemVpp, TimingLabelWidth);
             report.AppendValue("ApuVddio", ApuVddio, TimingLabelWidth);
