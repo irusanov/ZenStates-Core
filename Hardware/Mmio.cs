@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using ZenStates.Core.Common;
 using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core.Hardware
@@ -309,7 +310,7 @@ namespace ZenStates.Core.Hardware
         {
             StringBuilder sb = new StringBuilder();
 
-            sb.AppendLine(Utils.GetReportHeading("MMIO"));
+            sb.AppendLine(ReportBuilder.Heading("MMIO"));
             sb.AppendLine(string.Format("-- StrapStatus: {0}", GetStrapStatus()));
             sb.AppendLine(string.Format("-- EclkMode: {0}", GetEclkMode()));
             sb.AppendLine();

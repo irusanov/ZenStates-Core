@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using ZenStates.Core.Common;
 
 // ReSharper disable CommentTypo
 // ReSharper disable IdentifierTypo
@@ -1386,7 +1387,7 @@ namespace ZenStates.Core.OHWM
         {
             StringBuilder r = new StringBuilder();
 
-            r.AppendLine(Utils.GetReportHeading("SMBIOS"));
+            r.AppendLine(ReportBuilder.Heading("SMBIOS"));
 
             if (_version != null)
             {

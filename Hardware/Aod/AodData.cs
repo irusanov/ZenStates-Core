@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Globalization;
-using System.Text;
 using ZenStates.Core.Common;
 
 namespace ZenStates.Core.Hardware.Aod
@@ -67,6 +65,9 @@ namespace ZenStates.Core.Hardware.Aod
         public Voltage MemVpp { get; set; }
         public Voltage ApuVddio { get; set; }
 
+        /// <summary>Label column width used throughout this block's report.</summary>
+        private const int TimingLabelWidth = 19;
+
 #if NET8_0_OR_GREATER
         [RequiresUnreferencedCode(
             "Forwards to Utils.CreateFromByteArray<AodData>, which uses reflection " +
@@ -80,80 +81,66 @@ namespace ZenStates.Core.Hardware.Aod
 
         public string GetReport()
         {
-            StringBuilder sb = new StringBuilder();
-            AppendValue(sb, "SMTEn", SMTEn);
-            AppendValue(sb, "MemClk", MemClk);
-            AppendValue(sb, "Tcl", Tcl);
-            AppendValue(sb, "Trcd", Trcd);
-            AppendValue(sb, "TrcdWr", TrcdWr);
-            AppendValue(sb, "TrcdRd", TrcdRd);
-            AppendValue(sb, "Trp", Trp);
-            AppendValue(sb, "Tras", Tras);
-            AppendValue(sb, "Trc", Trc);
-            AppendValue(sb, "Twr", Twr);
-            AppendValue(sb, "Trfc", Trfc);
-            AppendValue(sb, "Trfc2", Trfc2);
-            AppendValue(sb, "Trfcsb", Trfcsb);
-            AppendValue(sb, "Trtp", Trtp);
-            AppendValue(sb, "TrrdL", TrrdL);
-            AppendValue(sb, "TrrdS", TrrdS);
-            AppendValue(sb, "Tfaw", Tfaw);
-            AppendValue(sb, "TwtrL", TwtrL);
-            AppendValue(sb, "TwtrS", TwtrS);
-            AppendValue(sb, "TrdrdScL", TrdrdScL);
-            AppendValue(sb, "TrdrdSc", TrdrdSc);
-            AppendValue(sb, "TrdrdSd", TrdrdSd);
-            AppendValue(sb, "TrdrdDd", TrdrdDd);
-            AppendValue(sb, "TwrwrScL", TwrwrScL);
-            AppendValue(sb, "TwrwrSc", TwrwrSc);
-            AppendValue(sb, "TwrwrSd", TwrwrSd);
-            AppendValue(sb, "TwrwrDd", TwrwrDd);
-            AppendValue(sb, "Twrrd", Twrrd);
-            AppendValue(sb, "Trdwr", Trdwr);
+            ReportBuilder report = new ReportBuilder();
 
-            AppendValue(sb, "CadBusDrvStren", CadBusDrvStren);
-            AppendValue(sb, "ProcDataDrvStren", ProcDataDrvStren);
-            AppendValue(sb, "ProcOdt", ProcOdt);
-            AppendValue(sb, "ProcOdtPullUp", ProcOdtPullUp);
-            AppendValue(sb, "ProcOdtPullDown", ProcOdtPullDown);
-            AppendValue(sb, "ProcCaOdt", ProcCaOdt);
-            AppendValue(sb, "ProcCkOdt", ProcCkOdt);
-            AppendValue(sb, "ProcDqOdt", ProcDqOdt);
-            AppendValue(sb, "ProcDqsOdt", ProcDqsOdt);
-            AppendValue(sb, "ProcDataDrvStrenApu", ProcDataDrvStrenApu);
-            AppendValue(sb, "ProcCsDs", ProcCsDs);
-            AppendValue(sb, "ProcCkDs", ProcCkDs);
-            AppendValue(sb, "ProcDqDsPullUp", ProcDqDsPullUp);
-            AppendValue(sb, "ProcDqDsPullDown", ProcDqDsPullDown);
-            AppendValue(sb, "DramDataDrvStren", DramDataDrvStren);
-            AppendValue(sb, "DramDqDsPullUp", DramDqDsPullUp);
-            AppendValue(sb, "DramDqDsPullDown", DramDqDsPullDown);
-            AppendValue(sb, "RttNomWr", RttNomWr);
-            AppendValue(sb, "RttNomRd", RttNomRd);
-            AppendValue(sb, "RttWr", RttWr);
-            AppendValue(sb, "RttPark", RttPark);
-            AppendValue(sb, "RttParkDqs", RttParkDqs);
-            AppendValue(sb, "MemVddio", MemVddio);
-            AppendValue(sb, "MemVddq", MemVddq);
-            AppendValue(sb, "MemVpp", MemVpp);
-            AppendValue(sb, "ApuVddio", ApuVddio);
+            report.AppendValue("SMTEn", SMTEn, TimingLabelWidth);
+            report.AppendValue("MemClk", MemClk, TimingLabelWidth);
+            report.AppendValue("Tcl", Tcl, TimingLabelWidth);
+            report.AppendValue("Trcd", Trcd, TimingLabelWidth);
+            report.AppendValue("TrcdWr", TrcdWr, TimingLabelWidth);
+            report.AppendValue("TrcdRd", TrcdRd, TimingLabelWidth);
+            report.AppendValue("Trp", Trp, TimingLabelWidth);
+            report.AppendValue("Tras", Tras, TimingLabelWidth);
+            report.AppendValue("Trc", Trc, TimingLabelWidth);
+            report.AppendValue("Twr", Twr, TimingLabelWidth);
+            report.AppendValue("Trfc", Trfc, TimingLabelWidth);
+            report.AppendValue("Trfc2", Trfc2, TimingLabelWidth);
+            report.AppendValue("Trfcsb", Trfcsb, TimingLabelWidth);
+            report.AppendValue("Trtp", Trtp, TimingLabelWidth);
+            report.AppendValue("TrrdL", TrrdL, TimingLabelWidth);
+            report.AppendValue("TrrdS", TrrdS, TimingLabelWidth);
+            report.AppendValue("Tfaw", Tfaw, TimingLabelWidth);
+            report.AppendValue("TwtrL", TwtrL, TimingLabelWidth);
+            report.AppendValue("TwtrS", TwtrS, TimingLabelWidth);
+            report.AppendValue("TrdrdScL", TrdrdScL, TimingLabelWidth);
+            report.AppendValue("TrdrdSc", TrdrdSc, TimingLabelWidth);
+            report.AppendValue("TrdrdSd", TrdrdSd, TimingLabelWidth);
+            report.AppendValue("TrdrdDd", TrdrdDd, TimingLabelWidth);
+            report.AppendValue("TwrwrScL", TwrwrScL, TimingLabelWidth);
+            report.AppendValue("TwrwrSc", TwrwrSc, TimingLabelWidth);
+            report.AppendValue("TwrwrSd", TwrwrSd, TimingLabelWidth);
+            report.AppendValue("TwrwrDd", TwrwrDd, TimingLabelWidth);
+            report.AppendValue("Twrrd", Twrrd, TimingLabelWidth);
+            report.AppendValue("Trdwr", Trdwr, TimingLabelWidth);
 
-            return sb.ToString();
-        }
+            report.AppendEncodedValue("CadBusDrvStren", CadBusDrvStren);
+            report.AppendEncodedValue("ProcDataDrvStren", ProcDataDrvStren);
+            report.AppendEncodedValue("ProcOdt", ProcOdt);
+            report.AppendEncodedValue("ProcOdtPullUp", ProcOdtPullUp);
+            report.AppendEncodedValue("ProcOdtPullDown", ProcOdtPullDown);
+            report.AppendEncodedValue("ProcCaOdt", ProcCaOdt);
+            report.AppendEncodedValue("ProcCkOdt", ProcCkOdt);
+            report.AppendEncodedValue("ProcDqOdt", ProcDqOdt);
+            report.AppendEncodedValue("ProcDqsOdt", ProcDqsOdt);
+            report.AppendEncodedValue("ProcDataDrvStrenApu", ProcDataDrvStrenApu);
+            report.AppendEncodedValue("ProcCsDs", ProcCsDs);
+            report.AppendEncodedValue("ProcCkDs", ProcCkDs);
+            report.AppendEncodedValue("ProcDqDsPullUp", ProcDqDsPullUp);
+            report.AppendEncodedValue("ProcDqDsPullDown", ProcDqDsPullDown);
+            report.AppendEncodedValue("DramDataDrvStren", DramDataDrvStren);
+            report.AppendEncodedValue("DramDqDsPullUp", DramDqDsPullUp);
+            report.AppendEncodedValue("DramDqDsPullDown", DramDqDsPullDown);
+            report.AppendEncodedValue("RttNomWr", RttNomWr);
+            report.AppendEncodedValue("RttNomRd", RttNomRd);
+            report.AppendEncodedValue("RttWr", RttWr);
+            report.AppendEncodedValue("RttPark", RttPark);
+            report.AppendEncodedValue("RttParkDqs", RttParkDqs);
 
-        private static void AppendValue(StringBuilder sb, string name, object value)
-        {
-            if (value is EncodedValueBase encodedValue)
-            {
-                string rawValue = encodedValue.RawValue.HasValue
-                    ? encodedValue.RawValue.Value.ToString(CultureInfo.InvariantCulture)
-                    : "null";
+            report.AppendValue("MemVddq", MemVddq, TimingLabelWidth);
+            report.AppendValue("MemVpp", MemVpp, TimingLabelWidth);
+            report.AppendValue("ApuVddio", ApuVddio, TimingLabelWidth);
 
-                sb.AppendLine(string.Format("{0,-19}{1,-20}({2})", name + ":", value ?? "N/A", rawValue));
-                return;
-            }
-
-            sb.AppendLine(string.Format("{0,-19}{1}", name + ":", value ?? "N/A"));
+            return report.ToString();
         }
     }
 }

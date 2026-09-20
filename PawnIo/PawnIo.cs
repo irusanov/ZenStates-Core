@@ -65,8 +65,8 @@ namespace ZenStates.Core.PawnIo
                 {
                     if (subKey != null && TryParseVersion(subKey.GetValue("DisplayVersion"), out Version parsed))
                         return parsed;
+                }
             }
-        }
 
             return null;
 #endif

@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
-using System.Text;
 using System.Text.RegularExpressions;
+using ZenStates.Core.Common;
 using ZenStates.Core.Hardware;
 using ZenStates.Core.Hardware.Mock;
 using ZenStates.Core.PawnIo;
@@ -652,48 +652,59 @@ namespace ZenStates.Core
             set => SetProperty(ref vdd_misc, value, InternalEventArgsCache.VDD_MISC);
         }
 
+        /// <summary>Label column width of the detected values, which CreateFromDebugReport reads back.</summary>
+        private const int ValueLabelWidth = 25;
+
         public string GetReport()
         {
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine(Utils.GetReportHeading("SMU: Power Table"));
+            ReportBuilder report = new ReportBuilder();
+            report.AppendHeading("SMU: Power Table");
 
-            try
+            // Null for an instance built by CreateFromDebugReport: it has the decoded values but
+            // neither the raw table nor an SMU to ask about it.
+            if (Table == null)
             {
-                for (var i = 0; i < Table.Length; i++)
+                report.AppendLine("<raw power table not available>");
+            }
+            else
+            {
+                try
                 {
-                    var temp = BitConverter.GetBytes(Table[i]);
-                    sb.AppendLine($"Offset {i * 0x4:X3}: {BitConverter.ToSingle(temp, 0):F8}");
+                    for (int i = 0; i < Table.Length; i++)
+                    {
+                        byte[] temp = BitConverter.GetBytes(Table[i]);
+                        report.AppendLine($"Offset {i * 0x4:X3}: {BitConverter.ToSingle(temp, 0):F8}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    report.AppendFailure(ex);
                 }
             }
-            catch (Exception ex)
+
+            report.AppendLine();
+            report.AppendHeading("SMU: Power Table Detected Values");
+
+            // Only the live path has an SMU behind it; the values below come from this instance
+            // either way, so a report-built table still prints everything it knows.
+            if (smu != null)
             {
-                sb.AppendLine("<FAILED>");
-                sb.AppendLine(ex.Message);
+                report.AppendHexValue("TableVersion", smu.PmTableVersion, 1, ValueLabelWidth);
+                report.AppendHexValue("TableSize", smu.PmTableSize, 1, ValueLabelWidth);
             }
 
-            sb.AppendLine(Utils.GetReportHeading("SMU: Power Table Detected Values"));
-            try
-            {
-                sb.AppendLine($"{"TableVersion:",-23} 0x{smu.PmTableVersion:X}");
-                sb.AppendLine($"{"TableSize:",-23} 0x{smu.PmTableSize:X}");
-                sb.AppendLine($"{"ConfiguredClockSpeed:",-25}{ConfiguredClockSpeed}");
-                sb.AppendLine($"{"MemRatio:",-25}{MemRatio}");
-                sb.AppendLine($"{"FCLK:",-25}{FCLK}");
-                sb.AppendLine($"{"MCLK:",-25}{MCLK}");
-                sb.AppendLine($"{"UCLK:",-25}{UCLK}");
-                sb.AppendLine($"{"VDDCR_SOC:",-25}{VDDCR_SOC}");
-                sb.AppendLine($"{"CLDO_VDDP:",-25}{CLDO_VDDP}");
-                sb.AppendLine($"{"CLDO_VDDG_IOD:",-25}{CLDO_VDDG_IOD}");
-                sb.AppendLine($"{"CLDO_VDDG_CCD:",-25}{CLDO_VDDG_CCD}");
-                sb.AppendLine($"{"VDD_MISC:",-25}{VDD_MISC}");
-            }
-            catch (Exception ex)
-            {
-                sb.AppendLine("<FAILED>");
-                sb.AppendLine(ex.Message);
-            }
+            report.AppendValue("ConfiguredClockSpeed", ConfiguredClockSpeed, ValueLabelWidth);
+            report.AppendValue("MemRatio", MemRatio, ValueLabelWidth);
+            report.AppendValue("FCLK", FCLK, ValueLabelWidth);
+            report.AppendValue("MCLK", MCLK, ValueLabelWidth);
+            report.AppendValue("UCLK", UCLK, ValueLabelWidth);
+            report.AppendValue("VDDCR_SOC", VDDCR_SOC, ValueLabelWidth);
+            report.AppendValue("CLDO_VDDP", CLDO_VDDP, ValueLabelWidth);
+            report.AppendValue("CLDO_VDDG_IOD", CLDO_VDDG_IOD, ValueLabelWidth);
+            report.AppendValue("CLDO_VDDG_CCD", CLDO_VDDG_CCD, ValueLabelWidth);
+            report.AppendValue("VDD_MISC", VDD_MISC, ValueLabelWidth);
 
-            return sb.ToString();
+            return report.ToString();
         }
     }
 

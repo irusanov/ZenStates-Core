@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using ZenStates.Core.Common;
 using ZenStates.Core.Hardware.MutexLock;
 
 namespace ZenStates.Core.PawnIo
@@ -481,7 +482,7 @@ namespace ZenStates.Core.PawnIo
 
             StringBuilder report = new StringBuilder();
 
-            report.AppendLine(Utils.GetReportHeading("Ryzen SMU"));
+            report.AppendLine(ReportBuilder.Heading("Ryzen SMU"));
             report.AppendLine(new string('=', 50));
             report.AppendLine();
             report.AppendLine($"CPU Code Name: {_cpuCodeName}");

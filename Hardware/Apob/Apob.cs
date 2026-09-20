@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
-using System.Text;
 using System.Text.RegularExpressions;
+using ZenStates.Core.Common;
 using ZenStates.Core.Drivers;
 using static ZenStates.Core.Cpu;
 
@@ -598,7 +598,7 @@ namespace ZenStates.Core.Hardware.Apob
         }
 
         // Parses one of the "-- Raw Header/Raw Data/Raw Extended Data --" sections produced by
-        // GetReport()/AppendRawBinaryData: a "Length: N" line followed by N bytes, formatted as
+        // GetReport()/AppendRawBlock: a "Length: N" line followed by N bytes, formatted as
         // space-separated hex pairs, 16 per line.
         private static byte[] ParseRawSection(string text, string sectionHeaderPrefix)
         {
@@ -667,174 +667,102 @@ namespace ZenStates.Core.Hardware.Apob
 
         public string GetReport()
         {
-            StringBuilder sb = new StringBuilder();
+            ReportBuilder report = new ReportBuilder();
 
-            sb.AppendLine(Utils.GetReportHeading("APOB"));
+            report.AppendHeading("APOB");
 
             try
             {
                 if (!IsAvailable)
                 {
-                    sb.AppendLine("<APOB table not available>");
+                    report.AppendLine("<APOB table not available>");
                     if (!string.IsNullOrEmpty(ErrorReason))
-                        sb.AppendLine(ErrorReason);
+                        report.AppendLine(ErrorReason);
 
-                    sb.AppendLine();
-                    return sb.ToString();
+                    report.AppendLine();
+                    return report.ToString();
                 }
 
-                sb.AppendLine(string.Format("-- Address: 0x{0:X8}", Address));
-                sb.AppendLine(string.Format("-- Main Data Offset: 0x{0:X8}", DataOffset));
-                sb.AppendLine(string.Format("-- Main Data Size: 0x{0:X8} ({0})", DataSize));
-                sb.AppendLine(string.Format("-- Main Layout Offset: 0x{0:X8}", MainLayoutDataOffset));
-                sb.AppendLine(string.Format("-- Main Layout Rel. Offset: 0x{0:X8} ({0})", MainLayoutDataRelativeOffset));
-                sb.AppendLine(string.Format("-- Ext. Data Offset: 0x{0:X8}", ExtendedDataOffset));
-                sb.AppendLine(string.Format("-- Ext. Data Size: 0x{0:X8} ({0})", ExtendedDataSize));
-                sb.AppendLine(string.Format("-- Ext. Layout Offset: 0x{0:X8}", ExtendedLayoutDataOffset));
-                sb.AppendLine(string.Format("-- Ext. Layout Rel. Offset: 0x{0:X8} ({0})", ExtendedLayoutDataRelativeOffset));
-                sb.AppendLine();
-                sb.AppendLine("-- Metadata -------------------------------------");
-                sb.AppendLine(string.Format("{0,-28}{1}", "Config Offsets Count:", ConfigOffsets != null ? ConfigOffsets.Count : 0));
-                sb.AppendLine(string.Format("{0,-28}{1}", "Main Block Parsed:", Data != null));
-                sb.AppendLine(string.Format("{0,-28}{1}", "Extended Block Parsed:", ExtendedData != null));
-                sb.AppendLine(string.Format("{0,-28}{1}", "Raw Table Bytes:", RawTable != null ? RawTable.Length : 0));
+                report.AppendLine(string.Format("-- Address: 0x{0:X8}", Address));
+                report.AppendLine(string.Format("-- Main Data Offset: 0x{0:X8}", DataOffset));
+                report.AppendLine(string.Format("-- Main Data Size: 0x{0:X8} ({0})", DataSize));
+                report.AppendLine(string.Format("-- Main Layout Offset: 0x{0:X8}", MainLayoutDataOffset));
+                report.AppendLine(string.Format("-- Main Layout Rel. Offset: 0x{0:X8} ({0})", MainLayoutDataRelativeOffset));
+                report.AppendLine(string.Format("-- Ext. Data Offset: 0x{0:X8}", ExtendedDataOffset));
+                report.AppendLine(string.Format("-- Ext. Data Size: 0x{0:X8} ({0})", ExtendedDataSize));
+                report.AppendLine(string.Format("-- Ext. Layout Offset: 0x{0:X8}", ExtendedLayoutDataOffset));
+                report.AppendLine(string.Format("-- Ext. Layout Rel. Offset: 0x{0:X8} ({0})", ExtendedLayoutDataRelativeOffset));
+                report.AppendLine();
+                report.AppendSection("Metadata");
+                report.AppendValue("Config Offsets Count", ConfigOffsets != null ? ConfigOffsets.Count : 0, 28);
+                report.AppendValue("Main Block Parsed", Data != null, 28);
+                report.AppendValue("Extended Block Parsed", ExtendedData != null, 28);
+                report.AppendValue("Raw Table Bytes", RawTable != null ? RawTable.Length : 0, 28);
 
-                if (ConfigOffsets != null && ConfigOffsets.Count > 0)
+                if (ConfigOffsets != null)
                 {
                     for (int i = 0; i < ConfigOffsets.Count; i++)
-                    {
-                        sb.AppendLine(string.Format("{0,-28}0x{1:X8}", "Config Offset[" + i + "]:", ConfigOffsets[i]));
-                    }
+                        report.AppendHexValue("Config Offset[" + i + "]", ConfigOffsets[i], 8, 28);
                 }
 
-                sb.AppendLine();
-                sb.AppendLine("-- Header ---------------------------------------");
+                report.AppendLine();
+                report.AppendSection("Header");
+                report.AppendValue("Signature", Header.Signature);
+                report.AppendValue("Version", Header.Version);
+                report.AppendValue("TableSize", Header.TableSize);
+                report.AppendValue("HeaderSize", Header.HeaderSize);
 
-                var headerProperties = Header.GetType().GetProperties();
-                for (int i = 0; i < headerProperties.Length; i++)
-                {
-                    var property = headerProperties[i];
-                    object value = property.GetValue(Header, null);
-                    sb.AppendLine(string.Format("{0,-20}{1}", property.Name + ":", value));
-                }
+                report.AppendLine();
+                report.AppendSection("Data");
+                report.Append(Data != null ? Data.GetReport() : "<APOB table data not available>" + Environment.NewLine);
 
-                sb.AppendLine();
-                sb.AppendLine("-- Data -----------------------------------------");
-                if (Data != null)
-                {
-                    sb.Append(Data.GetReport());
-                }
-                else
-                {
-                    sb.AppendLine("<APOB table data not available>");
-                }
+                report.AppendLine();
+                report.AppendSection("Extended Data");
+                report.Append(ExtendedData != null ? ExtendedData.GetReport() : "<APOB extended data not available>" + Environment.NewLine);
 
-                sb.AppendLine();
-                sb.AppendLine("-- Extended Data --------------------------------");
-                if (ExtendedData != null)
-                {
-                    sb.Append(ExtendedData.GetReport());
-                }
-                else
-                {
-                    sb.AppendLine("<APOB extended data not available>");
-                }
+                report.AppendLine();
+                report.AppendSection("CCDL Data");
+                report.AppendValue("Tccdl", CcdlData.Tccdl);
+                report.AppendValue("Tccdlwr", CcdlData.Tccdlwr);
+                report.AppendValue("Tccdlwr2", CcdlData.Tccdlwr2);
 
-                sb.AppendLine();
-                sb.AppendLine("-- CCDL Data ------------------------------------");
-                var ccdlProperties = CcdlData.GetType().GetProperties();
-                if (ccdlProperties.Length == 0)
-                {
-                    sb.AppendLine("<APOB CCDL data not available>");
-                }
-                else
-                {
-                    for (int i = 0; i < ccdlProperties.Length; i++)
-                    {
-                        var field = ccdlProperties[i];
-                        object value = field.GetValue(CcdlData, null);
-                        sb.AppendLine(string.Format("{0,-20}{1}", field.Name + ":", value ?? "N/A"));
-                    }
-                }
+                report.AppendLine();
+                report.AppendLine("APOB: Raw");
+                report.AppendLine();
 
-                sb.AppendLine();
-                sb.AppendLine("APOB: Raw");
-                sb.AppendLine();
+                // Each of these properties slices a fresh copy out of the raw table on every
+                // access, so each block is taken once.
+                AppendRawBlock(report, "Raw Header", RawHeader, "<APOB raw header not available>");
+                report.AppendLine();
+                AppendRawBlock(report, "Raw Data", RawData, "<APOB raw data not available>");
+                report.AppendLine();
+                AppendRawBlock(report, "Raw Extended Data", RawExtendedData, "<APOB raw extended data not available>");
 
-                sb.AppendLine("-- Raw Header -----------------------------------");
-                sb.AppendLine(string.Format("Length: {0}", RawHeader != null ? RawHeader.Length : 0));
-                try
-                {
-                    if (!AppendRawBinaryData(sb, RawHeader))
-                        sb.AppendLine("<APOB raw header not available>");
-                }
-                catch (Exception ex)
-                {
-                    sb.AppendLine("<FAILED>");
-                    sb.AppendLine(ex.Message);
-                }
-
-                sb.AppendLine();
-                sb.AppendLine("-- Raw Data -------------------------------------");
-                sb.AppendLine(string.Format("Length: {0}", RawData != null ? RawData.Length : 0));
-                try
-                {
-                    if (!AppendRawBinaryData(sb, RawData))
-                        sb.AppendLine("<APOB raw data not available>");
-                }
-                catch (Exception ex)
-                {
-                    sb.AppendLine("<FAILED>");
-                    sb.AppendLine(ex.Message);
-                }
-
-                sb.AppendLine();
-                sb.AppendLine("-- Raw Extended Data ----------------------------");
-                sb.AppendLine(string.Format("Length: {0}", RawExtendedData != null ? RawExtendedData.Length : 0));
-                try
-                {
-                    if (!AppendRawBinaryData(sb, RawExtendedData))
-                        sb.AppendLine("<APOB raw extended data not available>");
-                }
-                catch (Exception ex)
-                {
-                    sb.AppendLine("<FAILED>");
-                    sb.AppendLine(ex.Message);
-                }
-
-                sb.AppendLine();
+                report.AppendLine();
             }
             catch (Exception ex)
             {
-                sb.AppendLine("<FAILED>");
-                sb.AppendLine(ex.Message);
-                sb.AppendLine();
+                report.AppendFailure(ex);
+                report.AppendLine();
             }
 
-            return sb.ToString();
+            return report.ToString();
         }
 
-        private static bool AppendRawBinaryData(StringBuilder sb, byte[] data)
+        private static void AppendRawBlock(ReportBuilder report, string title, byte[] data, string unavailableText)
         {
-            if (data == null || data.Length == 0)
-                return false;
+            report.AppendSection(title);
+            report.AppendLine(string.Format(CultureInfo.InvariantCulture, "Length: {0}", data != null ? data.Length : 0));
 
-            for (int i = 0; i < data.Length; i += 16)
+            try
             {
-                int length = Math.Min(16, data.Length - i);
-
-                for (int j = 0; j < length; j++)
-                {
-                    if (j > 0)
-                        sb.Append(' ');
-
-                    sb.Append(data[i + j].ToString("X2"));
-                }
-
-                sb.AppendLine();
+                if (!report.AppendHexDump(data))
+                    report.AppendLine(unavailableText);
             }
-
-            return true;
+            catch (Exception ex)
+            {
+                report.AppendFailure(ex);
+            }
         }
     }
 }

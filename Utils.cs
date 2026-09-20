@@ -815,17 +815,5 @@ namespace ZenStates.Core
                 return false;
             }
         }
-
-        // TODO: Move common report/log methods in a separate class
-        internal static string GetReportHeading(string heading)
-        {
-            return
-                "######################################################" +
-                Environment.NewLine +
-                heading +
-                Environment.NewLine +
-                "######################################################" +
-                Environment.NewLine;
-        }
     }
 }
