@@ -22,7 +22,6 @@ namespace ZenStates.Core
 {
     public class Cpu : IDisposable
     {
-        private readonly CpuInitSettings _settings;
         private readonly AmdFamily17 _pawnAmd;
         private readonly RyzenSmu _pawnRyzenSmu;
         private readonly SmbusDriverBase _smbusPiix4;
@@ -179,6 +178,7 @@ namespace ZenStates.Core
         public readonly SMU smu;
         public readonly PowerTable powerTable;
         public readonly MemoryConfig memoryConfig;
+        public CoreOptions Options { get; }
 
         public IODriver.LibStatus Status { get; }
         public Exception LastError { get; }
@@ -346,9 +346,10 @@ namespace ZenStates.Core
             return topology;
         }
 
-        public Cpu(CpuInitSettings settings = null)
+        public Cpu(CoreOptions options = null)
         {
-            _settings = settings ?? CpuInitSettings.defaultSetttings;
+            Options = options ?? new CoreOptions();
+            CoreOptions.Current = Options;
 
 #if !NET20
             CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
