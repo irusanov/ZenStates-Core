@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 using ZenStates.Core.Hardware;
 using ZenStates.Core.Hardware.Mock;
@@ -649,6 +650,50 @@ namespace ZenStates.Core
         {
             get => vdd_misc;
             set => SetProperty(ref vdd_misc, value, InternalEventArgsCache.VDD_MISC);
+        }
+
+        public string GetReport()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine(Utils.GetReportHeading("SMU: Power Table"));
+
+            try
+            {
+                for (var i = 0; i < Table.Length; i++)
+                {
+                    var temp = BitConverter.GetBytes(Table[i]);
+                    sb.AppendLine($"Offset {i * 0x4:X3}: {BitConverter.ToSingle(temp, 0):F8}");
+                }
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine("<FAILED>");
+                sb.AppendLine(ex.Message);
+            }
+
+            sb.AppendLine(Utils.GetReportHeading("SMU: Power Table Detected Values"));
+            try
+            {
+                sb.AppendLine($"{"TableVersion:",-23} 0x{smu.PmTableVersion:X}");
+                sb.AppendLine($"{"TableSize:",-23} 0x{smu.PmTableSize:X}");
+                sb.AppendLine($"{"ConfiguredClockSpeed:",-25}{ConfiguredClockSpeed}");
+                sb.AppendLine($"{"MemRatio:",-25}{MemRatio}");
+                sb.AppendLine($"{"FCLK:",-25}{FCLK}");
+                sb.AppendLine($"{"MCLK:",-25}{MCLK}");
+                sb.AppendLine($"{"UCLK:",-25}{UCLK}");
+                sb.AppendLine($"{"VDDCR_SOC:",-25}{VDDCR_SOC}");
+                sb.AppendLine($"{"CLDO_VDDP:",-25}{CLDO_VDDP}");
+                sb.AppendLine($"{"CLDO_VDDG_IOD:",-25}{CLDO_VDDG_IOD}");
+                sb.AppendLine($"{"CLDO_VDDG_CCD:",-25}{CLDO_VDDG_CCD}");
+                sb.AppendLine($"{"VDD_MISC:",-25}{VDD_MISC}");
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine("<FAILED>");
+                sb.AppendLine(ex.Message);
+            }
+
+            return sb.ToString();
         }
     }
 

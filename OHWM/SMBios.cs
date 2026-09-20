@@ -1386,6 +1386,8 @@ namespace ZenStates.Core.OHWM
         {
             StringBuilder r = new StringBuilder();
 
+            r.AppendLine(Utils.GetReportHeading("SMBIOS"));
+
             if (_version != null)
             {
                 r.Append("SMBios Version: ");

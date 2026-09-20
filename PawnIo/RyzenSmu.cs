@@ -481,7 +481,7 @@ namespace ZenStates.Core.PawnIo
 
             StringBuilder report = new StringBuilder();
 
-            report.AppendLine("Ryzen SMU Report");
+            report.AppendLine(Utils.GetReportHeading("Ryzen SMU"));
             report.AppendLine(new string('=', 50));
             report.AppendLine();
             report.AppendLine($"CPU Code Name: {_cpuCodeName}");

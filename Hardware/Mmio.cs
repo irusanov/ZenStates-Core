@@ -309,9 +309,7 @@ namespace ZenStates.Core.Hardware
         {
             StringBuilder sb = new StringBuilder();
 
-            sb.AppendLine("MMIO");
-            sb.AppendLine();
-
+            sb.AppendLine(Utils.GetReportHeading("MMIO"));
             sb.AppendLine(string.Format("-- StrapStatus: {0}", GetStrapStatus()));
             sb.AppendLine(string.Format("-- EclkMode: {0}", GetEclkMode()));
             sb.AppendLine();

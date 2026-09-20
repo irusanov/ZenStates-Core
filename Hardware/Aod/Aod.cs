@@ -463,8 +463,7 @@ namespace ZenStates.Core.Hardware.Aod
         {
             StringBuilder sb = new StringBuilder();
 
-            sb.AppendLine("ACPI: AOD Table");
-            sb.AppendLine();
+            sb.AppendLine(Utils.GetReportHeading("ACPI: AOD Table"));
 
             try
             {

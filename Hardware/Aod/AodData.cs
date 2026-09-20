@@ -81,7 +81,6 @@ namespace ZenStates.Core.Hardware.Aod
         public string GetReport()
         {
             StringBuilder sb = new StringBuilder();
-
             AppendValue(sb, "SMTEn", SMTEn);
             AppendValue(sb, "MemClk", MemClk);
             AppendValue(sb, "Tcl", Tcl);

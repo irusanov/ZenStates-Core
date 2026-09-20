@@ -669,8 +669,7 @@ namespace ZenStates.Core.Hardware.Apob
         {
             StringBuilder sb = new StringBuilder();
 
-            sb.AppendLine("APOB");
-            sb.AppendLine();
+            sb.AppendLine(Utils.GetReportHeading("APOB"));
 
             try
             {
