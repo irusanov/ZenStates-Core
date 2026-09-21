@@ -25,9 +25,14 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             if (!Mutexes.WaitIsaBus(500))
                 return;
 
-            Detect(smbios);
-
-            Mutexes.ReleaseIsaBus();
+            try
+            {
+                Detect(smbios);
+            }
+            finally
+            {
+                Mutexes.ReleaseIsaBus();
+            }
         }
 
         public ISuperIO[] SuperIO
@@ -99,16 +104,48 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                 superIO.Close();
         }
 
+        private static string GetBoardProductName(SMBios smbios)
+        {
+            string name = smbios != null && smbios.Board != null ? smbios.Board.ProductName : null;
+            return name ?? string.Empty;
+        }
+
+        private static string GetBoardManufacturerName(SMBios smbios)
+        {
+            string name = smbios != null && smbios.Board != null ? smbios.Board.ManufacturerName : null;
+            return name ?? string.Empty;
+        }
+
         private bool DetectWinbondFintek(LpcPort port, SMBios smbios)
         {
+            // Resolve the board before entering config mode: nothing that can throw should run
+            // while the chip is left in it.
+            Model motherboardName = Identification.GetModel(GetBoardProductName(smbios));
+            Manufacturer motherboardVendor = Identification.GetManufacturer(GetBoardManufacturerName(smbios));
+
             port.WinbondNuvotonFintekEnter();
 
+            // The detection paths exit config mode themselves (or leave an absent chip alone);
+            // this only guarantees the exit when one of them throws.
+            bool completed = false;
+            try
+            {
+                bool detected = DetectWinbondFintekEntered(port, motherboardName, motherboardVendor);
+                completed = true;
+                return detected;
+            }
+            finally
+            {
+                if (!completed)
+                    port.WinbondNuvotonFintekExit();
+            }
+        }
+
+        private bool DetectWinbondFintekEntered(LpcPort port, Model motherboardName, Manufacturer motherboardVendor)
+        {
             byte logicalDeviceNumber = 0;
             byte id = port.ReadByte(CHIP_ID_REGISTER);
             byte revision = port.ReadByte(CHIP_REVISION_REGISTER);
-
-            var motherboardName = Identification.GetModel(smbios.Board.ProductName.ToString());
-            var motherboardVendor = Identification.GetManufacturer(smbios.Board.ManufacturerName.ToString());
 
             Chip chip = Chip.Unknown;
 
@@ -607,8 +644,10 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             // Read the chip ID before entering.
             // If already entered (not 0xFFFF) and the register port is 0x4E, it is most likely bugged and should be left alone.
             // Entering IT8792 in this state will result in IT8792 reporting with chip ID of 0x8883.
+            // TryReadWord only reports that the read went through, so 0xFFFF (nothing answering in
+            // config mode yet) still needs the enter sequence.
             ushort chipId;
-            if (port.RegisterPort != 0x4E || !port.TryReadWord(CHIP_ID_REGISTER, out chipId))
+            if (port.RegisterPort != 0x4E || !port.TryReadWord(CHIP_ID_REGISTER, out chipId) || chipId == 0xFFFF)
             {
                 port.IT87Enter();
                 chipId = port.ReadWord(CHIP_ID_REGISTER);
@@ -778,7 +817,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             // The controller only affects the 2nd ITE chip if present, and only a few
             // models are known to use this controller.
             // IT8795E likely to need this too, but may use different registers.
-            var motherboardVendor = smbios.Board.ManufacturerName.ToString();
+            string motherboardVendor = GetBoardManufacturerName(smbios);
             if (motherboardVendor.IndexOf("Gigabyte", StringComparison.OrdinalIgnoreCase) < 0 || port.RegisterPort != 0x4E ||
                 (chip != Chip.IT8790E && chip != Chip.IT8792E && chip != Chip.IT87952E))
                 return null;

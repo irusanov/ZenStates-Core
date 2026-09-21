@@ -211,16 +211,23 @@ namespace ZenStates.Core.Hardware.Aod
 
             if (Table.AcpiTable != null && Table?.AcpiTable.Value.Data != null)
             {
-                int regionIndex = GetAodRegionIndex(Table.AcpiTable.Value.Data);
-                if (regionIndex == -1)
+                byte[] acpiData = Table.AcpiTable.Value.Data;
+                int regionIndex = GetAodRegionIndex(acpiData);
+                if (regionIndex < 0 || regionIndex > acpiData.Length - 16)
                     return;
 
                 byte[] region = new byte[16];
-                Buffer.BlockCopy(this.Table.AcpiTable.Value.Data, regionIndex, region, 0, 16);
+                Buffer.BlockCopy(acpiData, regionIndex, region, 0, 16);
                 // OperationRegion(AODE, SystemMemory, Offset, Length)
                 OperationRegion opRegion = Utils.ByteArrayToStructure<OperationRegion>(region);
+                if (opRegion.Length == null || opRegion.Length.Length < 2)
+                    return;
+
                 this.Table.BaseAddress = opRegion.Offset;
                 this.Table.Length = (opRegion.Length[1] << 8) | opRegion.Length[0];
+                if (this.Table.BaseAddress == 0 || this.Table.Length <= 0)
+                    return;
+
                 this.Table.RawAodTable = this.io.ReadMemory(new IntPtr(this.Table.BaseAddress), this.Table.Length);
 #pragma warning disable IL2026
                 this.Table.Data = AodData.CreateFromByteArray(this.Table.RawAodTable, GetAodDataDictionary(this.codeName, this.patchLevel));
@@ -234,8 +241,9 @@ namespace ZenStates.Core.Hardware.Aod
         private BaseDictionary GetBaseDictionaryByFrequency()
         {
             var memoryConfig = cpuInstance.memoryConfig;
-            var mclk = memoryConfig?.Timings[0].Value?.Ratio * 100 ?? 0;
-            if (mclk > 0)
+            var timings = memoryConfig?.Timings;
+            var mclk = (timings != null && timings.Count > 0 ? timings[0].Value?.Ratio : null) * 100 ?? 0;
+            if (mclk > 0 && this.Table.RawAodTable != null)
             {
                 if (memoryConfig.Type == MemType.LPDDR5)
                 {
@@ -583,12 +591,15 @@ namespace ZenStates.Core.Hardware.Aod
                                     var IDString = (string[])pack.GetPropertyValue("IDString");
                                     var Length = (byte)pack.GetPropertyValue("Length");
 
-                                    for (var i = 0; i < Length; ++i)
+                                    if (ID == null || IDString == null)
+                                        continue;
+
+                                    for (var i = 0; i < Length && i < ID.Length && i < IDString.Length; ++i)
                                     {
-                                        if (IDString[i] == "")
+                                        if (string.IsNullOrEmpty(IDString[i]))
                                             break;
 
-                                        dict.Add(IDString[i], ID[i]);
+                                        dict[IDString[i]] = ID[i];
                                     }
                                 }
                             }
@@ -617,7 +628,8 @@ namespace ZenStates.Core.Hardware.Aod
             if (table == null)
                 return list;
 
-            for (int i = 0; i < table.Length; i++)
+            // Name opcode + 4-char NameString + 1 value byte = 6 bytes
+            for (int i = 0; i <= table.Length - 6; i++)
             {
                 // Check for the Name opcode
                 if (table[i] == AML_NAME_OP)
@@ -625,7 +637,7 @@ namespace ZenStates.Core.Hardware.Aod
                     // Parse the NameString (4 ASCII characters)
                     string name = Encoding.ASCII.GetString(table, i + 1, 4);
                     byte value = table[i + 5];
-                    list.Add(name, value.ToString());
+                    list[name] = value.ToString();
                 }
             }
             return list;

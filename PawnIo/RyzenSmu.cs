@@ -29,10 +29,12 @@ namespace ZenStates.Core.PawnIo
 
         private readonly PawnIo _pawnIo;
         private readonly CpuCodeName _cpuCodeName;
-        private readonly bool _isSupported;
-        private readonly Exception _initializationException;
-        private readonly uint _pmTableVersion;
-        private readonly long _dramBaseAddress;
+        private bool _isSupported;
+        private Exception _initializationException;
+        private uint _pmTableVersion;
+        private long _dramBaseAddress;
+        private volatile bool _pmTableResolvePending;
+        private readonly object _resolveLock = new object();
         private uint _pmTableSize;
         private uint _pmTableSizeAlt;
         private uint _detectedPmTableSize;
@@ -143,7 +145,18 @@ namespace ZenStates.Core.PawnIo
                 _cpuCodeName = (CpuCodeName)GetCodeName();
 
                 // Resolve PM table information
-                ResolvePmTable(out _pmTableVersion, out _dramBaseAddress);
+                try
+                {
+                    ResolvePmTable(out _pmTableVersion, out _dramBaseAddress, DEFAULT_LOCK_TIMEOUT_MS);
+                }
+                catch (TimeoutException ex)
+                {
+                    _pmTableResolvePending = true;
+                    _isSupported = false;
+                    _initializationException = ex;
+                    Debug.WriteLine("RyzenSmu: PM table resolution deferred (PCI bus lock timeout): " + ex.Message);
+                    return;
+                }
 
                 // Configure PM table size based on CPU and version
                 ConfigurePmTableSize();
@@ -202,7 +215,59 @@ namespace ZenStates.Core.PawnIo
         /// </summary>
         public bool IsPmTableLayoutDefined => SupportedPmTableVersions.ContainsKey(_pmTableVersion);
 
+        /// <summary>
+        /// Gets a value indicating whether PM table resolution was deferred because the PCI bus
+        /// lock timed out during initialization. Call <see cref="TryResolvePmTable"/> to retry.
+        /// </summary>
+        public bool IsPmTableResolvePending => _pmTableResolvePending;
+
         #endregion
+
+        private const int DEFAULT_LOCK_TIMEOUT_MS = 5000;
+
+        /// <summary>
+        /// Retries a PM table resolution that was deferred by a PCI bus lock timeout.
+        /// Returns true once the table is resolved (or was already resolved and supported).
+        /// A genuine resolution failure is final and is not retried again.
+        /// </summary>
+        public bool TryResolvePmTable(int lockTimeoutMs = DEFAULT_LOCK_TIMEOUT_MS)
+        {
+            ThrowIfDisposed();
+
+            if (!_pmTableResolvePending)
+                return _isSupported;
+
+            lock (_resolveLock)
+            {
+                if (!_pmTableResolvePending)
+                    return _isSupported;
+
+                try
+                {
+                    ResolvePmTable(out uint version, out long baseAddress, lockTimeoutMs);
+                    _pmTableVersion = version;
+                    _dramBaseAddress = baseAddress;
+                    ConfigurePmTableSize();
+                    _initializationException = null;
+                    _isSupported = true;
+                    _pmTableResolvePending = false;
+                    return true;
+                }
+                catch (TimeoutException ex)
+                {
+                    // Still contended; stay pending and let a later refresh try again.
+                    Debug.WriteLine("RyzenSmu: PM table resolution still pending: " + ex.Message);
+                    return false;
+                }
+                catch (Exception ex)
+                {
+                    _initializationException = ex;
+                    _pmTableResolvePending = false;
+                    Debug.WriteLine("RyzenSmu: PM table resolution failed: " + ex.Message);
+                    return false;
+                }
+            }
+        }
 
         /// <summary>
         /// Gets the SMU version.
@@ -390,9 +455,9 @@ namespace ZenStates.Core.PawnIo
         /// </summary>
         /// <param name="version">The PM table version.</param>
         /// <param name="baseAddress">The PM table base address.</param>
-        private void ResolvePmTable(out uint version, out long baseAddress)
+        private void ResolvePmTable(out uint version, out long baseAddress, int lockTimeoutMs)
         {
-            using (new PciBusLock())
+            using (new PciBusLock(lockTimeoutMs))
             {
                 long[] result = _pawnIo.Execute(IOCTL_RESOLVE_PM_TABLE, new long[0], 2);
                 version = Convert.ToUInt32(result[0] & 0xffffffff);
@@ -420,7 +485,18 @@ namespace ZenStates.Core.PawnIo
         /// </summary>
         private long[] UpdateAndReadPmTableRaw(int longs)
         {
-            using (new PciBusLock())
+            return UpdateAndReadPmTableRaw(longs, DEFAULT_LOCK_TIMEOUT_MS);
+        }
+
+        /// <summary>
+        /// Same as <see cref="UpdateAndReadPmTableRaw(int)"/> with an explicit bus lock timeout.
+        /// Throws <see cref="TimeoutException"/> if the lock cannot be taken in time.
+        /// </summary>
+        internal long[] UpdateAndReadPmTableRaw(int longs, int lockTimeoutMs)
+        {
+            ThrowIfDisposed();
+
+            using (new PciBusLock(lockTimeoutMs))
             {
                 _pawnIo.Execute(IOCTL_UPDATE_PM_TABLE, new long[0], 0);
                 return _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[0], longs);

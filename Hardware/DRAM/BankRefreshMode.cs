@@ -15,7 +15,7 @@
         public static readonly BankRefreshMode NORMAL = new BankRefreshMode(0, nameof(NORMAL));
         public static readonly BankRefreshMode FGR = new BankRefreshMode(1, nameof(FGR));
         public static readonly BankRefreshMode MIXED = new BankRefreshMode(2, nameof(MIXED));
-        public static readonly BankRefreshMode PBONLY = new BankRefreshMode(2, nameof(PBONLY));
+        public static readonly BankRefreshMode PBONLY = new BankRefreshMode(3, nameof(PBONLY));
 
         public override string ToString()
         {
@@ -59,6 +59,7 @@
                 case 0: return NORMAL;
                 case 1: return FGR;
                 case 2: return MIXED;
+                case 3: return PBONLY;
                 default: return new BankRefreshMode(value, value.ToString());
             }
         }

@@ -19,7 +19,10 @@ namespace ZenStates.Core.Hardware.Motherboard
         private readonly Manufacturer _motherboardVendor;
 
         public SuperIOHardware(ISuperIO superIO, SMBios smbios, int index)
-            : this(superIO, smbios.Board.ManufacturerName.ToString(), smbios.Board.ProductName.ToString(), index)
+            : this(superIO,
+                   smbios != null && smbios.Board != null ? smbios.Board.ManufacturerName : null,
+                   smbios != null && smbios.Board != null ? smbios.Board.ProductName : null,
+                   index)
         {
         }
 
@@ -3525,7 +3528,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                     foreach (Sensor s in _temperatures)
                     {
                         int idx = s.Index;
-                        float? v = _temperatures[idx]?.Value != null ? _temperatures[idx]?.Value : null;
+                        float? v = s.Value;
                         sb.Append("  Index ").Append(idx).Append(" \"").Append(s.Name).Append("\": ");
                         sb.AppendLine(v.HasValue ? v.Value.ToString("F2", CultureInfo.InvariantCulture) : "null");
                     }

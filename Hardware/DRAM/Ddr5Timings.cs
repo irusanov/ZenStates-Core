@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using ZenStates.Core.Dictionaries;
 
 namespace ZenStates.Core.Hardware.DRAM
@@ -258,7 +258,7 @@ namespace ZenStates.Core.Hardware.DRAM
 
             if (TryReadRegister(offset | 0x50284, out uint nitroReg))
             {
-                Nitro = new NitroSettings(Utils.BitSlice(nitroReg, 11, 0));
+                Nitro = new NitroSettings(nitroReg);
             }
 
             // Refresh mode

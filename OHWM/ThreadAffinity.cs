@@ -39,6 +39,42 @@ namespace ZenStates.Core.OHWM
 
         public static int ProcessorGroupCount { get; }
 
+        /// <summary>
+        /// Maps a zero-based, system-wide logical processor index to its processor group and the
+        /// bit within that group. Windows sizes groups by NUMA node (not always 64), so the real
+        /// per-group counts are used when available; otherwise groups are assumed 64 wide.
+        /// </summary>
+        public static GroupAffinity GetLogicalProcessorAffinity(int index)
+        {
+            if (index < 0)
+                throw new ArgumentOutOfRangeException(nameof(index));
+
+            if (!OperatingSystem.IsUnix && ProcessorGroupCount > 1)
+            {
+                try
+                {
+                    int remaining = index;
+                    for (int group = 0; group < ProcessorGroupCount; group++)
+                    {
+                        int count = (int)NativeMethods.GetActiveProcessorCount((ushort)group);
+                        if (count <= 0)
+                            break;
+
+                        if (remaining < count)
+                            return GroupAffinity.Single((ushort)group, remaining);
+
+                        remaining -= count;
+                    }
+                }
+                catch (EntryPointNotFoundException)
+                {
+                    // Pre-Windows 7: no processor groups beyond group 0.
+                }
+            }
+
+            return GroupAffinity.Single(0, index);
+        }
+
         public static bool IsValid(GroupAffinity affinity)
         {
             if (OperatingSystem.IsUnix)
@@ -145,6 +181,9 @@ namespace ZenStates.Core.OHWM
 
             [DllImport(KERNEL, CallingConvention = CallingConvention.Winapi)]
             public static extern ushort GetActiveProcessorGroupCount();
+
+            [DllImport(KERNEL, CallingConvention = CallingConvention.Winapi)]
+            public static extern uint GetActiveProcessorCount(ushort groupNumber);
 
             [StructLayout(LayoutKind.Sequential, Pack = 4)]
             public struct GROUP_AFFINITY

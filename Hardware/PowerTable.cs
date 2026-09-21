@@ -14,11 +14,15 @@ namespace ZenStates.Core
     {
         private readonly Cpu.CodeName _codeName = Cpu.CodeName.Unsupported;
         private readonly RyzenSmu smu;
-        private readonly PTDef tableDef;
-        public readonly long DramBaseAddress;
-        public readonly int TableSize;
+        private PTDef tableDef;
+        public long DramBaseAddress { get; private set; }
+        public int TableSize { get; private set; }
         private const int NUM_ELEMENTS_TO_COMPARE = 20;
         private const int MAX_REFRESH_RETRIES = 5;
+        // Only the first attempt waits the full default bus lock timeout; retries use a short
+        // timeout plus a small backoff so a busy bus can't stall one refresh for 25 s.
+        private const int RETRY_LOCK_TIMEOUT_MS = 500;
+        private const int RETRY_BACKOFF_MS = 20;
 
         private static PowerTable _instance;
         public static PowerTable Instance => _instance;
@@ -409,13 +413,24 @@ namespace ZenStates.Core
             this.smu = smuInstance ?? throw new ArgumentNullException(nameof(smuInstance));
             _instance = this;
 
-            DramBaseAddress = smu.DramBaseAddress;
+            // Startup resolution may have been deferred by a PCI bus lock timeout; give it
+            // another chance before the table layout is chosen from the version.
+            if (smu.IsPmTableResolvePending)
+                smu.TryResolvePmTable();
 
-            tableDef = GetPowerTableDef(smu.PmTableVersion) ?? new PTDef();
-            if (tableDef.tableSize <= 0)
+            InitFromSmu();
+
+            this.Refresh();
+        }
+
+        private void InitFromSmu()
+        {
+            PTDef def = GetPowerTableDef(smu.PmTableVersion) ?? new PTDef();
+            if (def.tableSize <= 0)
                 throw new ApplicationException("Invalid table size.");
 
-            TableSize = tableDef.tableSize;
+            tableDef = def;
+            TableSize = def.tableSize;
             // TODO: Move definitions to RyzenSMU.
             // Temporary update the table size in RyzenSMU as it only has very few defined table sizes
             if (TableSize > smu.PmTableSize)
@@ -423,7 +438,28 @@ namespace ZenStates.Core
                 smu.PmTableSize = (uint)TableSize;
             }
 
-            this.Refresh();
+            DramBaseAddress = smu.DramBaseAddress;
+        }
+
+        // Retries a PM table resolution that RyzenSmu deferred because of a lock timeout.
+        private bool TryLateResolve()
+        {
+            if (!smu.IsPmTableResolvePending)
+                return false;
+
+            try
+            {
+                if (!smu.TryResolvePmTable(RETRY_LOCK_TIMEOUT_MS))
+                    return false;
+
+                InitFromSmu();
+                return DramBaseAddress != 0;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"PowerTable: late PM table resolution failed: {ex.Message}");
+                return false;
+            }
         }
 
         private PowerTable()
@@ -495,7 +531,8 @@ namespace ZenStates.Core
                 return;
 
             float bclkCorrection = 1.0f;
-            double? bclk = Mmio.Instance.GetBclk();
+            Mmio mmio = Mmio.Instance;
+            double? bclk = mmio != null ? mmio.GetBclk() : null;
 
             if (bclk != null)
                 bclkCorrection = (float)bclk / 100.0f;
@@ -529,15 +566,30 @@ namespace ZenStates.Core
 
         public SMU.Status Refresh()
         {
-            if (DramBaseAddress == 0)
+            if (DramBaseAddress == 0 && !TryLateResolve())
                 return SMU.Status.FAILED;
 
-            for (int retriesLeft = MAX_REFRESH_RETRIES; retriesLeft > 0; retriesLeft--)
+            for (int attempt = 0; attempt < MAX_REFRESH_RETRIES; attempt++)
             {
+                int lockTimeoutMs = 5000;
+
+                if (attempt > 0)
+                {
+                    System.Threading.Thread.Sleep(RETRY_BACKOFF_MS * attempt);
+                    lockTimeoutMs = RETRY_LOCK_TIMEOUT_MS;
+                }
+
                 try
                 {
-                    if (TryRefreshOnce())
+                    if (TryRefreshOnce(lockTimeoutMs))
                         return SMU.Status.OK;
+                }
+                catch (TimeoutException ex)
+                {
+                    // Another process holds the bus; retrying right away won't help.
+                    // The next periodic refresh will try again.
+                    Debug.WriteLine($"Refresh skipped: {ex.Message}");
+                    return SMU.Status.TIMEOUT_MUTEX_LOCK;
                 }
                 catch (Exception ex)
                 {
@@ -548,7 +600,7 @@ namespace ZenStates.Core
             return SMU.Status.FAILED;
         }
 
-        private bool TryRefreshOnce()
+        private bool TryRefreshOnce(int lockTimeoutMs)
         {
             uint tableBytes = smu.PmTableSize;
             float[] current = Table;
@@ -565,16 +617,22 @@ namespace ZenStates.Core
 
             RyzenSmu.CopyClamped(rawTempTable, tempTable, NUM_ELEMENTS_TO_COMPARE * 4);
 
+            int fullLongs = ((int)tableBytes + 7) / 8;
+            long[] fullTable;
+
             if (Utils.AllZero(current) ||
                 Utils.AllZero(tempTable) ||
                 Utils.ArrayMembersEqual(current, tempTable, tempTable.Length) ||
                 tempTable[0] < 0 || tempTable[1] < 0 || tempTable[2] < 0 || tempTable[3] < 0)
             {
-                smu.UpdatePmTable();
+                fullTable = smu.UpdateAndReadPmTableRaw(fullLongs, lockTimeoutMs);
+            }
+            else
+            {
+                fullTable = smu.ReadPmTable(fullLongs);
             }
 
             float[] next = new float[wantedLength];
-            long[] fullTable = smu.ReadPmTable(((int)tableBytes + 7) / 8);
 
             if (RyzenSmu.CopyClamped(fullTable, next, tableBytes) == 0)
                 return false;

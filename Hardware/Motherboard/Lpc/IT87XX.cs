@@ -373,9 +373,25 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             if (index < 0 || index >= Controls.Length)
                 throw new ArgumentOutOfRangeException(nameof(index));
 
+            // A replayed snapshot has no hardware behind it: nothing to control.
+            if (_snapshot != null)
+                return;
+
             if (!Mutexes.WaitIsaBus(10))
                 return;
 
+            try
+            {
+                SetControlCore(index, value);
+            }
+            finally
+            {
+                Mutexes.ReleaseIsaBus();
+            }
+        }
+
+        private void SetControlCore(int index, byte? value)
+        {
             if (value.HasValue)
             {
                 SaveDefaultFanPwmControl(index);
@@ -408,8 +424,6 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             {
                 RestoreDefaultFanPwmControl(index);
             }
-
-            Mutexes.ReleaseIsaBus();
         }
 
         public string GetReport()
@@ -428,9 +442,29 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             r.AppendLine(_gpioAddress.ToString("X4", CultureInfo.InvariantCulture));
             r.AppendLine();
 
+            if (_snapshot != null)
+            {
+                AppendRegisterDump(r);
+                return r.ToString();
+            }
+
             if (!Mutexes.WaitIsaBus(5000))
                 return r.ToString();
 
+            try
+            {
+                AppendRegisterDump(r);
+            }
+            finally
+            {
+                Mutexes.ReleaseIsaBus();
+            }
+
+            return r.ToString();
+        }
+
+        private void AppendRegisterDump(StringBuilder r)
+        {
             if (_requiresBankSelect)
                 SelectBank(0);
 
@@ -480,8 +514,6 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
 
             r.AppendLine();
             r.AppendLine();
-            Mutexes.ReleaseIsaBus();
-            return r.ToString();
         }
 
         /// <summary>
@@ -509,9 +541,27 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
 
         public void Update()
         {
+            if (_snapshot != null)
+            {
+                UpdateCore();
+                return;
+            }
+
             if (!Mutexes.WaitIsaBus(10))
                 return;
 
+            try
+            {
+                UpdateCore();
+            }
+            finally
+            {
+                Mutexes.ReleaseIsaBus();
+            }
+        }
+
+        private void UpdateCore()
+        {
             // Is this needed on every update?  Yes, until a way to detect resume from sleep/hibernation is added, as that invalidates the bank select.
             if (_requiresBankSelect)
                 SelectBank(0);
@@ -613,8 +663,6 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                     }
                 }
             }
-
-            Mutexes.ReleaseIsaBus();
         }
 
         public void Close()
@@ -629,7 +677,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             {
                 // "??" cells and rows the report didn't dump are simply absent: invalid, as on hardware.
                 valid = _snapshot.TryRead((uint)(_snapshotBank << 8) | register, out uint captured);
-                return (byte)captured;
+                return unchecked((byte)captured);
             }
 
             _port.WriteIoPort(_addressReg, register);

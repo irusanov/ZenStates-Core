@@ -88,26 +88,118 @@ namespace ZenStates.Core.Hardware.Mock
 
             var data = new MockSystemData();
 
-            data.ReadSystemIdentity(text);
+            // Each section is parsed on its own: a malformed one becomes a warning and leaves its
+            // data unavailable, it never aborts loading the rest of the report.
+            try
+            {
+                data.ReadSystemIdentity(text);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("system identity", ex);
+            }
 
             // Parsed up front: besides the timings, they give the DRAM type older reports don't print.
-            VirtualRegisters registers = DebugReportParser.ParseUmcRegisters(lines);
-            data.ResolveMemoryType(text, registers);
+            VirtualRegisters registers;
+            try
+            {
+                registers = DebugReportParser.ParseUmcRegisters(lines);
+            }
+            catch (Exception ex)
+            {
+                registers = new VirtualRegisters();
+                data.AddSectionWarning("UMC registers", ex);
+            }
 
-            data.ReadModules(lines);
+            try
+            {
+                data.ResolveMemoryType(text, registers);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("memory type", ex);
+            }
+
+            try
+            {
+                data.ReadModules(lines);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("memory modules", ex);
+            }
 
             // The power table is built before the timings because it carries MCLK, which is the
             // frequency the captured system was running at.
-            data.PowerTable = PowerTable.CreateFromDebugReport(debugReportText);
+            try
+            {
+                data.PowerTable = PowerTable.CreateFromDebugReport(debugReportText);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("power table", ex);
+            }
 
-            data.ReadTimings(registers, lines);
-            data.ReadSpdInfo(lines);
-            data.ReadAod(lines);
-            data.ReadSuperIo(lines);
-            data.BiosMemControllerTable = DebugReportParser.ParseIndexedBytes(lines, DebugReportParser.BiosMemControllerSection);
-            data.ReadApob(debugReportText);
+            try
+            {
+                data.ReadTimings(registers, lines);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("timings", ex);
+            }
+
+            try
+            {
+                data.ReadSpdInfo(lines);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("SPD", ex);
+            }
+
+            try
+            {
+                data.ReadAod(lines);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("AOD", ex);
+            }
+
+            try
+            {
+                data.ReadSuperIo(lines);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("SuperIO", ex);
+            }
+
+            try
+            {
+                data.BiosMemControllerTable = DebugReportParser.ParseIndexedBytes(lines, DebugReportParser.BiosMemControllerSection);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("BIOS memory controller table", ex);
+            }
+
+            try
+            {
+                data.ReadApob(debugReportText);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("APOB", ex);
+            }
 
             return data;
+        }
+
+        private void AddSectionWarning(string section, Exception ex)
+        {
+            Warnings.Add($"Could not parse the {section} section of the debug report: {ex.Message}");
         }
 
         /// <summary>
@@ -276,6 +368,8 @@ namespace ZenStates.Core.Hardware.Mock
         private void ReadSuperIo(string[] lines)
         {
             List<SuperIoDump> dumps = DebugReportParser.ParseSuperIo(lines);
+            if (dumps == null)
+                return;
 
             for (int i = 0; i < dumps.Count; i++)
             {

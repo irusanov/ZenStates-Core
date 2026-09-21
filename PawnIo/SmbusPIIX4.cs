@@ -72,6 +72,12 @@ namespace ZenStates.Core.PawnIo
                 if (disposing)
                 {
                     _pawnIo?.Close();
+
+                    lock (_instanceLock)
+                    {
+                        if (ReferenceEquals(_instance, this))
+                            _instance = null;
+                    }
                 }
 
                 _disposed = true;

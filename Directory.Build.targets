@@ -4,22 +4,35 @@
     <Exec Command="git -C &quot;$(MSBuildThisFileDirectory).&quot; rev-list --count HEAD"
           ConsoleToMsBuild="true"
           StandardOutputImportance="low"
-          IgnoreExitCode="true">
-      <Output TaskParameter="ConsoleOutput" PropertyName="BuildNumber" />
+          StandardErrorImportance="low"
+          IgnoreExitCode="true"
+          IgnoreStandardErrorWarningFormat="true"
+          ContinueOnError="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitRevCountOutput" />
+      <Output TaskParameter="ExitCode" PropertyName="_GitRevCountExitCode" />
     </Exec>
 
     <!-- Get Git short SHA for informational version -->
     <Exec Command="git -C &quot;$(MSBuildThisFileDirectory).&quot; rev-parse --short HEAD"
           ConsoleToMsBuild="true"
           StandardOutputImportance="low"
-          IgnoreExitCode="true">
-      <Output TaskParameter="ConsoleOutput" PropertyName="GitShortSha" />
+          StandardErrorImportance="low"
+          IgnoreExitCode="true"
+          IgnoreStandardErrorWarningFormat="true"
+          ContinueOnError="true">
+      <Output TaskParameter="ConsoleOutput" PropertyName="_GitShortShaOutput" />
+      <Output TaskParameter="ExitCode" PropertyName="_GitShortShaExitCode" />
     </Exec>
 
-    <!-- Fallback when Git is unavailable -->
+    <!-- Only trust git output on success and when it has the expected shape; otherwise
+         (git missing, not a repo, "fatal: ..." on the console) fall back to 0/unknown. -->
     <PropertyGroup>
-      <BuildNumber Condition="'$(BuildNumber)' == ''">0</BuildNumber>
-      <GitShortSha Condition="'$(GitShortSha)' == ''">unknown</GitShortSha>
+      <_GitRevCountOutput>$(_GitRevCountOutput.Trim())</_GitRevCountOutput>
+      <_GitShortShaOutput>$(_GitShortShaOutput.Trim())</_GitShortShaOutput>
+      <BuildNumber>0</BuildNumber>
+      <BuildNumber Condition="'$(_GitRevCountExitCode)' == '0' And $([System.Text.RegularExpressions.Regex]::IsMatch('$(_GitRevCountOutput)', '^[0-9]+$'))">$(_GitRevCountOutput)</BuildNumber>
+      <GitShortSha>unknown</GitShortSha>
+      <GitShortSha Condition="'$(_GitShortShaExitCode)' == '0' And $([System.Text.RegularExpressions.Regex]::IsMatch('$(_GitShortShaOutput)', '^[0-9a-fA-F]+$'))">$(_GitShortShaOutput)</GitShortSha>
     </PropertyGroup>
 
     <!-- Compose final version strings: Major.Minor.BuildNumber -->

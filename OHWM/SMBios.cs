@@ -1212,6 +1212,12 @@ namespace ZenStates.Core.OHWM
         public SMBios(CoreOptions options = null)
         {
             _options = options ?? CoreOptions.Current;
+
+            // Never null, even when a branch below returns early (e.g. empty RSMB table).
+            MemoryDevices = new MemoryDevice[0];
+            ProcessorCaches = new CacheInformation[0];
+            Processors = new ProcessorInformation[0];
+
             if (OperatingSystem.IsUnix)
             {
                 _raw = null;

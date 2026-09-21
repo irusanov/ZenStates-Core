@@ -171,7 +171,7 @@ namespace ZenStates.Core
             public SMU.SmuType smuType;
         }
 
-        public readonly IODriver io = new IODriver();
+        public readonly IODriver io;
         private readonly Mmio mmio;
         public readonly CPUInfo info;
         public readonly SystemInfo systemInfo;
@@ -242,7 +242,7 @@ namespace ZenStates.Core
                 for (int i = 0; i < topology.logicalCores; i += (int)topology.threadsPerCore)
                 {
                     uint _eax = default; uint _edx = default;
-                    if (ReadMsrTx(0xC00102B3, ref _eax, ref _edx, GroupAffinity.Single(0, i)))
+                    if (ReadMsrTx(0xC00102B3, ref _eax, ref _edx, GroupAffinity.ForLogicalProcessor(i)))
                         topology.performanceOfCore[i / topology.threadsPerCore] = _eax & 0xff;
                     else
                         topology.performanceOfCore[i / topology.threadsPerCore] = 0;
@@ -312,7 +312,7 @@ namespace ZenStates.Core
                         }
                         else
                         {
-                            Console.WriteLine("Could not read core fuse!");
+                            Debug.WriteLine("Could not read core fuse!");
                         }
 
                         topology.coreDisableMap = new uint[topology.ccds];
@@ -324,18 +324,18 @@ namespace ZenStates.Core
                                 if (ReadDwordExNoLock(((uint)i << 25) + coreDisableMapAddress, ref coreFuse))
                                     topology.coreDisableMap[i] = coreFuse & 0xff;
                                 else
-                                    Console.WriteLine($"Could not read core fuse for CCD{i}!");
+                                    Debug.WriteLine($"Could not read core fuse for CCD{i}!");
                             }
                         }
                     }
                     else
                     {
-                        Console.WriteLine("Could not read CCD fuse!");
+                        Debug.WriteLine("Could not read CCD fuse!");
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error retrieving CPU topology. {ex}");
+                    Debug.WriteLine($"Error retrieving CPU topology. {ex}");
                 }
                 finally
                 {
@@ -359,6 +359,9 @@ namespace ZenStates.Core
                 throw new ApplicationException("PawnIO is not installed.");
             }
 
+            // Non-fatal errors are collected here and reported through LastError/Status.
+            Exception recordedError = null;
+
             try
             {
                 Opcode.Open();
@@ -379,6 +382,23 @@ namespace ZenStates.Core
                 catch (Exception ex)
                 {
                     throw new ApplicationException("Error initializing PawnIO AMD module.", ex);
+                }
+
+                if (!_pawnAmd.IsLoaded || !_pawnRyzenSmu.IsLoaded)
+                {
+                    throw new ApplicationException(
+                        "PawnIO AMD module could not be loaded. Make sure the PawnIO driver is installed and running, and that the application runs as administrator.");
+                }
+
+                try
+                {
+                    io = new IODriver();
+                }
+                catch (Exception ex)
+                {
+                    io = null;
+                    recordedError = ex;
+                    Debug.WriteLine($"IODriver initialization failed: {ex.Message}");
                 }
 
                 if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
@@ -432,51 +452,98 @@ namespace ZenStates.Core
             }
 
             // Non-critical block
-            bool degraded = false;
-
             try
             {
                 info.topology = GetCpuTopology(info.family, info.codeName, info.model);
             }
             catch (Exception ex)
             {
-                LastError = ex;
-                Status = IODriver.LibStatus.PARTIALLY_OK;
-                degraded = true;
+                RecordError(ref recordedError, ex, "CPU topology");
             }
 
             try
             {
                 memoryConfig = new MemoryConfig(this);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                RecordError(ref recordedError, ex, "MemoryConfig");
+            }
 
             try
             {
                 info.patchLevel = GetPatchLevel();
                 info.svi2 = GetSVI2Info(info.codeName);
-                info.aod = new AOD(io, this);
-                info.apob = new Apob(info);
-                systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
-                powerTable = new PowerTable(_pawnRyzenSmu, info.codeName);
-
-                if (!SendTestMessage())
-                {
-                    LastError = new ApplicationException("SMU is not responding to test message!");
-                    degraded = true;
-                }
-
-                powerTable.Refresh();
-
-                // Only promote to OK when nothing earlier degraded it. Overwriting
-                // unconditionally reported OK while LastError still held a topology failure.
-                Status = degraded ? IODriver.LibStatus.PARTIALLY_OK : IODriver.LibStatus.OK;
             }
             catch (Exception ex)
             {
-                LastError = ex;
-                Status = IODriver.LibStatus.PARTIALLY_OK;
+                RecordError(ref recordedError, ex, "Patch level/SVI2");
             }
+
+            try
+            {
+                info.aod = new AOD(io, this);
+            }
+            catch (Exception ex)
+            {
+                RecordError(ref recordedError, ex, "AOD");
+            }
+
+            try
+            {
+                info.apob = new Apob(info);
+            }
+            catch (Exception ex)
+            {
+                RecordError(ref recordedError, ex, "APOB");
+            }
+
+            try
+            {
+                systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
+            }
+            catch (Exception ex)
+            {
+                RecordError(ref recordedError, ex, "SystemInfo");
+            }
+
+            try
+            {
+                powerTable = new PowerTable(_pawnRyzenSmu, info.codeName);
+            }
+            catch (Exception ex)
+            {
+                RecordError(ref recordedError, ex, "PowerTable");
+            }
+
+            try
+            {
+                if (!SendTestMessage())
+                    RecordError(ref recordedError, new ApplicationException("SMU is not responding to test message!"), "SMU");
+            }
+            catch (Exception ex)
+            {
+                RecordError(ref recordedError, ex, "SMU test message");
+            }
+
+            try
+            {
+                powerTable?.Refresh();
+            }
+            catch (Exception ex)
+            {
+                RecordError(ref recordedError, ex, "PowerTable refresh");
+            }
+
+            LastError = recordedError;
+            Status = recordedError != null ? IODriver.LibStatus.PARTIALLY_OK : IODriver.LibStatus.OK;
+        }
+
+        private static void RecordError(ref Exception recordedError, Exception ex, string subsystem)
+        {
+            Debug.WriteLine($"{subsystem} initialization failed: {ex.Message}");
+            if (recordedError == null)
+                recordedError = ex;
         }
 
         // [31-28] ccd index
@@ -523,6 +590,9 @@ namespace ZenStates.Core
 
         public bool IoReadDwordEx(uint addr, ref uint data, int maxRetries = 10)
         {
+            if (io == null)
+                return false;
+
             if (!Mutexes.WaitPciBus(5000))
                 return false;
 
@@ -649,15 +719,13 @@ namespace ZenStates.Core
             uint threadsPerCore = info.topology.threadsPerCore == 0 ? 1 : info.topology.threadsPerCore;
             long logicalIndex = (long)index * threadsPerCore;
 
-            if (logicalIndex > 63)
-            {
-                Debug.WriteLine($"GetHwPstateStatus: core {index} maps past the 64-bit affinity mask.");
+            if (logicalIndex > int.MaxValue)
                 return new HwPstateStatus();
-            }
 
-            ulong group = 1UL << (int)logicalIndex;
+            // Processor groups hold up to 64 logical processors; pick group and bit accordingly.
+            GroupAffinity affinity = GroupAffinity.ForLogicalProcessor((int)logicalIndex);
 
-            if (_pawnAmd.ReadMsrTx(Constants.MSR_HW_PSTATE_STATUS, out uint _eax, out _, new GroupAffinity(0, group)))
+            if (_pawnAmd.ReadMsrTx(Constants.MSR_HW_PSTATE_STATUS, out uint _eax, out _, affinity))
             {
                 return new HwPstateStatus { Value = _eax };
             }
@@ -685,7 +753,7 @@ namespace ZenStates.Core
 
             for (var i = 0; i < info.topology.logicalCores; i++)
             {
-                res &= _pawnAmd.WriteMsrTx(msr, eax, edx, GroupAffinity.Single(0, i));
+                res &= _pawnAmd.WriteMsrTx(msr, eax, edx, GroupAffinity.ForLogicalProcessor(i));
             }
 
             return res;
@@ -1090,11 +1158,11 @@ namespace ZenStates.Core
 
         public uint GetSmuVersion() => _pawnRyzenSmu.GetSmuVersion();
 
-        public double? GetBclk() => mmio.GetBclk();
+        public double? GetBclk() => mmio?.GetBclk() ?? null;
 
-        public Mmio.ClkGen GetStrapStatus() => mmio.GetStrapStatus();
+        public Mmio.ClkGen GetStrapStatus() => mmio?.GetStrapStatus() ?? Mmio.ClkGen.ERROR;
 
-        public bool SetBclk(double blck) => mmio.SetBclk(blck);
+        public bool SetBclk(double blck) => mmio?.SetBclk(blck) ?? false;
 
         public SMU.Status TransferTableToDram() => new TransferTableToDram(smu).Execute().status;
 
@@ -1248,7 +1316,18 @@ namespace ZenStates.Core
 
         public SMU.Status SetPBOScalar(uint scalar) => new SetPBOScalar(smu).Execute(scalar).status;
 
-        public SMU.Status RefreshPowerTable() => powerTable != null ? powerTable.Refresh() : SMU.Status.FAILED;
+        public SMU.Status RefreshPowerTable()
+        {
+            if (powerTable == null)
+                return SMU.Status.FAILED;
+
+            SMU.Status status = powerTable.Refresh();
+
+            if (smu != null && smu.TableVersion == 0 && _pawnRyzenSmu != null)
+                smu.TableVersion = _pawnRyzenSmu.PmTableVersion;
+
+            return status;
+        }
 
         public int GetCorePerformanceData(uint index)
         {
@@ -1430,7 +1509,7 @@ namespace ZenStates.Core
         {
             if (!Mutexes.WaitPciBus(5000))
             {
-                Console.WriteLine("GetCurrentHwVid: Timeout waiting for PCI bus mutex");
+                Debug.WriteLine("GetCurrentHwVid: Timeout waiting for PCI bus mutex");
                 return -1;
             }
 
@@ -1477,7 +1556,7 @@ namespace ZenStates.Core
         {
             if (!Mutexes.WaitPciBus(5000))
             {
-                Console.WriteLine("IsProchotEnabled: Timeout waiting for PCI bus mutex");
+                Debug.WriteLine("IsProchotEnabled: Timeout waiting for PCI bus mutex");
                 return null;
             }
 
@@ -1496,7 +1575,7 @@ namespace ZenStates.Core
         {
             if (!Mutexes.WaitPciBus(5000))
             {
-                Console.WriteLine("GetCpuTemperature: Timeout waiting for PCI bus mutex");
+                Debug.WriteLine("GetCpuTemperature: Timeout waiting for PCI bus mutex");
                 return null;
             }
 
@@ -1540,7 +1619,7 @@ namespace ZenStates.Core
         {
             if (!Mutexes.WaitPciBus(5000))
             {
-                Console.WriteLine("GetSingleCcdTemperature: Timeout waiting for PCI bus mutex");
+                Debug.WriteLine("GetSingleCcdTemperature: Timeout waiting for PCI bus mutex");
                 return null;
             }
 
@@ -1567,6 +1646,18 @@ namespace ZenStates.Core
 
         private string GetAgesaVersion()
         {
+            if (io == null)
+            {
+                try
+                {
+                    return SMBiosSingleton.Instance.Bios.AgesaVersion;
+                }
+                catch
+                {
+                    return string.Empty;
+                }
+            }
+
             try
             {
                 var data = io.ReadMemory(new IntPtr(0xE0000), (int)(0xFFFFF - 0xE0000));

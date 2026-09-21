@@ -53,6 +53,11 @@ namespace ZenStates.Core.Hardware
 
         public Mmio(Cpu.Family family = Cpu.Family.UNSUPPORTED)
         {
+            if (IODriver.Instance == null)
+            {
+                return;
+            }
+
             this.io = IODriver.Instance;
             _family = family;
             _instance = this;
@@ -101,6 +106,9 @@ namespace ZenStates.Core.Hardware
          */
         public ClkGen GetStrapStatus()
         {
+            if (io == null)
+                return ClkGen.ERROR;
+
             if (io.GetPhysLong((UIntPtr)MISC_StrapStatus, out uint value))
                 return (ClkGen)Utils.GetBit(value, 17);
             return ClkGen.ERROR;
@@ -158,6 +166,9 @@ namespace ZenStates.Core.Hardware
          */
         public bool SetBclk(double bclk)
         {
+            if (io == null)
+                return false;
+
             if (bclk > 151)
                 bclk = 151;
             else if (bclk < 96)
@@ -259,6 +270,9 @@ namespace ZenStates.Core.Hardware
 
         public double? GetBclk()
         {
+            if (io == null)
+                return null;
+
             // On MSI X870E Unify-X BCLK1 is correctly detected when in eCLK1 mode (async)
             // in eCLK0 mode (sync) it always reads 100 and setting any value has no effect.
             // In both cases StrapStatus is EXTERNAL
