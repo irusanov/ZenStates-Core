@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
+using ZenStates.Core.Common;
 using ZenStates.Core.Hardware.MutexLock;
 
 namespace ZenStates.Core.PawnIo
@@ -238,8 +239,13 @@ namespace ZenStates.Core.PawnIo
 
                 long[] outBuffer = new long[6];
                 int result = _pawnIo.ExecuteHr(IOCTL_SEND_SMU_COMMAND, inputBuffer, 7, outBuffer, 6, out uint returnSize);
-                for (int i = 0; i < 6; i++)
-                    args[i] = (uint)outBuffer[i];
+
+                if (result == 0)
+                {
+                    int count = (int)Math.Min(6u, returnSize == 0 ? 6u : returnSize);
+                    for (int i = 0; i < count; i++)
+                        args[i] = (uint)outBuffer[i];
+                }
 
                 return result;
             }
@@ -409,18 +415,59 @@ namespace ZenStates.Core.PawnIo
         }
 
         /// <summary>
+        /// Triggers the SMU transfer and reads the result under a single bus lock, so no other
+        /// process can start a different transfer between the update and the read.
+        /// </summary>
+        private long[] UpdateAndReadPmTableRaw(int longs)
+        {
+            using (new PciBusLock())
+            {
+                _pawnIo.Execute(IOCTL_UPDATE_PM_TABLE, new long[0], 0);
+                return _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[0], longs);
+            }
+        }
+
+        /// <summary>
+        /// Copies as much of <paramref name="source"/> into <paramref name="destination"/> as both
+        /// buffers allow, capped at <paramref name="requestedBytes"/>. Every length involved is
+        /// either driver-reported or externally settable via <see cref="PmTableSize"/>, so the copy
+        /// is clamped rather than trusted; an unclamped BlockCopy threw and was swallowed upstream,
+        /// which is what made a short read look like an all-zero power table.
+        /// </summary>
+        internal static int CopyClamped(long[] source, float[] destination, uint requestedBytes)
+        {
+            if (source == null || destination == null)
+                return 0;
+
+            int available = Math.Min(source.Length * 8, destination.Length * 4);
+            int bytes = (int)Math.Min(requestedBytes, (uint)available);
+
+            if (bytes <= 0)
+                return 0;
+
+            Buffer.BlockCopy(source, 0, destination, 0, bytes);
+
+            if (requestedBytes > (uint)available)
+            {
+                Debug.WriteLine(
+                    $"PM table short read: wanted {requestedBytes} bytes, {available} available " +
+                    $"(driver returned {source.Length} longs).");
+            }
+
+            return bytes;
+        }
+
+        /// <summary>
         /// Updates and reads the PM table from DRAM.
         /// </summary>
         /// <returns>An array of float values from the PM table.</returns>
         private float[] UpdateAndReadPmTable()
         {
-            float[] table = new float[_pmTableSize / 4];
+            uint tableBytes = _pmTableSize;
+            float[] table = new float[(tableBytes + 3) / 4];
 
-            // Update the PM table
-            UpdatePmTable();
-            // Read the PM table
-            long[] rawData = ReadPmTable((int)((_pmTableSize + 7) / 8));
-            Buffer.BlockCopy(rawData, 0, table, 0, (int)_pmTableSize);
+            long[] rawData = UpdateAndReadPmTableRaw((int)((tableBytes + 7) / 8));
+            CopyClamped(rawData, table, tableBytes);
 
             return table;
         }
@@ -435,7 +482,7 @@ namespace ZenStates.Core.PawnIo
 
             StringBuilder report = new StringBuilder();
 
-            report.AppendLine("Ryzen SMU Report");
+            report.AppendLine(ReportBuilder.Heading("Ryzen SMU"));
             report.AppendLine(new string('=', 50));
             report.AppendLine();
             report.AppendLine($"CPU Code Name: {_cpuCodeName}");
@@ -668,10 +715,10 @@ namespace ZenStates.Core.PawnIo
         /// <summary>
         /// Finalizer for RyzenSmu class.
         /// </summary>
-        ~RyzenSmu()
-        {
-            Dispose(false);
-        }
+        //~RyzenSmu()
+        //{
+        //    Dispose(false);
+        //}
 
         #endregion
     }

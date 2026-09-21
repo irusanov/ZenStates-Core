@@ -1515,7 +1515,7 @@ namespace ZenStates.Core.Hardware.DRAM
                     { 0xA7, "Starsystems Inc" },
                     { 0xA8, "Shenzhen Yingjiaxun Industrial Co Ltd" },
                     { 0x29, "Dongguan Crown Code Electronic Commerce" },
-                    { 0x2A, "Monolithic Power Systems Inc" },
+                    { 0x2A, "MPS" }, // Monolithic Power Systems Inc
                     { 0xAB, "WuHan SenNaiBo E-Commerce Co Ltd" },
                     { 0x2C, "Hangzhou Hikstorage Technology Co" },
                     { 0xAD, "Shenzhen Goodix Technology Co Ltd" },

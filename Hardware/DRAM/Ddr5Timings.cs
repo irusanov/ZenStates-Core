@@ -193,42 +193,59 @@ namespace ZenStates.Core.Hardware.DRAM
             }
         }
 
+        public override void ReadRatio(uint offset = 0)
+        {
+            if (TryReadRegister(offset | 0x50200, out uint ratioReg))
+            {
+                Ratio = Utils.BitSlice(ratioReg, 15, 0) / 100.0f;
+            }
+        }
+
         public override void Read(uint offset = 0)
         {
-            Ratio = Utils.BitSlice(cpu.ReadDwordNoLock(offset | 0x50200), 15, 0) / 100.0f;
-
             base.Read(offset);
 
             // TRFC
             // define as separate variables to avoid false-positives on virus scans
-            uint trfcTimings0 = cpu.ReadDwordNoLock(offset | 0x50260);
-            uint trfcTimings1 = cpu.ReadDwordNoLock(offset | 0x50264);
-            uint trfcTimings2 = cpu.ReadDwordNoLock(offset | 0x50268);
-            uint trfcTimings3 = cpu.ReadDwordNoLock(offset | 0x5026C);
-            uint trfcRegValue = 0;
+            TryReadRegister(offset | 0x50260, out uint trfcTimings0);
+            TryReadRegister(offset | 0x50264, out uint trfcTimings1);
+            TryReadRegister(offset | 0x50268, out uint trfcTimings2);
+            TryReadRegister(offset | 0x5026C, out uint trfcTimings3);
 
+            uint trfcRegValue = 0;
+            bool trfcFound = false;
             uint[] ddr5Regs = new[] { trfcTimings0, trfcTimings1, trfcTimings2, trfcTimings3 };
+
             foreach (uint reg in ddr5Regs)
             {
-                if (reg != 0x00C00138)
+                if (reg > 0 && reg != 0x00C00138)
                 {
                     trfcRegValue = reg;
+                    trfcFound = true;
                     break;
                 }
             }
 
-            if (trfcRegValue != 0)
+            if (trfcFound)
             {
                 RFC = Utils.BitSlice(trfcRegValue, 15, 0);
                 RFC2 = Utils.BitSlice(trfcRegValue, 31, 16);
             }
 
             // TRFCsb
-            trfcTimings0 = Utils.BitSlice(cpu.ReadDwordNoLock(offset | 0x502c0), 10, 0);
-            trfcTimings1 = Utils.BitSlice(cpu.ReadDwordNoLock(offset | 0x502c4), 10, 0);
-            trfcTimings2 = Utils.BitSlice(cpu.ReadDwordNoLock(offset | 0x502c8), 10, 0);
-            trfcTimings3 = Utils.BitSlice(cpu.ReadDwordNoLock(offset | 0x502cc), 10, 0);
-            ddr5Regs = new[] { trfcTimings0, trfcTimings1, trfcTimings2, trfcTimings3 };
+            // Failed read on any of these would result in a 0 value,
+            // so we can just read them all and take the first non-zero value
+            TryReadRegister(offset | 0x502c0, out uint trfcsbTimings0);
+            TryReadRegister(offset | 0x502c4, out uint trfcsbTimings1);
+            TryReadRegister(offset | 0x502c8, out uint trfcsbTimings2);
+            TryReadRegister(offset | 0x502cc, out uint trfcsbTimings3);
+
+            ddr5Regs = new[] {
+                Utils.BitSlice(trfcsbTimings0, 10, 0),
+                Utils.BitSlice(trfcsbTimings1, 10, 0),
+                Utils.BitSlice(trfcsbTimings2, 10, 0),
+                Utils.BitSlice(trfcsbTimings3, 10, 0)
+            };
 
             foreach (uint value in ddr5Regs)
             {
@@ -239,29 +256,33 @@ namespace ZenStates.Core.Hardware.DRAM
                 }
             }
 
-            uint nitroSettings = Utils.BitSlice(cpu.ReadDwordNoLock(offset | 0x50284), 11, 0);
-            Nitro = new NitroSettings(nitroSettings);
+            if (TryReadRegister(offset | 0x50284, out uint nitroReg))
+            {
+                Nitro = new NitroSettings(Utils.BitSlice(nitroReg, 11, 0));
+            }
 
             // Refresh mode
-            uint refreshModeValue = cpu.ReadDwordNoLock(offset | 0x5012C);
-            FGR = Utils.BitSlice(refreshModeValue, 18, 16);
-            //var allBankRefresh = Utils.GetBit(refreshModeValue, 19);
-            var perBankRefresh = Utils.GetBit(refreshModeValue, 1);
+            if (TryReadRegister(offset | 0x5012C, out uint refreshModeValue))
+            {
+                FGR = Utils.BitSlice(refreshModeValue, 18, 16);
+                //var allBankRefresh = Utils.GetBit(refreshModeValue, 19);
+                var perBankRefresh = Utils.GetBit(refreshModeValue, 1);
 
 
-            if (/*allBankRefresh == 1 && */perBankRefresh == 0)
-            {
-                if (FGR == 0)
-                    RefreshMode = BankRefreshMode.NORMAL;
-                else
-                    RefreshMode = BankRefreshMode.FGR;
-            }
-            else if (/*allBankRefresh == 1 && */perBankRefresh == 1)
-            {
-                if (FGR != 0)
-                    RefreshMode = BankRefreshMode.MIXED;
-                else
-                    RefreshMode = BankRefreshMode.PBONLY;
+                if (/*allBankRefresh == 1 && */perBankRefresh == 0)
+                {
+                    if (FGR == 0)
+                        RefreshMode = BankRefreshMode.NORMAL;
+                    else
+                        RefreshMode = BankRefreshMode.FGR;
+                }
+                else if (/*allBankRefresh == 1 && */perBankRefresh == 1)
+                {
+                    if (FGR != 0)
+                        RefreshMode = BankRefreshMode.MIXED;
+                    else
+                        RefreshMode = BankRefreshMode.PBONLY;
+                }
             }
         }
     }

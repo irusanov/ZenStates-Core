@@ -17,9 +17,34 @@ namespace ZenStates.Core
     {
         public static bool Is64Bit => OHWM.OperatingSystem.Is64BitOperatingSystem;
 
+        /// <summary>
+        /// True when the current process is 64-bit. A 32-bit process on a 64-bit OS must
+        /// still load the 32-bit native helpers, so anything selecting between
+        /// inpoutx64.dll and WinIo32.dll has to use this and not <see cref="Is64Bit"/>.
+        /// </summary>
+        public static bool Is64BitProcess => IntPtr.Size == 8;
+
+        private static uint LowBitMask(int n)
+        {
+            if (n <= 0)
+                return 0U;
+            if (n >= 32)
+                return uint.MaxValue;
+
+            return (1U << n) - 1U;
+        }
+
         public static uint SetBits(uint val, int offset, int n, uint newVal)
         {
-            return val & ~(((1U << n) - 1) << offset) | (newVal << offset);
+            if (offset < 0 || offset > 31 || n <= 0)
+                return val;
+
+            if (offset + n > 32)
+                n = 32 - offset;
+
+            uint mask = LowBitMask(n);
+
+            return (val & ~(mask << offset)) | ((newVal & mask) << offset);
         }
 
         public static uint SetBit(uint val, int offset) => SetBits(val, offset, 1, 1);
@@ -28,15 +53,23 @@ namespace ZenStates.Core
 
         public static uint GetBits(uint val, int offset, int n)
         {
-            return (val >> offset) & ~(~0U << n);
+            if (offset < 0 || offset > 31 || n <= 0)
+                return 0U;
+
+            return (val >> offset) & LowBitMask(n);
         }
 
         public static uint GetBit(uint value, int bitOffset) => GetBits(value, bitOffset, 1);
 
         public static uint BitSlice(uint val, int hi, int lo)
         {
-            uint mask = (2U << hi - lo) - 1U;
-            return val >> lo & mask;
+            if (lo < 0 || hi < lo || hi > 31)
+            {
+                Debug.WriteLine($"BitSlice: invalid range [{hi}:{lo}].");
+                return 0U;
+            }
+
+            return (val >> lo) & LowBitMask(hi - lo + 1);
         }
 
         public static uint CountSetBits(uint v)
@@ -80,7 +113,14 @@ namespace ZenStates.Core
 
         public static uint VoltageToVid(double voltage)
         {
-            return (uint)Math.Round((1.55 - voltage) / 0.00625);
+            double vid = Math.Round((1.55 - voltage) / 0.00625);
+
+            if (vid <= 0)
+                return 0;
+            if (vid > 0xFF)
+                return 0xFF;
+
+            return (uint)vid;
         }
 
         public static double VidToVoltageSVI3(uint vid)
@@ -92,7 +132,10 @@ namespace ZenStates.Core
         {
             if (targetVoltage < 0.245)
                 return 0;
-            return (uint)Math.Round((targetVoltage - 0.245) / 0.005);
+
+            double vid = Math.Round((targetVoltage - 0.245) / 0.005);
+
+            return vid > 0xFF ? 0xFFu : (uint)vid;
         }
 
         private static bool CheckAllZero<T>(T[] typedArray)
@@ -399,7 +442,7 @@ namespace ZenStates.Core
 
             for (int i = 0; i < numElements; i++)
             {
-                if (array1[i] != array2[i])
+                if (!array1[i].Equals(array2[i]))
                 {
                     return false;
                 }
@@ -410,9 +453,12 @@ namespace ZenStates.Core
 
         public static bool PartialStringMatch(string str, string[] arr)
         {
+            if (str == null || arr == null)
+                return false;
+
             foreach (var item in arr)
             {
-                if (str.Contains(item))
+                if (item != null && str.Contains(item))
                     return true;
             }
             return false;
@@ -445,17 +491,21 @@ namespace ZenStates.Core
         {
             try
             {
-                using (var key = Registry.LocalMachine.OpenSubKey(keyPath, true))
+                bool exists;
+
+                using (var key = Registry.LocalMachine.OpenSubKey(keyPath, false))
                 {
-                    if (key != null)
-                    {
-                        Registry.LocalMachine.DeleteSubKeyTree(keyPath);
-                        Console.WriteLine($"Deleted registry key: HKEY_LOCAL_MACHINE\\{keyPath}");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Registry key not found: HKEY_LOCAL_MACHINE\\{keyPath}");
-                    }
+                    exists = key != null;
+                }
+
+                if (exists)
+                {
+                    Registry.LocalMachine.DeleteSubKeyTree(keyPath);
+                    Console.WriteLine($"Deleted registry key: HKEY_LOCAL_MACHINE\\{keyPath}");
+                }
+                else
+                {
+                    Console.WriteLine($"Registry key not found: HKEY_LOCAL_MACHINE\\{keyPath}");
                 }
             }
             catch (Exception ex)
@@ -488,7 +538,15 @@ namespace ZenStates.Core
             return ExecuteCommand(fileName, arguments);
         }
 
+        /// <summary>Default time a helper process is given to finish before it is killed.</summary>
+        public const int DefaultCommandTimeoutMs = 15000;
+
         public static CommandExecutionResult ExecuteCommand(string fileName, string arguments)
+        {
+            return ExecuteCommand(fileName, arguments, DefaultCommandTimeoutMs);
+        }
+
+        public static CommandExecutionResult ExecuteCommand(string fileName, string arguments, int timeoutMs)
         {
             var processInfo = new ProcessStartInfo(fileName, arguments ?? string.Empty)
             {
@@ -502,20 +560,47 @@ namespace ZenStates.Core
             var standardOutput = new StringBuilder();
             var standardError = new StringBuilder();
 
-            using (var process = Process.Start(processInfo))
+            using (var process = new Process())
             {
-                if (process == null)
+                process.StartInfo = processInfo;
+                process.OutputDataReceived += (sender, e) => { if (e.Data != null) standardOutput.AppendLine(e.Data); };
+                process.ErrorDataReceived += (sender, e) => { if (e.Data != null) standardError.AppendLine(e.Data); };
+
+                try
+                {
+                    if (!process.Start())
+                    {
+                        result.Success = false;
+                        result.StandardError = "Failed to start process.";
+                        result.State = "Unknown";
+                        return result;
+                    }
+                }
+                catch (Exception ex)
                 {
                     result.Success = false;
-                    result.StandardError = "Failed to start process.";
+                    result.StandardError = "Failed to start process: " + ex.Message;
+                    result.State = "Unknown";
                     return result;
                 }
 
-                process.OutputDataReceived += (sender, e) => { if (e.Data != null) standardOutput.AppendLine(e.Data); };
                 process.BeginOutputReadLine();
-                process.ErrorDataReceived += (sender, e) => { if (e.Data != null) standardError.AppendLine(e.Data); };
                 process.BeginErrorReadLine();
-                process.WaitForExit();
+
+                // Bounded wait: an unbounded WaitForExit hangs the caller forever if the helper
+                // never exits, and ExitCode throws while the process is still running.
+                if (!process.WaitForExit(timeoutMs))
+                {
+                    try { process.Kill(); } catch { /* already exiting */ }
+                    try { process.WaitForExit(1000); } catch { /* best effort */ }
+
+                    result.Success = false;
+                    result.ExitCode = -1;
+                    result.StandardOutput = standardOutput.ToString();
+                    result.StandardError = $"Timed out after {timeoutMs} ms.";
+                    result.State = "Unknown";
+                    return result;
+                }
 
                 result.Success = process.ExitCode == 0;
                 result.StandardOutput = standardOutput.ToString();
@@ -552,37 +637,65 @@ namespace ZenStates.Core
 
         public static bool HasDependentServices(string serviceName)
         {
-            CommandExecutionResult result = ExecuteCommand("sc.exe", $"qc \"{serviceName}\"");
-            string output = result.StandardOutput;
+            if (string.IsNullOrEmpty(serviceName))
+                return false;
+
+            CommandExecutionResult result = ExecuteCommand("sc.exe", $"enumdepend \"{EscapeArgument(serviceName)}\"");
+            if (!result.Success)
+                return false;
+
+            string output = result.StandardOutput ?? string.Empty;
             bool hasDependents = false;
+
             foreach (var line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
             {
-                if (line.Trim().StartsWith("DEPENDENCIES"))
+                string trimmed = line.Trim();
+
+                // Each dependent service is reported as a SERVICE_NAME: <name> entry.
+                if (trimmed.StartsWith("SERVICE_NAME", StringComparison.OrdinalIgnoreCase))
                 {
-                    string dependencies = line.Split(new[] { ':' }, 2)[1].Trim();
-                    if (!string.IsNullOrEmpty(dependencies))
+                    string[] parts = trimmed.Split(new[] { ':' }, 2);
+                    string dependent = parts.Length > 1 ? parts[1].Trim() : string.Empty;
+
+                    if (!string.IsNullOrEmpty(dependent))
                     {
                         hasDependents = true;
-                        Console.WriteLine($"Dependent services: {dependencies}");
+                        Console.WriteLine($"Dependent service: {dependent}");
                     }
                 }
             }
+
             return hasDependents;
+        }
+
+        /// <summary>
+        /// Strips quotes from a value that will be embedded in a quoted command-line argument,
+        /// so a crafted service name cannot close the quote and append its own arguments.
+        /// </summary>
+        private static string EscapeArgument(string value)
+        {
+            return value == null ? string.Empty : value.Replace("\"", string.Empty);
         }
 
         public static int GetServiceProcessId(string serviceName)
         {
-            CommandExecutionResult result = ExecuteCommand("sc.exe", $"queryex \"{serviceName}\"");
-            string output = result.StandardOutput;
+            if (string.IsNullOrEmpty(serviceName))
+                return -1;
+
+            CommandExecutionResult result = ExecuteCommand("sc.exe", $"queryex \"{EscapeArgument(serviceName)}\"");
+            string output = result.StandardOutput ?? string.Empty;
 
             foreach (var line in output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
             {
-                if (line.Trim().StartsWith("PID"))
+                string trimmed = line.Trim();
+                if (!trimmed.StartsWith("PID", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // Split guarded: an unexpected PID line without a colon indexed out of range.
+                string[] parts = trimmed.Split(new[] { ':' }, 2);
+                if (parts.Length > 1 && int.TryParse(parts[1].Trim(), out int pid))
                 {
-                    if (int.TryParse(line.Split(':')[1].Trim(), out int pid))
-                    {
-                        return pid;
-                    }
+                    return pid;
                 }
             }
             return -1;
@@ -604,10 +717,18 @@ namespace ZenStates.Core
 
         public static bool ServiceExists(string serviceName)
         {
-            CommandExecutionResult result = ExecuteCommand("sc.exe", $"query \"{serviceName}\"");
-            string output = result.StandardOutput;
+            if (string.IsNullOrEmpty(serviceName))
+                return false;
 
-            return !output.Contains("FAILED 1060");
+            CommandExecutionResult result = ExecuteCommand("sc.exe", $"query \"{EscapeArgument(serviceName)}\"");
+
+            // 1060 == ERROR_SERVICE_DOES_NOT_EXIST, which sc.exe returns as its exit code.
+            const int ERROR_SERVICE_DOES_NOT_EXIST = 1060;
+
+            if (result.ExitCode == ERROR_SERVICE_DOES_NOT_EXIST)
+                return false;
+
+            return result.Success;
         }
 
         /// <summary>

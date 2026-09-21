@@ -54,9 +54,17 @@ namespace ZenStates.Core.Hardware
         /// </summary>
         public static void Close()
         {
-            _isaBusMutex?.Close();
-            _pciBusMutex?.Close();
-            _smbusMutex?.Close();
+            Mutex isa = _isaBusMutex;
+            Mutex pci = _pciBusMutex;
+            Mutex smbus = _smbusMutex;
+
+            _isaBusMutex = null;
+            _pciBusMutex = null;
+            _smbusMutex = null;
+
+            isa?.Close();
+            pci?.Close();
+            smbus?.Close();
         }
 
         public static bool WaitIsaBus(int millisecondsTimeout)
@@ -66,7 +74,7 @@ namespace ZenStates.Core.Hardware
 
         public static void ReleaseIsaBus()
         {
-            _isaBusMutex?.ReleaseMutex();
+            ReleaseMutex(_isaBusMutex);
         }
 
         public static bool WaitPciBus(int millisecondsTimeout)
@@ -76,7 +84,7 @@ namespace ZenStates.Core.Hardware
 
         public static void ReleasePciBus()
         {
-            _pciBusMutex?.ReleaseMutex();
+            ReleaseMutex(_pciBusMutex);
         }
 
         public static bool WaitSmbus(int millisecondsTimeout)
@@ -86,7 +94,26 @@ namespace ZenStates.Core.Hardware
 
         public static void ReleaseSmbus()
         {
-            _smbusMutex?.ReleaseMutex();
+            ReleaseMutex(_smbusMutex);
+        }
+
+        private static void ReleaseMutex(Mutex mutex)
+        {
+            if (mutex == null)
+                return;
+
+            try
+            {
+                mutex.ReleaseMutex();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Closed by a concurrent Mutexes.Close(); nothing left to release.
+            }
+            catch (ApplicationException)
+            {
+                // Not the owner - a release without a matching successful wait.
+            }
         }
 
         private static bool WaitMutex(Mutex mutex, int millisecondsTimeout = 5000)
@@ -100,7 +127,13 @@ namespace ZenStates.Core.Hardware
             }
             catch (AbandonedMutexException)
             {
+                // The previous owner died holding it; ownership passes to us.
                 return true;
+            }
+            catch (ObjectDisposedException)
+            {
+                // Closed underneath us by a concurrent Mutexes.Close().
+                return false;
             }
             catch (InvalidOperationException)
             {

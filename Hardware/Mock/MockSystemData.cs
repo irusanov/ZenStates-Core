@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Reflection;
-using System.Text.RegularExpressions;
+using ZenStates.Core.Hardware.Aod;
 using ZenStates.Core.Hardware.DRAM;
+using ZenStates.Core.Hardware.Motherboard;
+using ZenStates.Core.Hardware.Motherboard.Lpc;
+using ZenStates.Core.Hardware.DRAM.DDR5.Pmic;
+using ZenStates.Core.Hardware.DRAM.DDR5.Spd;
 using static ZenStates.Core.Cpu;
-using static ZenStates.Core.Hardware.DRAM.MemoryConfig;
 // Namespace and class share the name "Apob" (ZenStates.Core.Hardware.Apob.Apob), so it's aliased
 // here rather than imported with a plain "using" to avoid "Apob.Apob" ambiguity below.
 using ApobTable = ZenStates.Core.Hardware.Apob.Apob;
@@ -16,44 +17,56 @@ namespace ZenStates.Core.Hardware.Mock
     /// Aggregated, hardware-free snapshot of everything a UI needs to render a "mock" view of a
     /// system, reconstructed entirely from a previously captured ZenTimings debug report.
     /// </summary>
-    /// <remarks>
-    /// This is the single entry point for turning a debug report back into data: it builds the
-    /// <see cref="CPUInfo"/>, the DRAM <see cref="MemType"/>, the <see cref="MemoryModule"/> list,
-    /// the parsed <see cref="BaseDramTimings"/>, the APOB instance
-    /// (via <see cref="ApobTable.CreateFromDebugReport"/>), and the power table (FCLK/MCLK/UCLK,
-    /// voltages) via <see cref="ZenStates.Core.PowerTable.CreateFromDebugReport"/>, so a caller
-    /// such as ZenTimings' MainWindow doesn't need to hand-parse the report itself or touch any
-    /// real hardware.
-    /// </remarks>
     public sealed class MockSystemData
     {
-        /// <summary>Mocked CPU identity info (family, codename, package/smu type), as consumed by APOB profile resolution.</summary>
         public CPUInfo CpuInfo { get; private set; }
 
-        /// <summary>DRAM type. Read from an explicit "MemType:" line when present (new reports), otherwise inferred (see <see cref="ParseMemType"/>).</summary>
         public MemType MemoryType { get; private set; } = MemType.UNKNOWN;
 
-        /// <summary>Memory modules parsed from the "Memory Modules" section, in report order.</summary>
         public List<MemoryModule> Modules { get; private set; } = new List<MemoryModule>();
 
-        /// <summary>Parsed timings, keyed by DCT offset, mirroring <see cref="MemoryConfig.Timings"/>.</summary>
-        public List<KeyValuePair<uint, BaseDramTimings>> Timings { get; private set; } =
-            new List<KeyValuePair<uint, BaseDramTimings>>();
+        public List<KeyValuePair<uint, BaseDramTimings>> Timings { get; private set; } = new List<KeyValuePair<uint, BaseDramTimings>>();
 
-        /// <summary>Mock APOB instance built from the report's "APOB" section.</summary>
+        public VirtualRegisters UmcRegisters { get; private set; } = new VirtualRegisters();
+
         public ApobTable Apob { get; private set; }
 
-        /// <summary>Mock power table (FCLK/MCLK/UCLK/voltages) built from the report's "SMU: Power Table Detected Values" section.</summary>
+        public Dictionary<byte, Ddr5SpdInfo> SpdInfo { get; private set; } = new Dictionary<byte, Ddr5SpdInfo>();
+
+        /// <summary>
+        /// PMIC of the first DIMM that has one, i.e. what the main window shows when no particular
+        /// module is selected. Null when the report carries no readable PMIC block.
+        /// </summary>
+        public Ddr5PmicData PmicData { get; private set; }
+
+        /// <summary>Decoded AOD fields as printed in the report - the mock counterpart of <c>cpu.info.aod.Table.Data</c>. Null when unavailable.</summary>
+        public AodData AodData { get; private set; }
+
+        /// <summary>
+        /// DDR4 BIOS memory controller config (APCB) bytes as the report dumped them - what the live
+        /// window reads over WMI for ProcODT, RTT, drive strengths and setup times. Null when the
+        /// report has no such dump.
+        /// </summary>
+        public byte[] BiosMemControllerTable { get; private set; }
+
         public PowerTable PowerTable { get; private set; }
 
-        public Capacity TotalCapacity { get; private set; } = new Capacity();
+        /// <summary>
+        /// SuperIO sensors replayed from the report's register dumps - the mock counterpart of
+        /// <c>cpu.systemInfo.SensorGroups</c>, decoded with the same board configuration. Values are
+        /// the captured ones and don't change. Empty when the report has no SuperIO section.
+        /// </summary>
+        public List<SuperIoSensorGroup> SensorGroups { get; } = new List<SuperIoSensorGroup>();
 
+        public Capacity TotalCapacity { get; private set; } = new Capacity();
         public string CpuName { get; private set; }
         public string MbVendor { get; private set; }
         public string MbName { get; private set; }
         public string BiosVersion { get; private set; }
         public string AgesaVersion { get; private set; }
         public string SmuVersion { get; private set; }
+
+        public string ReportVersion { get; private set; }
 
         /// <summary>Non-fatal problems hit while parsing, e.g. sections that couldn't be located. Empty on a clean parse.</summary>
         public List<string> Warnings { get; } = new List<string>();
@@ -70,386 +83,237 @@ namespace ZenStates.Core.Hardware.Mock
             if (debugReportText == null)
                 throw new ArgumentNullException(nameof(debugReportText));
 
-            string text = ApobTable.NormalizeLineEndings(debugReportText);
+            string text = DebugReportParser.NormalizeLineEndings(debugReportText);
+            string[] lines = text.Split('\n');
+
             var data = new MockSystemData();
 
-            // -- CPU info (reuses the same tolerant parsing Apob.CreateFromDebugReport relies on) --
-            data.CpuInfo = new CPUInfo
-            {
-                family = ApobTable.ParseFamily(text),
-                codeName = ApobTable.ParseCodeName(text),
-                packageType = ApobTable.ParsePackageType(text),
-                smuType = ApobTable.ParseSmuType(text),
-                cpuName = ApobTable.ParseLabelValue(text, "CpuName:")?.Replace('_', ' '),
-                vendor = ApobTable.ParseLabelValue(text, "Vendor:"),
-            };
+            data.ReadSystemIdentity(text);
 
-            data.CpuName = ParseCpuNameLine(text) ?? data.CpuInfo.cpuName;
-            data.MbVendor = ApobTable.ParseLabelValue(text, "MbVendor:");
-            data.MbName = ApobTable.ParseLabelValue(text, "MbName:");
-            data.BiosVersion = ApobTable.ParseLabelValue(text, "BiosVersion:");
-            data.SmuVersion = ApobTable.ParseLabelValue(text, "SmuVersion:");
-            data.AgesaVersion = ParseAgesaVersionLine(text);
+            // Parsed up front: besides the timings, they give the DRAM type older reports don't print.
+            VirtualRegisters registers = DebugReportParser.ParseUmcRegisters(lines);
+            data.ResolveMemoryType(text, registers);
 
-            // -- Memory type --
-            data.MemoryType = ParseMemType(text);
+            data.ReadModules(lines);
 
-            // -- Memory modules --
-            data.Modules = ParseModules(text, data.MemoryType);
-            if (data.Modules.Count == 0)
-                data.Warnings.Add("Could not locate a 'Memory Modules' section in the debug report.");
-
-            ulong totalBytes = 0;
-            foreach (MemoryModule module in data.Modules)
-                totalBytes += module.Capacity?.SizeInBytes ?? 0;
-            data.TotalCapacity = new Capacity(totalBytes);
-
-            // -- Timings --
-            uint dctOffset = data.Modules.Count > 0 ? data.Modules[0].DctOffset : 0;
-            BaseDramTimings timings = CreateTimingsInstance(data.MemoryType);
-            if (timings != null)
-            {
-                if (!ParseTimings(text, timings))
-                    data.Warnings.Add("Could not locate a 'Memory Config' section in the debug report.");
-
-                data.Timings.Add(new KeyValuePair<uint, BaseDramTimings>(dctOffset, timings));
-            }
-
-            // -- APOB (delegates to the existing, already-shipped parser) --
-            data.Apob = ApobTable.CreateFromDebugReport(debugReportText);
-            if (!data.Apob.IsAvailable)
-                data.Warnings.Add("APOB: " + data.Apob.ErrorReason);
-
-            // -- Power table (FCLK/MCLK/UCLK/voltages) --
+            // The power table is built before the timings because it carries MCLK, which is the
+            // frequency the captured system was running at.
             data.PowerTable = PowerTable.CreateFromDebugReport(debugReportText);
+
+            data.ReadTimings(registers, lines);
+            data.ReadSpdInfo(lines);
+            data.ReadAod(lines);
+            data.ReadSuperIo(lines);
+            data.BiosMemControllerTable = DebugReportParser.ParseIndexedBytes(lines, DebugReportParser.BiosMemControllerSection);
+            data.ReadApob(debugReportText);
 
             return data;
         }
 
-        private static string ParseCpuNameLine(string text)
-        {
-            // "CpuName:           AMD Ryzen AI 7 350 w/ Radeon 860M" - value can contain spaces,
-            // so this needs the rest of the line rather than the single-token ParseLabelValue.
-            Match match = Regex.Match(text, @"^CpuName:[ \t]*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Multiline);
-            return match.Success ? match.Groups[1].Value.TrimEnd() : null;
-        }
-
-        private static string ParseAgesaVersionLine(string text)
-        {
-            Match match = Regex.Match(text, @"^AgesaVersion:[ \t]*(.+)$", RegexOptions.IgnoreCase | RegexOptions.Multiline);
-            return match.Success ? match.Groups[1].Value.TrimEnd() : null;
-        }
-
         /// <summary>
-        /// Determines DRAM type. Prefers an explicit "MemType:" line (emitted by newer ZenTimings
-        /// builds); falls back to inferring DDR5 vs DDR4 from the presence of a populated "SMBUS
-        /// Memory Modules" section for older reports, since that section is only ever printed for
-        /// DDR5 systems. The LPDDR4/LPDDR5 distinction can't be recovered from older reports.
+        /// PMIC of the module at <paramref name="moduleIndex"/> in <see cref="Modules"/>. SPD entries
+        /// line up with the modules by index, the same assumption the live path makes. Falls back to
+        /// <see cref="PmicData"/> when that module has no entry of its own.
         /// </summary>
-        private static MemType ParseMemType(string text)
+        public Ddr5PmicData GetPmicData(int moduleIndex)
         {
-            string raw = ApobTable.ParseLabelValue(text, "MemType:");
-            if (raw != null && Utils.TryParseEnum(raw, out MemType memType))
-                return memType;
-
-            bool hasSmbusDdr5Modules = Regex.IsMatch(text, @"^DIMM at I2C address 0x[0-9A-Fa-f]+", RegexOptions.Multiline);
-            return hasSmbusDdr5Modules ? MemType.DDR5 : MemType.DDR4;
-        }
-
-        private static BaseDramTimings CreateTimingsInstance(MemType memType)
-        {
-            switch (memType)
+            if (moduleIndex >= 0 && moduleIndex < SpdInfo.Count)
             {
-                case MemType.DDR4:
-                case MemType.LPDDR4:
-                    return new Ddr4Timings(null);
-                case MemType.DDR5:
-                case MemType.LPDDR5:
-                    return new Ddr5Timings(null);
-                default:
-                    return null;
-            }
-        }
-
-        /// <summary>
-        /// Parses the "Memory Modules" section, e.g.:
-        /// <code>
-        /// P0 CHANNEL A | DIMM 0
-        /// -- Slot: A1
-        /// -- Single Rank
-        /// -- DCT Offset: 0x0
-        /// -- Manufacturer: Ramaxel Technology
-        /// -- RMSB3410MD88IBF-5600 16GB 5600MHz
-        /// -- 32 Banks (5 bit), Col: 10, Row: 16, No RM (0 bit), 8 Bank Groups (3 bit)
-        /// </code>
-        /// </summary>
-        private static List<MemoryModule> ParseModules(string text, MemType memType)
-        {
-            var modules = new List<MemoryModule>();
-            string[] lines = text.Split('\n');
-
-            int start = FindSectionContentStart(lines, "Memory Modules");
-            if (start < 0)
-                return modules;
-
-            int end = FindNextHeadingLine(lines, start);
-
-            MemoryModule current = null;
-            var partCapClockRegex = new Regex(
-                @"^(?<part>.+?)\s+(?<cap>\d+(?:\.\d+)?)(?<unit>[KMGT]?B)\s+(?<clk>\d+)MHz$",
-                RegexOptions.IgnoreCase);
-
-            for (int i = start; i < end; i++)
-            {
-                string line = lines[i].TrimEnd();
-                string trimmed = line.Trim();
-
-                if (trimmed.Length == 0)
+                int index = 0;
+                foreach (Ddr5SpdInfo info in SpdInfo.Values)
                 {
-                    if (current != null)
-                    {
-                        modules.Add(current);
-                        current = null;
-                    }
-                    continue;
-                }
+                    if (index++ != moduleIndex)
+                        continue;
 
-                if (!trimmed.StartsWith("--"))
-                {
-                    // New module header, e.g. "P0 CHANNEL A | DIMM 0"
-                    if (current != null)
-                        modules.Add(current);
+                    if (info.PmicData != null && info.PmicData.IsValid)
+                        return info.PmicData;
 
-                    current = new MemoryModule { Type = memType };
-                    string[] parts = trimmed.Split(new[] { '|' }, 2);
-                    current.BankLabel = parts[0].Trim();
-                    current.DeviceLocator = parts.Length > 1 ? parts[1].Trim() : string.Empty;
-                    continue;
-                }
-
-                if (current == null)
-                    continue;
-
-                string attr = trimmed.TrimStart('-', ' ').Trim();
-
-                if (attr.StartsWith("Slot:", StringComparison.OrdinalIgnoreCase))
-                {
-                    current.Slot = attr.Substring("Slot:".Length).Trim();
-                }
-                else if (attr.Equals("Single Rank", StringComparison.OrdinalIgnoreCase))
-                {
-                    current.Rank = MemRank.SR;
-                }
-                else if (attr.Equals("Dual Rank", StringComparison.OrdinalIgnoreCase))
-                {
-                    current.Rank = MemRank.DR;
-                }
-                else if (attr.Equals("Quad Rank", StringComparison.OrdinalIgnoreCase))
-                {
-                    current.Rank = MemRank.QR;
-                }
-                else if (attr.StartsWith("DCT Offset:", StringComparison.OrdinalIgnoreCase))
-                {
-                    string hex = attr.Substring("DCT Offset:".Length).Trim();
-                    if (hex.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
-                        hex = hex.Substring(2);
-                    if (uint.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint shifted))
-                        current.DctOffset = shifted << 20;
-                }
-                else if (attr.StartsWith("Manufacturer:", StringComparison.OrdinalIgnoreCase))
-                {
-                    current.Manufacturer = attr.Substring("Manufacturer:".Length).Trim();
-                }
-                else
-                {
-                    Match m = partCapClockRegex.Match(attr);
-                    if (m.Success)
-                    {
-                        current.PartNumber = m.Groups["part"].Value.Trim();
-                        current.ClockSpeed = uint.Parse(m.Groups["clk"].Value, CultureInfo.InvariantCulture);
-
-                        double capValue = double.Parse(m.Groups["cap"].Value, NumberStyles.Float, CultureInfo.InvariantCulture);
-                        CapacityUnit unit;
-                        switch (m.Groups["unit"].Value.ToUpperInvariant())
-                        {
-                            case "KB": unit = CapacityUnit.KB; break;
-                            case "MB": unit = CapacityUnit.MB; break;
-                            default: unit = CapacityUnit.GB; break; // GB, or bare "B"/"TB" fall back to GB-scale storage
-                        }
-                        ulong bytes = (ulong)Math.Round(capValue * Math.Pow(1024, (int)unit));
-                        current.Capacity = new Capacity(bytes, unit);
-                    }
-                    // Bank/row/col/RM/bank-group description lines aren't needed to populate the
-                    // main timings UI and are intentionally not parsed here.
+                    break;
                 }
             }
 
-            if (current != null)
-                modules.Add(current);
+            return PmicData;
+        }
 
-            return modules;
+        private void ReadSystemIdentity(string text)
+        {
+            CpuInfo = DebugReportParser.ParseCpuInfo(text);
+
+            CpuName = DebugReportParser.ParseCpuName(text) ?? CpuInfo.cpuName;
+
+            // Board vendor and model contain spaces ("Micro-Star International Co., Ltd.",
+            // "MEG X870E UNIFY-X MAX (MS-7E73)"), so they need the whole line. The single-token
+            // ParseLabelValue used previously truncated both at the first space.
+            MbVendor = DebugReportParser.ParseLabelLine(text, "MbVendor");
+            MbName = DebugReportParser.ParseLabelLine(text, "MbName");
+
+            // These are single tokens, so the token-wise parser is correct for them.
+            BiosVersion = DebugReportParser.ParseLabelValue(text, "BiosVersion:");
+            SmuVersion = DebugReportParser.ParseLabelValue(text, "SmuVersion:");
+            AgesaVersion = DebugReportParser.ParseAgesaVersion(text);
+            ReportVersion = DebugReportParser.ParseReportVersion(text);
+            MemoryType = DebugReportParser.ParseMemType(text);
         }
 
         /// <summary>
-        /// Parses the "Memory Config" section's reflection-dumped "PropertyName:      value" lines
-        /// straight onto a <see cref="BaseDramTimings"/> instance via its indexer, converting each
-        /// raw text value to the type the target property actually needs first (the indexer's own
-        /// conversion only handles same-typed values, not text).
+        /// Keeps the report's own "MemType:" line when it has one. Otherwise the type is read from
+        /// the captured UMC registers, as the live path once did; failing that, a populated SMBUS
+        /// section means DDR5, and anything else is taken as DDR4.
         /// </summary>
-        private static bool ParseTimings(string text, BaseDramTimings timings)
+        private void ResolveMemoryType(string text, VirtualRegisters registers)
         {
-            string[] lines = text.Split('\n');
-
-            int start = FindSectionContentStart(lines, "Memory Config");
-            if (start < 0)
-                return false;
-
-            int end = FindNextHeadingLine(lines, start);
-            var lineRegex = new Regex(@"^(?<name>[A-Za-z0-9_]+):\s*(?<value>.*)$");
-
-            for (int i = start; i < end; i++)
-            {
-                string line = lines[i].TrimEnd();
-                if (line.Trim().Length == 0)
-                    continue;
-
-                Match m = lineRegex.Match(line);
-                if (!m.Success)
-                    continue;
-
-                SetTimingProperty(timings, m.Groups["name"].Value, m.Groups["value"].Value.Trim());
-            }
-
-            return true;
-        }
-
-        private static void SetTimingProperty(BaseDramTimings timings, string name, string rawValue)
-        {
-            PropertyInfo pi = timings.GetType().GetProperty(name);
-            if (pi == null || !pi.CanWrite || rawValue.Length == 0)
+            if (MemoryType != MemType.UNKNOWN)
                 return;
 
-            Type targetType = pi.PropertyType;
-            object value;
+            MemType fromRegisters;
+            if (MockDramTimings.TryReadMemType(registers, out fromRegisters))
+            {
+                MemoryType = fromRegisters;
+                return;
+            }
 
-            if (targetType == typeof(BooleanProp))
-            {
-                uint v = rawValue.Equals("Enabled", StringComparison.OrdinalIgnoreCase) ? 1u
-                    : rawValue.Equals("Disabled", StringComparison.OrdinalIgnoreCase) ? 0u
-                    : 2u; // "Unknown" (or anything unrecognised) round-trips through BooleanProp's own "Unknown" case
-                value = v;
-            }
-            else if (targetType == typeof(CommandRateProp))
-            {
-                uint v = rawValue == "1T" ? 0u : rawValue == "2T" ? 1u : 2u;
-                value = v;
-            }
-            else if (targetType == typeof(Ddr5Timings.NitroSettings))
-            {
-                // NitroSettings.ToString() prints "RxData/TxData/CtrlLine" (its per-channel delay-mode
-                // bits aren't included in that string, so they can't be recovered from a report and are
-                // left at 0). Re-encode just those three fields into a raw register value so the
-                // struct's own constructor decodes them back out identically.
-                Match nm = Regex.Match(rawValue, @"^(?<rx>\d+)/(?<tx>\d+)/(?<ctrl>\d+)$");
-                if (!nm.Success)
-                    return;
-                if (!byte.TryParse(nm.Groups["rx"].Value, out byte rx) ||
-                    !byte.TryParse(nm.Groups["tx"].Value, out byte tx) ||
-                    !byte.TryParse(nm.Groups["ctrl"].Value, out byte ctrl))
-                    return;
+            MemoryType = DebugReportParser.HasDdr5SmbusModules(text) ? MemType.DDR5 : MemType.DDR4;
+            Warnings.Add($"The debug report states no memory type and has no UMC DRAM type register; assuming {MemoryType}.");
+        }
 
-                uint registerValue = (uint)(ctrl & 0x3) | ((uint)(tx & 0x3) << 4) | ((uint)(rx & 0x3) << 8);
-                value = new Ddr5Timings.NitroSettings(registerValue);
-            }
-            else if (targetType == typeof(BankRefreshMode))
+        private void ReadModules(string[] lines)
+        {
+            Modules = DebugReportParser.ParseModules(lines, MemoryType);
+            if (Modules.Count == 0)
+                Warnings.Add("Could not locate a 'Memory Modules' section in the debug report.");
+
+            ulong totalBytes = 0;
+            foreach (MemoryModule module in Modules)
+                totalBytes += module.Capacity?.SizeInBytes ?? 0;
+
+            TotalCapacity = new Capacity(totalBytes);
+        }
+
+        /// <summary>
+        /// Decodes one set of timings per module from the captured UMC registers, in module order
+        /// </summary>
+        private void ReadTimings(VirtualRegisters registers, string[] lines)
+        {
+            if (registers.IsEmpty)
             {
-                // BankRefreshMode is a smart-enum class (not a real enum), so it needs its own
-                // text->instance mapping instead of Enum.Parse; values mirror BankRefreshMode.ToString().
-                switch (rawValue)
+                Warnings.Add("Could not locate a 'Memory Channels Info' register dump in the debug report; timings are unavailable.");
+                return;
+            }
+
+            UmcRegisters = registers;
+
+            float frequency = ResolveReportedFrequency(lines);
+
+            foreach (MemoryModule module in Modules)
+            {
+                if (!MockDramTimings.HasChannel(registers, module.DctOffset))
                 {
-                    case "Normal": value = BankRefreshMode.NORMAL; break;
-                    case "FGR": value = BankRefreshMode.FGR; break;
-                    case "Mixed": value = BankRefreshMode.MIXED; break;
-                    case "Per-Bank Only": value = BankRefreshMode.PBONLY; break;
-                    default: value = BankRefreshMode.UNKNOWN; break;
+                    Warnings.Add($"No captured registers for the channel at DCT offset 0x{module.DctOffset:X} ({module.Slot}).");
+                    continue;
+                }
+
+                BaseDramTimings timings = MockDramTimings.CreateAndRead(
+                    MemoryType, registers, module.DctOffset, frequency);
+
+                if (timings == null)
+                {
+                    Warnings.Add($"No mock timings implementation for memory type {MemoryType}.");
+                    return;
+                }
+
+                Timings.Add(new KeyValuePair<uint, BaseDramTimings>(module.DctOffset, timings));
+            }
+        }
+
+        /// <summary>
+        /// Memory data rate of the captured system. The power table's MCLK is preferred because it
+        /// is the same source the live path uses; the report's own "Frequency:" line is the
+        /// fallback. Returning 0 leaves the mock timings to derive it from the decoded ratio.
+        /// </summary>
+        private float ResolveReportedFrequency(string[] lines)
+        {
+            float mclk = PowerTable?.MCLK ?? 0f;
+            if (mclk > 0)
+                return mclk * 2;
+
+            return DebugReportParser.ParseReportedMemoryFrequency(lines);
+        }
+
+        /// <summary>
+        /// Reads the decoded SPD dumps, and with them the PMIC rails the main window shows. Only
+        /// DDR5 reports carry the section, so its absence is a warning for DDR5 alone.
+        /// </summary>
+        private void ReadSpdInfo(string[] lines)
+        {
+            SpdInfo = DebugReportParser.ParseSpdInfo(lines);
+
+            bool isDdr5 = MemoryType == MemType.DDR5 || MemoryType == MemType.LPDDR5;
+
+            if (SpdInfo.Count == 0)
+            {
+                if (isDdr5)
+                    Warnings.Add("Could not locate an 'SMBUS Memory Modules' section in the debug report; SPD and PMIC data are unavailable.");
+                return;
+            }
+
+            foreach (Ddr5SpdInfo info in SpdInfo.Values)
+            {
+                if (info.PmicData != null && info.PmicData.IsValid)
+                {
+                    PmicData = info.PmicData;
+                    break;
                 }
             }
-            else if (targetType.IsEnum)
+
+            if (PmicData == null && isDdr5)
+                Warnings.Add("The debug report's SPD dumps carry no readable PMIC block; DIMM voltages are unavailable.");
+        }
+
+        /// <summary>
+        /// Rebuilds each dumped SuperIO chip and runs it through the live board configuration. The
+        /// chip's position in the report is its index, as on the live machine.
+        /// </summary>
+        private void ReadSuperIo(string[] lines)
+        {
+            List<SuperIoDump> dumps = DebugReportParser.ParseSuperIo(lines);
+
+            for (int i = 0; i < dumps.Count; i++)
             {
+                SuperIoDump dump = dumps[i];
+
                 try
                 {
-                    object enumValue = Enum.Parse(targetType, rawValue, true);
-                    if (!Enum.IsDefined(targetType, enumValue))
-                        return;
-                    value = enumValue;
+                    ISuperIO chip = dump.CreateChip();
+                    if (chip == null)
+                    {
+                        Warnings.Add($"SuperIO: no replay support for LPC {dump.ChipClass} ({dump.Chip}).");
+                        continue;
+                    }
+
+                    var hardware = new SuperIOHardware(chip, MbVendor, MbName, i);
+                    hardware.Update();
+                    SensorGroups.Add(new SuperIoSensorGroup(hardware.ChipName, hardware.Chip, hardware.Sensors));
                 }
-                catch (ArgumentException)
+                catch (Exception ex)
                 {
-                    return;
+                    Warnings.Add($"SuperIO: could not replay {dump.Chip}: {ex.Message}");
                 }
             }
-            else if (targetType == typeof(uint))
-            {
-                if (!uint.TryParse(rawValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out uint v))
-                    return;
-                value = v;
-            }
-            else if (targetType == typeof(float))
-            {
-                if (!float.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out float v))
-                    return;
-                value = v;
-            }
-            else
-            {
-                // Computed/read-only properties (Frequency, RFCns, REFIns, ...) and anything else
-                // unsupported are simply left alone.
-                return;
-            }
-
-            timings[name] = value;
         }
 
-        /// <summary>
-        /// Finds the first content line of a "######\n{heading}\n######" section produced by
-        /// DebugDialog's AddHeading, given the exact heading title.
-        /// </summary>
-        internal static int FindSectionContentStart(string[] lines, string heading)
+        private void ReadAod(string[] lines)
         {
-            for (int i = 1; i < lines.Length - 1; i++)
-            {
-                if (lines[i].Trim() == heading &&
-                    IsHashLine(lines[i - 1]) && IsHashLine(lines[i + 1]))
-                {
-                    return i + 2;
-                }
-            }
-            return -1;
+            AodData = DebugReportParser.ParseAodData(lines);
+            if (AodData == null)
+                Warnings.Add("Could not locate decoded AOD data in the debug report; AOD data is unavailable.");
         }
 
-        /// <summary>Scans forward from <paramref name="from"/> for the start of the next "######" heading block.</summary>
-        internal static int FindNextHeadingLine(string[] lines, int from)
+        private void ReadApob(string debugReportText)
         {
-            for (int i = from; i < lines.Length; i++)
-            {
-                if (IsHashLine(lines[i]))
-                    return i;
-            }
-            return lines.Length;
-        }
+            Apob = ApobTable.CreateFromDebugReport(debugReportText);
 
-        internal static bool IsHashLine(string line)
-        {
-            string t = line.Trim();
-            if (t.Length == 0)
-                return false;
-
-            for (int i = 0; i < t.Length; i++)
-            {
-                if (t[i] != '#')
-                    return false;
-            }
-            return true;
+            if (!string.IsNullOrEmpty(Apob?.ErrorReason))
+                Warnings.Add("APOB: " + Apob.ErrorReason);
         }
     }
 }

@@ -49,7 +49,7 @@ namespace ZenStates.Core.Common
         {
             string value = base.ToString();
 
-            if (this.RawValue > 0)
+            if (this.RawValue > 0 && Lookup.ContainsKey(this.RawValue.Value))
                 return $"{value} ({240 / RawValue})";
             return $"{value}";
         }

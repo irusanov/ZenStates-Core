@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Reflection;
 using static ZenStates.Core.Hardware.DRAM.MemoryConfig;
 
@@ -60,6 +61,27 @@ namespace ZenStates.Core.Hardware.DRAM
             cpu = cpuInstance;
         }
 
+        /// <summary>
+        /// Reads one UMC register.
+        /// </summary>
+        /// <returns>False when the register could not be read; <paramref name="value"/> is then 0.</returns>
+        protected virtual bool TryReadRegister(uint address, out uint value)
+        {
+            // A null Cpu is legitimate for subclasses that never touch hardware.
+            if (cpu == null)
+            {
+                value = 0;
+                return false;
+            }
+
+            return cpu.TryReadDwordNoLock(address, out value);
+        }
+
+        protected uint ReadRegister(uint address)
+        {
+            return TryReadRegister(address, out uint value) ? value : 0;
+        }
+
         public object this[string propertyName]
         {
             get
@@ -106,15 +128,35 @@ namespace ZenStates.Core.Hardware.DRAM
 
         private PropertyInfo GetPropertyInfo(string propertyName)
         {
-            return GetType().GetProperty(propertyName);
+            PropertyInfo info = GetType().GetProperty(propertyName);
+
+            // Under a trimmed or NativeAOT build a missing property means the member was
+            // trimmed, not that the name was wrong — and the callers' null checks turn that
+            // into every timing silently reading as unset. Make it visible.
+            if (info == null)
+            {
+                Debug.WriteLine(
+                    $"{GetType().Name}: no property '{propertyName}'. In a trimmed/AOT build this " +
+                    "usually means it was trimmed; check AotRoots.xml.");
+            }
+
+            return info;
         }
+
+        public abstract void ReadRatio(uint offset = 0);
 
         public virtual void ReadBankGroupSwap(uint offset = 0)
         {
-            uint bgsa0 = cpu.ReadDwordNoLock(offset | 0x500D0);
-            uint bgsa1 = cpu.ReadDwordNoLock(offset | 0x500D4);
-            uint bgs0 = cpu.ReadDwordNoLock(offset | 0x50050);
-            uint bgs1 = cpu.ReadDwordNoLock(offset | 0x50058);
+            bool ok = true;
+            ok &= TryReadRegister(offset | 0x500D0, out uint bgsa0);
+            ok &= TryReadRegister(offset | 0x500D4, out uint bgsa1);
+            ok &= TryReadRegister(offset | 0x50050, out uint bgs0);
+            ok &= TryReadRegister(offset | 0x50058, out uint bgs1);
+
+            if (!ok)
+            {
+                return;
+            }
 
             BGS = (bgs0 == 0x87654321 && bgs1 == 0x87654321) ? 0 : 1U;
             BGSAlt = (Utils.GetBits(bgsa0, 4, 7) > 0 || Utils.GetBits(bgsa1, 4, 7) > 0) ? 1U : 0;
@@ -122,6 +164,7 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public virtual void Read(uint offset = 0)
         {
+            ReadRatio(offset);
             ReadBankGroupSwap(offset);
 
             foreach (KeyValuePair<uint, TimingDef[]> entry in Dict)
@@ -130,15 +173,28 @@ namespace ZenStates.Core.Hardware.DRAM
                 {
                     if (this[def.Name] != null)
                     {
-                        uint data = cpu.ReadDwordNoLock(offset | entry.Key);
-                        this[def.Name] = Utils.BitSlice(data, def.HiBit, def.LoBit);
+                        if (TryReadRegister(offset | entry.Key, out uint data))
+                        {
+                            this[def.Name] = Utils.BitSlice(data, def.HiBit, def.LoBit);
+                        }
                     }
                 }
             }
         }
 
         //public MemType Type { get; set; } = MemType.UNKNOWN;
-        public float Frequency
+
+        /// <summary>
+        /// Default reference clock used when the live BCLK cannot be read.
+        /// </summary>
+        protected const double DefaultBclk = 100.0;
+
+        /// <summary>
+        /// Effective memory data rate in MT/s. Several timings are reported in nanoseconds and are
+        /// derived from this, so a subclass that decodes captured registers must override it too —
+        /// otherwise it would read the clocks of whatever machine happens to be running the code.
+        /// </summary>
+        public virtual float Frequency
         {
             get
             {
@@ -148,8 +204,8 @@ namespace ZenStates.Core.Hardware.DRAM
                     return mclk * 2;
                 }
 
-                double? bclk = Mmio.Instance.GetBclk() ?? 100;
-                return Ratio * (float)(bclk) * 2;
+                double bclk = Mmio.Instance?.GetBclk() ?? DefaultBclk;
+                return Ratio * (float)bclk * 2;
             }
         }
         public float Ratio { get; internal set; }

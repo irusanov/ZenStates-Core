@@ -22,13 +22,20 @@ namespace ZenStates.Core
 {
     public class Cpu : IDisposable
     {
-        private readonly CpuInitSettings _settings;
         private readonly AmdFamily17 _pawnAmd;
         private readonly RyzenSmu _pawnRyzenSmu;
         private readonly SmbusDriverBase _smbusPiix4;
         private readonly LpcIO _lpcIO;
         private bool disposedValue;
         private const string InitializationExceptionText = "CPU module initialization failed.";
+
+        // Compiled once.
+        // GetCodeName, and RegexOptions.Compiled needs Reflection.Emit, which NativeAOT lacks.
+        private static readonly Regex HawkPointModelRegex =
+            new Regex(@"\b80\d{2}\b", RegexOptions.CultureInvariant);
+
+        private static readonly Regex HawkPointSeriesRegex =
+            new Regex(@"Ryzen [3579](?:\s+PRO)?\s+2\d{2}\s", RegexOptions.CultureInvariant);
 
         public readonly Version Version = Assembly.GetExecutingAssembly().GetName().Version;
 
@@ -171,6 +178,7 @@ namespace ZenStates.Core
         public readonly SMU smu;
         public readonly PowerTable powerTable;
         public readonly MemoryConfig memoryConfig;
+        public CoreOptions Options { get; }
 
         public IODriver.LibStatus Status { get; }
         public Exception LastError { get; }
@@ -338,9 +346,10 @@ namespace ZenStates.Core
             return topology;
         }
 
-        public Cpu(CpuInitSettings settings = null)
+        public Cpu(CoreOptions options = null)
         {
-            _settings = settings ?? CpuInitSettings.defaultSetttings;
+            Options = options ?? new CoreOptions();
+            CoreOptions.Current = Options;
 
 #if !NET20
             CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
@@ -371,8 +380,6 @@ namespace ZenStates.Core
                 {
                     throw new ApplicationException("Error initializing PawnIO AMD module.", ex);
                 }
-
-                mmio = new Mmio();
 
                 if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
                 {
@@ -415,6 +422,8 @@ namespace ZenStates.Core
                 {
                     throw new ApplicationException(InitializationExceptionText);
                 }
+
+                mmio = new Mmio(info.family);
             }
             catch
             {
@@ -423,6 +432,8 @@ namespace ZenStates.Core
             }
 
             // Non-critical block
+            bool degraded = false;
+
             try
             {
                 info.topology = GetCpuTopology(info.family, info.codeName, info.model);
@@ -431,6 +442,7 @@ namespace ZenStates.Core
             {
                 LastError = ex;
                 Status = IODriver.LibStatus.PARTIALLY_OK;
+                degraded = true;
             }
 
             try
@@ -449,11 +461,16 @@ namespace ZenStates.Core
                 powerTable = new PowerTable(_pawnRyzenSmu, info.codeName);
 
                 if (!SendTestMessage())
+                {
                     LastError = new ApplicationException("SMU is not responding to test message!");
+                    degraded = true;
+                }
 
                 powerTable.Refresh();
 
-                Status = IODriver.LibStatus.OK;
+                // Only promote to OK when nothing earlier degraded it. Overwriting
+                // unconditionally reported OK while LastError still held a topology failure.
+                Status = degraded ? IODriver.LibStatus.PARTIALLY_OK : IODriver.LibStatus.OK;
             }
             catch (Exception ex)
             {
@@ -477,15 +494,22 @@ namespace ZenStates.Core
 
         public bool ReadDwordExNoLock(uint addr, ref uint data, int maxRetries = 10)
         {
+            if (maxRetries < 1)
+                maxRetries = 1;
+
             for (int retry = 0; retry < maxRetries; retry++)
             {
                 try
                 {
                     return _pawnAmd.ReadSmnNoLock(addr, out data);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"ReadSmnNoLock(0x{addr:X8}) attempt {retry + 1} threw: {ex.Message}");
+                }
             }
 
+            data = 0;
             return false;
         }
 
@@ -523,6 +547,12 @@ namespace ZenStates.Core
             uint data = 0;
             ReadDwordExNoLock(addr, ref data, maxRetries);
             return data;
+        }
+
+        public bool TryReadDwordNoLock(uint addr, out uint data, int maxRetries = 10)
+        {
+            data = 0;
+            return ReadDwordExNoLock(addr, ref data, maxRetries);
         }
 
         public uint ReadDword(uint addr, int maxRetries = 10)
@@ -613,7 +643,20 @@ namespace ZenStates.Core
 
         public HwPstateStatus GetHwPstateStatus(int index = 0)
         {
-            ulong group = info.topology.cores > 8 ? (ulong)Math.Pow(4, index) : 1UL << index;
+            if (index < 0)
+                return new HwPstateStatus();
+
+            uint threadsPerCore = info.topology.threadsPerCore == 0 ? 1 : info.topology.threadsPerCore;
+            long logicalIndex = (long)index * threadsPerCore;
+
+            if (logicalIndex > 63)
+            {
+                Debug.WriteLine($"GetHwPstateStatus: core {index} maps past the 64-bit affinity mask.");
+                return new HwPstateStatus();
+            }
+
+            ulong group = 1UL << (int)logicalIndex;
+
             if (_pawnAmd.ReadMsrTx(Constants.MSR_HW_PSTATE_STATUS, out uint _eax, out _, new GroupAffinity(0, group)))
             {
                 return new HwPstateStatus { Value = _eax };
@@ -795,8 +838,9 @@ namespace ZenStates.Core
                         break;
                     case 0x74:
                     case 0x75:
-                        bool isHawkPoint = Regex.IsMatch(cpuInfo.cpuName, @"\b80\d{2}\b", RegexOptions.Compiled | RegexOptions.CultureInvariant)
-                            || Regex.IsMatch(cpuInfo.cpuName, @"Ryzen [3579](?:\s+PRO)?\s+2\d{2}\s", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+                        string hawkPointName = cpuInfo.cpuName ?? string.Empty;
+                        bool isHawkPoint = HawkPointModelRegex.IsMatch(hawkPointName)
+                            || HawkPointSeriesRegex.IsMatch(hawkPointName);
                         codeName = isHawkPoint ? CodeName.HawkPoint : CodeName.Phoenix;
                         break;
                     case 0x78:
@@ -1301,7 +1345,7 @@ namespace ZenStates.Core
 
         public SMU.Status SetCpuSubsystemFrequencyLimit(CpuSubsystem subsystem, uint freq, bool maximum = true) => new SetCpuSubsystemFrequency(smu).Execute(subsystem, freq, maximum).status;
 
-        public uint? GetGpuPsmMargin(uint coreMask)
+        public uint? GetGpuPsmMargin()
         {
             CmdResult result = new GetGpuPsmMargin(smu).Execute();
             return result.Success ? result.args[0] : (uint?)null;
@@ -1353,7 +1397,7 @@ namespace ZenStates.Core
             // ((i.CCD << 4 | i.CCX % 2 & 0xF) << 4 | i.CORE % 4 & 0xF) << 20;
             for (uint i = 0; i < count; i++)
             {
-                mask = Utils.SetBits(mask, 20, 2, i);
+                mask = Utils.SetBits(mask, 20, 3, i);
                 if (!SetFrequencySingleCore(mask, frequency))
                     return false;
             }
@@ -1365,11 +1409,14 @@ namespace ZenStates.Core
 
         public bool SetFrequencyCCD(uint mask, uint frequency)
         {
+            if (info.topology.ccds == 0)
+                return false;
+
             bool ret = true;
             for (uint i = 0; i < info.topology.ccxs / info.topology.ccds; i++)
             {
                 mask = Utils.SetBits(mask, 24, 1, i);
-                ret = SetFrequencyCCX(mask, frequency);
+                ret &= SetFrequencyCCX(mask, frequency);
             }
 
             return ret;

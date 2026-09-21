@@ -225,7 +225,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             sb.AppendLine("-- Manufacturing ---------------------------");
             sb.AppendFormat("  Module Manufacturer: {0}\n", ModuleManufacturer);
             sb.AppendFormat("  Module Part Number : {0}\n", ModulePartNumber);
-            sb.AppendFormat("  Module Serial      : {0}\n", ModuleSerialNumber);
+            sb.AppendFormat("  Module Serial      : {0}\n", CoreOptions.Current.PrintSerialNumbers ? ModuleSerialNumber : "****");
             sb.AppendFormat("  Module Date        : {0}\n", ModuleMfgDate);
             sb.AppendFormat("  Module Revision    : 0x{0:X2}\n", ModuleRevisionCode);
             sb.AppendFormat("  DRAM Manufacturer  : {0}\n", DramManufacturer);

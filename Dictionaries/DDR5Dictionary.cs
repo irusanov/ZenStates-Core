@@ -37,7 +37,7 @@ namespace ZenStates.Core.Dictionaries
                 new TimingDef { Name = "ForcePwrDownThrotEn",           HiBit = 26  ,   LoBit = 26  },
                 new TimingDef { Name = "OdtsCmdThrotEn",                HiBit = 25  ,   LoBit = 25  },
                 new TimingDef { Name = "I2CThermEvent",                 HiBit = 24  ,   LoBit = 24  },
-                new TimingDef { Name = "OdtsCmdThrotCyc",               HiBit = 10  ,   LoBit = 19  },
+                new TimingDef { Name = "OdtsCmdThrotCyc",               HiBit = 19  ,   LoBit = 10  },
                 new TimingDef { Name = "RollWindowDepth",               HiBit = 9   ,   LoBit = 0   },
             }},
             { 0x50200, new[] {
@@ -95,7 +95,7 @@ namespace ZenStates.Core.Dictionaries
                 new TimingDef { Name = "WRWRDD",                        HiBit = 3   ,   LoBit = 0   },
             }},
             { 0x50228, new[] {
-                new TimingDef { Name = "MW",                            HiBit = 24  ,   LoBit = 28  },
+                new TimingDef { Name = "MW",                            HiBit = 28  ,   LoBit = 24  },
                 new TimingDef { Name = "RDWR",                          HiBit = 13  ,   LoBit = 8   },
                 new TimingDef { Name = "WRRD",                          HiBit = 3   ,   LoBit = 0   },
             }},
@@ -122,7 +122,7 @@ namespace ZenStates.Core.Dictionaries
                 new TimingDef { Name = "RankBusyDly",                   HiBit = 31  ,   LoBit = 24  },
                 new TimingDef { Name = "CmdParLatency",                 HiBit = 19  ,   LoBit = 16  },
                 new TimingDef { Name = "AlertParDly",                   HiBit = 14  ,   LoBit = 8   },
-                new TimingDef { Name = "AlertCrcDly",                   HiBit = 0   ,   LoBit = 7   },
+                new TimingDef { Name = "AlertCrcDly",                   HiBit = 7   ,   LoBit = 0   },
             }},
             { 0x50240, new[] {
                 new TimingDef { Name = "MRRI",                          HiBit = 26  ,   LoBit = 24  },
@@ -133,8 +133,8 @@ namespace ZenStates.Core.Dictionaries
             { 0x50244, new[] {
                 new TimingDef { Name = "AggrPwrDownDly",                HiBit = 31  ,   LoBit = 26  },
                 new TimingDef { Name = "CSH",                           HiBit = 25  ,   LoBit = 20  },
-                new TimingDef { Name = "PwrDownDly",                    HiBit = 8  ,    LoBit = 19  },
-                new TimingDef { Name = "PD",                            HiBit = 4  ,    LoBit = 0   },
+                new TimingDef { Name = "PwrDownDly",                    HiBit = 19  ,   LoBit = 8   },
+                new TimingDef { Name = "PD",                            HiBit = 4   ,   LoBit = 0   },
             }},
             { 0x50248, new[] {
                 new TimingDef { Name = "SRX2SRX",                       HiBit = 15  ,   LoBit = 10  },

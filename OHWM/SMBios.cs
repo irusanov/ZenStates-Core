@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using ZenStates.Core.Common;
 
 // ReSharper disable CommentTypo
 // ReSharper disable IdentifierTypo
@@ -1203,12 +1204,14 @@ namespace ZenStates.Core.OHWM
     {
         private readonly byte[] _raw;
         private readonly Version _version;
+        private readonly CoreOptions _options;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SMBios" /> class.
         /// </summary>
-        public SMBios()
+        public SMBios(CoreOptions options = null)
         {
+            _options = options ?? CoreOptions.Current;
             if (OperatingSystem.IsUnix)
             {
                 _raw = null;
@@ -1384,6 +1387,8 @@ namespace ZenStates.Core.OHWM
         {
             StringBuilder r = new StringBuilder();
 
+            r.AppendLine(ReportBuilder.Heading("SMBIOS"));
+
             if (_version != null)
             {
                 r.Append("SMBios Version: ");
@@ -1445,7 +1450,7 @@ namespace ZenStates.Core.OHWM
                 r.Append("Motherboard Version: ");
                 r.AppendLine(Board.Version);
                 r.Append("Motherboard Serial: ");
-                r.AppendLine(Board.SerialNumber);
+                r.AppendLine(_options.PrintSerialNumbers ? Board.SerialNumber : "****");
                 r.AppendLine();
             }
 
@@ -1458,7 +1463,7 @@ namespace ZenStates.Core.OHWM
                 r.Append("System Enclosure Version: ");
                 r.AppendLine(SystemEnclosure.Version);
                 r.Append("System Enclosure Serial: ");
-                r.AppendLine(SystemEnclosure.SerialNumber);
+                r.AppendLine(_options.PrintSerialNumbers ? SystemEnclosure.SerialNumber : "****");
                 r.Append("System Enclosure Asset Tag: ");
                 r.AppendLine(SystemEnclosure.AssetTag);
                 if (!string.IsNullOrEmpty(SystemEnclosure.SKU))
@@ -1499,7 +1504,7 @@ namespace ZenStates.Core.OHWM
                     r.Append("Processor Version: ");
                     r.AppendLine(processor.Version);
                     r.Append("Processor Serial: ");
-                    r.AppendLine(processor.Serial);
+                    r.AppendLine(_options.PrintSerialNumbers ? processor.Serial : "****");
                     r.Append("Processor Socket Designation: ");
                     r.AppendLine(processor.SocketDesignation);
                     r.Append("Processor Socket: ");

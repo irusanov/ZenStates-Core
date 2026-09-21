@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using ZenStates.Core.Common;
 using ZenStates.Core.Hardware;
 using ZenStates.Core.Hardware.Mock;
 using ZenStates.Core.PawnIo;
@@ -439,11 +440,11 @@ namespace ZenStates.Core
             var pt = new PowerTable();
 
             string[] lines = text.Split('\n');
-            int start = MockSystemData.FindSectionContentStart(lines, "SMU: Power Table Detected Values");
+            int start = DebugReportParser.FindSectionContentStart(lines, "SMU: Power Table Detected Values");
             if (start < 0)
                 return pt;
 
-            int end = MockSystemData.FindNextHeadingLine(lines, start);
+            int end = DebugReportParser.FindNextHeadingLine(lines, start);
             var lineRegex = new Regex(@"^(?<name>[A-Za-z0-9_]+):\s*(?<value>.*)$");
 
             for (int i = start; i < end; i++)
@@ -459,7 +460,8 @@ namespace ZenStates.Core
                 string name = m.Groups["name"].Value;
                 string rawValue = m.Groups["value"].Value.Trim();
 
-                if (!float.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out float value))
+                // Comma-decimal aware: the values are printed in the capturing machine's culture.
+                if (!DebugReportParser.TryParseReportFloat(rawValue, out float value))
                     continue; // e.g. "Instance:" (a type name, not a number) - intentionally skipped
 
                 switch (name)
@@ -549,28 +551,40 @@ namespace ZenStates.Core
 
         private bool TryRefreshOnce()
         {
-            if (Table == null || Table.Length == 0)
-                Table = new float[(int)smu.PmTableSize / 4];
+            uint tableBytes = smu.PmTableSize;
+            float[] current = Table;
+
+            // PmTableSize has a public setter, so the cached buffer can be the wrong size by the
+            // time we get here. Reallocate whenever it no longer matches.
+            int wantedLength = (int)((tableBytes + 3) / 4);
+
+            if (current == null || current.Length != wantedLength)
+                current = new float[wantedLength];
 
             long[] rawTempTable = smu.ReadPmTable(NUM_ELEMENTS_TO_COMPARE / 2);
             float[] tempTable = new float[NUM_ELEMENTS_TO_COMPARE];
-            Buffer.BlockCopy(rawTempTable, 0, tempTable, 0, NUM_ELEMENTS_TO_COMPARE * 4);
 
-            if (Utils.AllZero(Table) ||
+            RyzenSmu.CopyClamped(rawTempTable, tempTable, NUM_ELEMENTS_TO_COMPARE * 4);
+
+            if (Utils.AllZero(current) ||
                 Utils.AllZero(tempTable) ||
-                Utils.ArrayMembersEqual(Table, tempTable, tempTable.Length) ||
+                Utils.ArrayMembersEqual(current, tempTable, tempTable.Length) ||
                 tempTable[0] < 0 || tempTable[1] < 0 || tempTable[2] < 0 || tempTable[3] < 0)
             {
                 smu.UpdatePmTable();
             }
 
-            long[] fullTable = smu.ReadPmTable(((int)smu.PmTableSize + 7) / 8);
-            Buffer.BlockCopy(fullTable, 0, Table, 0, (int)smu.PmTableSize);
+            float[] next = new float[wantedLength];
+            long[] fullTable = smu.ReadPmTable(((int)tableBytes + 7) / 8);
 
-            if (Utils.AllZero(Table))
+            if (RyzenSmu.CopyClamped(fullTable, next, tableBytes) == 0)
                 return false;
 
-            ParseTable(Table);
+            if (Utils.AllZero(next))
+                return false;
+
+            Table = next;
+            ParseTable(next);
             return true;
         }
 
@@ -637,6 +651,61 @@ namespace ZenStates.Core
         {
             get => vdd_misc;
             set => SetProperty(ref vdd_misc, value, InternalEventArgsCache.VDD_MISC);
+        }
+
+        /// <summary>Label column width of the detected values, which CreateFromDebugReport reads back.</summary>
+        private const int ValueLabelWidth = 25;
+
+        public string GetReport()
+        {
+            ReportBuilder report = new ReportBuilder();
+            report.AppendHeading("SMU: Power Table");
+
+            // Null for an instance built by CreateFromDebugReport: it has the decoded values but
+            // neither the raw table nor an SMU to ask about it.
+            if (Table == null)
+            {
+                report.AppendLine("<raw power table not available>");
+            }
+            else
+            {
+                try
+                {
+                    for (int i = 0; i < Table.Length; i++)
+                    {
+                        byte[] temp = BitConverter.GetBytes(Table[i]);
+                        report.AppendLine($"Offset {i * 0x4:X3}: {BitConverter.ToSingle(temp, 0):F8}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    report.AppendFailure(ex);
+                }
+            }
+
+            report.AppendLine();
+            report.AppendHeading("SMU: Power Table Detected Values");
+
+            // Only the live path has an SMU behind it; the values below come from this instance
+            // either way, so a report-built table still prints everything it knows.
+            if (smu != null)
+            {
+                report.AppendHexValue("TableVersion", smu.PmTableVersion, 1, ValueLabelWidth);
+                report.AppendHexValue("TableSize", smu.PmTableSize, 1, ValueLabelWidth);
+            }
+
+            report.AppendValue("ConfiguredClockSpeed", ConfiguredClockSpeed, ValueLabelWidth);
+            report.AppendValue("MemRatio", MemRatio, ValueLabelWidth);
+            report.AppendValue("FCLK", FCLK, ValueLabelWidth);
+            report.AppendValue("MCLK", MCLK, ValueLabelWidth);
+            report.AppendValue("UCLK", UCLK, ValueLabelWidth);
+            report.AppendValue("VDDCR_SOC", VDDCR_SOC, ValueLabelWidth);
+            report.AppendValue("CLDO_VDDP", CLDO_VDDP, ValueLabelWidth);
+            report.AppendValue("CLDO_VDDG_IOD", CLDO_VDDG_IOD, ValueLabelWidth);
+            report.AppendValue("CLDO_VDDG_CCD", CLDO_VDDG_CCD, ValueLabelWidth);
+            report.AppendValue("VDD_MISC", VDD_MISC, ValueLabelWidth);
+
+            return report.ToString();
         }
     }
 

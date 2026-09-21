@@ -32,6 +32,11 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
         private readonly float _voltageGain;
         private IGigabyteController _gigabyteController;
         private readonly LpcPort _port;
+
+        // Captured register image of a debug report, keyed by (bank << 8) | register; replaces port
+        // I/O when set. _snapshotBank follows the bank the decoding selects.
+        private readonly VirtualRegisters _snapshot;
+        private byte _snapshotBank;
         private readonly bool _requiresBankSelect;  // Fix #780 Set to true for those chips that need a SelectBank(0) to fix dodgy temps and fan speeds
 
         private bool SupportsMultipleBanks
@@ -40,7 +45,23 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
         }
 
         public IT87XX(LpcPort port, Chip chip, ushort address, ushort gpioAddress, byte version, IGigabyteController gigabyteController)
+            : this(port, chip, address, gpioAddress, version, gigabyteController, null)
         {
+        }
+
+        /// <summary>
+        /// Chip replayed from the register dump of a debug report: reads come from
+        /// <paramref name="snapshot"/> and writes are dropped, so the regular decoding runs unchanged
+        /// without any hardware. GPIO and the Gigabyte EC aren't in the dump and stay unavailable.
+        /// </summary>
+        internal IT87XX(Chip chip, ushort address, ushort gpioAddress, byte version, VirtualRegisters snapshot)
+            : this(null, chip, address, gpioAddress, version, null, snapshot)
+        {
+        }
+
+        private IT87XX(LpcPort port, Chip chip, ushort address, ushort gpioAddress, byte version, IGigabyteController gigabyteController, VirtualRegisters snapshot)
+        {
+            _snapshot = snapshot;
             _port = port;
             _address = address;
             _version = version;
@@ -333,7 +354,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
 
         public byte? ReadGpio(int index)
         {
-            if (index >= _gpioCount)
+            if (index >= _gpioCount || _snapshot != null)
                 return null;
 
             return _port.ReadIoPort((ushort)(_gpioAddress + index));
@@ -341,7 +362,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
 
         public void WriteGpio(int index, byte value)
         {
-            if (index >= _gpioCount)
+            if (index >= _gpioCount || _snapshot != null)
                 return;
 
             _port.WriteIoPort((ushort)(_gpioAddress + index), value);
@@ -599,11 +620,18 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
         public void Close()
         {
             _gigabyteController?.Dispose();
-            _port.Close();
+            _port?.Close();
         }
 
         private byte ReadByte(byte register, out bool valid)
         {
+            if (_snapshot != null)
+            {
+                // "??" cells and rows the report didn't dump are simply absent: invalid, as on hardware.
+                valid = _snapshot.TryRead((uint)(_snapshotBank << 8) | register, out uint captured);
+                return (byte)captured;
+            }
+
             _port.WriteIoPort(_addressReg, register);
             byte value = _port.ReadIoPort(_dataReg);
             valid = register == _port.ReadIoPort(_addressReg) || Chip == Chip.IT8688E;
@@ -615,6 +643,14 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
 
         private void WriteByte(byte register, byte value)
         {
+            if (_snapshot != null)
+            {
+                // Only the bank selection matters for replaying reads; everything else is dropped.
+                if (register == BANK_REGISTER)
+                    _snapshotBank = (byte)((value >> 5) & 0x3);
+                return;
+            }
+
             _port.WriteIoPort(_addressReg, register);
             _port.WriteIoPort(_dataReg, value);
             _port.ReadIoPort(_addressReg);

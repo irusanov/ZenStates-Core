@@ -5,7 +5,7 @@ using static ZenStates.Core.Hardware.DRAM.DDR5.Tables.JedecPmicRegisters;
 
 namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 {
-    public static class Ddr5PmicDecoder
+    public static partial class Ddr5PmicDecoder
     {
         // Voltage formulas (JEDEC JESD301-2)
         private const int SWA_SWB_BASE = 800;   // mV base for VDD/VDDQ
@@ -284,6 +284,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 
             // Current limiter
             byte clim = pd.RawRegisters[REG_CURRENT_LIMIT];
+            pd.CurrentLimitRaw = clim;
             pd.SwaCurrentLimitMa = Ddr5PmicDecoder.DecodeSwabCurrentLimit((clim >> 6) & 0x03);
             pd.SwbCurrentLimitMa = Ddr5PmicDecoder.DecodeSwabCurrentLimit((clim >> 2) & 0x03);
             pd.SwcCurrentLimitMa = Ddr5PmicDecoder.DecodeSwcCurrentLimit(clim & 0x03);

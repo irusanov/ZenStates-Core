@@ -1,7 +1,3 @@
-using System;
-using System.Globalization;
-using System.Reflection;
-using System.Text;
 using ZenStates.Core.Common;
 
 namespace ZenStates.Core.Hardware.Apob
@@ -97,47 +93,55 @@ namespace ZenStates.Core.Hardware.Apob
 
         public string GetReport()
         {
-            StringBuilder sb = new StringBuilder();
-            PropertyInfo[] properties = GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance);
+            ReportBuilder report = new ReportBuilder();
 
-            for (int i = 0; i < properties.Length; i++)
-            {
-                PropertyInfo property = properties[i];
-                object value = property.GetValue(this, null);
-                string rawValue = "null";
-                string rawHexValue = "null";
+            report.AppendEncodedValueWithHex("RttNomRd", RttNomRd);
+            report.AppendEncodedValueWithHex("RttNomWr", RttNomWr);
+            report.AppendEncodedValueWithHex("RttWr", RttWr);
+            report.AppendEncodedValueWithHex("RttPark", RttPark);
+            report.AppendEncodedValueWithHex("RttParkDqs", RttParkDqs);
 
-                if (value is EncodedValueBase encodedValue)
-                {
-                    rawValue = encodedValue.RawValue.HasValue
-                        ? encodedValue.RawValue.Value.ToString(CultureInfo.InvariantCulture)
-                        : "null";
+            report.AppendEncodedValueWithHex("DramDataDs", DramDataDs);
 
-                    rawHexValue = encodedValue.RawValue.HasValue
-                        ? string.Format("0x{0:X}", encodedValue.RawValue.Value)
-                        : "null";
-                }
+            report.AppendEncodedValueWithHex("CkOdtA", CkOdtA);
+            report.AppendEncodedValueWithHex("CsOdtA", CsOdtA);
+            report.AppendEncodedValueWithHex("CaOdtA", CaOdtA);
+            report.AppendEncodedValueWithHex("CkOdtB", CkOdtB);
+            report.AppendEncodedValueWithHex("CsOdtB", CsOdtB);
+            report.AppendEncodedValueWithHex("CaOdtB", CaOdtB);
 
-                sb.AppendLine(string.Format("{0,-20}{1,-20}{2,-10}{3}", property.Name + ":", value ?? "N/A", rawValue, rawHexValue));
-            }
+            report.AppendEncodedValueWithHex("ProcOdt", ProcOdt);
+            report.AppendEncodedValueWithHex("ProcDqDs", ProcDqDs);
+            report.AppendEncodedValueWithHex("ProcCaDs", ProcCaDs);
+            report.AppendEncodedValueWithHex("ProcCkDs", ProcCkDs);
+            report.AppendEncodedValueWithHex("ProcCsDs", ProcCsDs);
 
-            sb.AppendLine();
-            sb.AppendLine("RawBytes:");
-            for (int i = 0; i < RawBytes.Length; i += 16)
-            {
-                int length = Math.Min(16, RawBytes.Length - i);
-                for (int j = 0; j < length; j++)
-                {
-                    if (j > 0)
-                        sb.Append(' ');
+            report.AppendEncodedValueWithHex("RttNomRdP0", RttNomRdP0);
+            report.AppendEncodedValueWithHex("RttNomWrP0", RttNomWrP0);
+            report.AppendEncodedValueWithHex("RttWrP0", RttWrP0);
+            report.AppendEncodedValueWithHex("RttParkP0", RttParkP0);
+            report.AppendEncodedValueWithHex("RttParkDqsP0", RttParkDqsP0);
 
-                    sb.Append(RawBytes[i + j].ToString("X2", CultureInfo.InvariantCulture));
-                }
+            report.AppendEncodedValueWithHex("DramDqDsPullUpP0", DramDqDsPullUpP0);
+            report.AppendEncodedValueWithHex("DramDqDsPullDownP0", DramDqDsPullDownP0);
 
-                sb.AppendLine();
-            }
+            report.AppendEncodedValueWithHex("ProcOdtPullUpP0", ProcOdtPullUpP0);
+            report.AppendEncodedValueWithHex("ProcOdtPullDownP0", ProcOdtPullDownP0);
+            report.AppendEncodedValueWithHex("ProcDqDsPullUpP0", ProcDqDsPullUpP0);
+            report.AppendEncodedValueWithHex("ProcDqDsPullDownP0", ProcDqDsPullDownP0);
 
-            return sb.ToString();
+            report.AppendEncodedValueWithHex("ProcCaOdt", ProcCaOdt);
+            report.AppendEncodedValueWithHex("ProcCkOdt", ProcCkOdt);
+            report.AppendEncodedValueWithHex("ProcDqOdt", ProcDqOdt);
+            report.AppendEncodedValueWithHex("ProcDqsOdt", ProcDqsOdt);
+            report.AppendEncodedValueWithHex("ProcDataDsApu", ProcDataDsApu);
+
+            report.AppendLine();
+            report.AppendLine("RawBytes:");
+
+            report.AppendHexDump(RawBytes);
+
+            return report.ToString();
         }
     }
 }

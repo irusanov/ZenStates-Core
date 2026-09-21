@@ -11,7 +11,7 @@ namespace ZenStates.Core.Hardware
             get
             {
                 if (instance == null)
-                    instance = new SMBios();
+                    instance = new SMBios(CoreOptions.Current);
 
                 return instance;
             }
