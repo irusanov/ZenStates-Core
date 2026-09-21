@@ -61,7 +61,24 @@ namespace ZenStates.Core
             public int offsetCldoVddgCcd;
             public int offsetCoresPower;
             public int offsetVddMisc;
+            // SVI3 telemetry block (Zen4/Zen5): consecutive rails of VID, measured voltage,
+            // current, second current and VRM temperature. -1 when not mapped.
+            public int offsetSvi3Block;
+            public int svi3RailStride; // 0x14 (5 floats), 0x10 on tables without the VRM temperature
+            public Svi3Rails svi3Rails;
         }
+
+        // Rail order inside the SVI3 telemetry block.
+        private enum Svi3Rails
+        {
+            None,
+            VddSocMisc,        // desktop / mobile HX
+            VddVdd1SocMisc,    // Threadripper: two core rails
+            VddSoc,            // APU
+        }
+
+        private const int SVI3_RAIL = 0x14;
+        private const int SVI3_RAIL_NO_TEMP = 0x10;
 
         // @TODO: Rework to use struct or Dictionaries, this is not flexible at all
         private class PowerTableDef : List<PTDef>
@@ -93,7 +110,45 @@ namespace ZenStates.Core
                     offsetCldoVddgIod = offsetCldoVddgIod,
                     offsetCldoVddgCcd = offsetCldoVddgCcd,
                     offsetCoresPower = offsetCoresPower,
-                    offsetVddMisc = offsetVddMisc
+                    offsetVddMisc = offsetVddMisc,
+                    offsetSvi3Block = -1,
+                });
+            }
+
+            public void Add
+            (
+                uint tableVersion,
+                int tableSize,
+                int offsetFclk,
+                int offsetUclk,
+                int offsetMclk,
+                int offsetVddcrSoc,
+                int offsetCldoVddp,
+                int offsetCldoVddgIod,
+                int offsetCldoVddgCcd,
+                int offsetCoresPower,
+                int offsetVddMisc,
+                int offsetSvi3Block,
+                int svi3RailStride,
+                Svi3Rails svi3Rails
+            )
+            {
+                Add(new PTDef
+                {
+                    tableVersion = tableVersion,
+                    tableSize = tableSize,
+                    offsetFclk = offsetFclk,
+                    offsetUclk = offsetUclk,
+                    offsetMclk = offsetMclk,
+                    offsetVddcrSoc = offsetVddcrSoc,
+                    offsetCldoVddp = offsetCldoVddp,
+                    offsetCldoVddgIod = offsetCldoVddgIod,
+                    offsetCldoVddgCcd = offsetCldoVddgCcd,
+                    offsetCoresPower = offsetCoresPower,
+                    offsetVddMisc = offsetVddMisc,
+                    offsetSvi3Block = offsetSvi3Block,
+                    svi3RailStride = svi3RailStride,
+                    svi3Rails = svi3Rails,
                 });
             }
         }
@@ -234,72 +289,75 @@ namespace ZenStates.Core
             { 0x000300, 0x948, 0xC0, 0xC8, 0xCC, 0xB4, 0x224, 0x228, 0x22C, -1, -1 },
 
             // Zen4 (unverified): size should be correct, offsets are not verified yet
-            { 0x540100, 0x618, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4 },
-            { 0x540101, 0x61C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4 },
-            { 0x540102, 0x66C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4 },
-            { 0x540103, 0x68C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4 },
-            { 0x540104, 0x6A8, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4 },
-            { 0x540105, 0x6B4, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4 },
-            { 0x540108, 0x6BC, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4 },
-            { 0x540000, 0x828, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4 },
-            { 0x540001, 0x82C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4 },
-            { 0x540002, 0x87C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4 },
-            { 0x540003, 0x89C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4 },
-            { 0x540004, 0x8BC, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4 },
-            { 0x540005, 0x8C8, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4 },
-            { 0x540208, 0x8D0, 0x11C, 0x12C, 0x13C, 0xD4, 0x434, -1, -1, -1, 0xE8 },
+            { 0x540100, 0x618, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4, 0xB8, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x540101, 0x61C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4, 0xB8, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x540102, 0x66C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4, 0xB8, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x540103, 0x68C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4, 0xB8, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x540104, 0x6A8, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4, 0xB8, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x540105, 0x6B4, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4, 0xB8, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x540108, 0x6BC, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4, 0xB8, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x540000, 0x828, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4, 0xB8, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x540001, 0x82C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4, 0xB8, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x540002, 0x87C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4, 0xB8, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x540003, 0x89C, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4, 0xB8, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x540004, 0x8BC, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4, 0xB8, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x540005, 0x8C8, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4, 0xB8, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x540208, 0x8D0, 0x11C, 0x12C, 0x13C, 0xD4, 0x434, -1, -1, -1, 0xE8, 0xBC, SVI3_RAIL, Svi3Rails.VddSocMisc },
             
             // Storm Peak, cpuid 00A10F81
-            { 0x5C0002, 0x1E3C, 0x194, 0x1A8, 0x1BC, 0x120, -1, -1, -1, -1, 0x134 },
-            { 0x5C0003, 0x1E48, 0x194, 0x1A8, 0x1BC, 0x120, -1, -1, -1, -1, 0x134 },
-            { 0x5C0102, 0x1A14, 0x194, 0x1A8, 0x1BC, 0x120, -1, -1, -1, -1, 0x134 },
-            { 0x5C0103, 0x1A20, 0x194, 0x1A8, 0x1BC, 0x120, -1, -1, -1, -1, 0x134 },
-            { 0x5C0202, 0x15EC, 0x194, 0x1A8, 0x1BC, 0x120, -1, -1, -1, -1, 0x134 },
-            { 0x5C0203, 0x15F8, 0x19C, 0x1B0, 0x1C4, 0x128, -1, -1, -1, -1, 0x13C }, // x03 layout (+8), verified on a 7985WX report
-            { 0x5C0302, 0xD9C, 0x194, 0x1A8, 0x1BC, 0x120, -1, -1, -1, -1, 0x134 },
-            { 0x5C0303, 0xDA8, 0x19C, 0x1B0, 0x1C4, 0x128, -1, -1, -1, -1, 0x13C },
-            { 0x5C0402, 0x974, 0x19C, 0x1B0, 0x1C4, 0x128, -1, -1, -1, -1, 0x13C },
-            { 0x5C0403, 0x980, 0x19C, 0x1B0, 0x1C4, 0x128, -1, -1, -1, -1, 0x13C },
+            { 0x5C0002, 0x1E3C, 0x194, 0x1A8, 0x1BC, 0x120, -1, -1, -1, -1, 0x134, 0xF4, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
+            { 0x5C0003, 0x1E48, 0x194, 0x1A8, 0x1BC, 0x120, -1, -1, -1, -1, 0x134, 0xF4, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
+            { 0x5C0102, 0x1A14, 0x194, 0x1A8, 0x1BC, 0x120, -1, -1, -1, -1, 0x134, 0xF4, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
+            { 0x5C0103, 0x1A20, 0x194, 0x1A8, 0x1BC, 0x120, -1, -1, -1, -1, 0x134, 0xF4, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
+            { 0x5C0202, 0x15EC, 0x194, 0x1A8, 0x1BC, 0x120, -1, -1, -1, -1, 0x134, 0xF4, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
+            { 0x5C0203, 0x15F8, 0x19C, 0x1B0, 0x1C4, 0x128, -1, -1, -1, -1, 0x13C, 0xFC, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc }, // x03 layout (+8), verified on a 7985WX report
+            { 0x5C0302, 0xD9C, 0x194, 0x1A8, 0x1BC, 0x120, -1, -1, -1, -1, 0x134, 0xF4, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
+            { 0x5C0303, 0xDA8, 0x19C, 0x1B0, 0x1C4, 0x128, -1, -1, -1, -1, 0x13C, 0xFC, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
+            { 0x5C0402, 0x974, 0x19C, 0x1B0, 0x1C4, 0x128, -1, -1, -1, -1, 0x13C, 0xFC, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
+            { 0x5C0403, 0x980, 0x19C, 0x1B0, 0x1C4, 0x128, -1, -1, -1, -1, 0x13C, 0xFC, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
 
             // version, size, FCLK, UCLK, MCLK,     VDDCR_SOC, CLDO_VDDP, CLDO_VDDG_IOD, CLDO_VDDG_CCD, Cores Power Offset, MISC
             // Phoenix SMU 4.76.15.205
-            { 0x4C0003, 0xB18, 0x174, 0x184, 0x194, 0x74, 0x768, -1, -1, -1, -1 },
-            { 0x4C0004, 0xB1C, 0x174, 0x184, 0x194, 0x74, 0x768, -1, -1, -1, -1 },
-            { 0x4C0005, 0xAF8, 0x174, 0x184, 0x194, 0x74, 0x768, -1, -1, -1, -1 },
-            { 0x4C0006, 0xAFC, 0x174, 0x184, 0x194, 0x74, 0x768, -1, -1, -1, -1 },
-            { 0x4C0007, 0xB00, 0x174, 0x184, 0x194, 0x74, 0x768, -1, -1, -1, -1 },
+            // Unverified (no reports): the clocks sit 0x10 above 0x4C0008, so the SVI3 block is assumed to
+            // move by the same 0x10 (VDD at 0x1B4) with 4-float rails like 0x4C0008. 0x1C8 is then the
+            // measured SOC voltage, or the SOC VID if these tables turn out to use 5-float rails.
+            { 0x4C0003, 0xB18, 0x174, 0x184, 0x194, 0x1C8, 0x768, -1, -1, -1, -1, 0x1B4, SVI3_RAIL_NO_TEMP, Svi3Rails.VddSoc },
+            { 0x4C0004, 0xB1C, 0x174, 0x184, 0x194, 0x1C8, 0x768, -1, -1, -1, -1, 0x1B4, SVI3_RAIL_NO_TEMP, Svi3Rails.VddSoc },
+            { 0x4C0005, 0xAF8, 0x174, 0x184, 0x194, 0x1C8, 0x768, -1, -1, -1, -1, 0x1B4, SVI3_RAIL_NO_TEMP, Svi3Rails.VddSoc },
+            { 0x4C0006, 0xAFC, 0x174, 0x184, 0x194, 0x1C8, 0x768, -1, -1, -1, -1, 0x1B4, SVI3_RAIL_NO_TEMP, Svi3Rails.VddSoc },
+            { 0x4C0007, 0xB00, 0x174, 0x184, 0x194, 0x1C8, 0x768, -1, -1, -1, -1, 0x1B4, SVI3_RAIL_NO_TEMP, Svi3Rails.VddSoc },
             // Phoenix Desktop SMU 76.80.0
-            { 0x4C0008, 0xAF0, 0x164, 0x174, 0x184, 0x1B8, 0x768, -1, -1, -1, -1 }, // 4-float rails (no VRM temp): SOC at 0x1B4
-            { 0x4C0009, 0xB00, 0x164, 0x174, 0x184, 0x1BC, 0x774, -1, -1, -1, -1 },
+            { 0x4C0008, 0xAF0, 0x164, 0x174, 0x184, 0x1B8, 0x768, -1, -1, -1, -1, 0x1A4, SVI3_RAIL_NO_TEMP, Svi3Rails.VddSoc }, // 4-float rails (no VRM temp): SOC at 0x1B4
+            { 0x4C0009, 0xB00, 0x164, 0x174, 0x184, 0x1BC, 0x774, -1, -1, -1, -1, 0x1A4, SVI3_RAIL, Svi3Rails.VddSoc },
 
             // Generic Zen4 Threadripper
-            { 0x0005C0, 0xD9C, 0x19C, 0x1B0, 0x1C4, 0x128, -1, -1, -1, -1, 0x13C },
+            { 0x0005C0, 0xD9C, 0x19C, 0x1B0, 0x1C4, 0x128, -1, -1, -1, -1, 0x13C, 0xFC, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
             // Generic Zen4 Desktop
-            { 0x000400, 0x948, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4 },
+            { 0x000400, 0x948, 0x118, 0x128, 0x138, 0xD0, 0x430, -1, -1, -1, 0xE4, 0xB8, SVI3_RAIL, Svi3Rails.VddSocMisc },
             // Generic Zen4 Phoenix
-            { 0x0004C0, 0xAFC, 0x164, 0x174, 0x184, 0x1BC, 0x774, -1, -1, -1, -1 },
+            { 0x0004C0, 0xAFC, 0x164, 0x174, 0x184, 0x1BC, 0x774, -1, -1, -1, -1, 0x1A4, SVI3_RAIL, Svi3Rails.VddSoc },
             
             // Zen5
             // GraniteRidge
             // version, size,  FCLK,  UCLK,  MCLK, VDDCR_SOC, CLDO_VDDP, CLDO_VDDG_IOD, CLDO_VDDG_CCD, Cores Power Offset, MISC
-            { 0x621102, 0x724, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, 0x40C, 0x414, -1, 0xEC },
-            { 0x621202, 0x994, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, 0x40C, 0x414, -1, 0xEC },
-            { 0x620205, 0x994, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, 0x40C, 0x414, -1, 0xEC },
-            { 0x620105, 0x724, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, 0x40C, 0x414, -1, 0xEC },
+            { 0x621102, 0x724, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, 0x40C, 0x414, -1, 0xEC, 0xC0, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x621202, 0x994, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, 0x40C, 0x414, -1, 0xEC, 0xC0, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x620205, 0x994, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, 0x40C, 0x414, -1, 0xEC, 0xC0, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x620105, 0x724, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, 0x40C, 0x414, -1, 0xEC, 0xC0, SVI3_RAIL, Svi3Rails.VddSocMisc },
             // Generic Zen5
-            { 0x000620, 0x994, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, -1, -1, -1, 0xEC },
+            { 0x000620, 0x994, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, -1, -1, -1, 0xEC, 0xC0, SVI3_RAIL, Svi3Rails.VddSocMisc },
 
             // ShimadaPeak
-            { 0x730204, 0xB1C, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8 },
-            { 0x730404, 0x1004, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8 },
-            { 0x730604, 0x14EC, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8 },
-            { 0x730804, 0x19D4, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8 },
-            { 0x730A04, 0x1EBC, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8 },
-            { 0x730C04, 0x23A4, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8 },
-            { 0x730E04, 0x288C, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8 },
-            { 0x731004, 0x2D74, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8 },
+            { 0x730204, 0xB1C, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8, 0x178, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
+            { 0x730404, 0x1004, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8, 0x178, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
+            { 0x730604, 0x14EC, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8, 0x178, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
+            { 0x730804, 0x19D4, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8, 0x178, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
+            { 0x730A04, 0x1EBC, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8, 0x178, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
+            { 0x730C04, 0x23A4, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8, 0x178, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
+            { 0x730E04, 0x288C, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8, 0x178, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
+            { 0x731004, 0x2D74, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, 0x714, 0x71C, -1, 0x1B8, 0x178, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
             // Generic ShimadaPeak
-            { 0x000730, 0xAFC, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, -1, -1, -1, 0x1B8 },
+            { 0x000730, 0xAFC, 0x20C, 0x21C, 0x22C, 0x1A4, 0x5CC, -1, -1, -1, 0x1B8, 0x178, SVI3_RAIL, Svi3Rails.VddVdd1SocMisc },
         };
 
         private static PTDef GetDefByVersion(uint version)
@@ -516,7 +574,22 @@ namespace ZenStates.Core
                     case "CLDO_VDDG_IOD": pt.CLDO_VDDG_IOD = value; break;
                     case "CLDO_VDDG_CCD": pt.CLDO_VDDG_CCD = value; break;
                     case "VDD_MISC": pt.VDD_MISC = value; break;
-                        // "Table" never appears as a "Name: value" line (DebugDialog skips it explicitly).
+                    case "VDDCR_VDD_VID": pt.VDDCR_VDD_VID = value; break;
+                    case "VDDCR_VDD_VOLTAGE": pt.VDDCR_VDD_VOLTAGE = value; break;
+                    case "VDDCR_VDD_CURRENT": pt.VDDCR_VDD_CURRENT = value; break;
+                    case "VDDCR_VDD_VRM_TEMP": pt.VDDCR_VDD_VRM_TEMP = value; break;
+                    case "VDDCR_VDD1_VID": pt.VDDCR_VDD1_VID = value; break;
+                    case "VDDCR_VDD1_VOLTAGE": pt.VDDCR_VDD1_VOLTAGE = value; break;
+                    case "VDDCR_VDD1_CURRENT": pt.VDDCR_VDD1_CURRENT = value; break;
+                    case "VDDCR_VDD1_VRM_TEMP": pt.VDDCR_VDD1_VRM_TEMP = value; break;
+                    case "VDDCR_SOC_VID": pt.VDDCR_SOC_VID = value; break;
+                    case "VDDCR_SOC_VOLTAGE": pt.VDDCR_SOC_VOLTAGE = value; break;
+                    case "VDDCR_SOC_CURRENT": pt.VDDCR_SOC_CURRENT = value; break;
+                    case "VDDCR_SOC_VRM_TEMP": pt.VDDCR_SOC_VRM_TEMP = value; break;
+                    case "VDD_MISC_VID": pt.VDD_MISC_VID = value; break;
+                    case "VDD_MISC_VOLTAGE": pt.VDD_MISC_VOLTAGE = value; break;
+                    case "VDD_MISC_CURRENT": pt.VDD_MISC_CURRENT = value; break;
+                    case "VDD_MISC_VRM_TEMP": pt.VDD_MISC_VRM_TEMP = value; break;
                 }
             }
 
@@ -555,6 +628,8 @@ namespace ZenStates.Core
             CLDO_VDDG_CCD = GetDiscreteValue(pt, tableDef.offsetCldoVddgCcd);
             VDD_MISC = GetDiscreteValue(pt, tableDef.offsetVddMisc);
 
+            ParseSvi3Telemetry(pt);
+
             // Test
             /*if (tableDef.offsetCoresPower > 0)
             {
@@ -567,6 +642,65 @@ namespace ZenStates.Core
                     Console.WriteLine($"Core{i}: {power} -> {status}");
                 }
             }*/
+        }
+
+        private enum Svi3Rail { Vdd, Vdd1, Soc, Misc }
+
+        // Byte offset of a rail inside the SVI3 block for the current table, or -1 if the table
+        // has no such rail.
+        private int GetSvi3RailOffset(Svi3Rail rail)
+        {
+            if (tableDef.offsetSvi3Block < 0 || tableDef.svi3Rails == Svi3Rails.None)
+                return -1;
+
+            int index;
+            switch (tableDef.svi3Rails)
+            {
+                case Svi3Rails.VddSocMisc:
+                    index = rail == Svi3Rail.Vdd ? 0 : rail == Svi3Rail.Soc ? 1 : rail == Svi3Rail.Misc ? 2 : -1;
+                    break;
+                case Svi3Rails.VddVdd1SocMisc:
+                    index = rail == Svi3Rail.Vdd ? 0 : rail == Svi3Rail.Vdd1 ? 1 : rail == Svi3Rail.Soc ? 2 : 3;
+                    break;
+                case Svi3Rails.VddSoc:
+                    index = rail == Svi3Rail.Vdd ? 0 : rail == Svi3Rail.Soc ? 1 : -1;
+                    break;
+                default:
+                    index = -1;
+                    break;
+            }
+
+            return index < 0 ? -1 : tableDef.offsetSvi3Block + index * tableDef.svi3RailStride;
+        }
+
+        // field: 0x0 VID, 0x4 measured voltage, 0x8 current, 0x10 VRM temperature.
+        private float GetSvi3Value(float[] pt, Svi3Rail rail, int field)
+        {
+            int railOffset = GetSvi3RailOffset(rail);
+            if (railOffset < 0 || field >= tableDef.svi3RailStride)
+                return 0;
+
+            return GetDiscreteValue(pt, railOffset + field);
+        }
+
+        private void ParseSvi3Telemetry(float[] pt)
+        {
+            VDDCR_VDD_VID = GetSvi3Value(pt, Svi3Rail.Vdd, 0x0);
+            VDDCR_VDD_VOLTAGE = GetSvi3Value(pt, Svi3Rail.Vdd, 0x4);
+            VDDCR_VDD_CURRENT = GetSvi3Value(pt, Svi3Rail.Vdd, 0x8);
+            VDDCR_VDD_VRM_TEMP = GetSvi3Value(pt, Svi3Rail.Vdd, 0x10);
+            VDDCR_VDD1_VID = GetSvi3Value(pt, Svi3Rail.Vdd1, 0x0);
+            VDDCR_VDD1_VOLTAGE = GetSvi3Value(pt, Svi3Rail.Vdd1, 0x4);
+            VDDCR_VDD1_CURRENT = GetSvi3Value(pt, Svi3Rail.Vdd1, 0x8);
+            VDDCR_VDD1_VRM_TEMP = GetSvi3Value(pt, Svi3Rail.Vdd1, 0x10);
+            VDDCR_SOC_VID = GetSvi3Value(pt, Svi3Rail.Soc, 0x0);
+            VDDCR_SOC_VOLTAGE = GetSvi3Value(pt, Svi3Rail.Soc, 0x4);
+            VDDCR_SOC_CURRENT = GetSvi3Value(pt, Svi3Rail.Soc, 0x8);
+            VDDCR_SOC_VRM_TEMP = GetSvi3Value(pt, Svi3Rail.Soc, 0x10);
+            VDD_MISC_VID = GetSvi3Value(pt, Svi3Rail.Misc, 0x0);
+            VDD_MISC_VOLTAGE = GetSvi3Value(pt, Svi3Rail.Misc, 0x4);
+            VDD_MISC_CURRENT = GetSvi3Value(pt, Svi3Rail.Misc, 0x8);
+            VDD_MISC_VRM_TEMP = GetSvi3Value(pt, Svi3Rail.Misc, 0x10);
         }
 
         public SMU.Status Refresh()
@@ -716,6 +850,137 @@ namespace ZenStates.Core
             set => SetProperty(ref vdd_misc, value, InternalEventArgsCache.VDD_MISC);
         }
 
+        // SVI3 telemetry (Zen4/Zen5), 0 where the table has no mapping.
+        // VDDCR_SOC / VDD_MISC above keep their own offsets; on mapped tables they equal *_VOLTAGE.
+
+        float svi3_vddcr_vdd_vid;
+        /// <summary>Core rail (VDD0 on Threadripper): VID requested by the SMU (V).</summary>
+        public float VDDCR_VDD_VID
+        {
+            get => svi3_vddcr_vdd_vid;
+            set => SetProperty(ref svi3_vddcr_vdd_vid, value, InternalEventArgsCache.VDDCR_VDD_VID);
+        }
+
+        float svi3_vddcr_vdd_voltage;
+        /// <summary>Core rail (VDD0 on Threadripper): Voltage measured by the VRM, "SVI3 TFN" (V).</summary>
+        public float VDDCR_VDD_VOLTAGE
+        {
+            get => svi3_vddcr_vdd_voltage;
+            set => SetProperty(ref svi3_vddcr_vdd_voltage, value, InternalEventArgsCache.VDDCR_VDD_VOLTAGE);
+        }
+
+        float svi3_vddcr_vdd_current;
+        /// <summary>Core rail (VDD0 on Threadripper): Current measured by the VRM, "SVI3 TFN" (A).</summary>
+        public float VDDCR_VDD_CURRENT
+        {
+            get => svi3_vddcr_vdd_current;
+            set => SetProperty(ref svi3_vddcr_vdd_current, value, InternalEventArgsCache.VDDCR_VDD_CURRENT);
+        }
+
+        float svi3_vddcr_vdd_vrm_temp;
+        /// <summary>Core rail (VDD0 on Threadripper): VRM temperature (°C).</summary>
+        public float VDDCR_VDD_VRM_TEMP
+        {
+            get => svi3_vddcr_vdd_vrm_temp;
+            set => SetProperty(ref svi3_vddcr_vdd_vrm_temp, value, InternalEventArgsCache.VDDCR_VDD_VRM_TEMP);
+        }
+
+        float svi3_vddcr_vdd1_vid;
+        /// <summary>Second core rail (Threadripper only): VID requested by the SMU (V).</summary>
+        public float VDDCR_VDD1_VID
+        {
+            get => svi3_vddcr_vdd1_vid;
+            set => SetProperty(ref svi3_vddcr_vdd1_vid, value, InternalEventArgsCache.VDDCR_VDD1_VID);
+        }
+
+        float svi3_vddcr_vdd1_voltage;
+        /// <summary>Second core rail (Threadripper only): Voltage measured by the VRM, "SVI3 TFN" (V).</summary>
+        public float VDDCR_VDD1_VOLTAGE
+        {
+            get => svi3_vddcr_vdd1_voltage;
+            set => SetProperty(ref svi3_vddcr_vdd1_voltage, value, InternalEventArgsCache.VDDCR_VDD1_VOLTAGE);
+        }
+
+        float svi3_vddcr_vdd1_current;
+        /// <summary>Second core rail (Threadripper only): Current measured by the VRM, "SVI3 TFN" (A).</summary>
+        public float VDDCR_VDD1_CURRENT
+        {
+            get => svi3_vddcr_vdd1_current;
+            set => SetProperty(ref svi3_vddcr_vdd1_current, value, InternalEventArgsCache.VDDCR_VDD1_CURRENT);
+        }
+
+        float svi3_vddcr_vdd1_vrm_temp;
+        /// <summary>Second core rail (Threadripper only): VRM temperature (°C).</summary>
+        public float VDDCR_VDD1_VRM_TEMP
+        {
+            get => svi3_vddcr_vdd1_vrm_temp;
+            set => SetProperty(ref svi3_vddcr_vdd1_vrm_temp, value, InternalEventArgsCache.VDDCR_VDD1_VRM_TEMP);
+        }
+
+        float svi3_vddcr_soc_vid;
+        /// <summary>SoC rail: VID requested by the SMU (V).</summary>
+        public float VDDCR_SOC_VID
+        {
+            get => svi3_vddcr_soc_vid;
+            set => SetProperty(ref svi3_vddcr_soc_vid, value, InternalEventArgsCache.VDDCR_SOC_VID);
+        }
+
+        float svi3_vddcr_soc_voltage;
+        /// <summary>SoC rail: Voltage measured by the VRM, "SVI3 TFN" (V).</summary>
+        public float VDDCR_SOC_VOLTAGE
+        {
+            get => svi3_vddcr_soc_voltage;
+            set => SetProperty(ref svi3_vddcr_soc_voltage, value, InternalEventArgsCache.VDDCR_SOC_VOLTAGE);
+        }
+
+        float svi3_vddcr_soc_current;
+        /// <summary>SoC rail: Current measured by the VRM, "SVI3 TFN" (A).</summary>
+        public float VDDCR_SOC_CURRENT
+        {
+            get => svi3_vddcr_soc_current;
+            set => SetProperty(ref svi3_vddcr_soc_current, value, InternalEventArgsCache.VDDCR_SOC_CURRENT);
+        }
+
+        float svi3_vddcr_soc_vrm_temp;
+        /// <summary>SoC rail: VRM temperature (°C).</summary>
+        public float VDDCR_SOC_VRM_TEMP
+        {
+            get => svi3_vddcr_soc_vrm_temp;
+            set => SetProperty(ref svi3_vddcr_soc_vrm_temp, value, InternalEventArgsCache.VDDCR_SOC_VRM_TEMP);
+        }
+
+        float svi3_vdd_misc_vid;
+        /// <summary>MISC rail: VID requested by the SMU (V).</summary>
+        public float VDD_MISC_VID
+        {
+            get => svi3_vdd_misc_vid;
+            set => SetProperty(ref svi3_vdd_misc_vid, value, InternalEventArgsCache.VDD_MISC_VID);
+        }
+
+        float svi3_vdd_misc_voltage;
+        /// <summary>MISC rail: Voltage measured by the VRM, "SVI3 TFN" (V).</summary>
+        public float VDD_MISC_VOLTAGE
+        {
+            get => svi3_vdd_misc_voltage;
+            set => SetProperty(ref svi3_vdd_misc_voltage, value, InternalEventArgsCache.VDD_MISC_VOLTAGE);
+        }
+
+        float svi3_vdd_misc_current;
+        /// <summary>MISC rail: Current measured by the VRM, "SVI3 TFN" (A).</summary>
+        public float VDD_MISC_CURRENT
+        {
+            get => svi3_vdd_misc_current;
+            set => SetProperty(ref svi3_vdd_misc_current, value, InternalEventArgsCache.VDD_MISC_CURRENT);
+        }
+
+        float svi3_vdd_misc_vrm_temp;
+        /// <summary>MISC rail: VRM temperature (°C).</summary>
+        public float VDD_MISC_VRM_TEMP
+        {
+            get => svi3_vdd_misc_vrm_temp;
+            set => SetProperty(ref svi3_vdd_misc_vrm_temp, value, InternalEventArgsCache.VDD_MISC_VRM_TEMP);
+        }
+
         /// <summary>Label column width of the detected values, which CreateFromDebugReport reads back.</summary>
         private const int ValueLabelWidth = 25;
 
@@ -767,6 +1032,22 @@ namespace ZenStates.Core
             report.AppendValue("CLDO_VDDG_IOD", CLDO_VDDG_IOD, ValueLabelWidth);
             report.AppendValue("CLDO_VDDG_CCD", CLDO_VDDG_CCD, ValueLabelWidth);
             report.AppendValue("VDD_MISC", VDD_MISC, ValueLabelWidth);
+            report.AppendValue("VDDCR_VDD_VID", VDDCR_VDD_VID, ValueLabelWidth);
+            report.AppendValue("VDDCR_VDD_VOLTAGE", VDDCR_VDD_VOLTAGE, ValueLabelWidth);
+            report.AppendValue("VDDCR_VDD_CURRENT", VDDCR_VDD_CURRENT, ValueLabelWidth);
+            report.AppendValue("VDDCR_VDD_VRM_TEMP", VDDCR_VDD_VRM_TEMP, ValueLabelWidth);
+            report.AppendValue("VDDCR_VDD1_VID", VDDCR_VDD1_VID, ValueLabelWidth);
+            report.AppendValue("VDDCR_VDD1_VOLTAGE", VDDCR_VDD1_VOLTAGE, ValueLabelWidth);
+            report.AppendValue("VDDCR_VDD1_CURRENT", VDDCR_VDD1_CURRENT, ValueLabelWidth);
+            report.AppendValue("VDDCR_VDD1_VRM_TEMP", VDDCR_VDD1_VRM_TEMP, ValueLabelWidth);
+            report.AppendValue("VDDCR_SOC_VID", VDDCR_SOC_VID, ValueLabelWidth);
+            report.AppendValue("VDDCR_SOC_VOLTAGE", VDDCR_SOC_VOLTAGE, ValueLabelWidth);
+            report.AppendValue("VDDCR_SOC_CURRENT", VDDCR_SOC_CURRENT, ValueLabelWidth);
+            report.AppendValue("VDDCR_SOC_VRM_TEMP", VDDCR_SOC_VRM_TEMP, ValueLabelWidth);
+            report.AppendValue("VDD_MISC_VID", VDD_MISC_VID, ValueLabelWidth);
+            report.AppendValue("VDD_MISC_VOLTAGE", VDD_MISC_VOLTAGE, ValueLabelWidth);
+            report.AppendValue("VDD_MISC_CURRENT", VDD_MISC_CURRENT, ValueLabelWidth);
+            report.AppendValue("VDD_MISC_VRM_TEMP", VDD_MISC_VRM_TEMP, ValueLabelWidth);
 
             return report.ToString();
         }
@@ -783,5 +1064,22 @@ namespace ZenStates.Core
         internal static PropertyChangedEventArgs CLDO_VDDG_IOD = new PropertyChangedEventArgs("CLDO_VDDG_IOD");
         internal static PropertyChangedEventArgs CLDO_VDDG_CCD = new PropertyChangedEventArgs("CLDO_VDDG_CCD");
         internal static PropertyChangedEventArgs VDD_MISC = new PropertyChangedEventArgs("VDD_MISC");
+
+        internal static PropertyChangedEventArgs VDDCR_VDD_VID = new PropertyChangedEventArgs("VDDCR_VDD_VID");
+        internal static PropertyChangedEventArgs VDDCR_VDD_VOLTAGE = new PropertyChangedEventArgs("VDDCR_VDD_VOLTAGE");
+        internal static PropertyChangedEventArgs VDDCR_VDD_CURRENT = new PropertyChangedEventArgs("VDDCR_VDD_CURRENT");
+        internal static PropertyChangedEventArgs VDDCR_VDD_VRM_TEMP = new PropertyChangedEventArgs("VDDCR_VDD_VRM_TEMP");
+        internal static PropertyChangedEventArgs VDDCR_VDD1_VID = new PropertyChangedEventArgs("VDDCR_VDD1_VID");
+        internal static PropertyChangedEventArgs VDDCR_VDD1_VOLTAGE = new PropertyChangedEventArgs("VDDCR_VDD1_VOLTAGE");
+        internal static PropertyChangedEventArgs VDDCR_VDD1_CURRENT = new PropertyChangedEventArgs("VDDCR_VDD1_CURRENT");
+        internal static PropertyChangedEventArgs VDDCR_VDD1_VRM_TEMP = new PropertyChangedEventArgs("VDDCR_VDD1_VRM_TEMP");
+        internal static PropertyChangedEventArgs VDDCR_SOC_VID = new PropertyChangedEventArgs("VDDCR_SOC_VID");
+        internal static PropertyChangedEventArgs VDDCR_SOC_VOLTAGE = new PropertyChangedEventArgs("VDDCR_SOC_VOLTAGE");
+        internal static PropertyChangedEventArgs VDDCR_SOC_CURRENT = new PropertyChangedEventArgs("VDDCR_SOC_CURRENT");
+        internal static PropertyChangedEventArgs VDDCR_SOC_VRM_TEMP = new PropertyChangedEventArgs("VDDCR_SOC_VRM_TEMP");
+        internal static PropertyChangedEventArgs VDD_MISC_VID = new PropertyChangedEventArgs("VDD_MISC_VID");
+        internal static PropertyChangedEventArgs VDD_MISC_VOLTAGE = new PropertyChangedEventArgs("VDD_MISC_VOLTAGE");
+        internal static PropertyChangedEventArgs VDD_MISC_CURRENT = new PropertyChangedEventArgs("VDD_MISC_CURRENT");
+        internal static PropertyChangedEventArgs VDD_MISC_VRM_TEMP = new PropertyChangedEventArgs("VDD_MISC_VRM_TEMP");
     }
 }
