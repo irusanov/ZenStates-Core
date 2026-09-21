@@ -181,7 +181,7 @@ namespace ZenStates.Core.Hardware.DRAM
             }
         }
 
-        public void ReadTimings(uint offset = 0)
+        public BaseDramTimings ReadTimings(uint offset = 0)
         {
             if (!Mutexes.WaitPciBus(5000))
             {
@@ -191,6 +191,7 @@ namespace ZenStates.Core.Hardware.DRAM
             try
             {
                 ReadTimingsInternal(offset);
+                return Timings.Find(x => x.Key == offset).Value;
             }
             finally
             {
