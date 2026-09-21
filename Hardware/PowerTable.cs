@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.Text.RegularExpressions;
 using ZenStates.Core.Common;
 using ZenStates.Core.Hardware;
