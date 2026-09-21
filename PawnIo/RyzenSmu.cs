@@ -473,34 +473,32 @@ namespace ZenStates.Core.PawnIo
 
         public void UpdatePmTable()
         {
-            using (new PciBusLock())
-            {
-                _pawnIo.Execute(IOCTL_UPDATE_PM_TABLE, new long[0], 0);
-            }
+            UpdatePmTable(DEFAULT_LOCK_TIMEOUT_MS);
         }
 
         /// <summary>
-        /// Triggers the SMU transfer and reads the result under a single bus lock, so no other
-        /// process can start a different transfer between the update and the read.
-        /// </summary>
-        private long[] UpdateAndReadPmTableRaw(int longs)
-        {
-            return UpdateAndReadPmTableRaw(longs, DEFAULT_LOCK_TIMEOUT_MS);
-        }
-
-        /// <summary>
-        /// Same as <see cref="UpdateAndReadPmTableRaw(int)"/> with an explicit bus lock timeout.
+        /// Asks the SMU to transfer the PM table to DRAM. Only this step talks to the SMU mailbox,
+        /// so only this step holds the PCI bus lock; reading the table back is a plain read of the
+        /// mapped DRAM buffer (ioctl_read_pm_table) and needs no lock.
         /// Throws <see cref="TimeoutException"/> if the lock cannot be taken in time.
         /// </summary>
-        internal long[] UpdateAndReadPmTableRaw(int longs, int lockTimeoutMs)
+        internal void UpdatePmTable(int lockTimeoutMs)
         {
             ThrowIfDisposed();
 
             using (new PciBusLock(lockTimeoutMs))
             {
                 _pawnIo.Execute(IOCTL_UPDATE_PM_TABLE, new long[0], 0);
-                return _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[0], longs);
             }
+        }
+
+        /// <summary>
+        /// Triggers the SMU transfer (under the PCI bus lock) and then reads the table from DRAM.
+        /// </summary>
+        private long[] UpdateAndReadPmTableRaw(int longs)
+        {
+            UpdatePmTable(DEFAULT_LOCK_TIMEOUT_MS);
+            return _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[0], longs);
         }
 
         /// <summary>
