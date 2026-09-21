@@ -644,8 +644,6 @@ namespace ZenStates.Core
             }*/
         }
 
-        private enum Svi3Rail { Vdd, Vdd1, Soc, Misc }
-
         // Byte offset of a rail inside the SVI3 block for the current table, or -1 if the table
         // has no such rail.
         private int GetSvi3RailOffset(Svi3Rail rail)
@@ -681,6 +679,60 @@ namespace ZenStates.Core
                 return 0;
 
             return GetDiscreteValue(pt, railOffset + field);
+        }
+
+        private static int GetSvi3ReadingOffset(Svi3Reading reading)
+        {
+            switch (reading)
+            {
+                case Svi3Reading.Vid: return 0x0;
+                case Svi3Reading.Voltage: return 0x4;
+                case Svi3Reading.Current: return 0x8;
+                default: return 0x10;
+            }
+        }
+
+        /// <summary>
+        /// Whether the table carries <paramref name="reading"/> for <paramref name="rail"/>. A live
+        /// table knows from its layout; one read back from a debug report has no layout, so there a
+        /// reading counts when it is non-zero.
+        /// </summary>
+        public bool HasSvi3Reading(Svi3Rail rail, Svi3Reading reading)
+        {
+            if (smu == null)
+                return GetSvi3Reading(rail, reading) != 0;
+
+            return GetSvi3RailOffset(rail) >= 0 && GetSvi3ReadingOffset(reading) < tableDef.svi3RailStride;
+        }
+
+        /// <summary>The last value of an SVI3 reading; 0 when the table doesn't carry it.</summary>
+        public float GetSvi3Reading(Svi3Rail rail, Svi3Reading reading)
+        {
+            switch (rail)
+            {
+                case Svi3Rail.Vdd:
+                    return reading == Svi3Reading.Vid ? VDDCR_VDD_VID
+                        : reading == Svi3Reading.Voltage ? VDDCR_VDD_VOLTAGE
+                        : reading == Svi3Reading.Current ? VDDCR_VDD_CURRENT
+                        : VDDCR_VDD_VRM_TEMP;
+                case Svi3Rail.Vdd1:
+                    return reading == Svi3Reading.Vid ? VDDCR_VDD1_VID
+                        : reading == Svi3Reading.Voltage ? VDDCR_VDD1_VOLTAGE
+                        : reading == Svi3Reading.Current ? VDDCR_VDD1_CURRENT
+                        : VDDCR_VDD1_VRM_TEMP;
+                case Svi3Rail.Soc:
+                    return reading == Svi3Reading.Vid ? VDDCR_SOC_VID
+                        : reading == Svi3Reading.Voltage ? VDDCR_SOC_VOLTAGE
+                        : reading == Svi3Reading.Current ? VDDCR_SOC_CURRENT
+                        : VDDCR_SOC_VRM_TEMP;
+                case Svi3Rail.Misc:
+                    return reading == Svi3Reading.Vid ? VDD_MISC_VID
+                        : reading == Svi3Reading.Voltage ? VDD_MISC_VOLTAGE
+                        : reading == Svi3Reading.Current ? VDD_MISC_CURRENT
+                        : VDD_MISC_VRM_TEMP;
+                default:
+                    return 0;
+            }
         }
 
         private void ParseSvi3Telemetry(float[] pt)

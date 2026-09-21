@@ -62,19 +62,34 @@ namespace ZenStates.Core.Hardware
         }
     }
 
-    public readonly struct SuperIoSensorGroup
+    /// <summary>
+    /// Sensors read from one source: a SuperIO chip, or the SVI3 telemetry in the power table.
+    /// </summary>
+    public readonly struct SensorGroup
     {
-        public string ChipName { get; }
-        public Chip Chip { get; }
+        public string Name { get; }
+        public HardwareType HardwareType { get; }
 
-        public static HardwareType HardwareType => HardwareType.SuperIO;
+        /// <summary>The SuperIO chip the sensors were read from; <see cref="Chip.Unknown"/> for other groups.</summary>
+        public Chip Chip { get; }
         public IEnumerable<Sensor> Sensors { get; }
 
-        public SuperIoSensorGroup(string chipName, Chip chip, IEnumerable<Sensor> sensors)
+        public SensorGroup(string name, HardwareType hardwareType, Chip chip, IEnumerable<Sensor> sensors)
         {
-            ChipName = chipName;
+            Name = name;
+            HardwareType = hardwareType;
             Chip = chip;
             Sensors = sensors;
+        }
+
+        internal static SensorGroup FromSuperIo(SuperIOHardware hardware)
+        {
+            return new SensorGroup(hardware.ChipName, HardwareType.SuperIO, hardware.Chip, hardware.Sensors);
+        }
+
+        internal static SensorGroup FromSvi3(Svi3Hardware hardware)
+        {
+            return new SensorGroup(hardware.Name, HardwareType.Svi3, Chip.Unknown, hardware.Sensors);
         }
     }
 
@@ -150,36 +165,49 @@ namespace ZenStates.Core.Hardware
         //    }
         //}
 
-        // Sensors grouped by the SuperIO chip they were read from.
-        // Useful when a board has multiple SuperIO chips and sensors need
-        // to be displayed/labeled per-chip.
+        // Sensors grouped by where they were read from: the SVI3 telemetry first when the CPU reports
+        // it (a handful of values), then one group per SuperIO chip, so boards with several chips can
+        // label them per chip.
 
         public List<IHardware> Hardware => _hardware;
 
-        public IEnumerable<SuperIoSensorGroup> SensorGroups
+        public IEnumerable<SensorGroup> SensorGroups
         {
             get
             {
                 foreach (IHardware hardware in _hardware)
                 {
-                    if (hardware.HardwareType == HardwareType.SuperIO)
-                    {
-                        yield return new SuperIoSensorGroup(((SuperIOHardware)hardware).ChipName, ((SuperIOHardware)hardware).Chip, ((SuperIOHardware)hardware)?.Sensors);
-                    }
+                    if (hardware is Svi3Hardware svi3 && svi3.HasSensors)
+                        yield return SensorGroup.FromSvi3(svi3);
+                }
+
+                foreach (IHardware hardware in _hardware)
+                {
+                    if (hardware is SuperIOHardware superIo)
+                        yield return SensorGroup.FromSuperIo(superIo);
                 }
             }
         }
 
-        // Update SuperIOs only for now
+        /// <summary>
+        /// Reads the SuperIO chips and copies the power table's SVI3 values into their sensors, so
+        /// refresh the power table first.
+        /// </summary>
         public void UpdateSensors()
         {
             foreach (IHardware hardware in _hardware)
             {
-                if (hardware.HardwareType == HardwareType.SuperIO)
-                {
-                    ((SuperIOHardware)hardware).Update();
-                }
+                if (hardware is SuperIOHardware superIo)
+                    superIo.Update();
+                else if (hardware is Svi3Hardware svi3)
+                    svi3.Update();
             }
+        }
+
+        internal void AddHardware(IHardware hardware)
+        {
+            if (hardware != null)
+                _hardware.Add(hardware);
         }
 
         // SMU

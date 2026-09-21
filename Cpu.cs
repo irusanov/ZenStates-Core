@@ -510,6 +510,7 @@ namespace ZenStates.Core
             try
             {
                 powerTable = new PowerTable(_pawnRyzenSmu, info.codeName);
+                systemInfo?.AddHardware(new Svi3Hardware(powerTable));
             }
             catch (Exception ex)
             {

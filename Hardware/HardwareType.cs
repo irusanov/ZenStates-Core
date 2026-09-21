@@ -16,5 +16,6 @@
         Psu,
         Battery,
         PowerMonitor,
+        Svi3,
     }
 }

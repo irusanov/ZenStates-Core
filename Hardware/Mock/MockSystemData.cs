@@ -52,11 +52,12 @@ namespace ZenStates.Core.Hardware.Mock
         public PowerTable PowerTable { get; private set; }
 
         /// <summary>
-        /// SuperIO sensors replayed from the report's register dumps - the mock counterpart of
-        /// <c>cpu.systemInfo.SensorGroups</c>, decoded with the same board configuration. Values are
-        /// the captured ones and don't change. Empty when the report has no SuperIO section.
+        /// The SVI3 telemetry of the report's power table, followed by the SuperIO sensors replayed from
+        /// its register dumps, decoded with the same board configuration - the mock counterpart of
+        /// <c>cpu.systemInfo.SensorGroups</c>. Values are the captured ones and don't change. Empty
+        /// when the report has neither.
         /// </summary>
-        public List<SuperIoSensorGroup> SensorGroups { get; } = new List<SuperIoSensorGroup>();
+        public List<SensorGroup> SensorGroups { get; } = new List<SensorGroup>();
 
         public Capacity TotalCapacity { get; private set; } = new Capacity();
         public string CpuName { get; private set; }
@@ -174,6 +175,15 @@ namespace ZenStates.Core.Hardware.Mock
             catch (Exception ex)
             {
                 data.AddSectionWarning("SuperIO", ex);
+            }
+
+            try
+            {
+                data.AddSvi3Sensors();
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("SVI3 telemetry", ex);
             }
 
             try
@@ -386,13 +396,25 @@ namespace ZenStates.Core.Hardware.Mock
 
                     var hardware = new SuperIOHardware(chip, MbVendor, MbName, i);
                     hardware.Update();
-                    SensorGroups.Add(new SuperIoSensorGroup(hardware.ChipName, hardware.Chip, hardware.Sensors));
+                    SensorGroups.Add(SensorGroup.FromSuperIo(hardware));
                 }
                 catch (Exception ex)
                 {
                     Warnings.Add($"SuperIO: could not replay {dump.Chip}: {ex.Message}");
                 }
             }
+        }
+
+        /// <summary>Exposes the power table's SVI3 readings as a sensor group, as the live SystemInfo does.</summary>
+        private void AddSvi3Sensors()
+        {
+            if (PowerTable == null)
+                return;
+
+            var svi3 = new Svi3Hardware(PowerTable);
+            svi3.Update();
+            if (svi3.HasSensors)
+                SensorGroups.Insert(0, SensorGroup.FromSvi3(svi3));
         }
 
         private void ReadAod(string[] lines)
