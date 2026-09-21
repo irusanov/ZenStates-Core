@@ -1,6 +1,7 @@
+using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using ZenStates.Core.Common;
+using ZenStates.Core.Dictionaries;
 
 namespace ZenStates.Core.Hardware.Aod
 {
@@ -68,15 +69,118 @@ namespace ZenStates.Core.Hardware.Aod
         /// <summary>Label column width used throughout this block's report.</summary>
         private const int TimingLabelWidth = 19;
 
-#if NET8_0_OR_GREATER
-        [RequiresUnreferencedCode(
-            "Forwards to Utils.CreateFromByteArray<AodData>, which uses reflection " +
-            "(Type.GetProperty by name and Activator.CreateInstance) to populate AodData; " +
-            "AodData's properties and their types must not be trimmed.")]
-#endif
+        private delegate void RawSetter(AodData data, int raw);
+
+        private struct Field
+        {
+            public RawSetter Set;
+            public Dictionary<int, string> Lookup; // encoded values only: the table their text prints from
+        }
+
+        private static Field F(RawSetter set, Dictionary<int, string> lookup = null) => new Field { Set = set, Lookup = lookup };
+
+        // Every field by name and how its raw Int32 is stored. Explicit rather than reflected, so AodData
+        // is safe to trim and to compile with Native AOT.
+        private static readonly Dictionary<string, Field> Fields = new Dictionary<string, Field>
+        {
+            { "SMTEn",                F((d, v) => d.SMTEn = v) },
+            { "MemClk",               F((d, v) => d.MemClk = v) },
+            { "Tcl",                  F((d, v) => d.Tcl = v) },
+            { "Trcd",                 F((d, v) => d.Trcd = v) },
+            { "TrcdWr",               F((d, v) => d.TrcdWr = v) },
+            { "TrcdRd",               F((d, v) => d.TrcdRd = v) },
+            { "Trp",                  F((d, v) => d.Trp = v) },
+            { "Tras",                 F((d, v) => d.Tras = v) },
+            { "Trc",                  F((d, v) => d.Trc = v) },
+            { "Twr",                  F((d, v) => d.Twr = v) },
+            { "Trfc",                 F((d, v) => d.Trfc = v) },
+            { "Trfc2",                F((d, v) => d.Trfc2 = v) },
+            { "Trfcsb",               F((d, v) => d.Trfcsb = v) },
+            { "Trtp",                 F((d, v) => d.Trtp = v) },
+            { "TrrdL",                F((d, v) => d.TrrdL = v) },
+            { "TrrdS",                F((d, v) => d.TrrdS = v) },
+            { "Tfaw",                 F((d, v) => d.Tfaw = v) },
+            { "TwtrL",                F((d, v) => d.TwtrL = v) },
+            { "TwtrS",                F((d, v) => d.TwtrS = v) },
+            { "TrdrdScL",             F((d, v) => d.TrdrdScL = v) },
+            { "TrdrdSc",              F((d, v) => d.TrdrdSc = v) },
+            { "TrdrdSd",              F((d, v) => d.TrdrdSd = v) },
+            { "TrdrdDd",              F((d, v) => d.TrdrdDd = v) },
+            { "TwrwrScL",             F((d, v) => d.TwrwrScL = v) },
+            { "TwrwrSc",              F((d, v) => d.TwrwrSc = v) },
+            { "TwrwrSd",              F((d, v) => d.TwrwrSd = v) },
+            { "TwrwrDd",              F((d, v) => d.TwrwrDd = v) },
+            { "Twrrd",                F((d, v) => d.Twrrd = v) },
+            { "Trdwr",                F((d, v) => d.Trdwr = v) },
+            { "CadBusDrvStren",       F((d, v) => d.CadBusDrvStren = new CadBusDrvStren(v), EncodedValueDictionaries.CadBusDrvStrenDict) },
+            { "ProcDataDrvStren",     F((d, v) => d.ProcDataDrvStren = new ProcDataDrvStren(v), EncodedValueDictionaries.ProcDataDrvStrenDict) },
+            { "ProcOdt",              F((d, v) => d.ProcOdt = new ProcOdt(v), EncodedValueDictionaries.ProcOdtDict) },
+            { "ProcOdtPullUp",        F((d, v) => d.ProcOdtPullUp = new ProcOdt(v), EncodedValueDictionaries.ProcOdtDict) },
+            { "ProcOdtPullDown",      F((d, v) => d.ProcOdtPullDown = new ProcOdt(v), EncodedValueDictionaries.ProcOdtDict) },
+            { "ProcCaOdt",            F((d, v) => d.ProcCaOdt = new ProcOdtImpedance(v), EncodedValueDictionaries.ProcImpedanceDict) },
+            { "ProcCkOdt",            F((d, v) => d.ProcCkOdt = new ProcOdtImpedance(v), EncodedValueDictionaries.ProcImpedanceDict) },
+            { "ProcDqOdt",            F((d, v) => d.ProcDqOdt = new ProcOdtImpedance(v), EncodedValueDictionaries.ProcImpedanceDict) },
+            { "ProcDqsOdt",           F((d, v) => d.ProcDqsOdt = new ProcOdtImpedance(v), EncodedValueDictionaries.ProcImpedanceDict) },
+            { "ProcDataDrvStrenApu",  F((d, v) => d.ProcDataDrvStrenApu = new CadBusDrvStren(v), EncodedValueDictionaries.CadBusDrvStrenDict) },
+            { "ProcCsDs",             F((d, v) => d.ProcCsDs = new ProcOdtImpedance(v), EncodedValueDictionaries.ProcImpedanceDict) },
+            { "ProcCkDs",             F((d, v) => d.ProcCkDs = new ProcOdtImpedance(v), EncodedValueDictionaries.ProcImpedanceDict) },
+            { "ProcDqDsPullUp",       F((d, v) => d.ProcDqDsPullUp = new ProcOdt(v), EncodedValueDictionaries.ProcOdtDict) },
+            { "ProcDqDsPullDown",     F((d, v) => d.ProcDqDsPullDown = new ProcOdt(v), EncodedValueDictionaries.ProcOdtDict) },
+            { "DramDataDrvStren",     F((d, v) => d.DramDataDrvStren = new DramDataDrvStren(v), EncodedValueDictionaries.DramDataDrvStrenDict) },
+            { "DramDqDsPullUp",       F((d, v) => d.DramDqDsPullUp = new DramDataDrvStren(v), EncodedValueDictionaries.DramDataDrvStrenDict) },
+            { "DramDqDsPullDown",     F((d, v) => d.DramDqDsPullDown = new DramDataDrvStren(v), EncodedValueDictionaries.DramDataDrvStrenDict) },
+            { "RttNomWr",             F((d, v) => d.RttNomWr = new Rtt(v), EncodedValueDictionaries.RttDict) },
+            { "RttNomRd",             F((d, v) => d.RttNomRd = new Rtt(v), EncodedValueDictionaries.RttDict) },
+            { "RttWr",                F((d, v) => d.RttWr = new Rtt(v), EncodedValueDictionaries.RttDict) },
+            { "RttPark",              F((d, v) => d.RttPark = new Rtt(v), EncodedValueDictionaries.RttDict) },
+            { "RttParkDqs",           F((d, v) => d.RttParkDqs = new Rtt(v), EncodedValueDictionaries.RttDict) },
+            { "MemVddio",             F((d, v) => d.MemVddio = new Voltage(v)) },
+            { "MemVddq",              F((d, v) => d.MemVddq = new Voltage(v)) },
+            { "MemVpp",               F((d, v) => d.MemVpp = new Voltage(v)) },
+            { "ApuVddio",             F((d, v) => d.ApuVddio = new Voltage(v)) },
+        };
+
+        /// <summary>
+        /// Whether <paramref name="name"/> is an AodData field. <paramref name="lookup"/> is the
+        /// code-to-text table of an encoded field, null for integers and voltages.
+        /// </summary>
+        internal static bool IsField(string name, out Dictionary<int, string> lookup)
+        {
+            Field field;
+            bool found = Fields.TryGetValue(name, out field);
+            lookup = field.Lookup;
+            return found;
+        }
+
+        /// <summary>Stores a raw value in the named field. False for a name that isn't an AodData field.</summary>
+        public bool TrySetRaw(string name, int raw)
+        {
+            Field field;
+            if (!Fields.TryGetValue(name, out field))
+                return false;
+
+            field.Set(this, raw);
+            return true;
+        }
+
+        /// <summary>
+        /// Builds AodData from the raw AOD region, reading each field as an Int32 at its offset.
+        /// Offsets outside the table are skipped.
+        /// </summary>
         public static AodData CreateFromByteArray(byte[] byteArray, Dictionary<string, int> fieldDictionary)
         {
-            return Utils.CreateFromByteArray<AodData>(byteArray, fieldDictionary);
+            var data = new AodData();
+
+            if (byteArray != null)
+            {
+                foreach (KeyValuePair<string, int> entry in fieldDictionary)
+                {
+                    if (entry.Value >= 0 && entry.Value <= byteArray.Length - sizeof(int))
+                        data.TrySetRaw(entry.Key, BitConverter.ToInt32(byteArray, entry.Value));
+                }
+            }
+
+            return data;
         }
 
         public string GetReport()

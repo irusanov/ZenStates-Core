@@ -5,7 +5,7 @@ using static ZenStates.Core.Hardware.DRAM.DDR5.Tables.JedecPmicRegisters;
 
 namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 {
-    public static class Ddr5PmicDecoder
+    public static partial class Ddr5PmicDecoder
     {
         // Voltage formulas (JEDEC JESD301-2)
         private const int SWA_SWB_BASE = 800;   // mV base for VDD/VDDQ

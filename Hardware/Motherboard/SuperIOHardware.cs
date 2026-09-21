@@ -19,10 +19,19 @@ namespace ZenStates.Core.Hardware.Motherboard
         private readonly Manufacturer _motherboardVendor;
 
         public SuperIOHardware(ISuperIO superIO, SMBios smbios, int index)
+            : this(superIO, smbios.Board.ManufacturerName.ToString(), smbios.Board.ProductName.ToString(), index)
+        {
+        }
+
+        /// <summary>
+        /// Board identified by its SMBIOS manufacturer and product names alone, e.g. those a debug
+        /// report prints as MbVendor and MbName.
+        /// </summary>
+        public SuperIOHardware(ISuperIO superIO, string boardManufacturer, string boardProductName, int index)
         {
             _superIO = superIO;
-            _motherboardName = Identification.GetModel(smbios.Board.ProductName.ToString());
-            _motherboardVendor = Identification.GetManufacturer(smbios.Board.ManufacturerName.ToString());
+            _motherboardName = Identification.GetModel(boardProductName ?? string.Empty);
+            _motherboardVendor = Identification.GetManufacturer(boardManufacturer ?? string.Empty);
 
             GetBoardSpecificConfiguration(
                 superIO,

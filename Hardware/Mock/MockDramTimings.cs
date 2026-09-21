@@ -89,6 +89,44 @@ namespace ZenStates.Core.Hardware.Mock
         /// </summary>
         public const uint ChannelRatioRegister = 0x50200;
 
+        /// <summary>UMC register whose low bits hold the channel's DRAM type, in <see cref="MemType"/> order.</summary>
+        public const uint DramTypeRegister = 0x50100;
+
+        private const uint DramTypeMask = 0x3;
+
+        /// <summary>Highest UMC channel index probed, matching the live MemoryConfig.</summary>
+        private const uint MaxChannels = 12;
+
+        /// <summary>
+        /// DRAM type of the channel at <paramref name="dctOffset"/>, decoded the way the live path
+        /// used to: <c>(MemType)(UMC 0x50100 &amp; 0x3)</c>. False when the register wasn't captured
+        /// or reads all ones, as a channel without a controller does.
+        /// </summary>
+        public static bool TryReadMemType(IRegisterSource registers, uint dctOffset, out MemType memType)
+        {
+            memType = MemType.UNKNOWN;
+
+            uint value;
+            if (registers == null || !registers.TryRead(dctOffset | DramTypeRegister, out value) || value == 0xFFFFFFFF)
+                return false;
+
+            memType = (MemType)(value & DramTypeMask);
+            return true;
+        }
+
+        /// <summary>DRAM type of the first captured channel, see <see cref="TryReadMemType(IRegisterSource, uint, out MemType)"/>.</summary>
+        public static bool TryReadMemType(IRegisterSource registers, out MemType memType)
+        {
+            for (uint channel = 0; channel < MaxChannels; channel++)
+            {
+                if (TryReadMemType(registers, channel << 20, out memType))
+                    return true;
+            }
+
+            memType = MemType.UNKNOWN;
+            return false;
+        }
+
         /// <summary>
         /// True when <paramref name="registers"/> actually holds the channel at
         /// <paramref name="dctOffset"/>, rather than only some other channel's block.

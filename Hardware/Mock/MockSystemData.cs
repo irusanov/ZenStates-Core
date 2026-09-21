@@ -1,6 +1,11 @@
 using System;
 using System.Collections.Generic;
+using ZenStates.Core.Hardware.Aod;
 using ZenStates.Core.Hardware.DRAM;
+using ZenStates.Core.Hardware.Motherboard;
+using ZenStates.Core.Hardware.Motherboard.Lpc;
+using ZenStates.Core.Hardware.DRAM.DDR5.Pmic;
+using ZenStates.Core.Hardware.DRAM.DDR5.Spd;
 using static ZenStates.Core.Cpu;
 // Namespace and class share the name "Apob" (ZenStates.Core.Hardware.Apob.Apob), so it's aliased
 // here rather than imported with a plain "using" to avoid "Apob.Apob" ambiguity below.
@@ -26,7 +31,32 @@ namespace ZenStates.Core.Hardware.Mock
 
         public ApobTable Apob { get; private set; }
 
+        public Dictionary<byte, Ddr5SpdInfo> SpdInfo { get; private set; } = new Dictionary<byte, Ddr5SpdInfo>();
+
+        /// <summary>
+        /// PMIC of the first DIMM that has one, i.e. what the main window shows when no particular
+        /// module is selected. Null when the report carries no readable PMIC block.
+        /// </summary>
+        public Ddr5PmicData PmicData { get; private set; }
+
+        /// <summary>Decoded AOD fields as printed in the report - the mock counterpart of <c>cpu.info.aod.Table.Data</c>. Null when unavailable.</summary>
+        public AodData AodData { get; private set; }
+
+        /// <summary>
+        /// DDR4 BIOS memory controller config (APCB) bytes as the report dumped them - what the live
+        /// window reads over WMI for ProcODT, RTT, drive strengths and setup times. Null when the
+        /// report has no such dump.
+        /// </summary>
+        public byte[] BiosMemControllerTable { get; private set; }
+
         public PowerTable PowerTable { get; private set; }
+
+        /// <summary>
+        /// SuperIO sensors replayed from the report's register dumps - the mock counterpart of
+        /// <c>cpu.systemInfo.SensorGroups</c>, decoded with the same board configuration. Values are
+        /// the captured ones and don't change. Empty when the report has no SuperIO section.
+        /// </summary>
+        public List<SuperIoSensorGroup> SensorGroups { get; } = new List<SuperIoSensorGroup>();
 
         public Capacity TotalCapacity { get; private set; } = new Capacity();
         public string CpuName { get; private set; }
@@ -59,16 +89,50 @@ namespace ZenStates.Core.Hardware.Mock
             var data = new MockSystemData();
 
             data.ReadSystemIdentity(text);
+
+            // Parsed up front: besides the timings, they give the DRAM type older reports don't print.
+            VirtualRegisters registers = DebugReportParser.ParseUmcRegisters(lines);
+            data.ResolveMemoryType(text, registers);
+
             data.ReadModules(lines);
 
             // The power table is built before the timings because it carries MCLK, which is the
             // frequency the captured system was running at.
             data.PowerTable = PowerTable.CreateFromDebugReport(debugReportText);
 
-            data.ReadTimings(lines);
+            data.ReadTimings(registers, lines);
+            data.ReadSpdInfo(lines);
+            data.ReadAod(lines);
+            data.ReadSuperIo(lines);
+            data.BiosMemControllerTable = DebugReportParser.ParseIndexedBytes(lines, DebugReportParser.BiosMemControllerSection);
             data.ReadApob(debugReportText);
 
             return data;
+        }
+
+        /// <summary>
+        /// PMIC of the module at <paramref name="moduleIndex"/> in <see cref="Modules"/>. SPD entries
+        /// line up with the modules by index, the same assumption the live path makes. Falls back to
+        /// <see cref="PmicData"/> when that module has no entry of its own.
+        /// </summary>
+        public Ddr5PmicData GetPmicData(int moduleIndex)
+        {
+            if (moduleIndex >= 0 && moduleIndex < SpdInfo.Count)
+            {
+                int index = 0;
+                foreach (Ddr5SpdInfo info in SpdInfo.Values)
+                {
+                    if (index++ != moduleIndex)
+                        continue;
+
+                    if (info.PmicData != null && info.PmicData.IsValid)
+                        return info.PmicData;
+
+                    break;
+                }
+            }
+
+            return PmicData;
         }
 
         private void ReadSystemIdentity(string text)
@@ -91,6 +155,27 @@ namespace ZenStates.Core.Hardware.Mock
             MemoryType = DebugReportParser.ParseMemType(text);
         }
 
+        /// <summary>
+        /// Keeps the report's own "MemType:" line when it has one. Otherwise the type is read from
+        /// the captured UMC registers, as the live path once did; failing that, a populated SMBUS
+        /// section means DDR5, and anything else is taken as DDR4.
+        /// </summary>
+        private void ResolveMemoryType(string text, VirtualRegisters registers)
+        {
+            if (MemoryType != MemType.UNKNOWN)
+                return;
+
+            MemType fromRegisters;
+            if (MockDramTimings.TryReadMemType(registers, out fromRegisters))
+            {
+                MemoryType = fromRegisters;
+                return;
+            }
+
+            MemoryType = DebugReportParser.HasDdr5SmbusModules(text) ? MemType.DDR5 : MemType.DDR4;
+            Warnings.Add($"The debug report states no memory type and has no UMC DRAM type register; assuming {MemoryType}.");
+        }
+
         private void ReadModules(string[] lines)
         {
             Modules = DebugReportParser.ParseModules(lines, MemoryType);
@@ -107,9 +192,8 @@ namespace ZenStates.Core.Hardware.Mock
         /// <summary>
         /// Decodes one set of timings per module from the captured UMC registers, in module order
         /// </summary>
-        private void ReadTimings(string[] lines)
+        private void ReadTimings(VirtualRegisters registers, string[] lines)
         {
-            VirtualRegisters registers = DebugReportParser.ParseUmcRegisters(lines);
             if (registers.IsEmpty)
             {
                 Warnings.Add("Could not locate a 'Memory Channels Info' register dump in the debug report; timings are unavailable.");
@@ -153,6 +237,75 @@ namespace ZenStates.Core.Hardware.Mock
                 return mclk * 2;
 
             return DebugReportParser.ParseReportedMemoryFrequency(lines);
+        }
+
+        /// <summary>
+        /// Reads the decoded SPD dumps, and with them the PMIC rails the main window shows. Only
+        /// DDR5 reports carry the section, so its absence is a warning for DDR5 alone.
+        /// </summary>
+        private void ReadSpdInfo(string[] lines)
+        {
+            SpdInfo = DebugReportParser.ParseSpdInfo(lines);
+
+            bool isDdr5 = MemoryType == MemType.DDR5 || MemoryType == MemType.LPDDR5;
+
+            if (SpdInfo.Count == 0)
+            {
+                if (isDdr5)
+                    Warnings.Add("Could not locate an 'SMBUS Memory Modules' section in the debug report; SPD and PMIC data are unavailable.");
+                return;
+            }
+
+            foreach (Ddr5SpdInfo info in SpdInfo.Values)
+            {
+                if (info.PmicData != null && info.PmicData.IsValid)
+                {
+                    PmicData = info.PmicData;
+                    break;
+                }
+            }
+
+            if (PmicData == null && isDdr5)
+                Warnings.Add("The debug report's SPD dumps carry no readable PMIC block; DIMM voltages are unavailable.");
+        }
+
+        /// <summary>
+        /// Rebuilds each dumped SuperIO chip and runs it through the live board configuration. The
+        /// chip's position in the report is its index, as on the live machine.
+        /// </summary>
+        private void ReadSuperIo(string[] lines)
+        {
+            List<SuperIoDump> dumps = DebugReportParser.ParseSuperIo(lines);
+
+            for (int i = 0; i < dumps.Count; i++)
+            {
+                SuperIoDump dump = dumps[i];
+
+                try
+                {
+                    ISuperIO chip = dump.CreateChip();
+                    if (chip == null)
+                    {
+                        Warnings.Add($"SuperIO: no replay support for LPC {dump.ChipClass} ({dump.Chip}).");
+                        continue;
+                    }
+
+                    var hardware = new SuperIOHardware(chip, MbVendor, MbName, i);
+                    hardware.Update();
+                    SensorGroups.Add(new SuperIoSensorGroup(hardware.ChipName, hardware.Chip, hardware.Sensors));
+                }
+                catch (Exception ex)
+                {
+                    Warnings.Add($"SuperIO: could not replay {dump.Chip}: {ex.Message}");
+                }
+            }
+        }
+
+        private void ReadAod(string[] lines)
+        {
+            AodData = DebugReportParser.ParseAodData(lines);
+            if (AodData == null)
+                Warnings.Add("Could not locate decoded AOD data in the debug report; AOD data is unavailable.");
         }
 
         private void ReadApob(string debugReportText)

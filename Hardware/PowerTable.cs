@@ -460,7 +460,8 @@ namespace ZenStates.Core
                 string name = m.Groups["name"].Value;
                 string rawValue = m.Groups["value"].Value.Trim();
 
-                if (!float.TryParse(rawValue, NumberStyles.Float, CultureInfo.InvariantCulture, out float value))
+                // Comma-decimal aware: the values are printed in the capturing machine's culture.
+                if (!DebugReportParser.TryParseReportFloat(rawValue, out float value))
                     continue; // e.g. "Instance:" (a type name, not a number) - intentionally skipped
 
                 switch (name)

@@ -47,6 +47,9 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
         // Chip identity
         private readonly LpcPort _lpcPort;
         private readonly ushort _port;
+
+        // Captured register image of a debug report; replaces port I/O when set.
+        private readonly VirtualRegisters _snapshot;
         private readonly byte _revision;
         private readonly bool _isNuvotonVendor;
 
@@ -78,11 +81,27 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
         private readonly bool[] _restoreDefaultFanControlRequired = new bool[7];
 
         public Nct677X(LpcPort lpcPort, Chip chip, byte revision, ushort port)
+            : this(lpcPort, chip, revision, port, null)
+        {
+        }
+
+        /// <summary>
+        /// Chip replayed from the register dump of a debug report: reads come from
+        /// <paramref name="snapshot"/> (bank-qualified addresses, as the report prints them) and writes
+        /// are dropped, so the regular decoding runs unchanged without any hardware.
+        /// </summary>
+        internal Nct677X(Chip chip, byte revision, ushort port, VirtualRegisters snapshot)
+            : this(null, chip, revision, port, snapshot)
+        {
+        }
+
+        private Nct677X(LpcPort lpcPort, Chip chip, byte revision, ushort port, VirtualRegisters snapshot)
         {
             Chip = chip;
             _revision = revision;
             _port = port;
             _lpcPort = lpcPort;
+            _snapshot = snapshot;
 
             if (chip == Chip.NCT610XD)
             {
@@ -1123,7 +1142,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
         /// <inheritdoc />
         public void Close()
         {
-            _lpcPort.Close();
+            _lpcPort?.Close();
         }
 
         public string GetReport()
@@ -1300,6 +1319,10 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
 
         private byte ReadByte(ushort address)
         {
+            // Registers the report didn't dump read as 0, which the decoders treat as "no reading".
+            if (_snapshot != null)
+                return _snapshot.TryRead(address, out uint captured) ? (byte)captured : (byte)0;
+
             if (Chip != Chip.NCT6683D &&
                 Chip != Chip.NCT6686D &&
                 Chip != Chip.NCT6687D &&
@@ -1353,6 +1376,9 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
 
         private void WriteByte(ushort address, byte value)
         {
+            if (_snapshot != null)
+                return;
+
             if (Chip != Chip.NCT6683D &&
                 Chip != Chip.NCT6686D &&
                 Chip != Chip.NCT6687D &&
@@ -1636,7 +1662,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             }
 
             // the lock is disabled already if the vendor ID can be read
-            if (IsNuvotonVendor())
+            if (_snapshot != null || IsNuvotonVendor())
                 return;
 
             _lpcPort.WinbondNuvotonFintekEnter();

@@ -188,7 +188,6 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
         public const int PORT_DIMM = 2;
         public const int PORT_BOARD = 0;
 
-
         private static int ActiveDimmPort = PORT_UNDEFINED;
 
         private static bool CheckActiveDimmPort(SmbusDriverBase smbus)

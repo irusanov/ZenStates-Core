@@ -44,12 +44,12 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         }
 
         /// <summary>
-        /// Scan for DDR5 SPD hubs. Tries port 2 (DDR5/TSI) first, then port 0.
+        /// Scan for DDR5 SPD hubs. Tries port 0 (BOARD) first, then port 2 (DIMM).
         /// Returns 7-bit addresses of responding hubs.
         /// </summary>
         internal static List<byte> ScanDdr5SpdHubsNoLock()
         {
-            int[] ports = new int[] { PORT_DIMM, PORT_BOARD };
+            int[] ports = new int[] { PORT_BOARD, PORT_DIMM };
 
             for (int p = 0; p < ports.Length; p++)
             {
