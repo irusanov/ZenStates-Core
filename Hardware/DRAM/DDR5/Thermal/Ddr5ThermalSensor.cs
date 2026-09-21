@@ -50,7 +50,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Thermal
         /// Check whether MR0:MR1 identify an SPD5118 device.
         /// Accepts either byte order (MR0=0x51,MR1=0x18 or MR0=0x18,MR1=0x51)
         /// </summary>
-        private static bool IsSpd5118DeviceType(byte mr0, byte mr1)
+        internal static bool IsSpd5118DeviceType(byte mr0, byte mr1)
         {
             // Normal order: MR0 low nibble = 0x8, MR1 = 0x51
             if ((mr0 & 0x0F) == 0x08 && mr1 == 0x51)

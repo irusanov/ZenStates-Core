@@ -425,10 +425,20 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             }
         }
 
-        private static int DecodeDieCount(int code)
+        internal static int DecodeDieCount(int code)
         {
-            // JESD400-5B: Die per Package = code + 1  (0=1, 1=2, ..., 7=8)
-            return code + 1;
+            // JESD400-5 byte 4/8 bits [7:5], die per package:
+            // 000 = 1 die (monolithic), 001 = reserved, 010 = 2H 3DS, 011 = 4H 3DS,
+            // 100 = 8H 3DS, 101 = 16H 3DS, 110/111 = reserved.
+            // Reserved/unknown codes are treated as 1 die so capacity is never inflated.
+            switch (code & 0x07)
+            {
+                case 0x02: return 2;
+                case 0x03: return 4;
+                case 0x04: return 8;
+                case 0x05: return 16;
+                default: return 1;
+            }
         }
 
         private static void DecodeAddressing(byte[] spd, Ddr5SpdInfo info)
@@ -523,7 +533,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         private static int DecodeLpddr5TckMin(byte[] spd)
         {
             int coarse = B(spd, LPDDR5_TCKAVG_MIN);
-            int fine = (sbyte)B(spd, LPDDR5_TCKAVG_MIN_FINE);
+            int fine = unchecked((sbyte)B(spd, LPDDR5_TCKAVG_MIN_FINE));
             if (coarse <= 0)
                 return 0;
             return coarse * 125 + fine;
@@ -532,7 +542,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         private static int DecodeLpddr5TckMax(byte[] spd)
         {
             int coarse = B(spd, LPDDR5_TCKAVG_MAX);
-            int fine = (sbyte)B(spd, LPDDR5_TCKAVG_MAX_FINE);
+            int fine = unchecked((sbyte)B(spd, LPDDR5_TCKAVG_MAX_FINE));
             if (coarse <= 0)
                 return 0;
             return coarse * 125 + fine;
@@ -1119,13 +1129,10 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
 
             try
             {
-                result = Ddr5SpdReader.ReadDdr5SpdAllNoLock();
-
-                if (result != null)
-                {
-                    foreach (KeyValuePair<byte, Ddr5SpdInfo> kvp in result)
-                        Ddr5SpdReader.ReadLiveDevicesNoLock(kvp.Key, kvp.Value, smbus);
-                }
+                // Live thermal/PMIC reads happen inside ReadDdr5SpdAllNoLock while the bus is
+                // still switched to the port the SPD hubs were found on; the previous port is
+                // restored afterwards.
+                result = Ddr5SpdReader.ReadDdr5SpdAllNoLock(true);
             }
             finally
             {

@@ -26,9 +26,27 @@ namespace ZenStates.Core.OHWM
             this.Mask = mask;
         }
 
+        /// <summary>
+        /// Affinity for a single logical processor. A processor group holds at most 64 logical
+        /// processors, so an <paramref name="index"/> of 64 or more is carried into the following
+        /// group(s) (group += index / 64, bit = index % 64). Shifting by index directly would
+        /// wrap (1UL &lt;&lt; 64 == 1) and silently target the wrong processor.
+        /// </summary>
         public static GroupAffinity Single(ushort group, int index)
         {
-            return new GroupAffinity(group, 1UL << index);
+            if (index < 0)
+                throw new System.ArgumentOutOfRangeException(nameof(index));
+
+            return new GroupAffinity((ushort)(group + index / 64), 1UL << (index % 64));
+        }
+
+        /// <summary>
+        /// Affinity for a zero-based, system-wide logical processor index, resolved against the
+        /// actual processor group sizes where the OS reports them.
+        /// </summary>
+        public static GroupAffinity ForLogicalProcessor(int index)
+        {
+            return ThreadAffinity.GetLogicalProcessorAffinity(index);
         }
 
         public ushort Group { get; }

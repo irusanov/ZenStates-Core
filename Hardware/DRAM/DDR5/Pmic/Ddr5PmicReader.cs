@@ -144,7 +144,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
         /// <summary>Derive PMIC I2C address from SPD hub address.</summary>
         public static byte CalculatePmicAddrFromSpd(byte spdAddr)
         {
-            return (byte)(spdAddr - SPD_PMIC_OFFSET);
+            return unchecked((byte)(spdAddr - SPD_PMIC_OFFSET));
         }
 
         /// <summary>Check if a PMIC responds at the given I2C address.</summary>

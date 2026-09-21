@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text.RegularExpressions;
-using ZenStates.Core.Common;
 using ZenStates.Core.Hardware.Aod;
 using ZenStates.Core.Hardware.DRAM;
 using ZenStates.Core.Hardware.DRAM.DDR5.Pmic;
@@ -23,7 +22,7 @@ namespace ZenStates.Core.Hardware.Mock
 
         // The part number is optional: a module with a blank SPD part number prints "--  16GB 8000MHz".
         private static readonly Regex ModulePartRegex = new Regex(
-            @"^(?:(?<part>.+?)\s+)?(?<cap>\d+(?:[.,]\d+)?)(?<unit>[KMGT]?B)\s+(?<clk>\d+)MHz$",
+            @"^(?:(?<part>.+?)\s+)?(?<cap>\d{1,9}(?:[.,]\d{1,6})?)(?<unit>[KMGT]?B)\s+(?<clk>\d{1,6})MHz$",
             RegexOptions.IgnoreCase);
 
         private static readonly Regex CpuNameRegex =
@@ -356,7 +355,8 @@ namespace ZenStates.Core.Hardware.Mock
                     hex = hex.Substring(2);
 
                 // The report prints the channel index; the register addresses put it at bit 20.
-                if (uint.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint channelIndex))
+                if (uint.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint channelIndex) &&
+                    channelIndex <= 0xFFF)
                     module.DctOffset = channelIndex << 20;
             }
             else if (attr.StartsWith("Manufacturer:", StringComparison.OrdinalIgnoreCase))
@@ -394,7 +394,11 @@ namespace ZenStates.Core.Hardware.Mock
                 default: unit = CapacityUnit.GB; break; // GB, or bare "B"/"TB" fall back to GB-scale storage
             }
 
-            ulong bytes = (ulong)Math.Round(capValue * Math.Pow(1024, (int)unit));
+            double scaled = Math.Round(capValue * Math.Pow(1024, (int)unit));
+            if (double.IsNaN(scaled) || scaled < 0 || scaled >= ulong.MaxValue)
+                return;
+
+            ulong bytes = (ulong)scaled;
             module.Capacity = new Capacity(bytes, unit);
         }
 
@@ -412,9 +416,10 @@ namespace ZenStates.Core.Hardware.Mock
         private static readonly Regex SpdLabelRegex =
             new Regex(@"^[ \t]+(?<label>[^:]+?)[ \t]*:[ \t]*(?<value>.*?)[ \t]*$");
 
-        private static readonly Regex LeadingIntRegex = new Regex(@"^(?<value>\d+)");
-        private static readonly Regex LeadingFloatRegex = new Regex(@"^(?<value>\d+(?:\.\d+)?)");
-        private static readonly Regex HexValueRegex = new Regex(@"0x(?<hex>[0-9A-Fa-f]+)");
+        // Bounded so a malformed value can't overflow the int/float it's parsed into.
+        private static readonly Regex LeadingIntRegex = new Regex(@"^(?<value>\d{1,9})(?!\d)");
+        private static readonly Regex LeadingFloatRegex = new Regex(@"^(?<value>\d{1,9}(?:[.,]\d{1,9})?)(?!\d|[.,]\d)");
+        private static readonly Regex HexValueRegex = new Regex(@"0x(?<hex>[0-9A-Fa-f]{1,8})(?![0-9A-Fa-f])");
 
         private const string SpdInvalidMarker = "*** INVALID OR UNSUPPORTED SPD DATA ***";
 
@@ -459,7 +464,11 @@ namespace ZenStates.Core.Hardware.Mock
 
                 if (i < end)
                 {
-                    blockAddress = (byte)ParseHex(m.Groups["addr"].Value);
+                    // The regex allows at most two hex digits, so this always fits a byte.
+                    uint parsedAddress;
+                    blockAddress = TryParseHex(m.Groups["addr"].Value, out parsedAddress) && parsedAddress <= 0xFF
+                        ? (byte)parsedAddress
+                        : (byte)0;
                     blockStart = i + 1;
                 }
             }
@@ -604,7 +613,11 @@ namespace ZenStates.Core.Hardware.Mock
                 return 0;
 
             Match m = LeadingIntRegex.Match(value);
-            return m.Success ? (int)ParseUInt(m.Groups["value"].Value) : 0;
+            int result;
+            return m.Success &&
+                   int.TryParse(m.Groups["value"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out result)
+                ? result
+                : 0;
         }
 
         private static double FindBlockFloat(string[] lines, int start, int end, string label)
@@ -614,9 +627,8 @@ namespace ZenStates.Core.Hardware.Mock
                 return 0;
 
             Match m = LeadingFloatRegex.Match(value);
-            double result;
-            return m.Success &&
-                   double.TryParse(m.Groups["value"].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out result)
+            float result;
+            return m.Success && TryParseReportFloat(m.Groups["value"].Value, out result)
                 ? result
                 : 0;
         }
@@ -658,7 +670,8 @@ namespace ZenStates.Core.Hardware.Mock
         private static readonly Regex AodValueRegex = new Regex(@"^(?<name>\w+):\s*(?<value>.*?)\s*$");
         private static readonly Regex AodRawSuffixRegex = new Regex(@"\((?<raw>-?\d+)\)$");
         private static readonly Regex AodTextSuffixRegex = new Regex(@"^(?<text>.*?)\s*\(\d+\)$");
-        private static readonly Regex AodVoltageRegex = new Regex(@"^(?<volts>\d+(?:\.\d+)?)V$");
+        // Either decimal separator: the report prints values in the capturing machine's culture.
+        private static readonly Regex AodVoltageRegex = new Regex(@"^(?<volts>\d{1,3}(?:[.,]\d{1,6})?)V$");
 
         /// <summary>
         /// Reads the decoded AOD fields of the AOD section back into an <see cref="AodData"/>, using
@@ -769,7 +782,8 @@ namespace ZenStates.Core.Hardware.Mock
 
             Match voltage = AodVoltageRegex.Match(value);
             float volts;
-            if (!voltage.Success || !TryParseReportFloat(voltage.Groups["volts"].Value, out volts))
+            if (!voltage.Success || !TryParseReportFloat(voltage.Groups["volts"].Value, out volts) ||
+                float.IsNaN(volts) || volts < 0 || volts > 1000)
                 return false;
 
             millivolts = (int)Math.Round(volts * 1000);
@@ -801,8 +815,8 @@ namespace ZenStates.Core.Hardware.Mock
 
         private static readonly Regex SuperIoChipRegex = new Regex(@"^LPC\s+(?<class>\w+)\s*$");
         private static readonly Regex SuperIoHexLabelRegex =
-            new Regex(@"^(?<label>Chip Id|Chip Revision|Chip Version|Base Address|GPIO Address):\s*0x(?<hex>[0-9A-Fa-f]+)\s*$", RegexOptions.IgnoreCase);
-        private static readonly Regex SuperIoBankRegex = new Regex(@"Registers Bank\s+(?<bank>\d+)", RegexOptions.IgnoreCase);
+            new Regex(@"^(?<label>Chip Id|Chip Revision|Chip Version|Base Address|GPIO Address):\s*0x(?<hex>[0-9A-Fa-f]{1,8})\s*$", RegexOptions.IgnoreCase);
+        private static readonly Regex SuperIoBankRegex = new Regex(@"Registers Bank\s+(?<bank>\d{1,3})(?!\d)", RegexOptions.IgnoreCase);
 
         // " 0480   80 E4 D6 ..." (Nuvoton, bank in the address) or " 20   3F 7A ?? ..." (ITE, per bank).
         private static readonly Regex SuperIoRowRegex =
@@ -838,13 +852,29 @@ namespace ZenStates.Core.Hardware.Mock
                 Match label = SuperIoHexLabelRegex.Match(trimmed);
                 if (label.Success)
                 {
-                    uint value = ParseHex(label.Groups["hex"].Value);
+                    // Out-of-range values are malformed: the field keeps its default.
+                    uint value;
+                    if (!TryParseHex(label.Groups["hex"].Value, out value))
+                        continue;
+
                     switch (label.Groups["label"].Value.ToLowerInvariant())
                     {
-                        case "chip id": current.ChipId = (ushort)value; break;
-                        case "base address": current.BaseAddress = (ushort)value; break;
-                        case "gpio address": current.GpioAddress = (ushort)value; break;
-                        default: current.Revision = (byte)value; break; // Chip Revision / Chip Version
+                        case "chip id":
+                            if (value <= ushort.MaxValue)
+                                current.ChipId = (ushort)value;
+                            break;
+                        case "base address":
+                            if (value <= ushort.MaxValue)
+                                current.BaseAddress = (ushort)value;
+                            break;
+                        case "gpio address":
+                            if (value <= ushort.MaxValue)
+                                current.GpioAddress = (ushort)value;
+                            break;
+                        default: // Chip Revision / Chip Version
+                            if (value <= byte.MaxValue)
+                                current.Revision = (byte)value;
+                            break;
                     }
                     continue;
                 }
@@ -852,7 +882,9 @@ namespace ZenStates.Core.Hardware.Mock
                 Match bankHeading = SuperIoBankRegex.Match(trimmed);
                 if (bankHeading.Success)
                 {
-                    bank = (int)ParseUInt(bankHeading.Groups["bank"].Value);
+                    // Registers are keyed (bank << 8) | register, so a bank must fit a byte.
+                    uint parsedBank = ParseUInt(bankHeading.Groups["bank"].Value);
+                    bank = parsedBank <= byte.MaxValue ? (int)parsedBank : 0;
                     continue;
                 }
 
@@ -862,13 +894,18 @@ namespace ZenStates.Core.Hardware.Mock
 
                 // ITE prints two-digit per-bank rows; Nuvoton's four-digit rows already hold the bank.
                 string address = row.Groups["address"].Value;
-                uint rowBase = ParseHex(address) | (address.Length == 2 ? (uint)(bank << 8) : 0);
+                uint rowAddress;
+                if (!TryParseHex(address, out rowAddress))
+                    continue;
+
+                uint rowBase = rowAddress | (address.Length == 2 ? (uint)(bank << 8) : 0);
 
                 string[] cells = row.Groups["bytes"].Value.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-                for (int j = 0; j < cells.Length; j++)
+                for (int j = 0; j < cells.Length && j < 16; j++)
                 {
-                    if (cells[j] != "??")
-                        current.Registers.Set(rowBase + (uint)j, ParseHex(cells[j]));
+                    uint cell;
+                    if (cells[j] != "??" && TryParseHex(cells[j], out cell))
+                        current.Registers.Set(rowBase + (uint)j, cell);
                 }
             }
 
@@ -888,7 +925,13 @@ namespace ZenStates.Core.Hardware.Mock
         // "Index 033: 3A (58)", written by ReportBuilder.AppendIndexedBytes. D3 pads the index to at
         // least three digits, longer blocks print more.
         private static readonly Regex IndexedByteRegex =
-            new Regex(@"^Index\s+(?<index>\d+):\s*(?<hex>[0-9A-Fa-f]{2})\b");
+            new Regex(@"^Index\s+(?<index>\d{1,6}):\s*(?<hex>[0-9A-Fa-f]{2})\b");
+
+        /// <summary>
+        /// Largest index <see cref="ParseIndexedBytes"/> accepts. The dumps it reads are a few
+        /// hundred bytes; the cap keeps a malformed index from sizing a huge allocation.
+        /// </summary>
+        private const int MaxIndexedByteIndex = 0xFFFF;
 
         /// <summary>
         /// Reads an "Index NNN: XX (d)" byte dump back into its bytes. Returns null when the section
@@ -903,13 +946,16 @@ namespace ZenStates.Core.Hardware.Mock
             {
                 Match m = IndexedByteRegex.Match(line.Trim());
                 int index;
+                uint value;
                 if (!m.Success ||
-                    !int.TryParse(m.Groups["index"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out index))
+                    !int.TryParse(m.Groups["index"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out index) ||
+                    index < 0 || index > MaxIndexedByteIndex ||
+                    !TryParseHex(m.Groups["hex"].Value, out value) || value > byte.MaxValue)
                 {
                     continue;
                 }
 
-                bytes[index] = (byte)ParseHex(m.Groups["hex"].Value);
+                bytes[index] = (byte)value;
                 if (index > maxIndex)
                     maxIndex = index;
             }
@@ -931,6 +977,14 @@ namespace ZenStates.Core.Hardware.Mock
         public static uint ParseHex(string value)
         {
             return uint.Parse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>Non-throwing <see cref="ParseHex"/>: false for empty, non-hex or over-32-bit input.</summary>
+        public static bool TryParseHex(string value, out uint result)
+        {
+            result = 0;
+            return value != null &&
+                   uint.TryParse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out result);
         }
 
         /// <summary>

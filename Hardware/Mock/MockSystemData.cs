@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using ZenStates.Core.Hardware.Aod;
 using ZenStates.Core.Hardware.DRAM;
-using ZenStates.Core.Hardware.Motherboard;
-using ZenStates.Core.Hardware.Motherboard.Lpc;
 using ZenStates.Core.Hardware.DRAM.DDR5.Pmic;
 using ZenStates.Core.Hardware.DRAM.DDR5.Spd;
+using ZenStates.Core.Hardware.Motherboard;
+using ZenStates.Core.Hardware.Motherboard.Lpc;
 using static ZenStates.Core.Cpu;
 // Namespace and class share the name "Apob" (ZenStates.Core.Hardware.Apob.Apob), so it's aliased
 // here rather than imported with a plain "using" to avoid "Apob.Apob" ambiguity below.
@@ -52,11 +52,12 @@ namespace ZenStates.Core.Hardware.Mock
         public PowerTable PowerTable { get; private set; }
 
         /// <summary>
-        /// SuperIO sensors replayed from the report's register dumps - the mock counterpart of
-        /// <c>cpu.systemInfo.SensorGroups</c>, decoded with the same board configuration. Values are
-        /// the captured ones and don't change. Empty when the report has no SuperIO section.
+        /// The SVI3 telemetry of the report's power table, followed by the SuperIO sensors replayed from
+        /// its register dumps, decoded with the same board configuration - the mock counterpart of
+        /// <c>cpu.systemInfo.SensorGroups</c>. Values are the captured ones and don't change. Empty
+        /// when the report has neither.
         /// </summary>
-        public List<SuperIoSensorGroup> SensorGroups { get; } = new List<SuperIoSensorGroup>();
+        public List<SensorGroup> SensorGroups { get; } = new List<SensorGroup>();
 
         public Capacity TotalCapacity { get; private set; } = new Capacity();
         public string CpuName { get; private set; }
@@ -88,26 +89,127 @@ namespace ZenStates.Core.Hardware.Mock
 
             var data = new MockSystemData();
 
-            data.ReadSystemIdentity(text);
+            // Each section is parsed on its own: a malformed one becomes a warning and leaves its
+            // data unavailable, it never aborts loading the rest of the report.
+            try
+            {
+                data.ReadSystemIdentity(text);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("system identity", ex);
+            }
 
             // Parsed up front: besides the timings, they give the DRAM type older reports don't print.
-            VirtualRegisters registers = DebugReportParser.ParseUmcRegisters(lines);
-            data.ResolveMemoryType(text, registers);
+            VirtualRegisters registers;
+            try
+            {
+                registers = DebugReportParser.ParseUmcRegisters(lines);
+            }
+            catch (Exception ex)
+            {
+                registers = new VirtualRegisters();
+                data.AddSectionWarning("UMC registers", ex);
+            }
 
-            data.ReadModules(lines);
+            try
+            {
+                data.ResolveMemoryType(text, registers);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("memory type", ex);
+            }
+
+            try
+            {
+                data.ReadModules(lines);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("memory modules", ex);
+            }
 
             // The power table is built before the timings because it carries MCLK, which is the
             // frequency the captured system was running at.
-            data.PowerTable = PowerTable.CreateFromDebugReport(debugReportText);
+            try
+            {
+                data.PowerTable = PowerTable.CreateFromDebugReport(debugReportText);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("power table", ex);
+            }
 
-            data.ReadTimings(registers, lines);
-            data.ReadSpdInfo(lines);
-            data.ReadAod(lines);
-            data.ReadSuperIo(lines);
-            data.BiosMemControllerTable = DebugReportParser.ParseIndexedBytes(lines, DebugReportParser.BiosMemControllerSection);
-            data.ReadApob(debugReportText);
+            try
+            {
+                data.ReadTimings(registers, lines);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("timings", ex);
+            }
+
+            try
+            {
+                data.ReadSpdInfo(lines);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("SPD", ex);
+            }
+
+            try
+            {
+                data.ReadAod(lines);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("AOD", ex);
+            }
+
+            try
+            {
+                data.ReadSuperIo(lines);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("SuperIO", ex);
+            }
+
+            try
+            {
+                data.AddSvi3Sensors();
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("SVI3 telemetry", ex);
+            }
+
+            try
+            {
+                data.BiosMemControllerTable = DebugReportParser.ParseIndexedBytes(lines, DebugReportParser.BiosMemControllerSection);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("BIOS memory controller table", ex);
+            }
+
+            try
+            {
+                data.ReadApob(debugReportText);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("APOB", ex);
+            }
 
             return data;
+        }
+
+        private void AddSectionWarning(string section, Exception ex)
+        {
+            Warnings.Add($"Could not parse the {section} section of the debug report: {ex.Message}");
         }
 
         /// <summary>
@@ -276,6 +378,8 @@ namespace ZenStates.Core.Hardware.Mock
         private void ReadSuperIo(string[] lines)
         {
             List<SuperIoDump> dumps = DebugReportParser.ParseSuperIo(lines);
+            if (dumps == null)
+                return;
 
             for (int i = 0; i < dumps.Count; i++)
             {
@@ -292,13 +396,25 @@ namespace ZenStates.Core.Hardware.Mock
 
                     var hardware = new SuperIOHardware(chip, MbVendor, MbName, i);
                     hardware.Update();
-                    SensorGroups.Add(new SuperIoSensorGroup(hardware.ChipName, hardware.Chip, hardware.Sensors));
+                    SensorGroups.Add(SensorGroup.FromSuperIo(hardware));
                 }
                 catch (Exception ex)
                 {
                     Warnings.Add($"SuperIO: could not replay {dump.Chip}: {ex.Message}");
                 }
             }
+        }
+
+        /// <summary>Exposes the power table's SVI3 readings as a sensor group, as the live SystemInfo does.</summary>
+        private void AddSvi3Sensors()
+        {
+            if (PowerTable == null)
+                return;
+
+            var svi3 = new Svi3Hardware(PowerTable);
+            svi3.Update();
+            if (svi3.HasSensors)
+                SensorGroups.Insert(0, SensorGroup.FromSvi3(svi3));
         }
 
         private void ReadAod(string[] lines)

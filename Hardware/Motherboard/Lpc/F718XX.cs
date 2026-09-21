@@ -56,18 +56,24 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             if (!Mutexes.WaitIsaBus(10))
                 return;
 
-            if (value.HasValue)
+            try
             {
-                SaveDefaultFanPwmControl(index);
+                if (value.HasValue)
+                {
+                    SaveDefaultFanPwmControl(index);
 
-                WriteByte(FAN_PWM_REG[index], value.Value);
+                    WriteByte(FAN_PWM_REG[index], value.Value);
+                }
+                else
+                {
+                    RestoreDefaultFanPwmControl(index);
+                }
+
             }
-            else
+            finally
             {
-                RestoreDefaultFanPwmControl(index);
+                Mutexes.ReleaseIsaBus();
             }
-
-            Mutexes.ReleaseIsaBus();
         }
 
         public string GetReport()
@@ -83,28 +89,34 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             if (!Mutexes.WaitIsaBus(5000))
                 return r.ToString();
 
-            r.AppendLine("Hardware Monitor Registers");
-            r.AppendLine();
-            r.AppendLine("      00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F");
-            r.AppendLine();
-            for (int i = 0; i <= 0xF; i++)
+            try
             {
-                r.Append(" ");
-                r.Append((i << 4).ToString("X2", CultureInfo.InvariantCulture));
-                r.Append("  ");
-                for (int j = 0; j <= 0xF; j++)
+                r.AppendLine("Hardware Monitor Registers");
+                r.AppendLine();
+                r.AppendLine("      00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F");
+                r.AppendLine();
+                for (int i = 0; i <= 0xF; i++)
                 {
                     r.Append(" ");
-                    r.Append(ReadByte((byte)((i << 4) | j)).ToString("X2",
-                                                                     CultureInfo.InvariantCulture));
+                    r.Append((i << 4).ToString("X2", CultureInfo.InvariantCulture));
+                    r.Append("  ");
+                    for (int j = 0; j <= 0xF; j++)
+                    {
+                        r.Append(" ");
+                        r.Append(ReadByte((byte)((i << 4) | j)).ToString("X2",
+                                                                         CultureInfo.InvariantCulture));
+                    }
+
+                    r.AppendLine();
                 }
 
                 r.AppendLine();
+
             }
-
-            r.AppendLine();
-
-            Mutexes.ReleaseIsaBus();
+            finally
+            {
+                Mutexes.ReleaseIsaBus();
+            }
             return r.ToString();
         }
 
@@ -113,96 +125,102 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             if (!Mutexes.WaitIsaBus(10))
                 return;
 
-            for (int i = 0; i < Voltages.Length; i++)
+            try
             {
-                if (Chip == Chip.F71808E && i == 6)
+                for (int i = 0; i < Voltages.Length; i++)
                 {
-                    // 0x26 is reserved on F71808E
-                    Voltages[i] = 0;
+                    if (Chip == Chip.F71808E && i == 6)
+                    {
+                        // 0x26 is reserved on F71808E
+                        Voltages[i] = 0;
+                    }
+                    else
+                    {
+                        int value = ReadByte((byte)(VOLTAGE_BASE_REG + i));
+                        Voltages[i] = 0.008f * value;
+                    }
                 }
-                else
-                {
-                    int value = ReadByte((byte)(VOLTAGE_BASE_REG + i));
-                    Voltages[i] = 0.008f * value;
-                }
-            }
 
-            for (int i = 0; i < Temperatures.Length; i++)
-            {
-                switch (Chip)
+                for (int i = 0; i < Temperatures.Length; i++)
                 {
-                    case Chip.F71858:
-                        {
-                            int tableMode = 0x3 & ReadByte(TEMPERATURE_CONFIG_REG);
-                            int high = ReadByte((byte)(TEMPERATURE_BASE_REG + (2 * i)));
-                            int low = ReadByte((byte)(TEMPERATURE_BASE_REG + (2 * i) + 1));
-                            if (high != 0xbb && high != 0xcc)
+                    switch (Chip)
+                    {
+                        case Chip.F71858:
                             {
-                                int bits = 0;
-                                switch (tableMode)
+                                int tableMode = 0x3 & ReadByte(TEMPERATURE_CONFIG_REG);
+                                int high = ReadByte((byte)(TEMPERATURE_BASE_REG + (2 * i)));
+                                int low = ReadByte((byte)(TEMPERATURE_BASE_REG + (2 * i) + 1));
+                                if (high != 0xbb && high != 0xcc)
                                 {
-                                    case 0:
-                                        break;
-                                    case 1:
-                                        bits = 0;
-                                        break;
-                                    case 2:
-                                        bits = (high & 0x80) << 8;
-                                        break;
-                                    case 3:
-                                        bits = (low & 0x01) << 15;
-                                        break;
+                                    int bits = 0;
+                                    switch (tableMode)
+                                    {
+                                        case 0:
+                                            break;
+                                        case 1:
+                                            bits = 0;
+                                            break;
+                                        case 2:
+                                            bits = (high & 0x80) << 8;
+                                            break;
+                                        case 3:
+                                            bits = (low & 0x01) << 15;
+                                            break;
+                                    }
+
+                                    bits |= high << 7;
+                                    bits |= (low & 0xe0) >> 1;
+                                    short value = (short)(bits & 0xfff0);
+                                    Temperatures[i] = value / 128.0f;
                                 }
-
-                                bits |= high << 7;
-                                bits |= (low & 0xe0) >> 1;
-                                short value = (short)(bits & 0xfff0);
-                                Temperatures[i] = value / 128.0f;
+                                else
+                                {
+                                    Temperatures[i] = null;
+                                }
                             }
-                            else
+
+                            break;
+                        default:
                             {
-                                Temperatures[i] = null;
+                                sbyte value = unchecked((sbyte)ReadByte((byte)(TEMPERATURE_BASE_REG + (2 * (i + 1)))));
+                                if (value < sbyte.MaxValue && value > 0)
+                                    Temperatures[i] = value;
+                                else
+                                    Temperatures[i] = null;
                             }
-                        }
 
-                        break;
-                    default:
-                        {
-                            sbyte value = unchecked((sbyte)ReadByte((byte)(TEMPERATURE_BASE_REG + (2 * (i + 1)))));
-                            if (value < sbyte.MaxValue && value > 0)
-                                Temperatures[i] = value;
-                            else
-                                Temperatures[i] = null;
-                        }
-
-                        break;
+                            break;
+                    }
                 }
-            }
 
-            for (int i = 0; i < Fans.Length; i++)
-            {
-                int value = ReadByte(FAN_TACHOMETER_REG[i]) << 8;
-                value |= ReadByte((byte)(FAN_TACHOMETER_REG[i] + 1));
-
-                if (value > 0)
-                    Fans[i] = value < 0x0fff ? 1.5e6f / value : 0;
-                else
-                    Fans[i] = null;
-            }
-
-            for (int i = 0; i < Controls.Length; i++)
-            {
-                if (Chip == Chip.F71882 || Chip == Chip.F71889AD)
+                for (int i = 0; i < Fans.Length; i++)
                 {
-                    Controls[i] = ReadByte((byte)(FAN_PWM_REG[i])) * 100.0f / 0xFF;
-                }
-                else
-                {
-                    Controls[i] = ReadByte((byte)(PWM_VALUES_OFFSET + i)) * 100.0f / 0xFF;
-                }
-            }
+                    int value = ReadByte(FAN_TACHOMETER_REG[i]) << 8;
+                    value |= ReadByte((byte)(FAN_TACHOMETER_REG[i] + 1));
 
-            Mutexes.ReleaseIsaBus();
+                    if (value > 0)
+                        Fans[i] = value < 0x0fff ? 1.5e6f / value : 0;
+                    else
+                        Fans[i] = null;
+                }
+
+                for (int i = 0; i < Controls.Length; i++)
+                {
+                    if (Chip == Chip.F71882 || Chip == Chip.F71889AD)
+                    {
+                        Controls[i] = ReadByte((byte)(FAN_PWM_REG[i])) * 100.0f / 0xFF;
+                    }
+                    else
+                    {
+                        Controls[i] = ReadByte((byte)(PWM_VALUES_OFFSET + i)) * 100.0f / 0xFF;
+                    }
+                }
+
+            }
+            finally
+            {
+                Mutexes.ReleaseIsaBus();
+            }
         }
 
         /// <inheritdoc />

@@ -57,7 +57,24 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public List<MemoryModule> Modules { get; protected set; }
 
-        public Dictionary<byte, Ddr5SpdInfo> SpdInfo { get; protected set; }
+        // SpdInfo is replaced as a whole (copy-on-write) and never mutated after it has been
+        // published, so readers such as RefreshTelemetry can iterate a snapshot safely while
+        // RefreshSpdInfo runs on another thread.
+        private volatile Dictionary<byte, Ddr5SpdInfo> spdInfo;
+
+        // Serializes writers of spdInfo (RefreshSpdInfo) so concurrent merges don't lose updates.
+        private readonly object spdInfoLock = new object();
+
+        public Dictionary<byte, Ddr5SpdInfo> SpdInfo
+        {
+            get { return spdInfo; }
+            protected set { spdInfo = value; }
+        }
+
+        private bool IsSpdSupported
+        {
+            get { return Type == MemType.DDR5 || Type == MemType.LPDDR5; }
+        }
 
         private long LastTelemetryRefreshTick;
 
@@ -109,6 +126,9 @@ namespace ZenStates.Core.Hardware.DRAM
                 int moduleIndex = 0;
                 foreach (var spdEntry in SpdInfo.Values)
                 {
+                    if (spdEntry == null)
+                        continue;
+
                     if (moduleIndex < Modules.Count)
                     {
                         if (string.IsNullOrEmpty(Modules[moduleIndex].Manufacturer) ||
@@ -161,7 +181,7 @@ namespace ZenStates.Core.Hardware.DRAM
             }
         }
 
-        public void ReadTimings(uint offset = 0)
+        public BaseDramTimings ReadTimings(uint offset = 0)
         {
             if (!Mutexes.WaitPciBus(5000))
             {
@@ -171,6 +191,7 @@ namespace ZenStates.Core.Hardware.DRAM
             try
             {
                 ReadTimingsInternal(offset);
+                return Timings.Find(x => x.Key == offset).Value;
             }
             finally
             {
@@ -180,24 +201,39 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public Dictionary<byte, Ddr5SpdInfo> ReadAndDecodeAll()
         {
+            if (!IsSpdSupported)
+                return null;
+
             return Ddr5SpdDecoder.ReadAndDecodeAll(smbusDriver);
         }
 
         public bool RefreshSpdInfo()
         {
+            if (!IsSpdSupported)
+                return false;
+
             try
             {
                 Dictionary<byte, Ddr5SpdInfo> info = ReadAndDecodeAll();
-                foreach (var entry in info)
+                if (info == null)
+                    return false;
+
+                lock (spdInfoLock)
                 {
-                    if (SpdInfo.ContainsKey(entry.Key))
+                    // Build a new dictionary and publish it with a single reference swap, so
+                    // readers iterating the previous snapshot never see it mutated.
+                    Dictionary<byte, Ddr5SpdInfo> current = SpdInfo;
+                    Dictionary<byte, Ddr5SpdInfo> merged = current != null
+                        ? new Dictionary<byte, Ddr5SpdInfo>(current)
+                        : new Dictionary<byte, Ddr5SpdInfo>();
+
+                    foreach (var entry in info)
                     {
-                        SpdInfo[entry.Key] = entry.Value;
+                        if (entry.Value != null)
+                            merged[entry.Key] = entry.Value;
                     }
-                    else
-                    {
-                        SpdInfo.Add(entry.Key, entry.Value);
-                    }
+
+                    SpdInfo = merged;
                 }
                 return true;
             }
@@ -210,6 +246,14 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public bool RefreshTelemetry(int uiRefreshIntervalMs = 2000)
         {
+            if (!IsSpdSupported)
+                return false;
+
+            // Work on a snapshot; RefreshSpdInfo may swap SpdInfo concurrently.
+            Dictionary<byte, Ddr5SpdInfo> snapshot = SpdInfo;
+            if (snapshot == null || snapshot.Count == 0)
+                return false;
+
             // Mask off the sign bit to handle TickCount wrap-around safely.
             long now = Environment.TickCount & int.MaxValue;
             long elapsed = now - LastTelemetryRefreshTick;
@@ -227,26 +271,38 @@ namespace ZenStates.Core.Hardware.DRAM
 
             try
             {
+                smbusDriver.ChangePortNoLock(-1, out int savedPort);
 
-                foreach (var info in SpdInfo)
+                try
                 {
-                    Ddr5PmicData pd = info.Value?.PmicData;
-                    if (pd == null || !pd.IsValid)
-                        continue;
-
-                    Ddr5PmicReader.ReadAllAdcVoltagesNoLock(smbusDriver, pd.I2cAddress, pd);
-                    Ddr5PmicReader.ReadPmicTemperatureNoLock(smbusDriver, pd.I2cAddress, pd);
-                    Ddr5PmicReader.ReadPmicTelemetryNoLock(smbusDriver, pd.I2cAddress, pd);
-
-                    Ddr5ThermalData td = info.Value?.ThermalData;
-                    if (td != null && td.IsValid && td.TempSensorEnabled)
+                    if (Ddr5SpdReader.SelectHubPortNoLock(false))
                     {
-                        // Merge updated temperature and status into the existing thermal data
-                        // instead of replacing the whole object, preserving other cached fields.
-                        Ddr5ThermalSensor.RefreshTemperatureAndStatusNoLock(smbusDriver, pd.SpdHubAddress, td);
-                    }
+                        foreach (var info in snapshot)
+                        {
+                            Ddr5PmicData pd = info.Value?.PmicData;
+                            if (pd == null || !pd.IsValid)
+                                continue;
 
-                    updated = true;
+                            Ddr5PmicReader.ReadAllAdcVoltagesNoLock(smbusDriver, pd.I2cAddress, pd);
+                            Ddr5PmicReader.ReadPmicTemperatureNoLock(smbusDriver, pd.I2cAddress, pd);
+                            Ddr5PmicReader.ReadPmicTelemetryNoLock(smbusDriver, pd.I2cAddress, pd);
+
+                            Ddr5ThermalData td = info.Value?.ThermalData;
+                            if (td != null && td.IsValid && td.TempSensorEnabled)
+                            {
+                                // Merge updated temperature and status into the existing thermal data
+                                // instead of replacing the whole object, preserving other cached fields.
+                                Ddr5ThermalSensor.RefreshTemperatureAndStatusNoLock(smbusDriver, pd.SpdHubAddress, td);
+                            }
+
+                            updated = true;
+                        }
+                    }
+                }
+                finally
+                {
+                    if (savedPort >= 0)
+                        smbusDriver.ChangePortNoLock(savedPort);
                 }
 
                 if (updated)

@@ -134,7 +134,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                             return false;
 
                         pd.I2cAddress = address;
-                        pd.SpdHubAddress = (byte)(address + 0x08);
+                        pd.SpdHubAddress = unchecked((byte)(address + 0x08));
                         return true;
                     }
                 case "VR Enabled":

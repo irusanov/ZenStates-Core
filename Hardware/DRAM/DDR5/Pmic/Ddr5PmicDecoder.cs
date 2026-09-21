@@ -200,13 +200,13 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 
         public static Ddr5PmicData Decode(byte pmicAddr, byte[] rawRegisters)
         {
-            if (rawRegisters == null || rawRegisters.Length == 0)
+            if (rawRegisters == null || rawRegisters.Length <= REG_NVM_LDO_SETTINGS)
                 return new Ddr5PmicData { IsValid = false };
 
             Ddr5PmicData pd = new Ddr5PmicData();
             pd.IsValid = true;
             pd.I2cAddress = pmicAddr;
-            pd.SpdHubAddress = (byte)(pmicAddr + SPD_PMIC_OFFSET);
+            pd.SpdHubAddress = unchecked((byte)(pmicAddr + SPD_PMIC_OFFSET));
             pd.RawRegisters = rawRegisters;
 
             // Vendor ID (R0x3C:R0x3D — JEP106 with parity)

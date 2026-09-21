@@ -11,8 +11,9 @@ namespace ZenStates.Core.Drivers
 {
     public sealed class IODriver : IDisposable
     {
-        [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Ansi)]
-        private static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPStr)] string lpFileName);
+        // Unicode (LoadLibraryW): the full application path may contain non-ANSI characters.
+        [DllImport("kernel32", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPWStr)] string lpFileName);
 
         [DllImport("kernel32", SetLastError = true)]
         private static extern bool FreeLibrary(IntPtr hModule);
@@ -37,10 +38,10 @@ namespace ZenStates.Core.Drivers
         {
             try
             {
-                string fileName = Utils.Is64Bit ? "inpoutx64.dll" : "WinIo32.dll";
+                string fileName = Utils.Is64BitProcess ? "inpoutx64.dll" : "WinIo32.dll";
                 ioModule = LoadDll(fileName);
 
-                if (!Utils.Is64Bit)
+                if (!Utils.Is64BitProcess)
                 {
                     if (NativeMethodsX86.InitializeWinIo())
                     {
@@ -71,7 +72,18 @@ namespace ZenStates.Core.Drivers
 
         public static IntPtr LoadDll(string filename)
         {
-            IntPtr dll = LoadLibrary(filename);
+            // Load from the application directory by full path. A bare name goes through the
+            // default DLL search order (including the current directory), and this library runs
+            // elevated. The later [DllImport]s by bare name bind to this already-loaded module.
+            string fullPath = filename;
+            if (!Path.IsPathRooted(filename))
+            {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                if (!string.IsNullOrEmpty(baseDir))
+                    fullPath = Path.Combine(baseDir, filename);
+            }
+
+            IntPtr dll = LoadLibrary(fullPath);
             if (dll == IntPtr.Zero)
             {
                 int lasterror = Marshal.GetLastWin32Error();
@@ -84,7 +96,7 @@ namespace ZenStates.Core.Drivers
 
         public bool IsInpOutDriverOpen()
         {
-            if (Utils.Is64Bit)
+            if (Utils.Is64BitProcess)
                 return NativeMethodsX64.IsInpOutDriverOpen() != 0;
             else
                 return WinIoStatus == LibStatus.OK;
@@ -97,7 +109,7 @@ namespace ZenStates.Core.Drivers
 
             try
             {
-                pdwLinAddr = Utils.Is64Bit
+                pdwLinAddr = Utils.Is64BitProcess
                     ? NativeMethodsX64.MapPhysToLin(baseAddress, (uint)size, out memHandle)
                     : NativeMethodsX86.MapPhysToLin(baseAddress, (uint)size, out memHandle);
 
@@ -116,7 +128,7 @@ namespace ZenStates.Core.Drivers
             {
                 if (pdwLinAddr != IntPtr.Zero)
                 {
-                    if (Utils.Is64Bit)
+                    if (Utils.Is64BitProcess)
                         NativeMethodsX64.UnmapPhysicalMemory(memHandle, pdwLinAddr);
                     else
                         NativeMethodsX86.UnmapPhysicalMemory(memHandle, pdwLinAddr);
@@ -126,36 +138,36 @@ namespace ZenStates.Core.Drivers
             return null;
         }
 
-        public byte Inp32(short port) => Utils.Is64Bit ? NativeMethodsX64.Inp32(port) : NativeMethodsX86.Inp32(port);
+        public byte Inp32(short port) => Utils.Is64BitProcess ? NativeMethodsX64.Inp32(port) : NativeMethodsX86.Inp32(port);
         public void Out32(short port, short value)
         {
-            if (Utils.Is64Bit) NativeMethodsX64.Out32(port, value);
+            if (Utils.Is64BitProcess) NativeMethodsX64.Out32(port, value);
             else NativeMethodsX86.Out32(port, value);
         }
 
-        public byte DlPortReadPortUchar(ushort port) => Utils.Is64Bit ? NativeMethodsX64.DlPortReadPortUchar(port) : NativeMethodsX86.DlPortReadPortUchar(port);
+        public byte DlPortReadPortUchar(ushort port) => Utils.Is64BitProcess ? NativeMethodsX64.DlPortReadPortUchar(port) : NativeMethodsX86.DlPortReadPortUchar(port);
         public void DlPortWritePortUchar(ushort port, byte value)
         {
-            if (Utils.Is64Bit) NativeMethodsX64.DlPortWritePortUchar(port, value);
+            if (Utils.Is64BitProcess) NativeMethodsX64.DlPortWritePortUchar(port, value);
             else NativeMethodsX86.DlPortWritePortUchar(port, value);
         }
 
-        public ushort DlPortReadPortUshort(ushort port) => Utils.Is64Bit ? NativeMethodsX64.DlPortReadPortUshort(port) : NativeMethodsX86.DlPortReadPortUshort(port);
+        public ushort DlPortReadPortUshort(ushort port) => Utils.Is64BitProcess ? NativeMethodsX64.DlPortReadPortUshort(port) : NativeMethodsX86.DlPortReadPortUshort(port);
         public void DlPortWritePortUshort(ushort port, ushort value)
         {
-            if (Utils.Is64Bit) NativeMethodsX64.DlPortWritePortUshort(port, value);
+            if (Utils.Is64BitProcess) NativeMethodsX64.DlPortWritePortUshort(port, value);
             else NativeMethodsX86.DlPortWritePortUshort(port, value);
         }
 
-        public uint DlPortReadPortUlong(uint port) => Utils.Is64Bit ? NativeMethodsX64.DlPortReadPortUlong(port) : NativeMethodsX86.DlPortReadPortUlong(port);
+        public uint DlPortReadPortUlong(uint port) => Utils.Is64BitProcess ? NativeMethodsX64.DlPortReadPortUlong(port) : NativeMethodsX86.DlPortReadPortUlong(port);
         public void DlPortWritePortUlong(uint port, uint value)
         {
-            if (Utils.Is64Bit) NativeMethodsX64.DlPortWritePortUlong(port, value);
+            if (Utils.Is64BitProcess) NativeMethodsX64.DlPortWritePortUlong(port, value);
             else NativeMethodsX86.DlPortWritePortUlong(port, value);
         }
 
-        public bool GetPhysLong(UIntPtr memAddress, out uint data) => Utils.Is64Bit ? NativeMethodsX64.GetPhysLong(memAddress, out data) : NativeMethodsX86.GetPhysLong(memAddress, out data);
-        public bool SetPhysLong(UIntPtr memAddress, uint data) => Utils.Is64Bit ? NativeMethodsX64.SetPhysLong(memAddress, data) : NativeMethodsX86.SetPhysLong(memAddress, data);
+        public bool GetPhysLong(UIntPtr memAddress, out uint data) => Utils.Is64BitProcess ? NativeMethodsX64.GetPhysLong(memAddress, out data) : NativeMethodsX86.GetPhysLong(memAddress, out data);
+        public bool SetPhysLong(UIntPtr memAddress, uint data) => Utils.Is64BitProcess ? NativeMethodsX64.SetPhysLong(memAddress, data) : NativeMethodsX86.SetPhysLong(memAddress, data);
 
         private void CleanupDriver()
         {
@@ -292,7 +304,7 @@ namespace ZenStates.Core.Drivers
 
             if (ioModule == IntPtr.Zero) return;
 
-            if (!Utils.Is64Bit)
+            if (!Utils.Is64BitProcess)
             {
                 try { NativeMethodsX86.ShutdownWinIo(); }
                 catch

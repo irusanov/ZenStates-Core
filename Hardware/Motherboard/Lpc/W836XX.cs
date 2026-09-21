@@ -198,35 +198,41 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             if (!Mutexes.WaitIsaBus(10))
                 return;
 
-            if (value.HasValue)
+            try
             {
-                SaveDefaultFanPwmControl(index);
-                if (_fanPrimaryControlModeRegister.Length > 0)
+                if (value.HasValue)
                 {
-                    WriteByte(0, _fanPrimaryControlModeRegister[index], (byte)(_fanPrimaryControlValue[index] & ReadByte(0, _fanPrimaryControlModeRegister[index])));
-                    if (_fanSecondaryControlModeRegister.Length > 0)
+                    SaveDefaultFanPwmControl(index);
+                    if (_fanPrimaryControlModeRegister.Length > 0)
                     {
-                        if (_fanSecondaryControlModeRegister[index] != _fanPrimaryControlModeRegister[index])
+                        WriteByte(0, _fanPrimaryControlModeRegister[index], (byte)(_fanPrimaryControlValue[index] & ReadByte(0, _fanPrimaryControlModeRegister[index])));
+                        if (_fanSecondaryControlModeRegister.Length > 0)
                         {
-                            WriteByte(0, _fanSecondaryControlModeRegister[index], (byte)(_fanSecondaryControlValue[index] & ReadByte(0, _fanSecondaryControlModeRegister[index])));
-                        }
+                            if (_fanSecondaryControlModeRegister[index] != _fanPrimaryControlModeRegister[index])
+                            {
+                                WriteByte(0, _fanSecondaryControlModeRegister[index], (byte)(_fanSecondaryControlValue[index] & ReadByte(0, _fanSecondaryControlModeRegister[index])));
+                            }
 
-                        if (_fanTertiaryControlModeRegister.Length > 0 && _fanTertiaryControlModeRegister[index] != _fanSecondaryControlModeRegister[index])
-                        {
-                            WriteByte(0, _fanTertiaryControlModeRegister[index], (byte)(_fanTertiaryControlValue[index] & ReadByte(0, _fanTertiaryControlModeRegister[index])));
+                            if (_fanTertiaryControlModeRegister.Length > 0 && _fanTertiaryControlModeRegister[index] != _fanSecondaryControlModeRegister[index])
+                            {
+                                WriteByte(0, _fanTertiaryControlModeRegister[index], (byte)(_fanTertiaryControlValue[index] & ReadByte(0, _fanTertiaryControlModeRegister[index])));
+                            }
                         }
                     }
+
+                    // set output value
+                    WriteByte(0, _fanPwmRegister[index], value.Value);
+                }
+                else
+                {
+                    RestoreDefaultFanPwmControl(index);
                 }
 
-                // set output value
-                WriteByte(0, _fanPwmRegister[index], value.Value);
             }
-            else
+            finally
             {
-                RestoreDefaultFanPwmControl(index);
+                Mutexes.ReleaseIsaBus();
             }
-
-            Mutexes.ReleaseIsaBus();
         }
 
         private void SaveDefaultFanPwmControl(int index) //added to save initial control values
@@ -301,106 +307,112 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             if (!Mutexes.WaitIsaBus(10))
                 return;
 
-            for (int i = 0; i < Voltages.Length; i++)
+            try
             {
-                if (_voltageRegister[i] != VOLTAGE_VBAT_REG)
+                for (int i = 0; i < Voltages.Length; i++)
                 {
-                    // two special VCore measurement modes for W83627THF
-                    float fValue;
-                    if ((Chip == Chip.W83627HF || Chip == Chip.W83627THF || Chip == Chip.W83687THF) && i == 0)
+                    if (_voltageRegister[i] != VOLTAGE_VBAT_REG)
                     {
-                        byte vrmConfiguration = ReadByte(0, 0x18);
-                        int value = ReadByte(_voltageBank[i], _voltageRegister[i]);
-                        if ((vrmConfiguration & 0x01) == 0)
-                            fValue = 0.016f * value; // VRM8 formula
+                        // two special VCore measurement modes for W83627THF
+                        float fValue;
+                        if ((Chip == Chip.W83627HF || Chip == Chip.W83627THF || Chip == Chip.W83687THF) && i == 0)
+                        {
+                            byte vrmConfiguration = ReadByte(0, 0x18);
+                            int value = ReadByte(_voltageBank[i], _voltageRegister[i]);
+                            if ((vrmConfiguration & 0x01) == 0)
+                                fValue = 0.016f * value; // VRM8 formula
+                            else
+                                fValue = (0.00488f * value) + 0.69f; // VRM9 formula
+                        }
                         else
-                            fValue = (0.00488f * value) + 0.69f; // VRM9 formula
+                        {
+                            int value = ReadByte(_voltageBank[i], _voltageRegister[i]);
+                            fValue = _voltageGain * value;
+                        }
+
+                        if (fValue > 0)
+                            Voltages[i] = fValue;
+                        else
+                            Voltages[i] = null;
                     }
                     else
                     {
-                        int value = ReadByte(_voltageBank[i], _voltageRegister[i]);
-                        fValue = _voltageGain * value;
+                        // Battery voltage
+                        bool valid = (ReadByte(0, 0x5D) & 0x01) > 0;
+                        if (valid)
+                        {
+                            Voltages[i] = _voltageGain * ReadByte(5, VOLTAGE_VBAT_REG);
+                        }
+                        else
+                        {
+                            Voltages[i] = null;
+                        }
                     }
-
-                    if (fValue > 0)
-                        Voltages[i] = fValue;
-                    else
-                        Voltages[i] = null;
                 }
-                else
+
+                for (int i = 0; i < Temperatures.Length; i++)
                 {
-                    // Battery voltage
-                    bool valid = (ReadByte(0, 0x5D) & 0x01) > 0;
-                    if (valid)
+                    int value = unchecked((sbyte)ReadByte(TEMPERATURE_BANK[i], TEMPERATURE_REG[i]) << 1);
+                    if (TEMPERATURE_BANK[i] > 0)
+                        value |= ReadByte(TEMPERATURE_BANK[i], (byte)(TEMPERATURE_REG[i] + 1)) >> 7;
+
+                    float temperature = value / 2.0f;
+                    if (temperature <= 125 && temperature >= -55 && !_peciTemperature[i])
                     {
-                        Voltages[i] = _voltageGain * ReadByte(5, VOLTAGE_VBAT_REG);
+                        Temperatures[i] = temperature;
                     }
                     else
                     {
-                        Voltages[i] = null;
+                        Temperatures[i] = null;
                     }
                 }
-            }
 
-            for (int i = 0; i < Temperatures.Length; i++)
-            {
-                int value = unchecked((sbyte)ReadByte(TEMPERATURE_BANK[i], TEMPERATURE_REG[i]) << 1);
-                if (TEMPERATURE_BANK[i] > 0)
-                    value |= ReadByte(TEMPERATURE_BANK[i], (byte)(TEMPERATURE_REG[i] + 1)) >> 7;
+                ulong bits = 0;
+                foreach (byte t in FAN_BIT_REG)
+                    bits = (bits << 8) | ReadByte(0, t);
 
-                float temperature = value / 2.0f;
-                if (temperature <= 125 && temperature >= -55 && !_peciTemperature[i])
+                ulong newBits = bits;
+                for (int i = 0; i < Fans.Length; i++)
                 {
-                    Temperatures[i] = temperature;
-                }
-                else
-                {
-                    Temperatures[i] = null;
-                }
-            }
+                    int count = ReadByte(FAN_TACHO_BANK[i], FAN_TACHO_REG[i]);
 
-            ulong bits = 0;
-            foreach (byte t in FAN_BIT_REG)
-                bits = (bits << 8) | ReadByte(0, t);
+                    // assemble fan divisor
+                    int divisorBits = (int)(
+                        (((bits >> FAN_DIV_BIT2[i]) & 1) << 2) |
+                        (((bits >> FAN_DIV_BIT1[i]) & 1) << 1) |
+                        ((bits >> FAN_DIV_BIT0[i]) & 1));
 
-            ulong newBits = bits;
-            for (int i = 0; i < Fans.Length; i++)
-            {
-                int count = ReadByte(FAN_TACHO_BANK[i], FAN_TACHO_REG[i]);
+                    int divisor = 1 << divisorBits;
 
-                // assemble fan divisor
-                int divisorBits = (int)(
-                    (((bits >> FAN_DIV_BIT2[i]) & 1) << 2) |
-                    (((bits >> FAN_DIV_BIT1[i]) & 1) << 1) |
-                    ((bits >> FAN_DIV_BIT0[i]) & 1));
+                    Fans[i] = count < 0xff ? 1.35e6f / (count * divisor) : 0;
 
-                int divisor = 1 << divisorBits;
+                    switch (count)
+                    {
+                        // update fan divisor
+                        default:
+                            if (count > 192 && divisorBits < 7)
+                                divisorBits++;
+                            else if (count < 96 && divisorBits > 0)
+                                divisorBits--;
+                            break;
+                    }
 
-                Fans[i] = count < 0xff ? 1.35e6f / (count * divisor) : 0;
-
-                switch (count)
-                {
-                    // update fan divisor
-                    default:
-                        if (count > 192 && divisorBits < 7)
-                            divisorBits++;
-                        else if (count < 96 && divisorBits > 0)
-                            divisorBits--;
-                        break;
+                    newBits = SetBit(newBits, FAN_DIV_BIT2[i], (divisorBits >> 2) & 1);
+                    newBits = SetBit(newBits, FAN_DIV_BIT1[i], (divisorBits >> 1) & 1);
+                    newBits = SetBit(newBits, FAN_DIV_BIT0[i], divisorBits & 1);
                 }
 
-                newBits = SetBit(newBits, FAN_DIV_BIT2[i], (divisorBits >> 2) & 1);
-                newBits = SetBit(newBits, FAN_DIV_BIT1[i], (divisorBits >> 1) & 1);
-                newBits = SetBit(newBits, FAN_DIV_BIT0[i], divisorBits & 1);
-            }
+                for (int i = 0; i < Controls.Length; i++)
+                {
+                    byte value = ReadByte(0, _fanPwmRegister[i]);
+                    Controls[i] = (float)Math.Round(value * 100.0f / 0xFF);
+                }
 
-            for (int i = 0; i < Controls.Length; i++)
+            }
+            finally
             {
-                byte value = ReadByte(0, _fanPwmRegister[i]);
-                Controls[i] = (float)Math.Round(value * 100.0f / 0xFF);
+                Mutexes.ReleaseIsaBus();
             }
-
-            Mutexes.ReleaseIsaBus();
         }
 
         /// <inheritdoc />
@@ -426,28 +438,13 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             if (!Mutexes.WaitIsaBus(5000))
                 return r.ToString();
 
-            r.AppendLine("Hardware Monitor Registers");
-            r.AppendLine();
-            r.AppendLine("      00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F");
-            r.AppendLine();
-            for (int i = 0; i <= 0x7; i++)
+            try
             {
-                r.Append(" ");
-                r.Append((i << 4).ToString("X2", CultureInfo.InvariantCulture));
-                r.Append("  ");
-                for (int j = 0; j <= 0xF; j++)
-                {
-                    r.Append(" ");
-                    r.Append(ReadByte(0, (byte)((i << 4) | j)).ToString("X2", CultureInfo.InvariantCulture));
-                }
-
+                r.AppendLine("Hardware Monitor Registers");
                 r.AppendLine();
-            }
-
-            for (int k = 1; k <= 15; k++)
-            {
-                r.AppendLine("Bank " + k);
-                for (int i = 0x5; i < 0x6; i++)
+                r.AppendLine("      00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F");
+                r.AppendLine();
+                for (int i = 0; i <= 0x7; i++)
                 {
                     r.Append(" ");
                     r.Append((i << 4).ToString("X2", CultureInfo.InvariantCulture));
@@ -455,15 +452,36 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                     for (int j = 0; j <= 0xF; j++)
                     {
                         r.Append(" ");
-                        r.Append(ReadByte((byte)k, (byte)((i << 4) | j)).ToString("X2", CultureInfo.InvariantCulture));
+                        r.Append(ReadByte(0, (byte)((i << 4) | j)).ToString("X2", CultureInfo.InvariantCulture));
                     }
 
                     r.AppendLine();
                 }
-            }
 
-            r.AppendLine();
-            Mutexes.ReleaseIsaBus();
+                for (int k = 1; k <= 15; k++)
+                {
+                    r.AppendLine("Bank " + k);
+                    for (int i = 0x5; i < 0x6; i++)
+                    {
+                        r.Append(" ");
+                        r.Append((i << 4).ToString("X2", CultureInfo.InvariantCulture));
+                        r.Append("  ");
+                        for (int j = 0; j <= 0xF; j++)
+                        {
+                            r.Append(" ");
+                            r.Append(ReadByte((byte)k, (byte)((i << 4) | j)).ToString("X2", CultureInfo.InvariantCulture));
+                        }
+
+                        r.AppendLine();
+                    }
+                }
+
+                r.AppendLine();
+            }
+            finally
+            {
+                Mutexes.ReleaseIsaBus();
+            }
             return r.ToString();
         }
 

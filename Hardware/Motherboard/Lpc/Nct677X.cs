@@ -720,9 +720,26 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             if (Chip == Chip.NCT6687DR && !IsNct6687DrFanControlValid(index))
                 return;
 
+            // A replayed snapshot has no hardware behind it: nothing to control, and the NCT6687DR
+            // fan-config handshake would only spin on status registers that never change.
+            if (_snapshot != null)
+                return;
+
             if (!Mutexes.WaitIsaBus(10))
                 return;
 
+            try
+            {
+                SetControlCore(index, value);
+            }
+            finally
+            {
+                Mutexes.ReleaseIsaBus();
+            }
+        }
+
+        private void SetControlCore(int index, byte? value)
+        {
             if (value.HasValue)
             {
                 SaveDefaultFanControl(index);
@@ -790,8 +807,6 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             {
                 RestoreDefaultFanControl(index);
             }
-
-            Mutexes.ReleaseIsaBus();
         }
 
         public void Update()
@@ -799,13 +814,42 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             if (!_isNuvotonVendor)
                 return;
 
+            // The constructor sets up no sources for a chip it doesn't know (e.g. a snapshot whose
+            // "Chip Id" was missing): nothing to decode.
+            if (_temperaturesSource == null)
+                return;
+
+            if (_snapshot != null)
+            {
+                UpdateCore();
+                return;
+            }
+
             if (!Mutexes.WaitIsaBus(10))
                 return;
 
+            try
+            {
+                UpdateCore();
+            }
+            finally
+            {
+                Mutexes.ReleaseIsaBus();
+            }
+        }
+
+        private void UpdateCore()
+        {
             DisableIOSpaceLock();
 
             for (int i = 0; i < Voltages.Length; i++)
             {
+                if (!IsCaptured(_voltageRegisters[i]))
+                {
+                    Voltages[i] = null;
+                    continue;
+                }
+
                 if (Chip != Chip.NCT6683D &&
                     Chip != Chip.NCT6686D &&
                     Chip != Chip.NCT6687D &&
@@ -859,6 +903,12 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                 int value;
                 SourceNct67Xxd source;
                 float? temperature;
+
+                // A register the report didn't capture is "no reading", not 0 °C. Skipping it also
+                // leaves its source unclaimed, so the alternate registers below can still fill it.
+                if ((ts.Register != 0 && !IsCaptured(ts.Register)) ||
+                    (ts.SourceRegister != 0 && UsesTemperatureSourceRegister() && !IsCaptured(ts.SourceRegister)))
+                    continue;
 
                 switch (Chip)
                 {
@@ -1035,6 +1085,12 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                     continue;
                 }
 
+                if (!IsCaptured(ts.AlternateRegister.Value))
+                {
+                    Log("Alternate temperature register for temperature {0} at 0x{1:X3} skipped, because it was not captured.", i, ts.AlternateRegister.Value);
+                    continue;
+                }
+
                 float? temperature = unchecked((sbyte)ReadByte(ts.AlternateRegister.Value));
                 Log("Alternate temperature register for temperature {0}, {1:G} ({1:D}), at 0x{2:X3} final temperature: {3}.", i, ts.Source, ts.AlternateRegister.Value, temperature);
 
@@ -1081,6 +1137,23 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
 
             for (int i = 0; i < Fans.Length; i++)
             {
+                if (_snapshot != null)
+                {
+                    bool isEcSpace = Chip == Chip.NCT6683D ||
+                                     Chip == Chip.NCT6686D ||
+                                     Chip == Chip.NCT6687D ||
+                                     Chip == Chip.NCT6687DR;
+                    ushort fanRegister = !isEcSpace && _fanCountRegister != null
+                        ? _fanCountRegister[i]
+                        : _fanRpmRegister[i];
+
+                    if (!IsCaptured(fanRegister))
+                    {
+                        Fans[i] = null;
+                        continue;
+                    }
+                }
+
                 if (Chip != Chip.NCT6683D &&
                     Chip != Chip.NCT6686D &&
                     Chip != Chip.NCT6687D &&
@@ -1121,6 +1194,12 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
 
             for (int i = 0; i < Controls.Length; i++)
             {
+                if (!IsCaptured(FAN_PWM_OUT_REG[i]))
+                {
+                    Controls[i] = null;
+                    continue;
+                }
+
                 if (Chip != Chip.NCT6683D &&
                     Chip != Chip.NCT6686D &&
                     Chip != Chip.NCT6687D &&
@@ -1135,8 +1214,6 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                     Controls[i] = (float)Math.Round(value / 2.55f);
                 }
             }
-
-            Mutexes.ReleaseIsaBus();
         }
 
         /// <inheritdoc />
@@ -1159,9 +1236,29 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             r.AppendLine(_port.ToString("X4", CultureInfo.InvariantCulture));
             r.AppendLine();
 
+            if (_snapshot != null)
+            {
+                AppendRegisterDump(r);
+                return r.ToString();
+            }
+
             if (!Mutexes.WaitIsaBus(5000))
                 return r.ToString();
 
+            try
+            {
+                AppendRegisterDump(r);
+            }
+            finally
+            {
+                Mutexes.ReleaseIsaBus();
+            }
+
+            return r.ToString();
+        }
+
+        private void AppendRegisterDump(StringBuilder r)
+        {
             ushort[] addresses =
             {
                 0x000,
@@ -1311,17 +1408,33 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
             }
 
             r.AppendLine();
+        }
 
-            Mutexes.ReleaseIsaBus();
+        /// <summary>
+        /// False only for a snapshot that didn't capture <paramref name="address"/>; the live path
+        /// always reads the chip.
+        /// </summary>
+        private bool IsCaptured(ushort address)
+        {
+            return _snapshot == null || _snapshot.Contains(address);
+        }
 
-            return r.ToString();
+        /// <summary>Whether <see cref="UpdateCore"/> reads <c>SourceRegister</c> for this chip.</summary>
+        private bool UsesTemperatureSourceRegister()
+        {
+            return Chip != Chip.NCT610XD &&
+                   Chip != Chip.NCT6683D &&
+                   Chip != Chip.NCT6686D &&
+                   Chip != Chip.NCT6687D &&
+                   Chip != Chip.NCT6687DR;
         }
 
         private byte ReadByte(ushort address)
         {
-            // Registers the report didn't dump read as 0, which the decoders treat as "no reading".
+            // Registers the report didn't dump read as 0; UpdateCore checks IsCaptured first so
+            // they surface as "no reading" instead of 0 °C / 0 V.
             if (_snapshot != null)
-                return _snapshot.TryRead(address, out uint captured) ? (byte)captured : (byte)0;
+                return _snapshot.TryRead(address, out uint captured) ? unchecked((byte)captured) : (byte)0;
 
             if (Chip != Chip.NCT6683D &&
                 Chip != Chip.NCT6686D &&

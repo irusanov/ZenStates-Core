@@ -282,6 +282,15 @@ namespace ZenStates.Core.Hardware
             return sum == 0;
         }
 
+        // Upper bound for a root table. RSDT/XSDT only hold pointers, so even 1 MB is far beyond
+        // anything real firmware produces; it just stops a corrupt Length forcing a huge read.
+        private const uint MAX_SANE_TABLE_LENGTH = 1024 * 1024;
+
+        private static bool IsSaneTableLength(uint length, int headerSize)
+        {
+            return length >= (uint)headerSize && length <= MAX_SANE_TABLE_LENGTH;
+        }
+
         public RSDT GetRsdt()
         {
             RSDP rsdp = GetRsdp();
@@ -291,21 +300,27 @@ namespace ZenStates.Core.Hardware
                 return new RSDT();
 
             SDTHeader rsdtHeader = GetHeader<SDTHeader>(rsdtAddress);
-            byte[] rawTable = io.ReadMemory(new IntPtr(rsdtAddress), (int)rsdtHeader.Length);
-
-            if (rawTable == null)
-                return new RSDT();
-
 #if NET20
             int headerSize = Marshal.SizeOf(typeof(SDTHeader));
 #else
             int headerSize = Marshal.SizeOf<SDTHeader>();
 #endif
-            int dataSize = (int)rsdtHeader.Length - headerSize;
+
+            // Length comes straight from firmware memory; reject garbage before allocating.
+            if (!IsSaneTableLength(rsdtHeader.Length, headerSize))
+                return new RSDT();
+
+            byte[] rawTable = io.ReadMemory(new IntPtr(rsdtAddress), (int)rsdtHeader.Length);
+
+            if (rawTable == null || rawTable.Length < (int)rsdtHeader.Length)
+                return new RSDT();
+
+            int entryCount = ((int)rsdtHeader.Length - headerSize) / sizeof(uint);
+            int dataSize = entryCount * sizeof(uint);
             RSDT rsdtTable = new RSDT
             {
                 Header = rsdtHeader,
-                Data = new uint[dataSize / sizeof(uint)],
+                Data = new uint[entryCount],
             };
             Buffer.BlockCopy(rawTable, headerSize, rsdtTable.Data, 0, dataSize);
             return rsdtTable;
@@ -320,21 +335,27 @@ namespace ZenStates.Core.Hardware
                 return new XSDT();
 
             SDTHeader xsdtHeader = GetHeader<SDTHeader>(xsdtAddress);
-            byte[] rawTable = io.ReadMemory(new IntPtr((long)xsdtAddress), (int)xsdtHeader.Length);
-
-            if (rawTable == null)
-                return new XSDT();
-
 #if NET20
             int headerSize = Marshal.SizeOf(typeof(SDTHeader));
 #else
             int headerSize = Marshal.SizeOf<SDTHeader>();
 #endif
-            int dataSize = (int)xsdtHeader.Length - headerSize;
+
+            // Length comes straight from firmware memory; reject garbage before allocating.
+            if (!IsSaneTableLength(xsdtHeader.Length, headerSize))
+                return new XSDT();
+
+            byte[] rawTable = io.ReadMemory(new IntPtr((long)xsdtAddress), (int)xsdtHeader.Length);
+
+            if (rawTable == null || rawTable.Length < (int)xsdtHeader.Length)
+                return new XSDT();
+
+            int entryCount = ((int)xsdtHeader.Length - headerSize) / sizeof(ulong);
+            int dataSize = entryCount * sizeof(ulong);
             XSDT xsdtTable = new XSDT
             {
                 Header = xsdtHeader,
-                Data = new ulong[dataSize / sizeof(ulong)],
+                Data = new ulong[entryCount],
             };
             Buffer.BlockCopy(rawTable, headerSize, xsdtTable.Data, 0, dataSize);
             return xsdtTable;

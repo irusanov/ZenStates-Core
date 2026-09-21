@@ -602,6 +602,10 @@ namespace ZenStates.Core
                     return result;
                 }
 
+                // WaitForExit(int) can return before the async stdout/stderr readers have
+                // drained; the parameterless overload waits for them to reach EOF.
+                try { process.WaitForExit(); } catch { /* best effort */ }
+
                 result.Success = process.ExitCode == 0;
                 result.StandardOutput = standardOutput.ToString();
                 result.StandardError = standardError.ToString();

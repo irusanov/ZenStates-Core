@@ -80,7 +80,7 @@ namespace ZenStates.Core.Hardware.Smu.Mailboxes
         public uint PwrSviTelemetryAllRails { get; set; } = 0x1B;
         public uint GetSocketFreqRange { get; set; } = 0x1C;
         public uint GetCurrentIoBandwidth { get; set; } = 0x1D;
-        public uint GetCurrentXgmiBandwidth { get; set; } = 0xE;
+        public uint GetCurrentXgmiBandwidth { get; set; } = 0x1E;
         public uint SetGMI3LinkWidthRange { get; set; } = 0x1F;
         public uint ControlPcieLinkRate { get; set; } = 0x20;
         public uint PwrEfficiencyModeSelection { get; set; } = 0x21;

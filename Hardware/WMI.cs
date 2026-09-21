@@ -45,7 +45,7 @@ namespace ZenStates.Core.Hardware
             }
             catch (ManagementException ex)
             {
-                Debug.WriteLine(@"WMI: {0}", ex.Message);
+                Debug.WriteLine(string.Format("WMI: {0}", ex.Message));
                 throw;
             }
         }
