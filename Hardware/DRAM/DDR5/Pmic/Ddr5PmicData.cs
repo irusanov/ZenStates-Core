@@ -122,12 +122,6 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
         public int SwaCurrentLimitMa;
 
         /// <summary>
-        /// Number of active SWA phases (1 or 2).
-        /// Richtek RT9768 R0x29[3]: 0 = single-phase, 1 = dual-phase.
-        /// In dual-phase current mode the telemetry reports per-phase current,
-        /// so TotalW would be half the real value unless this multiplier is applied.
-        /// </summary>
-        public int SwaPhaseCount;
         /// <summary>SWB current limit in milliamps (R0x20 [3:2]).</summary>
         public int SwbCurrentLimitMa;
         /// <summary>SWC current limit in milliamps (R0x20 [1:0]).</summary>
@@ -150,6 +144,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 
         // PMIC temperature / thresholds
         public string PmicTemperature;
+        /// <summary>High-temperature warning threshold from R0x1B [2:0].</summary>
+        public string HighTemperatureWarningThreshold;
+        /// <summary>Thermal shutdown (OTP) threshold from R0x2E [2:0].</summary>
         public string ShutdownTemperatureThreshold;
 
         // Regulator mode / frequency
@@ -183,6 +180,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             sb.AppendFormat("  I2C Address        : 0x{0:X2}\n", I2cAddress);
             sb.AppendFormat("  VR Enabled         : {0}\n", VrEnabled ? "Yes" : "No");
             sb.AppendFormat("  PMIC Temperature   : {0}\n", PmicTemperature);
+            sb.AppendFormat("  High Temp Warning  : {0}\n", HighTemperatureWarningThreshold);
             sb.AppendFormat("  Shutdown Temp      : {0}\n", ShutdownTemperatureThreshold);
             sb.AppendFormat("  High Voltage Mode  : {0}\n", HighVoltageMode ? "Enabled" : "Disabled");
             sb.AppendFormat("  Write Protect      : {0}\n", WriteProtectFunctionControl);
@@ -269,7 +267,6 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             sb.AppendLine();
             sb.AppendFormat("  Current limit (raw): 0x{0:X2}\n", CurrentLimitRaw);
             sb.AppendFormat("  SWA current limit  : {0} mA\n", SwaCurrentLimitMa);
-            sb.AppendFormat("  SWA phase count    : {0}\n", SwaPhaseCount);
             sb.AppendFormat("  SWB current limit  : {0} mA\n", SwbCurrentLimitMa);
             sb.AppendFormat("  SWC current limit  : {0} mA\n", SwcCurrentLimitMa);
             sb.AppendFormat("  SWA OV / UV        : {0} / {1}\n", VddOvThreshold, VddUvThreshold);

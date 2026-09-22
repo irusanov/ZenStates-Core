@@ -189,6 +189,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                 case "PMIC Temperature":
                     pd.PmicTemperature = value;
                     return true;
+                case "High Temp Warning":
+                    pd.HighTemperatureWarningThreshold = value;
+                    return true;
                 case "Shutdown Temp":
                     pd.ShutdownTemperatureThreshold = value;
                     return true;
@@ -314,9 +317,6 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                     }
                 case "SWA current limit":
                     pd.SwaCurrentLimitMa = ParseMilliamps(value);
-                    return true;
-                case "SWA phase count":
-                    pd.SwaPhaseCount = ParseInt(value);
                     return true;
                 case "SWB current limit":
                     pd.SwbCurrentLimitMa = ParseMilliamps(value);

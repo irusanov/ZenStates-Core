@@ -106,6 +106,24 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             }
         }
 
+        /// <summary>
+        /// PMIC high-temperature warning threshold (R0x1B [2:0]).
+        /// The codes line up 1:1 with the temperature codes reported in R0x33 [7:5].
+        /// </summary>
+        public static string DecodeHighTempWarningThreshold(int code)
+        {
+            switch (code & 0x07)
+            {
+                case 1: return "> 85 C";
+                case 2: return "> 95 C";
+                case 3: return "> 105 C";
+                case 4: return "> 115 C";
+                case 5: return "> 125 C";
+                case 6: return "> 135 C";
+                default: return "Reserved";
+            }
+        }
+
         public static string DecodeShutdownThreshold(int code)
         {
             switch (code & 0x07)
@@ -247,6 +265,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             pd.AdcSelectedInput = Ddr5PmicDecoder.DecodeAdcInput((reg30 >> 3) & 0x0F);
             pd.AdcUpdateFrequency = Ddr5PmicDecoder.DecodeAdcUpdateFrequency(reg30 & 0x03);
             pd.TelemetryReportsPower = (reg1B & 0x40) != 0;
+            pd.HighTemperatureWarningThreshold = Ddr5PmicDecoder.DecodeHighTempWarningThreshold(reg1B & 0x07);
             pd.TelemetryReportsTotalPower = (reg1A & 0x02) != 0;
 
             // PMIC temperature (R0x33 [7:5]) and LDO PG
@@ -315,9 +334,6 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             byte reg2E = pd.RawRegisters[REG_SHUTDOWN_TEMP];
             pd.SwaMode = Ddr5PmicDecoder.DecodeModeSelect((reg29 >> 6) & 0x03);
             pd.SwaSwitchingFrequency = Ddr5PmicDecoder.DecodeSwitchingFrequency((reg29 >> 4) & 0x03);
-            // R0x29[3]: Richtek RT9768 dual-phase SWA enable. In current mode, telemetry
-            // reports per-phase current, so multiply by phase count to get total rail current.
-            pd.SwaPhaseCount = ((reg29 >> 3) & 0x01) != 0 ? 2 : 1;
             pd.SwbMode = Ddr5PmicDecoder.DecodeModeSelect((reg2A >> 6) & 0x03);
             pd.SwbSwitchingFrequency = Ddr5PmicDecoder.DecodeSwitchingFrequency((reg2A >> 4) & 0x03);
             pd.SwcMode = Ddr5PmicDecoder.DecodeModeSelect((reg2A >> 2) & 0x03);
@@ -553,11 +569,10 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             }
             else
             {
-                // Current mode: R0x0C / R0x0E / R0x0F report the rail current, 125 mA per LSB.
-                // In dual-phase mode (Richtek R0x29[3]), telemetry reports per-phase current;
-                // multiply by SwaPhaseCount to get the total SWA rail current.
+                // Current mode: R0x0C / R0x0E / R0x0F report the rail current, 125 mA per LSB
+                // (JESD301 / RTQ5132 Tables 28, 30, 31 - all three rails use the same step).
                 const double CURRENT_STEP_A = 0.125;
-                double swaCurrentA = pd.SwaTelemetryRaw * CURRENT_STEP_A * pd.SwaPhaseCount;
+                double swaCurrentA = pd.SwaTelemetryRaw * CURRENT_STEP_A;
                 double swbCurrentA = pd.SwbTelemetryRaw * CURRENT_STEP_A;
                 double swcCurrentA = pd.SwcTelemetryRaw * CURRENT_STEP_A;
 
@@ -568,7 +583,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 
                 pd.SwaW = Math.Round(swaCurrentA * vddV / POWER_STEP_W) * POWER_STEP_W;
                 pd.SwbW = Math.Round(swbCurrentA * vddqV / POWER_STEP_W) * POWER_STEP_W;
-                pd.SwcW = Math.Round(swcCurrentA * vppV / POWER_STEP_W) * POWER_STEP_W;
+                pd.SwaW = swaCurrentA * vddV;
+                pd.SwbW = swbCurrentA * vddqV;
+                pd.SwcW = swcCurrentA * vppV;
                 pd.TotalW = pd.SwaW + pd.SwbW + pd.SwcW;
             }
         }
