@@ -170,7 +170,7 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
 
                                     bits |= high << 7;
                                     bits |= (low & 0xe0) >> 1;
-                                    short value = (short)(bits & 0xfff0);
+                                    short value = unchecked((short)(bits & 0xfff0));
                                     Temperatures[i] = value / 128.0f;
                                 }
                                 else

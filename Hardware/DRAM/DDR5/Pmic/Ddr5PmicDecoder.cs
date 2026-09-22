@@ -357,7 +357,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
         /// </para>
         /// <para>
         /// Current mode (<see cref="Ddr5PmicData.TelemetryReportsPower"/> = false):
-        /// the raw code is scaled by the programmed current limit (SWA 8-bit / 256, SWB+SWC 6-bit / 64)
+        /// the raw code is the rail current in 125 mA steps (JESD301),
         /// and multiplied by the ADC-measured voltage, falling back to the programmed VID if ADC is unavailable.
         /// </para>
         /// </summary>
@@ -385,13 +385,13 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             }
             else
             {
-                // Current mode: raw code is proportional to the programmed current limit
-                // SWA register is 8-bit (256 full-scale steps); SWB/SWC are 6-bit (64 steps)
+                // Current mode: R0x0C / R0x0E / R0x0F report the rail current, 125 mA per LSB.
                 // In dual-phase mode (Richtek R0x29[3]), telemetry reports per-phase current;
                 // multiply by SwaPhaseCount to get the total SWA rail current.
-                double swaCurrentA = pd.SwaTelemetryRaw * (pd.SwaCurrentLimitMa / 1000.0) / 256.0 * pd.SwaPhaseCount;
-                double swbCurrentA = pd.SwbTelemetryRaw * (pd.SwbCurrentLimitMa / 1000.0) / 64.0;
-                double swcCurrentA = pd.SwcTelemetryRaw * (pd.SwcCurrentLimitMa / 1000.0) / 64.0;
+                const double CURRENT_STEP_A = 0.125;
+                double swaCurrentA = pd.SwaTelemetryRaw * CURRENT_STEP_A * pd.SwaPhaseCount;
+                double swbCurrentA = pd.SwbTelemetryRaw * CURRENT_STEP_A;
+                double swcCurrentA = pd.SwcTelemetryRaw * CURRENT_STEP_A;
 
                 // Prefer ADC-measured voltage; fall back to programmed VID
                 double vddV = (pd.SwaAdcMv > 0 ? pd.SwaAdcMv : pd.VddMv) / 1000.0;

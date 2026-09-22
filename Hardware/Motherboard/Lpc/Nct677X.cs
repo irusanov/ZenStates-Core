@@ -1040,6 +1040,11 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                         break;
 
                     default:
+                        // Entries without a temperature register (virtual/spare) have nothing to read;
+                        // reading address 0 would put bank 0 register 0 into a real sensor's slot.
+                        if (ts.Register == 0)
+                            continue;
+
                         value = unchecked((sbyte)ReadByte(ts.Register)) << 1;
 
                         if (ts.HalfBit > 0)
@@ -1047,7 +1052,11 @@ namespace ZenStates.Core.Hardware.Motherboard.Lpc
                             value |= (ReadByte(ts.HalfRegister) >> ts.HalfBit) & 0x1;
                         }
 
-                        source = (SourceNct67Xxd)ReadByte(ts.SourceRegister);
+                        // Entries without a source register (DIMM, byte and calibration temperatures)
+                        // have a fixed source.
+                        source = ts.SourceRegister > 0
+                            ? (SourceNct67Xxd)ReadByte(ts.SourceRegister)
+                            : (SourceNct67Xxd)ts.Source;
                         temperatureSourceMask |= 1L << unchecked((byte)source);
 
                         temperature = 0.5f * value;
