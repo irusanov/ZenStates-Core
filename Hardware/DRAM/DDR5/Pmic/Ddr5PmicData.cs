@@ -291,6 +291,20 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             sb.AppendFormat("  PEC error          : {0}\n", PecError ? "Yes" : "No");
             sb.AppendFormat("  Parity error       : {0}\n", ParityError ? "Yes" : "No");
 
+            // Raw register dump
+            if (RawRegisters != null && RawRegisters.Length > 0)
+            {
+                sb.AppendLine();
+                sb.AppendFormat("  Raw registers      : 0x00-0x{0:X2}\n", RawRegisters.Length - 1);
+                for (int row = 0; row < RawRegisters.Length; row += 16)
+                {
+                    sb.Append("   ");
+                    for (int i = row; i < row + 16 && i < RawRegisters.Length; i++)
+                        sb.AppendFormat(" {0:X2}", RawRegisters[i]);
+                    sb.Append('\n');
+                }
+            }
+
             return sb.ToString();
         }
     }
