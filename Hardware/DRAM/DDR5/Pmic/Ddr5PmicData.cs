@@ -69,14 +69,13 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
         public int VppMv;
 
         /// <summary>
-        /// VDD in millivolts — 8-bit VID decode (vendor OC extension).
-        /// Used when BIOS programs voltages above JEDEC max (1435 mV).
-        /// Only meaningful if different from VddMv.
+        /// VDD in millivolts — high-voltage mode decode (vendor OC extension, whole register byte
+        /// in 5 mV steps, up to 2075 mV). Applies when <see cref="HighVoltageMode"/> is set.
         /// </summary>
         public int VddMv8bit;
-        /// <summary>VDDQ 8-bit decode (see VddMv8bit).</summary>
+        /// <summary>VDDQ high-voltage mode decode (see VddMv8bit).</summary>
         public int VddqMv8bit;
-        /// <summary>VPP 8-bit decode — should match VppMv for standard operation.</summary>
+        /// <summary>VPP high-voltage mode decode (see VddMv8bit).</summary>
         public int VppMv8bit;
 
         // ADC-measured voltages (JESD301-2 R0x30/R0x31)
@@ -191,9 +190,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             sb.AppendLine();
 
             // VDD
-            if (VddMv != VddMv8bit)
+            if (HighVoltageMode && VddMv != VddMv8bit)
             {
-                sb.AppendFormat("  VDD  (DRAM core)   : {0} mV ({1:F3} V) [OC 8-bit VID]\n", VddMv8bit, VddMv8bit / 1000.0);
+                sb.AppendFormat("  VDD  (DRAM core)   : {0} mV ({1:F3} V) [high-voltage mode]\n", VddMv8bit, VddMv8bit / 1000.0);
                 sb.AppendFormat("                       ({0} mV JEDEC 7-bit VID)\n", VddMv);
             }
             else
@@ -202,9 +201,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             }
 
             // VDDQ
-            if (VddqMv != VddqMv8bit)
+            if (HighVoltageMode && VddqMv != VddqMv8bit)
             {
-                sb.AppendFormat("  VDDQ (I/O)         : {0} mV ({1:F3} V) [OC 8-bit VID]\n", VddqMv8bit, VddqMv8bit / 1000.0);
+                sb.AppendFormat("  VDDQ (I/O)         : {0} mV ({1:F3} V) [high-voltage mode]\n", VddqMv8bit, VddqMv8bit / 1000.0);
                 sb.AppendFormat("                       ({0} mV JEDEC 7-bit VID)\n", VddqMv);
             }
             else

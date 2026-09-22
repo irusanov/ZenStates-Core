@@ -67,6 +67,31 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             return true;
         }
 
+        /// <summary>
+        /// Re-reads the programmed rail voltages (R0x21 / R0x25 / R0x27) and R0x2B, which holds the
+        /// high-voltage mode flag on Richtek PMICs; all can be changed at runtime. Decodes them again. Call before <see cref="ReadAllAdcVoltagesNoLock"/>, which
+        /// decides the voltage mode from them.
+        /// </summary>
+        internal static void ReadVoltageSettingsNoLock(SmbusDriverBase smbus, byte pmicAddr, Ddr5PmicData pd)
+        {
+            if (pd?.RawRegisters == null || pd.RawRegisters.Length <= REG_LDO_SETTINGS)
+                return;
+
+            bool changed = false;
+            byte[] registers = { REG_SWA_VID, REG_SWB_VID, REG_SWC_VID, REG_LDO_SETTINGS };
+            foreach (byte reg in registers)
+            {
+                if (ReadRegNoLock(smbus, pmicAddr, reg, out byte value) && pd.RawRegisters[reg] != value)
+                {
+                    pd.RawRegisters[reg] = value;
+                    changed = true;
+                }
+            }
+
+            if (changed)
+                Ddr5PmicDecoder.DecodeVoltageSettings(pd);
+        }
+
         internal static void ReadAllAdcVoltagesNoLock(SmbusDriverBase smbus, byte pmicAddr, Ddr5PmicData pd)
         {
             bool success = ReadRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, out byte originalReg30);
@@ -87,6 +112,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                 if (success)
                     WriteRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, originalReg30);
             }
+
+            // The measured rails tell which VID encoding the set points use.
+            Ddr5PmicDecoder.ResolveVoltageMode(pd);
         }
 
         /// <summary>

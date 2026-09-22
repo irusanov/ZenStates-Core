@@ -112,6 +112,11 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 
             // "  PMIC: not detected" and anything else without a single known label stays invalid,
             // so callers can tell "no PMIC in this report" from "PMIC reading all zeroes".
+            // Older reports flagged High Voltage Mode for every module; decide it from the measured
+            // rails the same way the live reader does. A report without them keeps its printed flag.
+            if (pd.SwaAdcMv > 0 || pd.SwbAdcMv > 0)
+                Ddr5PmicDecoder.ResolveVoltageMode(pd);
+
             pd.IsValid = recognized > 0;
             return pd;
         }
