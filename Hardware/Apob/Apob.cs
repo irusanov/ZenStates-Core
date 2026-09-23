@@ -5,6 +5,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using ZenStates.Core.Common;
 using ZenStates.Core.Drivers;
+using ZenStates.Core.Hardware.DRAM;
 using static ZenStates.Core.Cpu;
 
 namespace ZenStates.Core.Hardware.Apob
@@ -40,6 +41,10 @@ namespace ZenStates.Core.Hardware.Apob
 
         private readonly CPUInfo _cpuInfo;
         private readonly ApobProfile _profile;
+
+        public delegate uint RegisterReader(uint address);
+
+        private readonly MemoryConfig _memoryConfig;
 
         /// <summary>Gets a value indicating whether a valid APOB was located in physical memory.</summary>
         public bool IsAvailable { get { return Address != 0; } }
@@ -90,7 +95,7 @@ namespace ZenStates.Core.Hardware.Apob
             get { return SliceRawTable(ExtendedDataOffset, ExtendedDataSize); }
         }
 
-        public Apob(CPUInfo cpuInfo)
+        public Apob(CPUInfo cpuInfo, MemoryConfig memoryConfig = null)
         {
             if (io == null)
             {
@@ -100,6 +105,7 @@ namespace ZenStates.Core.Hardware.Apob
             }
 
             _cpuInfo = cpuInfo;
+            _memoryConfig = memoryConfig;
             // Might be not defined, but we still need to get raw data
             _profile = ApobProfiles.Resolve(_cpuInfo);
 
@@ -305,7 +311,24 @@ namespace ZenStates.Core.Hardware.Apob
             if (sourceData == null)
                 return;
 
-            if (ApobDataReader.TryReadCcdl(sourceData, _profile.CcdlLayout, out uint ccdl, out uint ccdlrw, out uint ccdlrw2))
+            uint targetCcdlWr2 = 0;
+            uint targetCcdl = 0;
+
+            try
+            {
+                if (_memoryConfig != null && (_memoryConfig.Type == MemType.DDR5 || _memoryConfig.Type == MemType.LPDDR5))
+                {
+                    var timings = _memoryConfig?.Timings[0].Value as Ddr5Timings;
+                    targetCcdlWr2 = timings?.IsCcdlWr2RawValid == true ? timings?.CcdlWr2Raw + 7 ?? 0 : 0;
+                    targetCcdl = timings?.RdBrstGap + 5 ?? 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
+
+            if (ApobDataReader.TryReadCcdl(sourceData, _profile.CcdlLayout, out uint ccdl, out uint ccdlrw, out uint ccdlrw2, targetCcdl, targetCcdlWr2))
             {
                 CcdlData = new CcdlData(ccdl, ccdlrw, ccdlrw2);
             }

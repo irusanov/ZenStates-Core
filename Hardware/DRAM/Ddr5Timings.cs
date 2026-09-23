@@ -55,6 +55,11 @@ namespace ZenStates.Core.Hardware.DRAM
         public uint OdtsCmdThrotCyc { get; internal set; }
         public uint RollWindowDepth { get; internal set; }
 
+        // 0x50198
+        public uint WrBrstGap { get; internal set; }
+        public uint WrPhChk { get; internal set; }
+        public uint RdBrstGap { get; internal set; }
+
         // 0x50200
         public uint UclkGtFclk { get; internal set; }
         public uint WckRatioMode { get; internal set; }
@@ -171,6 +176,13 @@ namespace ZenStates.Core.Hardware.DRAM
 
         // 0x502A8
         public uint ECSc { get; internal set; }
+
+        // 0x502E0
+        public uint CcdlWr2Raw { get; internal set; }
+
+        // Used in APOB parsing
+        internal uint CcdlWr2RawReg { get; set; }
+        internal bool IsCcdlWr2RawValid => CcdlWr2RawReg != uint.MaxValue && CcdlWr2Raw != 0;
 
         // 0x50DF0
         public uint DdrMaxRate { get; internal set; }

@@ -491,7 +491,7 @@ namespace ZenStates.Core
 
             try
             {
-                info.apob = new Apob(info);
+                info.apob = new Apob(info, memoryConfig);
             }
             catch (Exception ex)
             {

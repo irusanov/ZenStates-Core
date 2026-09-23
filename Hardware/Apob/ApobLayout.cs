@@ -187,8 +187,8 @@ namespace ZenStates.Core.Hardware.Apob
 
     internal static class ApobProfiles
     {
-        private static readonly byte[] CCDL_BLOCK_MAGIC_ZEN4 = new byte[] { 0x00, 0xD4, 0x30, 0x00 };
-        private static readonly byte[] CCDL_BLOCK_MAGIC_ZEN5 = new byte[] { 0x00, 0x50, 0xC3, 0x00 };
+        private static readonly byte[] CCDL_BLOCK_MAGIC_ZEN4 = new byte[] { 0x00, 0x00, 0x00, 0xD4, 0x30, 0x00 };
+        private static readonly byte[] CCDL_BLOCK_MAGIC_ZEN5 = new byte[] { 0x00, 0x00, 0x00, 0x50, 0xC3, 0x00 };
 
         private static readonly ApobFieldOffsets Zen4MainOffsets = new ApobFieldOffsets(
             gdm: 0x1,

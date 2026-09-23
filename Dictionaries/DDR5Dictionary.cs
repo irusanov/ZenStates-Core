@@ -40,6 +40,11 @@ namespace ZenStates.Core.Dictionaries
                 new TimingDef { Name = "OdtsCmdThrotCyc",               HiBit = 19  ,   LoBit = 10  },
                 new TimingDef { Name = "RollWindowDepth",               HiBit = 9   ,   LoBit = 0   },
             }},
+           { 0x50198, new[] {
+                new TimingDef { Name = "WrBrstGap",                     HiBit = 13  ,   LoBit = 9   },
+                new TimingDef { Name = "WrPhChk",                       HiBit = 8   ,   LoBit = 8   },
+                new TimingDef { Name = "RdBrstGap",                     HiBit = 7   ,   LoBit = 3   },
+            }},
             { 0x50200, new[] {
                 new TimingDef { Name = "UclkGtFclk",                    HiBit = 31  ,   LoBit = 31  },
                 new TimingDef { Name = "WckRatioMode",                  HiBit = 27  ,   LoBit = 26  },
@@ -232,6 +237,10 @@ namespace ZenStates.Core.Dictionaries
             }},
             { 0x502a8, new[] {
                 new TimingDef { Name = "ECSc",                          HiBit = 8   ,   LoBit = 0   },
+            }},
+            { 0x502e0, new[] {
+                new TimingDef { Name = "CcdlWr2RawReg",                 HiBit = 31  ,   LoBit = 0   },
+                new TimingDef { Name = "CcdlWr2Raw",                    HiBit = 5   ,   LoBit = 0   },
             }},
             // RFCsb regs, one of [0x502c0, 0x502c4, 0x502c8, 0x502cc] should be != 0
             /*{ 0x502c0, new[] {
