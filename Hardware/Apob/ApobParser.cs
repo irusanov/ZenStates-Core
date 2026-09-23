@@ -47,11 +47,26 @@ namespace ZenStates.Core.Hardware.Apob
             if (layout == null)
                 throw new ArgumentNullException(nameof(layout));
 
-            int matchIndex = Utils.FindSequence(data, 0, layout.Magic);
-            if (matchIndex < 0)
-                return false;
+            var magic = layout.Magic;
 
-            long offset = (long)matchIndex + layout.Magic.Length + layout.CcdlBlockOffset;
+            int matchIndex = Utils.FindSequence(data, 0, magic);
+            if (matchIndex < 0)
+            {
+                if (magic.Length <= 2)
+                    return false;
+
+                // If stricter magic fails, try a looser match by skipping the first two bytes of the magic sequence
+                // We don't have enough debug reports to validate the longer sequence always works
+                var looseMagic = new byte[magic.Length - 2];
+                Array.Copy(magic, 2, looseMagic, 0, looseMagic.Length);
+                magic = looseMagic;
+
+                matchIndex = Utils.FindSequence(data, 0, magic);
+                if (matchIndex < 0)
+                    return false;
+            }
+
+            long offset = (long)matchIndex + magic.Length + layout.CcdlBlockOffset;
             long requiredSize = layout.ValueWidth == ApobValueWidth.UInt16 ? 6 : 12;
 
             if (offset < 0 || offset + requiredSize > data.Length)
@@ -79,7 +94,7 @@ namespace ZenStates.Core.Hardware.Apob
 
             if (!isValid && (isTargetCcdlWr2Valid || isTargetCcdlValid))
             {
-                long scanStartOffset = (long)matchIndex + layout.Magic.Length;
+                long scanStartOffset = (long)matchIndex + magic.Length;
                 long scanEndOffset = Math.Min(data.Length, scanStartOffset + MaxSearchLength);
 
                 const int targeCcdlWr2Weight = 2;
