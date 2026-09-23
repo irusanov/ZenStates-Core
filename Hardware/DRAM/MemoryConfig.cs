@@ -283,6 +283,9 @@ namespace ZenStates.Core.Hardware.DRAM
                             if (pd == null || !pd.IsValid)
                                 continue;
 
+                            // Set points first: they can be changed at runtime, and the voltage mode is decided
+                            // from them together with the measured rails.
+                            Ddr5PmicReader.ReadVoltageSettingsNoLock(smbusDriver, pd.I2cAddress, pd);
                             Ddr5PmicReader.ReadAllAdcVoltagesNoLock(smbusDriver, pd.I2cAddress, pd);
                             Ddr5PmicReader.ReadPmicTemperatureNoLock(smbusDriver, pd.I2cAddress, pd);
                             Ddr5PmicReader.ReadPmicTelemetryNoLock(smbusDriver, pd.I2cAddress, pd);

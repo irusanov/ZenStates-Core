@@ -276,10 +276,12 @@ namespace ZenStates.Core.Hardware
             if (data == null) throw new ArgumentNullException(nameof(data));
             if (offset < 0 || offset + length > data.Length) throw new ArgumentOutOfRangeException(nameof(offset));
 
-            byte sum = 0;
+            int sum = 0;
+
             for (int i = offset; i < offset + length; i++)
                 sum += data[i];
-            return sum == 0;
+
+            return (sum & 0xFF) == 0;
         }
 
         // Upper bound for a root table. RSDT/XSDT only hold pointers, so even 1 MB is far beyond

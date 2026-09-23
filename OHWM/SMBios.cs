@@ -686,11 +686,12 @@ namespace ZenStates.Core.OHWM
                 int.TryParse(parts[1], out int day) &&
                 int.TryParse(parts[2], out int year))
             {
-                // Check if the SMBIOS specification is followed.
-                if (month > 12 || day > 31)
+                // Check if the SMBIOS specification is followed; a bad date must not fail the whole table.
+                year = year < 100 ? 1900 + year : year;
+                if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1 || day > DateTime.DaysInMonth(year, month))
                     return null;
 
-                return new DateTime(year < 100 ? 1900 + year : year, month, day);
+                return new DateTime(year, month, day);
             }
 
             return null;

@@ -272,7 +272,7 @@ namespace ZenStates.Core.Hardware.Apob
             procCsDs: 0x13,
             procCaOdt: 0x1B,
             procCkOdt: 0x1C,
-            procDqOdt: 0x1E,
+            procDqOdt: 0x1D,
             procDqsOdt: 0x1E,
             procDataDsApu: 0xF);
 

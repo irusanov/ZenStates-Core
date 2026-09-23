@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using static ZenStates.Core.Hardware.DRAM.DDR5.Tables.JedecPmicRegisters;
 
 namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 {
@@ -9,10 +10,10 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
     /// "-- PMIC (Power Management IC) ---" block of a ZenTimings debug report - back into a
     /// <see cref="Ddr5PmicData"/> instance.
     /// <para>
-    /// A dump carries decoded text rather than the raw register image, so
-    /// <see cref="Ddr5PmicData.RawRegisters"/> stays null and the fields are filled straight from
-    /// the printed values. Labels that are absent leave their field at its default, which keeps
-    /// older reports readable.
+    /// The fields are filled straight from the printed values. Reports that also print the raw
+    /// register image ("Raw registers" and its hex rows) get <see cref="Ddr5PmicData.RawRegisters"/>
+    /// back, so vendor register flags apply as on the live machine; for older reports it stays
+    /// null. Labels that are absent leave their field at its default.
     /// </para>
     /// </summary>
     public static partial class Ddr5PmicDecoder
@@ -38,6 +39,14 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             @"1\.8V\s*=\s*(?<v18>\d+)\s*mV\s*,\s*1\.0V\s*=\s*(?<v10>\d+)\s*mV", RegexOptions.IgnoreCase);
 
         private static readonly Regex RevisionRegex = new Regex(@"^(?<major>\d+)\.(?<minor>\d+)$");
+
+        // Raw register row after the "Raw registers" line: "    CF 94 63 00 ..." (up to 16 bytes,
+        // rows in order from register 0x00)
+        private static readonly Regex RawRegisterRowRegex =
+            new Regex(@"^[0-9A-Fa-f]{2}(?:\s+[0-9A-Fa-f]{2}){0,15}$");
+
+        // Register count of the raw image a report prints (0x00-0x51).
+        private const int RawRegisterCount = 0x52;
 
         /// <summary>Which of the three rails the last "VDD/VDDQ/VPP" line described, for its continuation line.</summary>
         private enum DumpRail
@@ -74,6 +83,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             Ddr5PmicData pd = new Ddr5PmicData();
             int recognized = 0;
             DumpRail lastRail = DumpRail.None;
+            byte[] raw = new byte[RawRegisterCount];
+            int rawCount = 0;
+            bool inRawRegisters = false;
 
             for (int i = 0; i < dumpLines.Length; i++)
             {
@@ -84,6 +96,19 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                 string trimmed = line.Trim();
                 if (trimmed.Length == 0)
                     continue;
+
+                if (inRawRegisters)
+                {
+                    if (RawRegisterRowRegex.IsMatch(trimmed))
+                    {
+                        string[] bytes = trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                        for (int b = 0; b < bytes.Length && rawCount < raw.Length; b++)
+                            raw[rawCount++] = byte.Parse(bytes[b], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+                        continue;
+                    }
+
+                    inRawRegisters = false;
+                }
 
                 // A rail printed in OC mode is followed by its JEDEC 7-bit value on its own line.
                 Match continuation = JedecVidContinuationRegex.Match(trimmed);
@@ -106,9 +131,30 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                 string label = match.Groups["label"].Value.Trim();
                 string value = match.Groups["value"].Value.Trim();
 
+                if (label == "Raw registers")
+                {
+                    inRawRegisters = true;
+                    continue;
+                }
+
                 if (ApplyDumpLine(pd, label, value, ref lastRail))
                     recognized++;
             }
+
+            // A complete raw image is the source of truth for the set points and the vendor flags.
+            if (rawCount >= RawRegisterCount)
+            {
+                pd.RawRegisters = raw;
+                pd.VendorBank = raw[REG_VENDOR_BANK];
+                pd.VendorCode = raw[REG_VENDOR_CODE];
+                DecodeVoltageSettings(pd);
+            }
+
+            // Older reports flagged High Voltage Mode for every module; decide it the same way the
+            // live reader does. A report with neither raw registers nor measured rails keeps its
+            // printed flag.
+            if (pd.RawRegisters != null || pd.SwaAdcMv > 0 || pd.SwbAdcMv > 0)
+                ResolveVoltageMode(pd);
 
             // "  PMIC: not detected" and anything else without a single known label stays invalid,
             // so callers can tell "no PMIC in this report" from "PMIC reading all zeroes".
@@ -142,6 +188,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                     return true;
                 case "PMIC Temperature":
                     pd.PmicTemperature = value;
+                    return true;
+                case "High Temp Warning":
+                    pd.HighTemperatureWarningThreshold = value;
                     return true;
                 case "Shutdown Temp":
                     pd.ShutdownTemperatureThreshold = value;
@@ -268,9 +317,6 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                     }
                 case "SWA current limit":
                     pd.SwaCurrentLimitMa = ParseMilliamps(value);
-                    return true;
-                case "SWA phase count":
-                    pd.SwaPhaseCount = ParseInt(value);
                     return true;
                 case "SWB current limit":
                     pd.SwbCurrentLimitMa = ParseMilliamps(value);

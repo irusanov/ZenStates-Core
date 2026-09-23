@@ -31,8 +31,16 @@ namespace ZenStates.Core.Hardware.Smu.Commands
                     float extrapolatedDefaultP0 = gbvHi[0] + 4.0f * ((gbvHi[0] - gbvHi[3]) / 3.0f);
 
                     float offsetMv = (gbvLo[0] - extrapolatedDefaultP0) * 1000.0f;
+                    if (float.IsNaN(offsetMv) || float.IsInfinity(offsetMv))
+                    {
+                        result.status = SMU.Status.CMD_REJECTED_PREREQ;
+                        result.args[0] = 0;
+                        return base.Execute();
+                    }
+
                     int offsetCount = (int)Math.Round(offsetMv / MillivoltsPerCount);
-                    result.args[0] = (uint)offsetCount;
+                    result.args[0] = unchecked((uint)offsetCount);
+                    result.status = SMU.Status.OK;
                 }
             }
 

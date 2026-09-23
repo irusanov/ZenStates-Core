@@ -129,33 +129,21 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         private const int SPD_XMP_PROF_ENABLE = 643;
         private const int SPD_XMP_DMB_CONFIG = 644;
 
-        // Vendor profiles are not always placed at the same offset after the XMP header.
-        // Use these as fallback defaults when scanning cannot identify the first profile.
+        // The 64-byte header (640-703) holds the three vendor profile names (16 bytes each, at
+        // 654/670/686) and its CRC (702-703). The vendor profiles follow as 64-byte blocks at
+        // 704, 768 and 832, each ending with its own CRC. A module that also carries EXPO has it
+        // at 832, in place of the third XMP profile.
         private const int SPD_XMP_P1_BASE = 704;
-        private const int SPD_XMP_P2_BASE = 736;
-        private const int SPD_XMP_P3_BASE = 768;
-        private const int XMP_PROFILE_SIZE = 32;
-        private const int XMP_SCAN_REGION_SIZE = 192;
+        private const int XMP_PROFILE_SIZE = 64;
 
-        // Optional profile names (15 bytes each)
-        private const int SPD_XMP_P1_NAME = 758;
-        private const int SPD_XMP_P2_NAME = 773;
-        private const int SPD_XMP_P3_NAME = 788;
+        private const int SPD_XMP_P1_NAME = 654;
+        private const int XMP_NAME_LEN = 16;
 
-        private const int XMP_NAME_LEN = 15;
-
-        // Profile name strings (15 chars each) at bytes 758-767 + 840-895
-        // Name 1: 758-767 (partial, continued from overflow)
-
-        // User profile names follow the user profile data blocks
-        private const int SPD_XMP_P4_NAME = 875;   // bytes 875-889
-        private const int SPD_XMP_P5_NAME = 890;   // bytes 890-904
-
-        // XMP 3.0 per-profile offsets (relative to profile base)
-        // Verified from real DDR5 XMP 3.0 SPD data.
-        private const int XMP_OFF_VDD = 0;    // VDD voltage code  (code*5 + 1100 mV)
-        private const int XMP_OFF_VDDQ = 1;    // VDDQ voltage code (code*5 + 1100 mV)
-        private const int XMP_OFF_VPP = 2;    // VPP voltage code  (code*5 + 1500 mV)
+        // XMP 3.0 per-profile offsets (relative to profile base). Voltages are encoded as
+        // bits [7:5] whole volts + bits [4:0] x 50 mV, see DecodeProfileVoltageMv.
+        private const int XMP_OFF_VPP = 0;
+        private const int XMP_OFF_VDD = 1;
+        private const int XMP_OFF_VDDQ = 2;
         private const int XMP_OFF_TCK_LSB = 5;    // tCKAVGmin LE ps
         private const int XMP_OFF_TCK_MSB = 6;
         private const int XMP_OFF_CAS_0 = 7;    // CAS latency bytes (5 bytes)
@@ -185,28 +173,15 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         private const int SPD_EXPO_HEADER = 832;
         private const int SPD_EXPO_REVISION = 836;
         private const int SPD_EXPO_PROFILES = 837;   // [0]=profile1, [1]=profile2
-        private const int SPD_EXPO_VDD1 = 842;   // VDD voltage code
-        private const int SPD_EXPO_VDDQ1 = 843;   // VDDQ voltage code
-        private const int SPD_EXPO_TCKMIN1_LSB = 846;   // Profile 1 tCKAVGmin
-        private const int SPD_EXPO_TCKMIN1_MSB = 847;
-        private const int SPD_EXPO_TAA1_LSB = 848;   // Profile 1 tAAmin
-        private const int SPD_EXPO_TAA1_MSB = 849;
-        private const int SPD_EXPO_TRCD1_LSB = 850;
-        private const int SPD_EXPO_TRCD1_MSB = 851;
-        private const int SPD_EXPO_TRP1_LSB = 852;
-        private const int SPD_EXPO_TRP1_MSB = 853;
-        private const int SPD_EXPO_TRAS1_LSB = 854;
-        private const int SPD_EXPO_TRAS1_MSB = 855;
-        private const int SPD_EXPO_TRC1_LSB = 856;
-        private const int SPD_EXPO_TRC1_MSB = 857;
-        private const int SPD_EXPO_TWR1_LSB = 858;
-        private const int SPD_EXPO_TWR1_MSB = 859;
-        private const int SPD_EXPO_TRFC1_1_LSB = 860;   // tRFC1 (ns)
-        private const int SPD_EXPO_TRFC1_1_MSB = 861;
-        private const int SPD_EXPO_TRFC2_1_LSB = 862;
-        private const int SPD_EXPO_TRFC2_1_MSB = 863;
-        private const int SPD_EXPO_TRFCSB1_LSB = 864;
-        private const int SPD_EXPO_TRFCSB1_MSB = 865;
+
+        // Two 40-byte profiles at 842 and 882 (CRC at 958-959). Offsets relative to a profile base:
+        // +0 VDD, +1 VDDQ, +2 VPP (same voltage encoding as XMP 3.0), +4 tCK, then 16-bit tAA, tRCD,
+        // tRP, tRAS, tRC, tWR (ps) and tRFC1, tRFC2, tRFCsb (ns).
+        private const int SPD_EXPO_P1_BASE = 842;
+        private const int EXPO_PROFILE_SIZE = 40;
+        private const int EXPO_OFF_VDD = 0;
+        private const int EXPO_OFF_VDDQ = 1;
+        private const int EXPO_OFF_TCK = 4;
 
         // Device type constant
         private const byte DDR5_DEVICE_TYPE = 0x12;
@@ -307,8 +282,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         {
             byte b = B(spd, SPD_MODULE_TYPE);
             info.BaseModuleType = (byte)(b & 0x0F);
-            info.IsHybrid = ((b >> 4) & 0x01) != 0;
-            int hybridType = (b >> 5) & 0x03;
+            // Byte 3: [7] hybrid, [6:4] hybrid media, [3:0] base module type.
+            info.IsHybrid = (b & 0x80) != 0;
+            int hybridType = (b >> 4) & 0x07;
 
             switch (info.BaseModuleType)
             {
@@ -446,11 +422,12 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             byte bAddr1 = B(spd, SPD_FIRST_ADDRESSING);   // byte 5
             byte bAddr2 = B(spd, SPD_SECOND_ADDRESSING);  // byte 9
 
-            info.FirstColumnBits = 10 + (bAddr1 & 0x07);
-            info.FirstRowBits = 16 + ((bAddr1 >> 5) & 0x07);
+            // Bytes 5 and 9: [7:5] column address bits - 10, [4:0] row address bits - 16.
+            info.FirstColumnBits = 10 + ((bAddr1 >> 5) & 0x07);
+            info.FirstRowBits = 16 + (bAddr1 & 0x1F);
 
-            info.SecondColumnBits = 10 + (bAddr2 & 0x07);
-            info.SecondRowBits = 16 + ((bAddr2 >> 5) & 0x07);
+            info.SecondColumnBits = 10 + ((bAddr2 >> 5) & 0x07);
+            info.SecondRowBits = 16 + (bAddr2 & 0x1F);
         }
 
         private static void DecodeVoltageAndThermal(byte[] spd, Ddr5SpdInfo info)
@@ -546,6 +523,17 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             if (coarse <= 0)
                 return 0;
             return coarse * 125 + fine;
+        }
+
+        private static int RoundToProfileSpeed(int mts)
+        {
+            return (int)Math.Round(mts / 100.0) * 100;
+        }
+
+        // XMP 3.0 / EXPO voltage byte: bits [7:5] whole volts, bits [4:0] 50 mV steps.
+        private static int DecodeProfileVoltageMv(int code)
+        {
+            return ((code >> 5) & 0x07) * 1000 + (code & 0x1F) * 50;
         }
 
         private static int RoundToJedecBin(int mts)
@@ -743,24 +731,15 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             {
                 byte profileBits = B(spd, SPD_EXPO_PROFILES);
 
-                info.ExpoProfile1 = DecodeExpoProfile(
-                    spd,
-                    1,
-                    SPD_EXPO_TCKMIN1_LSB,
-                    SPD_EXPO_VDD1,
-                    SPD_EXPO_VDDQ1);
+                info.ExpoProfile1 = DecodeExpoProfile(spd, 1, SPD_EXPO_P1_BASE);
 
                 info.ExpoProfile1.IsValid = ((profileBits & 0x01) != 0) && info.ExpoProfile1.tCKAVGminPs > 0;
                 info.ExpoProfile2 = new Ddr5ExpoProfile();
 
-                if ((profileBits & 0x02) != 0 && spd.Length >= SPD_EXPO_TCKMIN1_LSB + 32)
+                int expoP2Base = SPD_EXPO_P1_BASE + EXPO_PROFILE_SIZE;
+                if ((profileBits & 0x02) != 0 && spd.Length >= expoP2Base + EXPO_PROFILE_SIZE)
                 {
-                    info.ExpoProfile2 = DecodeExpoProfile(
-                        spd,
-                        2,
-                        SPD_EXPO_TCKMIN1_LSB + 32,
-                        SPD_EXPO_VDD1 + 2,
-                        SPD_EXPO_VDDQ1 + 2);
+                    info.ExpoProfile2 = DecodeExpoProfile(spd, 2, expoP2Base);
 
                     info.ExpoProfile2.IsValid = info.ExpoProfile2.tCKAVGminPs > 0;
                 }
@@ -796,48 +775,26 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             byte enableBits = B(spd, SPD_XMP_PROF_ENABLE);
             byte dmbByte = B(spd, SPD_XMP_DMB_CONFIG);
 
-            int[] bases = new int[]
-            {
-                SPD_XMP_P1_BASE,
-                SPD_XMP_P2_BASE,
-                SPD_XMP_P3_BASE
-            };
-
-            int[] names = new int[]
-            {
-                SPD_XMP_P1_NAME,
-                SPD_XMP_P2_NAME,
-                SPD_XMP_P3_NAME
-            };
-
-            int firstProfileBase = FindFirstXmpProfileStart(spd);
-
-            if (firstProfileBase >= 0)
-            {
-                bases[0] = firstProfileBase;
-                bases[1] = firstProfileBase + XMP_PROFILE_SIZE;
-                bases[2] = firstProfileBase + (2 * XMP_PROFILE_SIZE);
-            }
-
             for (int p = 0; p < 3; p++)
             {
                 bool enabled = ((enableBits >> p) & 1) != 0;
+                int baseOff = SPD_XMP_P1_BASE + (p * XMP_PROFILE_SIZE);
 
-                if (!enabled || spd.Length < bases[p] + XMP_PROFILE_SIZE)
+                if (!enabled || spd.Length < baseOff + XMP_PROFILE_SIZE)
                     continue;
 
-                Ddr5XmpProfile profile = DecodeXmpProfile(spd, p + 1, bases[p]);
+                Ddr5XmpProfile profile = DecodeXmpProfile(spd, p + 1, baseOff);
 
                 profile.DynamicMemoryBoost = ((dmbByte >> p) & 1) != 0;
-                profile.ProfileName = ReadPrintableAscii(spd, names[p], XMP_NAME_LEN);
+                profile.ProfileName = ReadPrintableAscii(spd, SPD_XMP_P1_NAME + (p * XMP_NAME_LEN), XMP_NAME_LEN);
 
                 info.XmpProfiles[p] = profile;
             }
         }
 
-        private static Ddr5ExpoProfile DecodeExpoProfile(byte[] spd,
-            int profileNum, int tckOffset, int vddOffset, int vddqOffset)
+        private static Ddr5ExpoProfile DecodeExpoProfile(byte[] spd, int profileNum, int baseOff)
         {
+            int tckOffset = baseOff + EXPO_OFF_TCK;
             Ddr5ExpoProfile p = new Ddr5ExpoProfile();
             p.ProfileNumber = profileNum;
 
@@ -849,8 +806,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             }
 
             p.ClockMHz = 1000000.0 / (double)p.tCKAVGminPs;
-            p.SpeedMTs = (int)Math.Round(2.0 * p.ClockMHz);
-            p.SpeedMTs = RoundToJedecBin(p.SpeedMTs);
+            p.SpeedMTs = RoundToProfileSpeed((int)Math.Round(2.0 * p.ClockMHz));
             p.ClockMHz = p.SpeedMTs / 2.0;
             p.SpeedGrade = string.Format("DDR5-{0}", p.SpeedMTs);
 
@@ -875,11 +831,10 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             p.tRP = (int)Math.Ceiling((double)p.tRPminPs / tCKideal - 0.01);
             p.TimingString = string.Format("{0}-{1}-{2} @ {3}", p.CL, p.tRCD, p.tRP, p.SpeedGrade);
 
-            // Voltage: code * 5mV + 1100mV base
-            p.VddCode = B(spd, vddOffset);
-            p.VddqCode = B(spd, vddqOffset);
-            p.VddMv = 1100 + p.VddCode * 5;
-            p.VddqMv = 1100 + p.VddqCode * 5;
+            p.VddCode = B(spd, baseOff + EXPO_OFF_VDD);
+            p.VddqCode = B(spd, baseOff + EXPO_OFF_VDDQ);
+            p.VddMv = DecodeProfileVoltageMv(p.VddCode);
+            p.VddqMv = DecodeProfileVoltageMv(p.VddqCode);
 
             p.IsValid = true;
             return p;
@@ -896,9 +851,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             p.VddqCode = B(spd, baseOff + XMP_OFF_VDDQ);
             p.VppCode = B(spd, baseOff + XMP_OFF_VPP);
 
-            p.VddMv = 1100 + p.VddCode * 5;
-            p.VddqMv = 1100 + p.VddqCode * 5;
-            p.VppMv = 1500 + p.VppCode * 5;
+            p.VddMv = DecodeProfileVoltageMv(p.VddCode);
+            p.VddqMv = DecodeProfileVoltageMv(p.VddqCode);
+            p.VppMv = DecodeProfileVoltageMv(p.VppCode);
 
             p.tCKAVGminPs = U16LE(spd, baseOff + XMP_OFF_TCK_LSB);
 
@@ -909,7 +864,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             }
 
             p.ClockMHz = 1000000.0 / (double)p.tCKAVGminPs;
-            p.SpeedMTs = RoundToJedecBin((int)Math.Round(2.0 * p.ClockMHz));
+            p.SpeedMTs = RoundToProfileSpeed((int)Math.Round(2.0 * p.ClockMHz));
             p.ClockMHz = p.SpeedMTs / 2.0;
             p.SpeedGrade = string.Format("DDR5-{0}", p.SpeedMTs);
 
@@ -953,73 +908,6 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             p.IsValid = true;
 
             return p;
-        }
-
-        private static int FindFirstXmpProfileStart(byte[] spd)
-        {
-            if (spd == null)
-                return -1;
-
-            int searchStart = SPD_XMP_DMB_CONFIG + 1;
-            int searchEndExclusive = Math.Min(spd.Length, SPD_XMP_HEADER + XMP_SCAN_REGION_SIZE);
-            int lastStart = searchEndExclusive - XMP_PROFILE_SIZE;
-
-            if (lastStart >= searchStart)
-            {
-                for (int offset = searchStart; offset <= lastStart; offset++)
-                {
-                    if (IsLikelyXmpProfile(spd, offset))
-                        return offset;
-                }
-            }
-
-            return SPD_XMP_P1_BASE;
-        }
-
-        private static bool IsLikelyXmpProfile(byte[] spd, int baseOff)
-        {
-            if (spd == null || baseOff < 0 || spd.Length < baseOff + XMP_PROFILE_SIZE)
-                return false;
-
-            int tck = U16LE(spd, baseOff + XMP_OFF_TCK_LSB);
-            if (tck < 200 || tck > 1000)
-                return false;
-
-            int taa = U16LE(spd, baseOff + XMP_OFF_TAA_LSB);
-            int trcd = U16LE(spd, baseOff + XMP_OFF_TRCD_LSB);
-            int trp = U16LE(spd, baseOff + XMP_OFF_TRP_LSB);
-            int tras = U16LE(spd, baseOff + XMP_OFF_TRAS_LSB);
-            int trc = U16LE(spd, baseOff + XMP_OFF_TRC_LSB);
-
-            if (taa <= 0 || trcd <= 0 || trp <= 0 || tras <= 0 || trc <= 0)
-                return false;
-
-            double clockMHz = 1000000.0 / (double)tck;
-            int speedMTs = RoundToJedecBin((int)Math.Round(2.0 * clockMHz));
-
-            if (speedMTs < 3200 || speedMTs > 9200)
-                return false;
-
-            double tCKideal = 1000000.0 / (speedMTs / 2.0);
-            int cl = (int)Math.Ceiling((double)taa / tCKideal - 0.01);
-            int rcd = (int)Math.Ceiling((double)trcd / tCKideal - 0.01);
-            int rp = (int)Math.Ceiling((double)trp / tCKideal - 0.01);
-
-            if (cl < 20 || cl > 80 || rcd < 20 || rcd > 80 || rp < 20 || rp > 80)
-                return false;
-
-            int supportedClCount = 0;
-            for (int byteIdx = 0; byteIdx < 5; byteIdx++)
-            {
-                byte clByte = B(spd, baseOff + XMP_OFF_CAS_0 + byteIdx);
-                for (int bit = 0; bit < 8; bit++)
-                {
-                    if ((clByte & (1 << bit)) != 0)
-                        supportedClCount++;
-                }
-            }
-
-            return supportedClCount > 0;
         }
 
         private static byte B(byte[] spd, int offset)

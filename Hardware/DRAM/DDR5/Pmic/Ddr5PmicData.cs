@@ -69,14 +69,13 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
         public int VppMv;
 
         /// <summary>
-        /// VDD in millivolts — 8-bit VID decode (vendor OC extension).
-        /// Used when BIOS programs voltages above JEDEC max (1435 mV).
-        /// Only meaningful if different from VddMv.
+        /// VDD in millivolts — high-voltage mode decode (vendor OC extension, whole register byte
+        /// in 5 mV steps, up to 2075 mV). Applies when <see cref="HighVoltageMode"/> is set.
         /// </summary>
         public int VddMv8bit;
-        /// <summary>VDDQ 8-bit decode (see VddMv8bit).</summary>
+        /// <summary>VDDQ high-voltage mode decode (see VddMv8bit).</summary>
         public int VddqMv8bit;
-        /// <summary>VPP 8-bit decode — should match VppMv for standard operation.</summary>
+        /// <summary>VPP high-voltage mode decode (see VddMv8bit).</summary>
         public int VppMv8bit;
 
         // ADC-measured voltages (JESD301-2 R0x30/R0x31)
@@ -123,12 +122,6 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
         public int SwaCurrentLimitMa;
 
         /// <summary>
-        /// Number of active SWA phases (1 or 2).
-        /// Richtek RT9768 R0x29[3]: 0 = single-phase, 1 = dual-phase.
-        /// In dual-phase current mode the telemetry reports per-phase current,
-        /// so TotalW would be half the real value unless this multiplier is applied.
-        /// </summary>
-        public int SwaPhaseCount;
         /// <summary>SWB current limit in milliamps (R0x20 [3:2]).</summary>
         public int SwbCurrentLimitMa;
         /// <summary>SWC current limit in milliamps (R0x20 [1:0]).</summary>
@@ -151,6 +144,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 
         // PMIC temperature / thresholds
         public string PmicTemperature;
+        /// <summary>High-temperature warning threshold from R0x1B [2:0].</summary>
+        public string HighTemperatureWarningThreshold;
+        /// <summary>Thermal shutdown (OTP) threshold from R0x2E [2:0].</summary>
         public string ShutdownTemperatureThreshold;
 
         // Regulator mode / frequency
@@ -184,6 +180,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             sb.AppendFormat("  I2C Address        : 0x{0:X2}\n", I2cAddress);
             sb.AppendFormat("  VR Enabled         : {0}\n", VrEnabled ? "Yes" : "No");
             sb.AppendFormat("  PMIC Temperature   : {0}\n", PmicTemperature);
+            sb.AppendFormat("  High Temp Warning  : {0}\n", HighTemperatureWarningThreshold);
             sb.AppendFormat("  Shutdown Temp      : {0}\n", ShutdownTemperatureThreshold);
             sb.AppendFormat("  High Voltage Mode  : {0}\n", HighVoltageMode ? "Enabled" : "Disabled");
             sb.AppendFormat("  Write Protect      : {0}\n", WriteProtectFunctionControl);
@@ -191,9 +188,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             sb.AppendLine();
 
             // VDD
-            if (VddMv != VddMv8bit)
+            if (HighVoltageMode && VddMv != VddMv8bit)
             {
-                sb.AppendFormat("  VDD  (DRAM core)   : {0} mV ({1:F3} V) [OC 8-bit VID]\n", VddMv8bit, VddMv8bit / 1000.0);
+                sb.AppendFormat("  VDD  (DRAM core)   : {0} mV ({1:F3} V) [high-voltage mode]\n", VddMv8bit, VddMv8bit / 1000.0);
                 sb.AppendFormat("                       ({0} mV JEDEC 7-bit VID)\n", VddMv);
             }
             else
@@ -202,9 +199,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             }
 
             // VDDQ
-            if (VddqMv != VddqMv8bit)
+            if (HighVoltageMode && VddqMv != VddqMv8bit)
             {
-                sb.AppendFormat("  VDDQ (I/O)         : {0} mV ({1:F3} V) [OC 8-bit VID]\n", VddqMv8bit, VddqMv8bit / 1000.0);
+                sb.AppendFormat("  VDDQ (I/O)         : {0} mV ({1:F3} V) [high-voltage mode]\n", VddqMv8bit, VddqMv8bit / 1000.0);
                 sb.AppendFormat("                       ({0} mV JEDEC 7-bit VID)\n", VddqMv);
             }
             else
@@ -270,7 +267,6 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             sb.AppendLine();
             sb.AppendFormat("  Current limit (raw): 0x{0:X2}\n", CurrentLimitRaw);
             sb.AppendFormat("  SWA current limit  : {0} mA\n", SwaCurrentLimitMa);
-            sb.AppendFormat("  SWA phase count    : {0}\n", SwaPhaseCount);
             sb.AppendFormat("  SWB current limit  : {0} mA\n", SwbCurrentLimitMa);
             sb.AppendFormat("  SWC current limit  : {0} mA\n", SwcCurrentLimitMa);
             sb.AppendFormat("  SWA OV / UV        : {0} / {1}\n", VddOvThreshold, VddUvThreshold);
@@ -291,6 +287,20 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             sb.AppendFormat("  Temp shutdown      : {0}\n", CriticalTemperatureShutdown ? "Yes" : "No");
             sb.AppendFormat("  PEC error          : {0}\n", PecError ? "Yes" : "No");
             sb.AppendFormat("  Parity error       : {0}\n", ParityError ? "Yes" : "No");
+
+            // Raw register dump
+            if (RawRegisters != null && RawRegisters.Length > 0)
+            {
+                sb.AppendLine();
+                sb.AppendFormat("  Raw registers      : 0x00-0x{0:X2}\n", RawRegisters.Length - 1);
+                for (int row = 0; row < RawRegisters.Length; row += 16)
+                {
+                    sb.Append("   ");
+                    for (int i = row; i < row + 16 && i < RawRegisters.Length; i++)
+                        sb.AppendFormat(" {0:X2}", RawRegisters[i]);
+                    sb.Append('\n');
+                }
+            }
 
             return sb.ToString();
         }

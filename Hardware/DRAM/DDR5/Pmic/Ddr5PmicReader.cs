@@ -67,6 +67,31 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             return true;
         }
 
+        /// <summary>
+        /// Re-reads the programmed rail voltages (R0x21 / R0x25 / R0x27) and R0x2B, which holds the
+        /// high-voltage mode flag on Richtek PMICs; all can be changed at runtime. Decodes them again. Call before <see cref="ReadAllAdcVoltagesNoLock"/>, which
+        /// decides the voltage mode from them.
+        /// </summary>
+        internal static void ReadVoltageSettingsNoLock(SmbusDriverBase smbus, byte pmicAddr, Ddr5PmicData pd)
+        {
+            if (pd?.RawRegisters == null || pd.RawRegisters.Length <= REG_LDO_SETTINGS)
+                return;
+
+            bool changed = false;
+            byte[] registers = { REG_SWA_VID, REG_SWB_VID, REG_SWC_VID, REG_LDO_SETTINGS };
+            foreach (byte reg in registers)
+            {
+                if (ReadRegNoLock(smbus, pmicAddr, reg, out byte value) && pd.RawRegisters[reg] != value)
+                {
+                    pd.RawRegisters[reg] = value;
+                    changed = true;
+                }
+            }
+
+            if (changed)
+                Ddr5PmicDecoder.DecodeVoltageSettings(pd);
+        }
+
         internal static void ReadAllAdcVoltagesNoLock(SmbusDriverBase smbus, byte pmicAddr, Ddr5PmicData pd)
         {
             bool success = ReadRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, out byte originalReg30);
@@ -87,15 +112,20 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                 if (success)
                     WriteRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, originalReg30);
             }
+
+            // The measured rails tell which VID encoding the set points use.
+            Ddr5PmicDecoder.ResolveVoltageMode(pd);
         }
 
         /// <summary>
         /// Read the live PMIC temperature register and update <see cref="Ddr5PmicData.PmicTemperature"/>
         /// and <see cref="Ddr5PmicData.HighTemperatureWarning"/>.
-        /// High-temperature is determined by comparing the temperature code from R0x33 [7:5]
-        /// against the shutdown threshold code from R0x2E [2:0].
-        /// Temperature codes: 0=<85°C, 1=85°C, 2=95°C, 3=105°C, 4=115°C, 5=125°C, 6=135°C, 7=>140°C.
-        /// Shutdown threshold codes: 0=>105°C (+3), 1=>115°C (+4), 2=>125°C (+5), 3=>135°C (+6), 4=>145°C (+7).
+        /// The warning flag comes from R0x09 [7] (PMIC_HIGH_TEMP_WARNING_STATUS), which the PMIC
+        /// evaluates against the warning threshold programmed in R0x1B [2:0] - not against the
+        /// thermal shutdown (OTP) threshold in R0x2E [2:0].
+        /// If that status register cannot be read, the temperature code from R0x33 [7:5] is
+        /// compared against R0x1B [2:0] instead; both use the same encoding
+        /// (1=85°C, 2=95°C, 3=105°C, 4=115°C, 5=125°C, 6=135°C, and 0/7=>140°C for R0x33).
         /// </summary>
         internal static void ReadPmicTemperatureNoLock(SmbusDriverBase smbus, byte pmicAddr, Ddr5PmicData pd)
         {
@@ -105,10 +135,16 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
             int tempCode = (reg33 >> 5) & 0x07;
             pd.PmicTemperature = Ddr5PmicDecoder.DecodePmicTemp(tempCode);
 
-            if (ReadRegNoLock(smbus, pmicAddr, REG_SHUTDOWN_TEMP, out byte reg2E))
+            if (ReadRegNoLock(smbus, pmicAddr, REG_STATUS_1, out byte reg09))
             {
-                int shutdownCode = reg2E & 0x07;
-                pd.HighTemperatureWarning = tempCode >= shutdownCode + 3;
+                pd.HighTemperatureWarning = (reg09 & 0x80) != 0;
+            }
+            else if (ReadRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, out byte reg1B))
+            {
+                int warnCode = reg1B & 0x07;
+                pd.HighTemperatureWarningThreshold = Ddr5PmicDecoder.DecodeHighTempWarningThreshold(warnCode);
+                if (warnCode >= 1 && warnCode <= 6)
+                    pd.HighTemperatureWarning = tempCode >= warnCode;
             }
         }
 
