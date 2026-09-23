@@ -5,6 +5,7 @@ using ZenStates.Core.Drivers;
 using ZenStates.Core.Hardware.DRAM.DDR5.Pmic;
 using ZenStates.Core.Hardware.DRAM.DDR5.Spd;
 using ZenStates.Core.Hardware.DRAM.DDR5.Thermal;
+using ZenStates.Core.Hardware.Smu.Commands;
 using ZenStates.Core.OHWM;
 
 namespace ZenStates.Core.Hardware.DRAM
@@ -50,6 +51,8 @@ namespace ZenStates.Core.Hardware.DRAM
         public MemType Type { get; protected set; } = MemType.UNKNOWN;
 
         public Capacity TotalCapacity { get; protected set; }
+
+        public bool IsExpoProfileActive { get; protected set; } = false;
 
         public List<KeyValuePair<uint, BaseDramTimings>> Timings { get; protected set; }
 
@@ -146,6 +149,20 @@ namespace ZenStates.Core.Hardware.DRAM
                 Debug.WriteLine($"MemoryConfig: Failed to update manufacturer info from SPD: {ex.Message}");
             }
 
+            // Should not need a try/catch here, but just in case
+            // The command is largely untested and may not return a valid result for all platforms
+            try
+            {
+                using (var cmd = new GetEXPOProfileActive(cpu.smu))
+                {
+                    cmd.Execute();
+                    IsExpoProfileActive = cmd.IsEXPOProfileActive;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"MemoryConfig: Failed to get EXPO profile status: {ex.Message}");
+            }
             //Ddr5SpdReader.DumpDdr5SpdToFiles(Directory.GetCurrentDirectory());
 
             // Populate PMIC data for telemetry
