@@ -426,7 +426,7 @@ namespace ZenStates.Core.Hardware.Mock
 
         private void ReadApob(string debugReportText)
         {
-            Apob = ApobTable.CreateFromDebugReport(debugReportText);
+            Apob = ApobTable.CreateFromDebugReport(debugReportText, Timings.Count > 0 ? Timings[0].Value : null);
 
             if (!string.IsNullOrEmpty(Apob?.ErrorReason))
                 Warnings.Add("APOB: " + Apob.ErrorReason);

@@ -302,7 +302,9 @@ namespace ZenStates.Core.Hardware.Apob
             return false;
         }
 
-        private void TryGetCcdlBlock()
+        // timingsOverride lets CreateFromDebugReport supply the mock timings decoded from the report,
+        // as memoryConfig is not available as a mock
+        private void TryGetCcdlBlock(Ddr5Timings timingsOverride = null)
         {
             if (_profile?.CcdlLayout == null)
                 return;
@@ -316,11 +318,14 @@ namespace ZenStates.Core.Hardware.Apob
 
             try
             {
-                if (_memoryConfig != null && (_memoryConfig.Type == MemType.DDR5 || _memoryConfig.Type == MemType.LPDDR5))
+                var timings = timingsOverride;
+                if (timings == null && _memoryConfig != null && (_memoryConfig.Type == MemType.DDR5 || _memoryConfig.Type == MemType.LPDDR5))
+                    timings = _memoryConfig.Timings[0].Value as Ddr5Timings;
+
+                if (timings != null)
                 {
-                    var timings = _memoryConfig?.Timings[0].Value as Ddr5Timings;
-                    targetCcdlWr2 = timings?.IsCcdlWr2RawValid == true ? timings?.CcdlWr2Raw + 7 ?? 0 : 0;
-                    targetCcdl = timings?.RdBrstGap + 5 ?? 0;
+                    targetCcdlWr2 = timings.IsCcdlWr2RawValid ? timings.CcdlWr2Raw + 7 : 0;
+                    targetCcdl = timings.RdBrstGap + 5;
                 }
             }
             catch (Exception ex)
@@ -419,7 +424,7 @@ namespace ZenStates.Core.Hardware.Apob
         /// <see cref="PackageType.FPX"/> when the report predates that field. CodeName falls
         /// back to <see cref="CodeName.DEBUG"/> when it cannot be parsed.
         /// </remarks>
-        public static Apob CreateFromDebugReport(string debugReportText)
+        public static Apob CreateFromDebugReport(string debugReportText, BaseDramTimings timings = null)
         {
             if (debugReportText == null)
                 throw new ArgumentNullException(nameof(debugReportText));
@@ -496,7 +501,8 @@ namespace ZenStates.Core.Hardware.Apob
             if (profile != null)
             {
                 apob.ParseDataBlocks();
-                apob.TryGetCcdlBlock();
+                // Only available for DDR5/LPDDR5 for now
+                apob.TryGetCcdlBlock(timings as Ddr5Timings);
             }
 
             return apob;
