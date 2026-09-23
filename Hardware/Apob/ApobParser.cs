@@ -4,7 +4,7 @@ namespace ZenStates.Core.Hardware.Apob
 {
     internal static class ApobDataReader
     {
-        private const int MaxSearchLength = 1024; // 1024 bytes
+        private const int MaxSearchLength = 256; // 256 bytes
 
         internal static bool TryRead(byte[] data, uint offset, ApobBlockLayout layout, out ApobData result)
         {
