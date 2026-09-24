@@ -330,7 +330,7 @@ namespace ZenStates.Core.Hardware
             sb.AppendLine();
             sb.AppendLine("-- Raw Data");
 
-            for (int i = 0; i < 0x2000; i += 4)
+            for (int i = 0; i < 0x1000; i += 4)
             {
                 if (io.GetPhysLong((UIntPtr)(AMD_MMIO_BASE_ADDRESS + i), out uint value))
                 {
