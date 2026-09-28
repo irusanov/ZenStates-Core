@@ -37,18 +37,8 @@ namespace ZenStates.Core.Hardware.DRAM
             this.Dict = DDR5Dictionary.defs;
         }
 
-        // 0x5012C
-        public uint AggrPwrDownEn { get; internal set; }
-        public uint PowerDownMode { get; internal set; }
-
         // 0x50130
-        public uint OdtsIncRefEn { get; internal set; }
-        public uint OdtsEn { get; internal set; }
-        public uint ForcePwrDownThrotEn { get; internal set; }
-        public uint OdtsCmdThrotEn { get; internal set; }
         public uint I2CThermEvent { get; internal set; }
-        public uint OdtsCmdThrotCyc { get; internal set; }
-        public uint RollWindowDepth { get; internal set; }
 
         // 0x50198
         public uint WrBrstGap { get; internal set; }
@@ -58,7 +48,6 @@ namespace ZenStates.Core.Hardware.DRAM
         // 0x50200
         public uint UclkGtFclk { get; internal set; }
         public uint WckRatioMode { get; internal set; }
-        public uint BankGroupEn { get; internal set; }
 
         // 0x50208
         public uint RPpb { get; internal set; }
@@ -67,32 +56,11 @@ namespace ZenStates.Core.Hardware.DRAM
         // 0x5021C
         public uint PPD { get; internal set; }
 
-        // 0x50220
-        public uint RDRDBan { get; internal set; }
-
-        // 0x50224
-        public uint WRWRBan { get; internal set; }
-
         // 0x50228
         public uint MW { get; internal set; }
 
-        // 0x5022C
-        public uint ShortInit { get; internal set; }
-        public uint ZqcsInterval { get; internal set; }
-        public uint Tzqcs { get; internal set; }
-
         // 0x50230
         public uint OdtsReadInterval { get; internal set; }
-
-        // 0x50238
-        public uint DLLK { get; internal set; }
-        public uint XS { get; internal set; }
-
-        // 0x5023C
-        public uint RankBusyDly { get; internal set; }
-        public uint CmdParLatency { get; internal set; }
-        public uint AlertParDly { get; internal set; }
-        public uint AlertCrcDly { get; internal set; }
 
         // 0x50240
         public uint MRRI { get; internal set; }
@@ -101,10 +69,7 @@ namespace ZenStates.Core.Hardware.DRAM
         public uint CtrlSwitchClks { get; internal set; }
 
         // 0x50244
-        public uint AggrPwrDownDly { get; internal set; }
         public uint CSH { get; internal set; }
-        public uint PwrDownDly { get; internal set; }
-        public uint PD { get; internal set; }
 
         // 0x50248
         public uint SRX2SRX { get; internal set; }
@@ -115,16 +80,7 @@ namespace ZenStates.Core.Hardware.DRAM
         public uint AlertParPulse { get; internal set; }
 
         // 0x50254
-        public uint CPDED { get; internal set; }
         public uint CACSH { get; internal set; }
-
-        // 0x50258
-        public uint PARINL { get; internal set; }
-        public uint RDDATAEN { get; internal set; }
-
-        // 0x5025C
-        public uint LpExitDly { get; internal set; }
-        public uint LpDly { get; internal set; }
 
         //// 0x50278
         //public uint CombinationalBypass_Master { get; internal set; }
@@ -145,11 +101,6 @@ namespace ZenStates.Core.Hardware.DRAM
         public uint PHYUPD_CmdDly { get; internal set; }
         public uint PHYUPD_WrDatDly { get; internal set; }
         public uint PHYUPD_resp { get; internal set; }
-
-        // 0x5028C
-        public uint WRMPR { get; internal set; }
-        public uint CmdStgCnt { get; internal set; }
-        public uint RcvrWait { get; internal set; }
 
         // 0x50294
         public uint WCK_en_fs { get; internal set; }
@@ -178,10 +129,6 @@ namespace ZenStates.Core.Hardware.DRAM
         // Used in APOB parsing
         internal uint CcdlWr2RawReg { get; set; }
         internal bool IsCcdlWr2RawValid => CcdlWr2RawReg != uint.MaxValue && CcdlWr2Raw != 0;
-
-        // 0x50DF0
-        public uint DdrMaxRate { get; internal set; }
-        public uint DdrMaxRateEnf { get; internal set; }
 
         public uint RFCsb { get; private set; }
 
@@ -274,7 +221,6 @@ namespace ZenStates.Core.Hardware.DRAM
                 FGR = Utils.BitSlice(refreshModeValue, 18, 16);
                 //var allBankRefresh = Utils.GetBit(refreshModeValue, 19);
                 var perBankRefresh = Utils.GetBit(refreshModeValue, 1);
-
 
                 if (/*allBankRefresh == 1 && */perBankRefresh == 0)
                 {

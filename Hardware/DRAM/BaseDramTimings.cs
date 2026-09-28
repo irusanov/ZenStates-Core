@@ -344,6 +344,70 @@ namespace ZenStates.Core.Hardware.DRAM
         public BurstCtrlProp BurstCtrl { get; internal set; }
         public BurstLengthProp BurstLength { get; internal set; }
 
+        // 0x5012C
+        public uint AggrPwrDownEn { get; internal set; }
+        public uint PowerDownMode { get; internal set; }
+
+        // 0x50130
+        public uint OdtsIncRefEn { get; internal set; }
+        public uint OdtsEn { get; internal set; }
+        public uint ForcePwrDownThrotEn { get; internal set; }
+        public uint OdtsCmdThrotEn { get; internal set; }
+        public uint OdtsCmdThrotCyc { get; internal set; }
+        public uint RollWindowDepth { get; internal set; }
+
+        // 0x50200
+        public uint BankGroupEn { get; internal set; }
+
+        // 0x50220
+        public uint RDRDBan { get; internal set; }
+
+        // 0x50224
+        public uint WRWRBan { get; internal set; }
+
+        // 0x5022C
+        public uint ShortInit { get; internal set; }
+        public uint ZqcsInterval { get; internal set; }
+        public uint TzqOperCal { get; internal set; }
+        public uint Tzqcs { get; internal set; }
+
+        // 0x50238
+        public uint DLLK { get; internal set; }
+        public uint XS { get; internal set; }
+
+        // 0x5023C
+        public uint RankBusyDly { get; internal set; }
+        public uint CmdParLatency { get; internal set; }
+        public uint AlertParDly { get; internal set; }
+        public uint AlertCrcDly { get; internal set; }
+
+        // 0x50244
+        public uint AggrPwrDownDly { get; internal set; }
+        public uint PwrDownDly { get; internal set; }
+        public uint PD { get; internal set; }
+
+        // 0x50254
+        public uint CPDED { get; internal set; }
+
+        // 0x50258
+        public uint PARINL { get; internal set; }
+        public uint RDDATAEN { get; internal set; }
+
+        // 0x5025C
+        public uint LpExitDly { get; internal set; }
+        public uint LpDly { get; internal set; }
+
+        // 0x5028C
+        public uint WRMPR { get; internal set; }
+        public uint CmdStgCnt { get; internal set; }
+        public uint RcvrWait { get; internal set; }
+
+        // 0x50DF0
+        public uint DdrMaxRate { get; internal set; }
+
+        // 0x50DF4
+        public uint DdrMaxRateEnf { get; internal set; }
+
         protected virtual void Dispose(bool disposing)
         {
             if (!disposedValue)

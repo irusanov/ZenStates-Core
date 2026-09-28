@@ -15,6 +15,17 @@ namespace ZenStates.Core.Hardware.DRAM
         public uint RFC4 { get; set; }
         public new float RFCns { get; private set; }
 
+        // 0x50130
+        public uint SwCmdThrotEn { get; internal set; }
+        public uint SwCmdThrotCyc { get; internal set; }
+
+        // 0x50200
+        public uint Preamble2t { get; internal set; }
+
+        // 0x5025C
+        public uint TgearHold { get; internal set; }
+        public uint TgearSetup { get; internal set; }
+
         public override void ReadRatio(uint offset = 0)
         {
             if (TryReadRegister(offset | 0x50200, out uint ratioReg))

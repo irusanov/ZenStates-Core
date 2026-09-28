@@ -105,8 +105,9 @@ namespace ZenStates.Core.Dictionaries
                 new TimingDef { Name = "WRRD",                          HiBit = 3   ,   LoBit = 0   },
             }},
             { 0x5022c, new[] {
-                new TimingDef { Name = "ShortInit",                     HiBit = 29  ,   LoBit = 20  },
-                new TimingDef { Name = "ZqcsInterval",                  HiBit = 19  ,   LoBit = 8   },
+                new TimingDef { Name = "ShortInit",                     HiBit = 31  ,   LoBit = 31  }, // 1 = ZqcsInterval in 2^10 clocks, 0 = 2^20 clocks
+                new TimingDef { Name = "ZqcsInterval",                  HiBit = 29  ,   LoBit = 20  },
+                new TimingDef { Name = "TzqOperCal",                    HiBit = 19  ,   LoBit = 8   },
                 new TimingDef { Name = "Tzqcs",                         HiBit = 7   ,   LoBit = 0   },
             }},
             { 0x50230, new[] {
