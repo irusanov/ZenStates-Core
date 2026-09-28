@@ -48,6 +48,65 @@ namespace ZenStates.Core.Hardware.DRAM
         public static implicit operator uint(CommandRateProp flag) => flag.value;
     }
 
+    /// <summary>
+    /// UMC::UmcConfig[9:8] BurstLength. BL2, BL4 and BL16 are reserved in DDR4 mode, BL2, BL4 and BL8 in
+    /// DDR5 mode (PPR #55901).
+    /// </summary>
+    public readonly struct BurstLengthProp
+    {
+        private readonly uint value;
+
+        public BurstLengthProp(uint value)
+        {
+            this.value = value;
+        }
+
+        public override string ToString()
+        {
+            switch (value)
+            {
+                case 0: return "BL2";
+                case 1: return "BL4";
+                case 2: return "BL8";
+                case 3: return "BL16";
+                default: return "Unknown";
+            }
+        }
+
+        // Allow implicit conversion both ways
+        public static implicit operator BurstLengthProp(uint value) => new BurstLengthProp(value);
+        public static implicit operator uint(BurstLengthProp prop) => prop.value;
+    }
+
+    /// <summary>
+    /// UMC::UmcConfig[11:10] BurstCtrl. Dynamic is BL8/BC4 in DDR4 mode and BL16/BC8 in DDR5 mode (PPR #55901).
+    /// </summary>
+    public readonly struct BurstCtrlProp
+    {
+        private readonly uint value;
+
+        public BurstCtrlProp(uint value)
+        {
+            this.value = value;
+        }
+
+        public override string ToString()
+        {
+            switch (value)
+            {
+                case 0: return "Dynamic BL/BC";
+                case 1: return "Fixed BL";
+                case 2:
+                case 3: return "Reserved";
+                default: return "Unknown";
+            }
+        }
+
+        // Allow implicit conversion both ways
+        public static implicit operator BurstCtrlProp(uint value) => new BurstCtrlProp(value);
+        public static implicit operator uint(BurstCtrlProp prop) => prop.value;
+    }
+
     [Serializable]
     public abstract class BaseDramTimings : IDramTimings, IDisposable
     {
@@ -279,6 +338,11 @@ namespace ZenStates.Core.Hardware.DRAM
         public float REFIns { get => Utils.ToNanoseconds(REFI, Frequency); }
         public uint FGR { get; internal set; }
         public BankRefreshMode RefreshMode { get; internal set; } = BankRefreshMode.UNKNOWN;
+
+        // 0x50100
+        public uint DimmEccEn { get; internal set; }
+        public BurstCtrlProp BurstCtrl { get; internal set; }
+        public BurstLengthProp BurstLength { get; internal set; }
 
         protected virtual void Dispose(bool disposing)
         {

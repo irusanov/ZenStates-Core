@@ -37,11 +37,6 @@ namespace ZenStates.Core.Hardware.DRAM
             this.Dict = DDR5Dictionary.defs;
         }
 
-        // 0x50100
-        public uint DimmEccEn { get; internal set; }
-        public uint BurstCtrl { get; internal set; }
-        public uint BurstLength { get; internal set; }
-
         // 0x5012C
         public uint AggrPwrDownEn { get; internal set; }
         public uint PowerDownMode { get; internal set; }
