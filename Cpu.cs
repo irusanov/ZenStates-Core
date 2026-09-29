@@ -372,6 +372,7 @@ namespace ZenStates.Core
 
                 Mutexes.Open();
 
+                ReportProgress("PawnIO modules");
                 try
                 {
                     _pawnAmd = new AmdFamily17();
@@ -423,6 +424,7 @@ namespace ZenStates.Core
                 {
                     info.packageType = (PackageType)(ebx >> 28);
                     info.codeName = GetCodeName(info);
+                    ReportProgress("SMU");
                     SMU.SetRyzenSmu(_pawnRyzenSmu);
                     smu = GetMaintainedSettings.GetByType(info.codeName);
                     smu.Hsmp.Init(this);
@@ -452,6 +454,7 @@ namespace ZenStates.Core
             }
 
             // Non-critical block
+            ReportProgress("CPU topology");
             try
             {
                 info.topology = GetCpuTopology(info.family, info.codeName, info.model);
@@ -461,6 +464,7 @@ namespace ZenStates.Core
                 RecordError(ref recordedError, ex, "CPU topology");
             }
 
+            ReportProgress("Memory configuration");
             try
             {
                 memoryConfig = new MemoryConfig(this);
@@ -480,6 +484,7 @@ namespace ZenStates.Core
                 RecordError(ref recordedError, ex, "Patch level/SVI2");
             }
 
+            ReportProgress("AOD");
             try
             {
                 info.aod = new AOD(io, this);
@@ -489,6 +494,7 @@ namespace ZenStates.Core
                 RecordError(ref recordedError, ex, "AOD");
             }
 
+            ReportProgress("APOB");
             try
             {
                 info.apob = new Apob(info, memoryConfig);
@@ -498,6 +504,7 @@ namespace ZenStates.Core
                 RecordError(ref recordedError, ex, "APOB");
             }
 
+            ReportProgress("System info");
             try
             {
                 systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
@@ -507,6 +514,7 @@ namespace ZenStates.Core
                 RecordError(ref recordedError, ex, "SystemInfo");
             }
 
+            ReportProgress("Power table");
             try
             {
                 powerTable = new PowerTable(_pawnRyzenSmu, info.codeName);
@@ -517,6 +525,7 @@ namespace ZenStates.Core
                 RecordError(ref recordedError, ex, "PowerTable");
             }
 
+            ReportProgress("SMU test");
             try
             {
                 if (!SendTestMessage())
@@ -538,6 +547,23 @@ namespace ZenStates.Core
 
             LastError = recordedError;
             Status = recordedError != null ? IODriver.LibStatus.PARTIALLY_OK : IODriver.LibStatus.OK;
+        }
+
+        private void ReportProgress(string stage)
+        {
+            Action<string> callback = Options?.InitProgress;
+            if (callback == null)
+                return;
+
+            try
+            {
+                callback(stage);
+            }
+            catch (Exception ex)
+            {
+                // Progress is informational only; never let it break initialization.
+                Debug.WriteLine($"InitProgress callback failed: {ex.Message}");
+            }
         }
 
         private static void RecordError(ref Exception recordedError, Exception ex, string subsystem)
