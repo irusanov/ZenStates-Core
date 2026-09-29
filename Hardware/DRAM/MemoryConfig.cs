@@ -80,6 +80,7 @@ namespace ZenStates.Core.Hardware.DRAM
         }
 
         private long LastTelemetryRefreshTick;
+        private readonly object telemetryThrottleLock = new object();
 
         public MemoryConfig(Cpu cpuInstance)
         {
@@ -273,16 +274,27 @@ namespace ZenStates.Core.Hardware.DRAM
 
             // Mask off the sign bit to handle TickCount wrap-around safely.
             long now = Environment.TickCount & int.MaxValue;
-            long elapsed = now - LastTelemetryRefreshTick;
+            long previousTick;
 
-            if (elapsed >= 0 && elapsed < uiRefreshIntervalMs)
-                return false;
+            // Reserve this refresh before any I/O: a second caller that arrives while this one waits for
+            // or holds the SMBus sees the new tick and skips, instead of queueing the same reads again.
+            lock (telemetryThrottleLock)
+            {
+                previousTick = LastTelemetryRefreshTick;
+                long elapsed = now - previousTick;
+
+                if (elapsed >= 0 && elapsed < uiRefreshIntervalMs)
+                    return false;
+
+                LastTelemetryRefreshTick = now;
+            }
 
             bool updated = false;
 
             if (!Mutexes.WaitSmbus(5000))
             {
                 Debug.WriteLine("RefreshTelemetry: Timeout waiting for SMBus bus mutex.");
+                ReleaseTelemetryReservation(now, previousTick);
                 return false;
             }
 
@@ -324,9 +336,6 @@ namespace ZenStates.Core.Hardware.DRAM
                     if (savedPort >= 0)
                         smbusDriver.ChangePortNoLock(savedPort);
                 }
-
-                if (updated)
-                    LastTelemetryRefreshTick = now;
             }
             catch (Exception ex)
             {
@@ -337,7 +346,21 @@ namespace ZenStates.Core.Hardware.DRAM
                 Mutexes.ReleaseSmbus();
             }
 
+            // Nothing was read: let the next call try again right away, as before.
+            if (!updated)
+                ReleaseTelemetryReservation(now, previousTick);
+
             return updated;
+        }
+
+        // Undoes a reservation that read nothing, unless a later refresh has reserved since.
+        private void ReleaseTelemetryReservation(long reservedTick, long previousTick)
+        {
+            lock (telemetryThrottleLock)
+            {
+                if (LastTelemetryRefreshTick == reservedTick)
+                    LastTelemetryRefreshTick = previousTick;
+            }
         }
 
         private void ReadModulesInfo()
