@@ -22,6 +22,15 @@ namespace ZenStates.Core.Hardware.Apob
             Tccdlwr = tccdlwr;
             Tccdlwr2 = tccdlwr2;
         }
+
+        public override string ToString()
+        {
+            if (Tccdl != 0 && Tccdlwr != 0 && Tccdlwr2 != 0)
+            {
+                return $"{Tccdl}/{Tccdlwr}/{Tccdlwr2}";
+            }
+            return null;
+        }
     }
 
     /// <summary>
