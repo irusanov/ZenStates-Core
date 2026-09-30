@@ -468,7 +468,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             try
             {
                 if (Ddr5ThermalSensor.DetectNoLock(smbus, addr7))
-                    info.ThermalData = Ddr5ThermalSensor.ReadAllNoLock(smbus, addr7);
+                    info.ThermalData = Ddr5ThermalSensor.ReadAllRegsNoLock(smbus, addr7);
             }
             catch
             {

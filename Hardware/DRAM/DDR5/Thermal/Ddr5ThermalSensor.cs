@@ -8,43 +8,57 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Thermal
     {
         // SPD5118 Hub Register Addresses (Mode Registers)
         /// <summary>MR0:MR1 – Device type identifier (reads 0x5118).</summary>
-        public const byte REG_TYPE = 0x00;
+        private const byte REG_TYPE = 0x00;
 
         /// <summary>MR2 – Hub revision.</summary>
-        public const byte REG_REVISION = 0x02;
+        private const byte REG_REVISION = 0x02;
 
         /// <summary>MR3:MR4 – Vendor ID.</summary>
-        public const byte REG_VENDOR = 0x03;
+        private const byte REG_VENDOR = 0x03;
 
         /// <summary>MR5 – Device capability. Bit 1 = TS support.</summary>
-        public const byte REG_CAPABILITY = 0x05;
+        private const byte REG_CAPABILITY = 0x05;
 
         /// <summary>MR11 – I2C legacy mode / page select.</summary>
-        public const byte REG_I2C_LEGACY = 0x0B;
+        private const byte REG_I2C_LEGACY = 0x0B;
 
         /// <summary>MR19 – Temperature status clear.</summary>
-        public const byte REG_TEMP_CLR = 0x13;
+        private const byte REG_TEMP_CLR = 0x13;
 
         /// <summary>MR26 – Temperature sensor config. Bit 0 = disable.</summary>
-        public const byte REG_TEMP_CONFIG = 0x1A;
+        private const byte REG_TEMP_CONFIG = 0x1A;
 
         /// <summary>MR28:MR29 – High temperature limit.</summary>
-        public const byte REG_TEMP_MAX = 0x1C;
+        private const byte REG_TEMP_MAX = 0x1C;
 
         /// <summary>MR30:MR31 – Low temperature limit.</summary>
-        public const byte REG_TEMP_MIN = 0x1E;
+        private const byte REG_TEMP_MIN = 0x1E;
 
         /// <summary>MR32:MR33 – Critical-high temperature limit.</summary>
-        public const byte REG_TEMP_CRIT = 0x20;
+        private const byte REG_TEMP_CRIT = 0x20;
 
         /// <summary>MR34:MR35 – Critical-low temperature limit.</summary>
-        public const byte REG_TEMP_LCRIT = 0x22;
+        private const byte REG_TEMP_LCRIT = 0x22;
 
         /// <summary>MR49:MR50 – Current temperature reading.</summary>
-        public const byte REG_TEMP = 0x31;
+        private const byte REG_TEMP = 0x31;
 
         /// <summary>MR51 – Temperature alarm status flags.</summary>
-        public const byte REG_TEMP_STATUS = 0x33;
+        private const byte REG_TEMP_STATUS = 0x33;
+
+        // Capability bits
+        private const byte CAP_TS_SUPPORT = 0x02;  // bit 1
+                                                   // Config bits
+        private const byte TS_DISABLE = 0x01;  // bit 0
+
+        // Status bits
+        private const byte STATUS_HIGH = 0x01;
+        private const byte STATUS_LOW = 0x02;
+        private const byte STATUS_CRIT = 0x04;
+        private const byte STATUS_LCRIT = 0x08;
+
+        // Temperature unit: 0.25 C = 250 millidegrees
+        private const int TEMP_UNIT_MC = 250;
 
         /// <summary>
         /// Check whether MR0:MR1 identify an SPD5118 device.
@@ -61,20 +75,6 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Thermal
             return false;
         }
 
-        // Capability bits
-        private const byte CAP_TS_SUPPORT = 0x02;  // bit 1
-                                                   // Config bits
-        private const byte TS_DISABLE = 0x01;  // bit 0
-
-        // Status bits
-        private const byte STATUS_HIGH = 0x01;
-        private const byte STATUS_LOW = 0x02;
-        private const byte STATUS_CRIT = 0x04;
-        private const byte STATUS_LCRIT = 0x08;
-
-        // Temperature unit: 0.25 C = 250 millidegrees
-        private const int TEMP_UNIT_MC = 250;
-
         // Temperature conversion
         /// <summary>
         /// Convert a raw 16-bit SPD5118 temperature register value to
@@ -90,15 +90,6 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Thermal
             if ((val & 0x400) != 0)
                 val |= unchecked((int)0xFFFFF800);
             return val * TEMP_UNIT_MC;
-        }
-
-        /// <summary>
-        /// Convert millidegrees Celsius back to raw 16-bit register value.
-        /// </summary>
-        public static int MilliCToRaw(int milliC)
-        {
-            int val = milliC / TEMP_UNIT_MC;
-            return (val & 0x07FF) << 2;
         }
 
         // SMBus read helpers
@@ -204,18 +195,6 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Thermal
         }
 
         /// <summary>
-        /// Refresh the current temperature and alarm status from the SPD5118 sensor.
-        /// Clears the alarm status after reading.
-        /// </summary>
-        /// <returns>Ddr5ThermalData with current temperature and alarm flags, or IsValid=false on error.</returns>
-        internal static Ddr5ThermalData RefreshTemperatureAndStatusNoLock(SmbusDriverBase smbus, byte i2cAddr)
-        {
-            Ddr5ThermalData td = new Ddr5ThermalData();
-            td.IsValid = RefreshTemperatureAndStatusNoLock(smbus, i2cAddr, td);
-            return td;
-        }
-
-        /// <summary>
         /// Refresh the current temperature and alarm status from the SPD5118 sensor,
         /// merging the updated values into the existing <paramref name="td"/> instead
         /// of replacing it, so other cached fields (e.g. limits) are preserved.
@@ -242,7 +221,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Thermal
         /// <summary>
         /// Read all thermal sensor data: current temp, limits, and alarms.
         /// </summary>
-        internal static Ddr5ThermalData ReadAllNoLock(SmbusDriverBase smbus, byte i2cAddr)
+        internal static Ddr5ThermalData ReadAllRegsNoLock(SmbusDriverBase smbus, byte i2cAddr)
         {
             Ddr5ThermalData td = new Ddr5ThermalData();
 
@@ -278,53 +257,6 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Thermal
             }
 
             return td;
-        }
-
-        /// <summary>
-        /// Scan all standard DDR5 SPD addresses (0x50-0x57) and read
-        /// thermal data from every DIMM that has an SPD5118 hub with TS.
-        /// </summary>
-        internal static Dictionary<byte, Ddr5ThermalData> ReadAllDimmsNoLock(SmbusDriverBase smbus)
-        {
-            Dictionary<byte, Ddr5ThermalData> results =
-                new Dictionary<byte, Ddr5ThermalData>();
-
-            for (byte addr = 0x50; addr <= 0x57; addr++)
-            {
-                if (DetectNoLock(smbus, addr))
-                    results[addr] = ReadAllNoLock(smbus, addr);
-            }
-
-            return results;
-        }
-
-        /// <summary>
-        /// Print thermal sensor readings for all detected DDR5 DIMMs.
-        /// </summary>
-        public static void PrintAllDimms(SmbusDriverBase smbus)
-        {
-            if (!Mutexes.WaitSmbus(5000))
-            {
-                Debug.WriteLine("Failed to acquire SMBus mutex for reading DDR5 thermal sensors.");
-                return;
-            }
-
-            Dictionary<byte, Ddr5ThermalData> data = default;
-
-            try
-            {
-                data = ReadAllDimmsNoLock(smbus);
-            }
-            finally
-            {
-                Mutexes.ReleaseSmbus();
-            }
-
-            foreach (KeyValuePair<byte, Ddr5ThermalData> kvp in data)
-            {
-                Debug.WriteLine($"DIMM 0x{kvp.Key:X2} Thermal Sensor:");
-                Debug.WriteLine(kvp.Value.ToString());
-            }
         }
     }
 }

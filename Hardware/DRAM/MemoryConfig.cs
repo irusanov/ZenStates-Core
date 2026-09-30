@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using ZenStates.Core.Drivers;
+using ZenStates.Core.Hardware.DRAM.DDR4.Thermal;
 using ZenStates.Core.Hardware.DRAM.DDR5.Pmic;
 using ZenStates.Core.Hardware.DRAM.DDR5.Spd;
 using ZenStates.Core.Hardware.DRAM.DDR5.Thermal;
@@ -79,6 +80,36 @@ namespace ZenStates.Core.Hardware.DRAM
             get { return Type == MemType.DDR5 || Type == MemType.LPDDR5; }
         }
 
+        /// <summary>
+        /// DDR4 module thermal sensors: one entry per module SPD found, keyed by the SPD address and in the order
+        /// of the modules. The value is null for a module without a sensor. Null when the memory is not DDR4.
+        /// The entries are read at startup and updated in place by <see cref="RefreshTelemetry"/>.
+        /// </summary>
+        public Dictionary<byte, Ddr4ThermalData> Ddr4ThermalSensors { get; protected set; }
+
+        /// <summary>Whether any module reports live data (DDR5 SPD hub and PMIC, or a DDR4 thermal sensor).</summary>
+        public bool HasDimmTelemetry
+        {
+            get
+            {
+                Dictionary<byte, Ddr5SpdInfo> spd = SpdInfo;
+                if (spd != null && spd.Count > 0)
+                    return true;
+
+                Dictionary<byte, Ddr4ThermalData> ddr4 = Ddr4ThermalSensors;
+                if (ddr4 != null)
+                {
+                    foreach (Ddr4ThermalData td in ddr4.Values)
+                    {
+                        if (td != null && td.IsValid)
+                            return true;
+                    }
+                }
+
+                return false;
+            }
+        }
+
         private long LastTelemetryRefreshTick;
         private readonly object telemetryThrottleLock = new object();
 
@@ -117,6 +148,13 @@ namespace ZenStates.Core.Hardware.DRAM
             finally
             {
                 Mutexes.ReleasePciBus();
+            }
+
+            if (Type == MemType.DDR4)
+            {
+                // Module thermal sensors (TSOD); read-only, modules without one are simply listed without data.
+                Ddr4ThermalSensors = Ddr4ThermalSensor.ReadAll(smbusDriver);
+                return;
             }
 
             if (Type != MemType.DDR5 && Type != MemType.LPDDR5)
@@ -264,13 +302,25 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public bool RefreshTelemetry(int uiRefreshIntervalMs = 2000)
         {
-            if (!IsSpdSupported)
-                return false;
+            // Work on snapshots; RefreshSpdInfo may swap SpdInfo concurrently.
+            Dictionary<byte, Ddr5SpdInfo> snapshot = null;
+            Dictionary<byte, Ddr4ThermalData> ddr4Sensors = null;
 
-            // Work on a snapshot; RefreshSpdInfo may swap SpdInfo concurrently.
-            Dictionary<byte, Ddr5SpdInfo> snapshot = SpdInfo;
-            if (snapshot == null || snapshot.Count == 0)
-                return false;
+            if (Type == MemType.DDR4)
+            {
+                ddr4Sensors = Ddr4ThermalSensors;
+                if (ddr4Sensors == null || ddr4Sensors.Count == 0)
+                    return false;
+            }
+            else
+            {
+                if (!IsSpdSupported)
+                    return false;
+
+                snapshot = SpdInfo;
+                if (snapshot == null || snapshot.Count == 0)
+                    return false;
+            }
 
             // Mask off the sign bit to handle TickCount wrap-around safely.
             long now = Environment.TickCount & int.MaxValue;
@@ -300,42 +350,9 @@ namespace ZenStates.Core.Hardware.DRAM
 
             try
             {
-                smbusDriver.ChangePortNoLock(-1, out int savedPort);
-
-                try
-                {
-                    if (Ddr5SpdReader.SelectHubPortNoLock(false))
-                    {
-                        foreach (var info in snapshot)
-                        {
-                            Ddr5PmicData pd = info.Value?.PmicData;
-                            if (pd == null || !pd.IsValid)
-                                continue;
-
-                            // Set points first: they can be changed at runtime, and the voltage mode is decided
-                            // from them together with the measured rails.
-                            Ddr5PmicReader.ReadVoltageSettingsNoLock(smbusDriver, pd.I2cAddress, pd);
-                            Ddr5PmicReader.ReadAllAdcVoltagesNoLock(smbusDriver, pd.I2cAddress, pd);
-                            Ddr5PmicReader.ReadPmicTemperatureNoLock(smbusDriver, pd.I2cAddress, pd);
-                            Ddr5PmicReader.ReadPmicTelemetryNoLock(smbusDriver, pd.I2cAddress, pd);
-
-                            Ddr5ThermalData td = info.Value?.ThermalData;
-                            if (td != null && td.IsValid && td.TempSensorEnabled)
-                            {
-                                // Merge updated temperature and status into the existing thermal data
-                                // instead of replacing the whole object, preserving other cached fields.
-                                Ddr5ThermalSensor.RefreshTemperatureAndStatusNoLock(smbusDriver, pd.SpdHubAddress, td);
-                            }
-
-                            updated = true;
-                        }
-                    }
-                }
-                finally
-                {
-                    if (savedPort >= 0)
-                        smbusDriver.ChangePortNoLock(savedPort);
-                }
+                updated = ddr4Sensors != null
+                    ? Ddr4ThermalSensor.RefreshAllNoLock(smbusDriver, ddr4Sensors)
+                    : RefreshDdr5TelemetryNoLock(snapshot);
             }
             catch (Exception ex)
             {
@@ -349,6 +366,52 @@ namespace ZenStates.Core.Hardware.DRAM
             // Nothing was read: let the next call try again right away, as before.
             if (!updated)
                 ReleaseTelemetryReservation(now, previousTick);
+
+            return updated;
+        }
+
+        // Reads the PMIC and SPD hub temperature of every DDR5 module; the SMBus mutex must be held.
+        private bool RefreshDdr5TelemetryNoLock(Dictionary<byte, Ddr5SpdInfo> snapshot)
+        {
+            bool updated = false;
+
+            smbusDriver.ChangePortNoLock(-1, out int savedPort);
+
+            try
+            {
+                if (!Ddr5SpdReader.SelectHubPortNoLock(false))
+                    return false;
+
+                foreach (var info in snapshot)
+                {
+                    Ddr5PmicData pd = info.Value?.PmicData;
+                    if (pd != null && pd.IsValid)
+                    {
+                        // Set points first: they can be changed at runtime, and the voltage mode is decided
+                        // from them together with the measured rails.
+                        Ddr5PmicReader.ReadVoltageSettingsNoLock(smbusDriver, pd.I2cAddress, pd);
+                        Ddr5PmicReader.ReadAllAdcVoltagesNoLock(smbusDriver, pd.I2cAddress, pd);
+                        Ddr5PmicReader.ReadPmicTemperatureNoLock(smbusDriver, pd.I2cAddress, pd);
+                        Ddr5PmicReader.ReadPmicTelemetryNoLock(smbusDriver, pd.I2cAddress, pd);
+                        updated = true;
+                    }
+
+                    // The SPD hub sensor is read even when the module's PMIC is not readable. The key is the hub address.
+                    Ddr5ThermalData td = info.Value?.ThermalData;
+                    if (td != null && td.IsValid && td.TempSensorEnabled)
+                    {
+                        // Merge updated temperature and status into the existing thermal data
+                        // instead of replacing the whole object, preserving other cached fields.
+                        if (Ddr5ThermalSensor.RefreshTemperatureAndStatusNoLock(smbusDriver, info.Key, td))
+                            updated = true;
+                    }
+                }
+            }
+            finally
+            {
+                if (savedPort >= 0)
+                    smbusDriver.ChangePortNoLock(savedPort);
+            }
 
             return updated;
         }
