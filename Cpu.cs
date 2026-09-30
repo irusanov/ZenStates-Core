@@ -586,6 +586,21 @@ namespace ZenStates.Core
             return (ccd << 28) | ((ccx % 2) << 24) | ((core % 4) << 20);
         }
 
+        /// <summary>
+        /// The core mask (see <see cref="MakeCoreMask"/>) of a core given by its logical index: the logical processor
+        /// number divided by the threads per core, in the order the OS enumerates them. The physical CCD, CCX and
+        /// core come from the APOB core map, so disabled CCDs and cores are skipped the way the firmware did.
+        /// Returns null when the APOB has no core map or the index is out of range.
+        /// </summary>
+        public uint? MakeCoreMaskForLogicalCore(int logicalCore)
+        {
+            ApobCoreMapCore core = info.apob?.CoreMap?.GetLogicalCore(logicalCore);
+            if (core == null)
+                return null;
+
+            return MakeCoreMask((uint)core.PhysicalCore, (uint)core.PhysicalCcd, (uint)core.PhysicalCcx);
+        }
+
         public bool ReadDwordExNoLock(uint addr, ref uint data, int maxRetries = 10)
         {
             if (maxRetries < 1)

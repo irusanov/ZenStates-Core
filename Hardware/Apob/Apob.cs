@@ -83,6 +83,18 @@ namespace ZenStates.Core.Hardware.Apob
 
         public CcdlData CcdlData { get; private set; } = new CcdlData();
 
+        /// <summary>
+        /// The CCD / CCX / core logical to physical maps (APOB_CCX group), one per instance (socket), empty when the
+        /// APOB has none.
+        /// </summary>
+        public List<ApobCoreMap> CoreMaps { get; private set; } = new List<ApobCoreMap>();
+
+        /// <summary>The core map of the first instance, or <c>null</c>.</summary>
+        public ApobCoreMap CoreMap
+        {
+            get { return CoreMaps != null && CoreMaps.Count > 0 ? CoreMaps[0] : null; }
+        }
+
         /// <summary>Offsets of all non-zero config entries found inside the header region.</summary>
         public List<uint> ConfigOffsets { get; private set; } = new List<uint>();
 
@@ -140,6 +152,10 @@ namespace ZenStates.Core.Hardware.Apob
             }
 
             ConfigOffsets = GetConfigOffsets(RawTable, Header);
+
+            // Independent of the memory layouts and of the CPU profile
+            TryParseCoreMap();
+
             if (ConfigOffsets.Count == 0)
             {
                 ErrorReason = "No valid config entry offsets found in APOB header region.";
@@ -309,6 +325,20 @@ namespace ZenStates.Core.Hardware.Apob
             }
 
             return false;
+        }
+
+        private void TryParseCoreMap()
+        {
+            try
+            {
+                var entries = ApobCoreMapParser.EnumerateEntries(RawTable, Header.HeaderSize, Header.TableSize, ConfigOffsets);
+                CoreMaps = ApobCoreMapParser.Parse(RawTable, entries, (int)_cpuInfo.topology.logicalCores);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"APOB core map: {ex.Message}");
+                CoreMaps = new List<ApobCoreMap>();
+            }
         }
 
         // timingsOverride lets CreateFromDebugReport supply the mock timings decoded from the report,
@@ -506,6 +536,17 @@ namespace ZenStates.Core.Hardware.Apob
             apob.ExtendedDataOffset = extendedDataOffset;
             apob.ExtendedDataSize = extendedDataSize;
             apob.ConfigOffsets = ParseConfigOffsets(text);
+
+            for (int i = 0; ; i++)
+            {
+                byte[] rawCoreMap = ParseRawSection(text, "-- Raw Core Map [" + i + "]");
+                if (rawCoreMap == null)
+                    break;
+
+                ApobCoreMap coreMap = ApobCoreMapParser.Decode(rawCoreMap, 0);
+                if (coreMap != null)
+                    apob.CoreMaps.Add(coreMap);
+            }
 
             if (profile != null)
             {
@@ -765,6 +806,10 @@ namespace ZenStates.Core.Hardware.Apob
                 report.AppendValue("Tccdlwr2", CcdlData.Tccdlwr2);
 
                 report.AppendLine();
+                report.AppendSection("Core Map");
+                AppendCoreMaps(report);
+
+                report.AppendLine();
                 report.AppendLine("APOB: Raw");
                 report.AppendLine();
 
@@ -776,6 +821,15 @@ namespace ZenStates.Core.Hardware.Apob
                 report.AppendLine();
                 AppendRawBlock(report, "Raw Extended Data", RawExtendedData, "<APOB raw extended data not available>");
 
+                if (CoreMaps != null)
+                {
+                    for (int i = 0; i < CoreMaps.Count; i++)
+                    {
+                        report.AppendLine();
+                        AppendRawBlock(report, "Raw Core Map [" + i + "]", CoreMaps[i].RawEntry, "<APOB raw core map not available>");
+                    }
+                }
+
                 report.AppendLine();
             }
             catch (Exception ex)
@@ -785,6 +839,32 @@ namespace ZenStates.Core.Hardware.Apob
             }
 
             return report.ToString();
+        }
+
+        private void AppendCoreMaps(ReportBuilder report)
+        {
+            if (CoreMaps == null || CoreMaps.Count == 0)
+            {
+                report.AppendLine("<APOB core map not available>");
+                return;
+            }
+
+            for (int m = 0; m < CoreMaps.Count; m++)
+            {
+                ApobCoreMap map = CoreMaps[m];
+                report.AppendLine(map.ToString());
+                report.AppendHexValue("Entry Offset", map.EntryOffset, 8, 28);
+                report.AppendHexValue("Physical CCD Mask", map.PhysicalCcdMask, 4, 28);
+
+                for (int i = 0; i < map.Cores.Count; i++)
+                {
+                    ApobCoreMapCore core = map.Cores[i];
+                    report.AppendLine(string.Format(CultureInfo.InvariantCulture,
+                        "Core {0,2} (CCD {1} CCX {2} Core {3}) -> CCD {4} CCX {5} Core {6}, threads {7}",
+                        core.LogicalIndex, core.LogicalCcd, core.LogicalCcx, core.LogicalCore,
+                        core.PhysicalCcd, core.PhysicalCcx, core.PhysicalCore, core.EnabledThreads));
+                }
+            }
         }
 
         private static void AppendRawBlock(ReportBuilder report, string title, byte[] data, string unavailableText)
