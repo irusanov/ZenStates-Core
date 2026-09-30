@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using ZenStates.Core.Drivers;
+using ZenStates.Core.Hardware.DRAM.DDR4.Spd;
 using ZenStates.Core.Hardware.DRAM.DDR4.Thermal;
 using ZenStates.Core.Hardware.DRAM.DDR5.Pmic;
 using ZenStates.Core.Hardware.DRAM.DDR5.Spd;
@@ -73,6 +74,20 @@ namespace ZenStates.Core.Hardware.DRAM
         {
             get { return spdInfo; }
             protected set { spdInfo = value; }
+        }
+
+        // Same copy-on-write rule as spdInfo, guarded by the same lock.
+        private volatile Dictionary<byte, Ddr4SpdInfo> ddr4Spd;
+
+        /// <summary>
+        /// DDR4 SPD of each module, keyed by the SPD address in module order. Null when the memory is not DDR4.
+        /// The entries read at startup are partial (<see cref="Ddr4SpdInfo.IsPartial"/>); <see cref="RefreshSpdInfo"/>
+        /// reads the whole SPD.
+        /// </summary>
+        public Dictionary<byte, Ddr4SpdInfo> Ddr4Spd
+        {
+            get { return ddr4Spd; }
+            protected set { ddr4Spd = value; }
         }
 
         private bool IsSpdSupported
@@ -154,6 +169,16 @@ namespace ZenStates.Core.Hardware.DRAM
             {
                 // Module thermal sensors (TSOD); read-only, modules without one are simply listed without data.
                 Ddr4ThermalSensors = Ddr4ThermalSensor.ReadAll(smbusDriver);
+
+                // Only the SPD bytes needed at startup; the SPD window reads the rest
+                Dictionary<byte, Ddr4SpdInfo> ddr4Info = Ddr4SpdReader.ReadInitInfoAll();
+                LinkDdr4ThermalSensors(ddr4Info);
+                Ddr4Spd = ddr4Info;
+
+                var names = new List<string>();
+                foreach (Ddr4SpdInfo entry in ddr4Info.Values)
+                    names.Add(entry != null && entry.IsValid ? entry.ModuleManufacturer : null);
+                UpdateModuleManufacturers(names);
                 return;
             }
 
@@ -163,30 +188,13 @@ namespace ZenStates.Core.Hardware.DRAM
             // Only read partial info needed for initialization as reading whole SPD data is expensive
             SpdInfo = Ddr5SpdReader.ReadDdr5SpdInitInfoAll();
 
-            try
+            var ddr5Names = new List<string>();
+            foreach (var spdEntry in SpdInfo.Values)
             {
-                int moduleIndex = 0;
-                foreach (var spdEntry in SpdInfo.Values)
-                {
-                    if (spdEntry == null)
-                        continue;
-
-                    if (moduleIndex < Modules.Count)
-                    {
-                        if (string.IsNullOrEmpty(Modules[moduleIndex].Manufacturer) ||
-                            Modules[moduleIndex].Manufacturer.StartsWith("Unknown") ||
-                            !spdEntry.ModuleManufacturer.StartsWith("Unknown"))
-                        {
-                            Modules[moduleIndex].Manufacturer = spdEntry.ModuleManufacturer;
-                        }
-                        moduleIndex++;
-                    }
-                }
+                if (spdEntry != null)
+                    ddr5Names.Add(spdEntry.ModuleManufacturer);
             }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"MemoryConfig: Failed to update manufacturer info from SPD: {ex.Message}");
-            }
+            UpdateModuleManufacturers(ddr5Names);
 
             // Should not need a try/catch here, but just in case
             // The command is largely untested and may not return a valid result for all platforms
@@ -206,6 +214,56 @@ namespace ZenStates.Core.Hardware.DRAM
 
             // Populate PMIC data for telemetry
             //RefreshTelemetry();
+        }
+
+        // The module manufacturers from SPD, in module order, replace the SMBIOS names unless SPD doesn't know the vendor.
+        private void UpdateModuleManufacturers(List<string> spdNames)
+        {
+            try
+            {
+                for (int i = 0; i < spdNames.Count && i < Modules.Count; i++)
+                {
+                    string name = spdNames[i];
+                    if (string.IsNullOrEmpty(name))
+                        continue;
+
+                    if (string.IsNullOrEmpty(Modules[i].Manufacturer) ||
+                        Modules[i].Manufacturer.StartsWith("Unknown") ||
+                        !name.StartsWith("Unknown"))
+                    {
+                        Modules[i].Manufacturer = name;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"MemoryConfig: Failed to update manufacturer info from SPD: {ex.Message}");
+            }
+        }
+
+        // Attaches the thermal sensor of each module (found at startup) to its SPD entry.
+        private void LinkDdr4ThermalSensors(Dictionary<byte, Ddr4SpdInfo> spd)
+        {
+            Dictionary<byte, Ddr4ThermalData> sensors = Ddr4ThermalSensors;
+            if (spd == null || sensors == null)
+                return;
+
+            foreach (KeyValuePair<byte, Ddr4SpdInfo> entry in spd)
+            {
+                if (entry.Value != null && sensors.TryGetValue(entry.Key, out Ddr4ThermalData sensor))
+                    entry.Value.ThermalData = sensor;
+            }
+        }
+
+        /// <summary>Reads and decodes the whole SPD of all DDR4 modules (not cached; see <see cref="RefreshSpdInfo"/>).</summary>
+        public Dictionary<byte, Ddr4SpdInfo> ReadAndDecodeAllDdr4()
+        {
+            if (Type != MemType.DDR4)
+                return null;
+
+            Dictionary<byte, Ddr4SpdInfo> info = Ddr4SpdReader.ReadAll();
+            LinkDdr4ThermalSensors(info);
+            return info;
         }
 
         internal static MemType SMBiosDramTypeToMemType(MemoryType type)
@@ -265,6 +323,9 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public bool RefreshSpdInfo()
         {
+            if (Type == MemType.DDR4)
+                return RefreshDdr4SpdInfo();
+
             if (!IsSpdSupported)
                 return false;
 
@@ -296,6 +357,39 @@ namespace ZenStates.Core.Hardware.DRAM
             catch (Exception ex)
             {
                 Debug.WriteLine($"RefreshSpdInfo: {ex.Message}");
+                return false;
+            }
+        }
+
+        private bool RefreshDdr4SpdInfo()
+        {
+            try
+            {
+                Dictionary<byte, Ddr4SpdInfo> info = ReadAndDecodeAllDdr4();
+                if (info == null || info.Count == 0)
+                    return false;
+
+                lock (spdInfoLock)
+                {
+                    Dictionary<byte, Ddr4SpdInfo> current = Ddr4Spd;
+                    Dictionary<byte, Ddr4SpdInfo> merged = current != null
+                        ? new Dictionary<byte, Ddr4SpdInfo>(current)
+                        : new Dictionary<byte, Ddr4SpdInfo>();
+
+                    foreach (var entry in info)
+                    {
+                        // Keep what was read at startup if this read came back worse
+                        if (entry.Value != null && entry.Value.IsValid)
+                            merged[entry.Key] = entry.Value;
+                    }
+
+                    Ddr4Spd = merged;
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"RefreshDdr4SpdInfo: {ex.Message}");
                 return false;
             }
         }
