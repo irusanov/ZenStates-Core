@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Text;
 
 #if !NET20
 using System.Globalization;
@@ -181,7 +184,32 @@ namespace ZenStates.Core
         public CoreOptions Options { get; }
 
         public IODriver.LibStatus Status { get; }
+
+        /// <summary>
+        /// The non-fatal initialization error. When several subsystems failed, an exception whose message lists all
+        /// of them (see <see cref="InitErrors"/>) and whose InnerException is the first failure.
+        /// </summary>
         public Exception LastError { get; }
+
+        /// <summary>Every non-fatal error recorded during initialization, in the order they occurred.</summary>
+        public ReadOnlyCollection<CpuInitError> InitErrors { get; }
+
+        public sealed class CpuInitError
+        {
+            public CpuInitError(string subsystem, Exception exception)
+            {
+                Subsystem = subsystem;
+                Exception = exception;
+            }
+
+            public string Subsystem { get; }
+            public Exception Exception { get; }
+
+            public override string ToString()
+            {
+                return string.Format("{0}: {1}", Subsystem, Exception != null ? Exception.Message : string.Empty);
+            }
+        }
 
         /**
          * Core fuse
@@ -356,11 +384,13 @@ namespace ZenStates.Core
 #endif
             if (!PawnIo.PawnIo.IsInstalled)
             {
-                throw new ApplicationException("PawnIO is not installed.");
+                ApplicationException notInstalled = new ApplicationException("PawnIO is not installed.");
+                WriteCrashLog(notInstalled, null);
+                throw notInstalled;
             }
 
-            // Non-fatal errors are collected here and reported through LastError/Status.
-            Exception recordedError = null;
+            // Non-fatal errors are collected here and reported through InitErrors/LastError/Status.
+            List<CpuInitError> errors = new List<CpuInitError>();
 
             try
             {
@@ -398,8 +428,7 @@ namespace ZenStates.Core
                 catch (Exception ex)
                 {
                     io = null;
-                    recordedError = ex;
-                    Debug.WriteLine($"IODriver initialization failed: {ex.Message}");
+                    RecordError(errors, ex, "IODriver");
                 }
 
                 if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
@@ -447,8 +476,9 @@ namespace ZenStates.Core
 
                 mmio = new Mmio(info.family);
             }
-            catch
+            catch (Exception ex)
             {
+                WriteCrashLog(ex, errors);
                 Dispose(true);
                 throw;
             }
@@ -461,7 +491,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "CPU topology");
+                RecordError(errors, ex, "CPU topology");
             }
 
             ReportProgress("Memory configuration");
@@ -471,7 +501,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "MemoryConfig");
+                RecordError(errors, ex, "MemoryConfig");
             }
 
             try
@@ -481,7 +511,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "Patch level/SVI2");
+                RecordError(errors, ex, "Patch level/SVI2");
             }
 
             ReportProgress("AOD");
@@ -491,7 +521,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "AOD");
+                RecordError(errors, ex, "AOD");
             }
 
             ReportProgress("APOB");
@@ -501,7 +531,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "APOB");
+                RecordError(errors, ex, "APOB");
             }
 
             ReportProgress("System info");
@@ -511,7 +541,7 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "SystemInfo");
+                RecordError(errors, ex, "SystemInfo");
             }
 
             ReportProgress("Power table");
@@ -522,18 +552,18 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "PowerTable");
+                RecordError(errors, ex, "PowerTable");
             }
 
             ReportProgress("SMU test");
             try
             {
                 if (!SendTestMessage())
-                    RecordError(ref recordedError, new ApplicationException("SMU is not responding to test message!"), "SMU");
+                    RecordError(errors, new ApplicationException("SMU is not responding to test message!"), "SMU");
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "SMU test message");
+                RecordError(errors, ex, "SMU test message");
             }
 
             try
@@ -542,11 +572,12 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "PowerTable refresh");
+                RecordError(errors, ex, "PowerTable refresh");
             }
 
-            LastError = recordedError;
-            Status = recordedError != null ? IODriver.LibStatus.PARTIALLY_OK : IODriver.LibStatus.OK;
+            InitErrors = errors.AsReadOnly();
+            LastError = BuildInitException(errors);
+            Status = errors.Count > 0 ? IODriver.LibStatus.PARTIALLY_OK : IODriver.LibStatus.OK;
         }
 
         private void ReportProgress(string stage)
@@ -566,11 +597,58 @@ namespace ZenStates.Core
             }
         }
 
-        private static void RecordError(ref Exception recordedError, Exception ex, string subsystem)
+        private const string CrashLogFileName = "zenstates-core.crash.log";
+
+        // Appends a fatal initialization error (and any non-fatal errors recorded before it) to the crash log.
+        private static void WriteCrashLog(Exception ex, List<CpuInitError> errors)
         {
-            Debug.WriteLine($"{subsystem} initialization failed: {ex.Message}");
-            if (recordedError == null)
-                recordedError = ex;
+            try
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.AppendFormat("[{0:yyyy-MM-dd HH:mm:ss}] ZenStates-Core fatal initialization error", DateTime.Now).AppendLine();
+                sb.AppendFormat("Version: {0}", Assembly.GetExecutingAssembly().GetName().Version).AppendLine();
+                sb.AppendFormat("OS: {0}", Environment.OSVersion).AppendLine();
+                sb.AppendLine(ex != null ? ex.ToString() : "Unknown error");
+
+                if (errors != null && errors.Count > 0)
+                {
+                    sb.AppendLine("Errors recorded before the failure:");
+                    foreach (CpuInitError error in errors)
+                        sb.Append("- ").AppendLine(error.Exception != null ? error.Subsystem + ": " + error.Exception : error.ToString());
+                }
+
+                sb.AppendLine();
+
+                string path = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, CrashLogFileName);
+                System.IO.File.AppendAllText(path, sb.ToString());
+            }
+            catch (Exception logEx)
+            {
+                // Logging must never mask the original error.
+                Debug.WriteLine($"Could not write crash log: {logEx.Message}");
+            }
+        }
+
+        private static void RecordError(List<CpuInitError> errors, Exception ex, string subsystem)
+        {
+            Debug.WriteLine($"{subsystem} initialization failed: {ex?.Message}");
+            errors.Add(new CpuInitError(subsystem, ex));
+        }
+
+        private static Exception BuildInitException(List<CpuInitError> errors)
+        {
+            if (errors.Count == 0)
+                return null;
+
+            if (errors.Count == 1)
+                return errors[0].Exception;
+
+            StringBuilder sb = new StringBuilder();
+            sb.AppendFormat("{0} subsystems failed to initialize:", errors.Count);
+            foreach (CpuInitError error in errors)
+                sb.Append(Environment.NewLine).Append("- ").Append(error.ToString());
+
+            return new ApplicationException(sb.ToString(), errors[0].Exception);
         }
 
         // [31-28] ccd index
