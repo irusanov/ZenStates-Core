@@ -326,6 +326,23 @@ namespace ZenStates.Core.Hardware.DRAM
             if (!IsSpdSupported)
                 return false;
 
+            // @TODO: Extract common spd properties in base class
+            Dictionary<byte, Ddr5SpdInfo> cached = SpdInfo;
+            if (cached != null && cached.Count > 0)
+            {
+                bool anyPartial = false;
+                foreach (Ddr5SpdInfo entry in cached.Values)
+                {
+                    if (entry == null || entry.IsPartial)
+                    {
+                        anyPartial = true;
+                        break;
+                    }
+                }
+                if (!anyPartial)
+                    return true;
+            }
+
             try
             {
                 Dictionary<byte, Ddr5SpdInfo> info = ReadAndDecodeAll();
@@ -360,6 +377,22 @@ namespace ZenStates.Core.Hardware.DRAM
 
         private bool RefreshDdr4SpdInfo()
         {
+            Dictionary<byte, Ddr4SpdInfo> cached = Ddr4Spd;
+            if (cached != null && cached.Count > 0)
+            {
+                bool anyPartial = false;
+                foreach (Ddr4SpdInfo entry in cached.Values)
+                {
+                    if (entry == null || entry.IsPartial || !entry.IsValid)
+                    {
+                        anyPartial = true;
+                        break;
+                    }
+                }
+                if (!anyPartial)
+                    return true;
+            }
+
             try
             {
                 Dictionary<byte, Ddr4SpdInfo> info = ReadAndDecodeAllDdr4();
@@ -466,7 +499,8 @@ namespace ZenStates.Core.Hardware.DRAM
         {
             bool updated = false;
 
-            smbusDriver.ChangePortNoLock(-1, out int savedPort);
+            if (smbusDriver == null || !smbusDriver.ChangePortNoLock(-1, out int savedPort))
+                return false;
 
             try
             {
@@ -507,14 +541,18 @@ namespace ZenStates.Core.Hardware.DRAM
 
         private void ReadModulesInfo()
         {
-            foreach (var module in SMBiosSingleton.Instance.MemoryDevices)
+            MemoryDevice[] devices = SMBiosSingleton.Instance.MemoryDevices;
+            if (devices == null)
+                return;
+
+            foreach (var module in devices)
             {
-                if (module.Size > 0)
+                if (module != null && module.Size > 0)
                 {
                     ulong sizeInBytes = (ulong)module.Size * 1024 * 1024;
                     var type = SMBiosDramTypeToMemType(module.Type);
-                    Modules.Add(new MemoryModule(module.PartNumber.Trim(), module.BankLocator.Trim(),
-                        module.ManufacturerName.Trim(), module.DeviceLocator.Trim(),
+                    Modules.Add(new MemoryModule(SafeTrim(module.PartNumber), SafeTrim(module.BankLocator),
+                        SafeTrim(module.ManufacturerName), SafeTrim(module.DeviceLocator),
                         sizeInBytes, module.Speed, type));
                 }
             }
@@ -529,6 +567,11 @@ namespace ZenStates.Core.Hardware.DRAM
                 TotalCapacity = new Capacity(totalCapacity);
                 Type = Modules[0].Type;
             }
+        }
+
+        private static string SafeTrim(string value)
+        {
+            return value == null ? string.Empty : value.Trim();
         }
 
         // TODO: Use rank from spd with priority over register value
