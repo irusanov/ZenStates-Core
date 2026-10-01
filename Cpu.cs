@@ -759,41 +759,28 @@ namespace ZenStates.Core
             {
                 return _pawnRyzenSmu.SmuWriteRegNoLock(addr, data);
             }
-
-            //for (int retry = 0; retry < maxRetries; retry++)
-            //{
-            //    if (Mutexes.WaitPciBus(10))
-            //    {
-            //        if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) &&
-            //            Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, data))
-            //        {
-            //            Mutexes.ReleasePciBus();
-            //            return true;
-            //        }
-
-            //        Mutexes.ReleasePciBus();
-            //    }
-            //}
-
-            //return false;
         }
 
+        // Get the core multiplier for a given logical core index.
         public double GetCoreMulti(int index = 0)
         {
             HwPstateStatus status = GetHwPstateStatus(index);
 
             if (info.family < Family.FAMILY_1AH)
             {
-                double fid = status.CurCpuFid;
-                double dfs = status.CurCpuDfsId;
+                if (status.CurCpuDfsId == 0)
+                    return 0;
 
-                if (dfs == 0) return 0;
-
-                double multi = 25 * fid / (12.5 * dfs);
-                return Math.Round(multi * 4, MidpointRounding.ToEven) / 4;
+                return 2.0 * status.CurCpuFid / status.CurCpuDfsId;
             }
 
-            return Utils.BitSlice(status.Value, 11, 0) * 5;
+            return Utils.BitSlice(status.Value, 11, 0) * 5 / 100.0;
+        }
+
+        // Get core clock in MHz for a given logical core index and BCLK in MHz (default 100.0).
+        public double GetCoreClockMhz(int index = 0, double bclkMhz = 100.0)
+        {
+            return GetCoreMulti(index) * bclkMhz;
         }
 
         public struct HwPstateStatus
@@ -1730,8 +1717,10 @@ namespace ZenStates.Core
                     // Range sel = 0 to 255C (Temp = Tctl - offset)
                     float temperature = (thmData >> 21) * 0.125f + offset;
 
-                    // Range sel = -49 to 206C (Temp = Tctl - offset - 49)
-                    if ((thmData & Constants.THM_CUR_TEMP_RANGE_SEL_MASK) != 0)
+                    // Range sel = -49 to 206C (Temp = Tctl - offset - 49), also selected by TJ_SEL [17:16] = 3
+                    // (Linux k10temp)
+                    if ((thmData & Constants.THM_CUR_TEMP_RANGE_SEL_MASK) != 0 ||
+                        (thmData & Constants.THM_CUR_TEMP_TJ_SEL_MASK) == Constants.THM_CUR_TEMP_TJ_SEL_MASK)
                         temperature -= 49.0f;
 
                     return temperature;
@@ -1745,6 +1734,10 @@ namespace ZenStates.Core
             }
         }
 
+        /// <summary>
+        /// Temperature of one CCD in degrees C, or null when it can't be read or the CCD reports no valid reading
+        /// (bit 11 clear, e.g. an absent CCD).
+        /// </summary>
         public float? GetSingleCcdTemperature(uint ccd)
         {
             if (!Mutexes.WaitPciBus(5000))
@@ -1756,14 +1749,11 @@ namespace ZenStates.Core
             try
             {
                 uint thmData = 0;
-                uint register = info.family >= Family.FAMILY_19H ? Constants.F19H_CCD_TEMP : Constants.F17H_CCD_TEMP;
 
-                if (ReadDwordExNoLock(register + (ccd * 0x4), ref thmData))
+                if (ReadDwordExNoLock(GetCcdTemperatureRegister() + (ccd * 0x4), ref thmData) &&
+                    thmData != 0xFFFFFFFF && (thmData & Constants.THM_CCD_TEMP_VALID) != 0)
                 {
-                    float ccdTemp = (thmData & 0xfff) * 0.125f - 305.0f;
-                    if (ccdTemp > 0 && ccdTemp < 125) // Zen 2 reports 95 degrees C max, but it might exceed that.
-                        return ccdTemp;
-                    return 0;
+                    return (thmData & Constants.THM_CCD_TEMP_MASK) * 0.125f - 49.0f;
                 }
 
                 return null;
@@ -1771,6 +1761,38 @@ namespace ZenStates.Core
             finally
             {
                 Mutexes.ReleasePciBus();
+            }
+        }
+
+        /// <summary>
+        /// SMN address of the first CCD temperature register: THM base 0x59800 plus a per family / model offset, as in
+        /// Linux k10temp (k10temp_probe). Models it does not list keep the register used so far for their family.
+        /// </summary>
+        private uint GetCcdTemperatureRegister()
+        {
+            uint model = info.model;
+
+            switch (info.family)
+            {
+                case Family.FAMILY_17H:
+                    if (model >= 0xA0 && model <= 0xAF)
+                        return Constants.THM_CUR_TEMP + 0x300;      // Mendocino
+                    return Constants.F17H_CCD_TEMP;                  // 0x154
+
+                case Family.FAMILY_19H:
+                    if (model <= 0x0F || (model >= 0x20 && model <= 0x2F) || (model >= 0x50 && model <= 0x5F))
+                        return Constants.F17H_CCD_TEMP;              // Milan, Chagall, Vermeer, Cezanne: 0x154
+                    if ((model >= 0x10 && model <= 0x1F) || (model >= 0x40 && model <= 0x4F) || (model >= 0xA0 && model <= 0xAF))
+                        return Constants.THM_CUR_TEMP + 0x300;      // Genoa, Rembrandt, Storm Peak
+                    return Constants.F19H_CCD_TEMP;                  // Raphael, Phoenix (0x60~0x7F): 0x308
+
+                case Family.FAMILY_1AH:
+                    if (model <= 0x1F)
+                        return Constants.THM_CUR_TEMP + 0x1F0;      // Turin
+                    return Constants.F19H_CCD_TEMP;                  // Granite Ridge (0x40~0x4F): 0x308
+
+                default:
+                    return info.family > Family.FAMILY_1AH ? Constants.F19H_CCD_TEMP : Constants.F17H_CCD_TEMP;
             }
         }
 

@@ -23,6 +23,9 @@
         internal const uint F19H_CCD_TEMP = 0x00059B08;
         internal const uint THM_CUR_TEMP = 0x00059800;
         internal const uint THM_CUR_TEMP_RANGE_SEL_MASK = 0x80000;
+        internal const uint THM_CUR_TEMP_TJ_SEL_MASK = 0x30000;
+        internal const uint THM_CCD_TEMP_VALID = 0x800;
+        internal const uint THM_CCD_TEMP_MASK = 0x7FF;
         internal const uint DEFAULT_MAILBOX_ARGS = 6;
         internal const uint HSMP_MAILBOX_ARGS = 8;
         internal const float PBO_SCALAR_MIN = 0.0f;
