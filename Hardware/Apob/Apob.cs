@@ -157,6 +157,12 @@ namespace ZenStates.Core.Hardware.Apob
         /// <summary>System memory map (FABRIC group, type 9): top of memory and the reserved holes.</summary>
         public ApobMemoryMap MemoryMap { get; private set; }
 
+        /// <summary>
+        /// Memory general configuration info (MEM group, type 2) of the DDR4 programs: the impedance / setup
+        /// settings of each channel and the state of the memory options. Null on DDR5.
+        /// </summary>
+        public ApobMemGeneralConfig MemGeneralConfig { get; private set; }
+
         /// <summary>The ABL event log (GEN group, type 6).</summary>
         public ApobEventLog EventLog { get; private set; }
 
@@ -307,12 +313,7 @@ namespace ZenStates.Core.Hardware.Apob
                 return;
             }
 
-            if (!TryGetConfigFromEntries(APOB_MEM, APOB_MEM_SYSTEM_CONFIGURATION_INFO_TYPE, true))
-            {
-                ErrorReason = "Failed to locate or validate the primary APOB config block.";
-                return;
-            }
-
+            bool hasMainConfig = TryGetConfigFromEntries(APOB_MEM, APOB_MEM_SYSTEM_CONFIGURATION_INFO_TYPE, true);
             TryGetConfigFromEntries(APOB_GEN, APOB_GEN_CONFIGURATION_INFO_TYPE, false);
 
             // Abort if profile is not defined for this CPU family
@@ -320,6 +321,13 @@ namespace ZenStates.Core.Hardware.Apob
             {
                 ErrorReason = string.Format("Unsupported CPU family ({0}) for APOB parsing; refusing to guess an offset layout.", _cpuInfo.family);
                 Debug.WriteLine(ErrorReason);
+                return;
+            }
+
+            // DDR4 tables have no system configuration info entry, their profiles have no main layout
+            if (!hasMainConfig && _profile.MainLayout != null)
+            {
+                ErrorReason = "Failed to locate or validate the primary APOB config block.";
                 return;
             }
 
@@ -487,6 +495,7 @@ namespace ZenStates.Core.Hardware.Apob
             new[] { APOB_FABRIC, APOB_SYS_MAP_INFO_TYPE },
             new[] { APOB_MEM, APOB_MEM_RMP_INFO },
             new[] { APOB_GEN, APOB_GEN_EVENT_LOG_TYPE },
+            new[] { APOB_MEM, APOB_MEM_GENERAL_CONFIGURATION_INFO_TYPE },
         };
 
         /// <summary>
@@ -509,6 +518,8 @@ namespace ZenStates.Core.Hardware.Apob
                     MemoryProfileInfo = ApobMemoryProfileInfo.Decode(raw, 0);
                 if ((raw = getRawEntry(APOB_GEN, APOB_GEN_EVENT_LOG_TYPE)) != null)
                     EventLog = ApobEventLog.Decode(raw, 0);
+                if ((raw = getRawEntry(APOB_MEM, APOB_MEM_GENERAL_CONFIGURATION_INFO_TYPE)) != null)
+                    MemGeneralConfig = ApobMemGeneralConfig.Decode(raw, 0);
             }
             catch (Exception ex)
             {
@@ -552,6 +563,7 @@ namespace ZenStates.Core.Hardware.Apob
                     ChannelTimings = ApobChannelTimings.Read(extended, 0, timingLayout);
                     ReadChannelExtendedData(extended, timingLayout);
                     MarkActiveChannelTimings(timingsOverride);
+                    MapChannelsToDimms();
                 }
             }
             catch (Exception ex)
@@ -598,6 +610,34 @@ namespace ZenStates.Core.Hardware.Apob
             {
                 Debug.WriteLine($"APOB active timings: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Numbers the channels of the timing blocks after the populated channels of the SMBIOS info, so a system
+        /// with only channel B populated shows its block as channel B. Left in block order when the counts differ.
+        /// </summary>
+        private void MapChannelsToDimms()
+        {
+            if (DmiInfo == null || ChannelTimings == null || ChannelTimings.Count == 0)
+                return;
+
+            var populated = new List<int>();
+            foreach (ApobDmiPhysicalDimm dimm in DmiInfo.PhysicalDimms)
+            {
+                if (dimm.Present && !populated.Contains(dimm.Channel))
+                    populated.Add(dimm.Channel);
+            }
+            populated.Sort();
+
+            int channels = 0;
+            foreach (ApobChannelTimings t in ChannelTimings)
+                channels = Math.Max(channels, t.Channel + 1);
+
+            if (populated.Count != channels)
+                return;
+
+            foreach (ApobChannelTimings t in ChannelTimings)
+                t.Channel = populated[t.Channel];
         }
 
         private static bool NearlyEqual(uint a, uint b)
@@ -716,7 +756,7 @@ namespace ZenStates.Core.Hardware.Apob
             for (int i = 0; i < ChannelTimings.Count; i++)
             {
                 ApobChannelTimings t = ChannelTimings[i];
-                uint? ccdl = t.Ccdl, ccdlWr = t.CcdlWr, ccdlWr2 = t.CcdlWr2;
+                uint? ccdl = t.Tccdl, ccdlWr = t.Tccdlwr, ccdlWr2 = t.Tccdlwr2;
                 if (!ccdl.HasValue || !ccdlWr.HasValue || !ccdlWr2.HasValue ||
                     !ApobCcdlValidation.IsValid(ccdl.Value, ccdlWr.Value, ccdlWr2.Value))
                     continue;
@@ -729,13 +769,13 @@ namespace ZenStates.Core.Hardware.Apob
             if (best == null)
                 return false;
 
-            CcdlData = new CcdlData(best.Ccdl.Value, best.CcdlWr.Value, best.CcdlWr2.Value);
+            CcdlData = new CcdlData(best.Tccdl.Value, best.Tccdlwr.Value, best.Tccdlwr2.Value);
             return true;
         }
 
         private void ParseDataBlocks()
         {
-            if (DataSize == 0)
+            if (DataSize == 0 || _profile?.MainLayout == null)
                 return;
 
             long start = (long)DataOffset + DATA_PARSE_LEAD_BYTES;
@@ -840,7 +880,10 @@ namespace ZenStates.Core.Hardware.Apob
             byte[] rawDataBytes = ParseRawSection(text, "-- Raw Data");
             byte[] rawExtendedDataBytes = ParseRawSection(text, "-- Raw Extended Data");
 
-            if (rawDataBytes == null || rawDataBytes.Length == 0)
+            // DDR4 tables have no main data, only the extended data (the GEN configuration info entry)
+            bool hasData = rawDataBytes != null && rawDataBytes.Length > 0;
+            bool hasExtendedData = rawExtendedDataBytes != null && rawExtendedDataBytes.Length > 0;
+            if (!hasData && !hasExtendedData)
             {
                 apob.ErrorReason = "Could not locate an APOB 'Raw Data' section in the supplied debug report.";
                 return apob;
@@ -860,7 +903,7 @@ namespace ZenStates.Core.Hardware.Apob
             }
 
             uint dataOffset = ParseHexValue(text, "-- Main Data Offset:") ?? (uint)(rawHeaderBytes?.Length ?? 0);
-            uint dataSize = Math.Max(ParseHexValue(text, "-- Main Data Size:") ?? 0, (uint)rawDataBytes.Length);
+            uint dataSize = hasData ? Math.Max(ParseHexValue(text, "-- Main Data Size:") ?? 0, (uint)rawDataBytes.Length) : 0;
             uint extendedDataOffset = ParseHexValue(text, "-- Ext. Data Offset:") ?? (dataOffset + dataSize);
             uint extendedDataSize = Math.Max(
                 ParseHexValue(text, "-- Ext. Data Size:") ?? 0,
@@ -876,8 +919,9 @@ namespace ZenStates.Core.Hardware.Apob
             if (rawHeaderBytes != null)
                 Buffer.BlockCopy(rawHeaderBytes, 0, rawTable, 0, Math.Min(rawHeaderBytes.Length, rawTable.Length));
 
-            Buffer.BlockCopy(rawDataBytes, 0, rawTable, (int)dataOffset,
-                Math.Min(rawDataBytes.Length, rawTable.Length - (int)dataOffset));
+            if (hasData)
+                Buffer.BlockCopy(rawDataBytes, 0, rawTable, (int)dataOffset,
+                    Math.Min(rawDataBytes.Length, rawTable.Length - (int)dataOffset));
 
             if (rawExtendedDataBytes != null && rawExtendedDataBytes.Length > 0)
                 Buffer.BlockCopy(rawExtendedDataBytes, 0, rawTable, (int)extendedDataOffset,
@@ -1203,6 +1247,13 @@ namespace ZenStates.Core.Hardware.Apob
                 report.AppendSection("Channel Data");
                 AppendChannelData(report);
 
+                if (MemGeneralConfig != null)
+                {
+                    report.AppendLine();
+                    report.AppendSection("Memory Configuration (DDR4)");
+                    AppendMemGeneralConfig(report);
+                }
+
                 report.AppendLine();
                 report.AppendSection("Channel Timings");
                 AppendChannelTimings(report);
@@ -1481,6 +1532,36 @@ namespace ZenStates.Core.Hardware.Apob
             return true;
         }
 
+        private void AppendMemGeneralConfig(ReportBuilder report)
+        {
+            ApobMemGeneralConfig config = MemGeneralConfig;
+            report.AppendValue("MemClkFreq", config.MemClkFreq + " MHz", 28);
+            report.AppendValue("DdrMaxRate", config.DdrMaxRate, 28);
+            report.AppendValue("Channel Interleave", config.ChannelInterleave, 28);
+            report.AppendLine(string.Format(CultureInfo.InvariantCulture, "Interleave:                 mode 0x{0:X}, capability 0x{1:X}, size 0x{2:X}",
+                config.InterleaveCurrentMode, config.InterleaveCapability, config.InterleaveSize));
+
+            foreach (ApobDdr4ChannelConfig c in config.Channels)
+            {
+                if (!c.IsPopulated)
+                    continue;
+
+                report.AppendLine(string.Format(CultureInfo.InvariantCulture,
+                    "Channel {0}: ProcOdt {1}, RttNom {2}, RttWr {3}, RttPark {4}",
+                    (char)('A' + c.Channel), c.ProcOdt, c.RttNom, c.RttWr, c.RttPark));
+                report.AppendLine(string.Format(CultureInfo.InvariantCulture,
+                    "           Setup AddrCmd {0}, CsOdt {1}, Cke {2}; DrvStren Clk {3}, AddrCmd {4}, CsOdt {5}, Cke {6}",
+                    c.AddrCmdSetup, c.CsOdtSetup, c.CkeSetup,
+                    c.ClkDrvStren, c.AddrCmdDrvStren, c.CsOdtCmdDrvStren, c.CkeDrvStren));
+            }
+
+            foreach (ApobMemSetting setting in config.Settings)
+            {
+                if (setting.StatusCode != 0)
+                    report.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0,-28}{1} (0x{2:X4})", setting.Name + ":", setting.Value, setting.StatusCode));
+            }
+        }
+
         private void AppendChannelTimings(ReportBuilder report)
         {
             if (ChannelTimings == null || ChannelTimings.Count == 0)
@@ -1503,7 +1584,11 @@ namespace ZenStates.Core.Hardware.Apob
             AppendTimingRow(report, "P-state", delegate (ApobChannelTimings t) { return t.PState.ToString(CultureInfo.InvariantCulture); });
             if (ActiveMemClk > 0)
                 AppendTimingRow(report, "Active", delegate (ApobChannelTimings t) { return t.IsActive ? "yes" : "-"; });
-            AppendTimingRow(report, "Ext. Offset", delegate (ApobChannelTimings t) { return t.ExtendedData != null ? "0x" + t.ExtendedDataOffset.ToString("X", CultureInfo.InvariantCulture) : "-"; });
+            bool anyExtended = false;
+            foreach (ApobChannelTimings t in ChannelTimings)
+                anyExtended |= t.ExtendedData != null;
+            if (anyExtended)
+                AppendTimingRow(report, "Ext. Offset", delegate (ApobChannelTimings t) { return t.ExtendedData != null ? "0x" + t.ExtendedDataOffset.ToString("X", CultureInfo.InvariantCulture) : "-"; });
             AppendTimingRow(report, "DataRate", delegate (ApobChannelTimings t) { return t.DataRate.ToString(CultureInfo.InvariantCulture); });
             AppendTimingRow(report, "MemClk", delegate (ApobChannelTimings t) { return t.MemClk.ToString(CultureInfo.InvariantCulture); });
 

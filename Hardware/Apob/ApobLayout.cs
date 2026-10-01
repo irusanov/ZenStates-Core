@@ -11,7 +11,8 @@ namespace ZenStates.Core.Hardware.Apob
     public enum ApobValueWidth
     {
         UInt16,
-        UInt32
+        UInt32,
+        UInt8
     }
 
     public sealed class ApobFieldOffsets
@@ -429,68 +430,68 @@ namespace ZenStates.Core.Hardware.Apob
             fields: new[]
             {
                 new ApobTimingField("DfiClk", 0x04),
-                new ApobTimingField("Cas", 0x08),
-                new ApobTimingField("RcdWr", 0x0A),
-                new ApobTimingField("RcdRd", 0x0C),
-                new ApobTimingField("Rp", 0x0E),
-                new ApobTimingField("Ras", 0x10),
-                new ApobTimingField("Rc", 0x12),
-                new ApobTimingField("Cwl", 0x14),
-                new ApobTimingField("Rrds", 0x16),
-                new ApobTimingField("Rrdl", 0x18),
-                new ApobTimingField("Faw", 0x1A),
-                new ApobTimingField("Wtrl", 0x20),
-                new ApobTimingField("Wtrs", 0x22),
-                new ApobTimingField("Rtp", 0x24),
-                new ApobTimingField("Wr", 0x26),
-                new ApobTimingField("Xs", 0x34),
-                new ApobTimingField("Xp", 0x38),
-                new ApobTimingField("Pd", 0x3A),
-                new ApobTimingField("Refi", 0x3C),
-                new ApobTimingField("Rfc1", 0x4A),
-                new ApobTimingField("Rfc2", 0x50),
-                new ApobTimingField("RfcSb", 0x5C),
-                new ApobTimingField("Cacsh", 0x68),
-                new ApobTimingField("Csh", 0x6A),
-                new ApobTimingField("Ccdl", 0x8E),
-                new ApobTimingField("CcdlWr", 0x90),
-                new ApobTimingField("CcdlWr2", 0x92),
-                new ApobTimingField("Dllk", 0x9A),
-                new ApobTimingField("EcsC", 0x9C),
+                new ApobTimingField("Tcas", 0x08),
+                new ApobTimingField("Trcdwr", 0x0A),
+                new ApobTimingField("Trcdrd", 0x0C),
+                new ApobTimingField("Trp", 0x0E),
+                new ApobTimingField("Tras", 0x10),
+                new ApobTimingField("Trc", 0x12),
+                new ApobTimingField("Tcwl", 0x14),
+                new ApobTimingField("TrrdS", 0x16),
+                new ApobTimingField("TrrdL", 0x18),
+                new ApobTimingField("Tfaw", 0x1A),
+                new ApobTimingField("TwtrL", 0x20),
+                new ApobTimingField("TwtrS", 0x22),
+                new ApobTimingField("Trtp", 0x24),
+                new ApobTimingField("Twr", 0x26),
+                new ApobTimingField("Txs", 0x34),
+                new ApobTimingField("Txp", 0x38),
+                new ApobTimingField("Tpd", 0x3A),
+                new ApobTimingField("Trefi", 0x3C),
+                new ApobTimingField("Trfc", 0x4A),
+                new ApobTimingField("Trfc2", 0x50),
+                new ApobTimingField("Trfcsb", 0x5C),
+                new ApobTimingField("Tcacsh", 0x68),
+                new ApobTimingField("Tcsh", 0x6A),
+                new ApobTimingField("Tccdl", 0x8E),
+                new ApobTimingField("Tccdlwr", 0x90),
+                new ApobTimingField("Tccdlwr2", 0x92),
+                new ApobTimingField("Tdllk", 0x9A),
+                new ApobTimingField("Tecsc", 0x9C),
             });
 
         // Zen 4 (Raphael, Phoenix): u32 fields and no data rate, the block starts at MEMCLK
         private static readonly ApobTimingField[] Zen4TimingFields = new[]
             {
                 new ApobTimingField("DfiClk", 0x04),
-                new ApobTimingField("Cas", 0x0C),
-                new ApobTimingField("RcdWr", 0x10),
-                new ApobTimingField("RcdRd", 0x14),
-                new ApobTimingField("Rp", 0x18),
-                new ApobTimingField("Ras", 0x1C),
-                new ApobTimingField("Rc", 0x20),
-                new ApobTimingField("Cwl", 0x24),
-                new ApobTimingField("Rrds", 0x28),
-                new ApobTimingField("Rrdl", 0x2C),
-                new ApobTimingField("Faw", 0x30),
-                new ApobTimingField("Wtrl", 0x34),
-                new ApobTimingField("Wtrs", 0x38),
-                new ApobTimingField("Rtp", 0x3C),
-                new ApobTimingField("Wr", 0x40),
-                new ApobTimingField("Xs", 0x5C),
-                new ApobTimingField("Xp", 0x64),
-                new ApobTimingField("Pd", 0x68),
-                new ApobTimingField("Refi", 0x6C),
-                new ApobTimingField("Rfc1", 0x88),
-                new ApobTimingField("Rfc2", 0x94),
-                new ApobTimingField("RfcSb", 0xAC),
-                new ApobTimingField("Cacsh", 0xC4),
-                new ApobTimingField("Csh", 0xC8),
-                new ApobTimingField("Ccdl", 0x100),
-                new ApobTimingField("CcdlWr", 0x104),
-                new ApobTimingField("CcdlWr2", 0x108),
-                new ApobTimingField("Dllk", 0x118),
-                new ApobTimingField("EcsC", 0x11C),
+                new ApobTimingField("Tcas", 0x0C),
+                new ApobTimingField("Trcdwr", 0x10),
+                new ApobTimingField("Trcdrd", 0x14),
+                new ApobTimingField("Trp", 0x18),
+                new ApobTimingField("Tras", 0x1C),
+                new ApobTimingField("Trc", 0x20),
+                new ApobTimingField("Tcwl", 0x24),
+                new ApobTimingField("TrrdS", 0x28),
+                new ApobTimingField("TrrdL", 0x2C),
+                new ApobTimingField("Tfaw", 0x30),
+                new ApobTimingField("TwtrL", 0x34),
+                new ApobTimingField("TwtrS", 0x38),
+                new ApobTimingField("Trtp", 0x3C),
+                new ApobTimingField("Twr", 0x40),
+                new ApobTimingField("Txs", 0x5C),
+                new ApobTimingField("Txp", 0x64),
+                new ApobTimingField("Tpd", 0x68),
+                new ApobTimingField("Trefi", 0x6C),
+                new ApobTimingField("Trfc", 0x88),
+                new ApobTimingField("Trfc2", 0x94),
+                new ApobTimingField("Trfcsb", 0xAC),
+                new ApobTimingField("Tcacsh", 0xC4),
+                new ApobTimingField("Tcsh", 0xC8),
+                new ApobTimingField("Tccdl", 0x100),
+                new ApobTimingField("Tccdlwr", 0x104),
+                new ApobTimingField("Tccdlwr2", 0x108),
+                new ApobTimingField("Tdllk", 0x118),
+                new ApobTimingField("Tecsc", 0x11C),
             };
 
         private static readonly ApobChannelTimingLayout Zen4ChannelTimingLayout = new ApobChannelTimingLayout(
@@ -548,38 +549,112 @@ namespace ZenStates.Core.Hardware.Apob
             fields: new[]
             {
                 new ApobTimingField("DfiClk", 0x04),
-                new ApobTimingField("Cas", 0x08),
-                new ApobTimingField("RcdWr", 0x0A),
-                new ApobTimingField("RcdRd", 0x0C),
-                new ApobTimingField("Rp", 0x0E),
-                new ApobTimingField("Ras", 0x10),
-                new ApobTimingField("Rc", 0x12),
-                new ApobTimingField("Cwl", 0x14),
-                new ApobTimingField("Rrds", 0x16),
-                new ApobTimingField("Rrdl", 0x18),
-                new ApobTimingField("Faw", 0x1A),
-                new ApobTimingField("Wtrl", 0x20),
-                new ApobTimingField("Wtrs", 0x22),
-                new ApobTimingField("Rtp", 0x24),
-                new ApobTimingField("Wr", 0x26),
-                new ApobTimingField("Xs", 0x34),
-                new ApobTimingField("Xp", 0x38),
-                new ApobTimingField("Pd", 0x3A),
-                new ApobTimingField("Refi", 0x3C),
-                new ApobTimingField("Rfc1", 0x48, true),
-                new ApobTimingField("Rfc2", 0x4E, true),
-                new ApobTimingField("RfcSb", 0x5A, true),
-                new ApobTimingField("Cacsh", 0x68),
-                new ApobTimingField("Csh", 0x6A),
-                new ApobTimingField("Ccdl", 0x8E),
-                new ApobTimingField("CcdlWr", 0x90),
-                new ApobTimingField("CcdlWr2", 0x92),
-                new ApobTimingField("Dllk", 0x9A),
-                new ApobTimingField("EcsC", 0x9C),
+                new ApobTimingField("Tcas", 0x08),
+                new ApobTimingField("Trcdwr", 0x0A),
+                new ApobTimingField("Trcdrd", 0x0C),
+                new ApobTimingField("Trp", 0x0E),
+                new ApobTimingField("Tras", 0x10),
+                new ApobTimingField("Trc", 0x12),
+                new ApobTimingField("Tcwl", 0x14),
+                new ApobTimingField("TrrdS", 0x16),
+                new ApobTimingField("TrrdL", 0x18),
+                new ApobTimingField("Tfaw", 0x1A),
+                new ApobTimingField("TwtrL", 0x20),
+                new ApobTimingField("TwtrS", 0x22),
+                new ApobTimingField("Trtp", 0x24),
+                new ApobTimingField("Twr", 0x26),
+                new ApobTimingField("Txs", 0x34),
+                new ApobTimingField("Txp", 0x38),
+                new ApobTimingField("Tpd", 0x3A),
+                new ApobTimingField("Trefi", 0x3C),
+                new ApobTimingField("Trfc", 0x48, true),
+                new ApobTimingField("Trfc2", 0x4E, true),
+                new ApobTimingField("Trfcsb", 0x5A, true),
+                new ApobTimingField("Tcacsh", 0x68),
+                new ApobTimingField("Tcsh", 0x6A),
+                new ApobTimingField("Tccdl", 0x8E),
+                new ApobTimingField("Tccdlwr", 0x90),
+                new ApobTimingField("Tccdlwr2", 0x92),
+                new ApobTimingField("Tdllk", 0x9A),
+                new ApobTimingField("Tecsc", 0x9C),
             },
             extendedRecordOffset: 0x44F,
             extendedRecordStride: 0x1F,
             pStateBlockStride: 0x114);
+
+        // DDR4 (Zen 1 to Zen 3): the GEN configuration info entry has a block per channel and memory P-state with
+        // the SPD minimum times (u16, 25 ps units) up to MEMCLK (u16), then the timings in clocks as bytes a few
+        // bytes later (2 to 8 depending on the program), then tRFC1 / tRFC2 / tRFC4 in ns. The byte order follows
+        // the minimum times in front of MEMCLK: tRCD, tRP, tRTP, tRAS, tRC, tWR, tRRD_S, tWTR_S, tFAW, tRRD_L,
+        // tWTR_L, tCCD_L, which gives the same clocks for the DDR4-2133 and DDR4-1600 (P-state 1) blocks of the
+        // dumps. Worked out on Summit Ridge, Matisse, Cezanne and Vermeer dumps at JEDEC DDR4-2133 15-15-15, where
+        // CL / RCD / RP and RTP / WTRL are equal, so those placements are tentative.
+        private static ApobTimingField[] Ddr4TimingFields(int rfcOffset)
+        {
+            return new[]
+            {
+                new ApobTimingField("Tcas", 0x00, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Tcwl", 0x01, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Trcd", 0x02, true, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Trp", 0x03, true, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Trtp", 0x04, true, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Tras", 0x05, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Trc", 0x06, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Twr", 0x07, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("TrrdS", 0x08, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("TwtrS", 0x09, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Tfaw", 0x0A, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("TrrdL", 0x0B, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("TwtrL", 0x0C, true, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Tccdl", 0x0D, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("TrfcNs", rfcOffset, false, ApobValueWidth.UInt16, true),
+                new ApobTimingField("Trfc2Ns", rfcOffset + 4, false, ApobValueWidth.UInt16, true),
+                new ApobTimingField("Trfc4Ns", rfcOffset + 8, false, ApobValueWidth.UInt16, true),
+            };
+        }
+
+        // Zen 1 / Zen+ / Zen 2: tRFC right after the clock bytes, the memory P-state blocks 0x70 apart (Matisse)
+        private static readonly ApobChannelTimingLayout Zen2Ddr4ChannelTimingLayout = new ApobChannelTimingLayout(
+            "Zen2 DDR4 channel timings",
+            7, 3,
+            ApobValueWidth.UInt16,
+            dataRateOffset: -1,
+            memClkOffset: 0x00,
+            halfMemClkOffset: -1,
+            minMemClk: 600,
+            maxMemClk: 2400,
+            clOffset: 0,
+            minCl: 8,
+            maxCl: 40,
+            fields: Ddr4TimingFields(0x0E),
+            pStateBlockStride: 0x70,
+            clockBytesSearchStart: 2,
+            clockBytesSearchEnd: 10);
+
+        // Zen 3: two more bytes before tRFC, the memory P-state blocks 0x108 apart (Vermeer, Cezanne)
+        private static readonly ApobChannelTimingLayout Zen3Ddr4ChannelTimingLayout = new ApobChannelTimingLayout(
+            "Zen3 DDR4 channel timings",
+            7, 3,
+            ApobValueWidth.UInt16,
+            dataRateOffset: -1,
+            memClkOffset: 0x00,
+            halfMemClkOffset: -1,
+            minMemClk: 600,
+            maxMemClk: 2400,
+            clOffset: 0,
+            minCl: 8,
+            maxCl: 40,
+            fields: Ddr4TimingFields(0x10),
+            pStateBlockStride: 0x108,
+            clockBytesSearchStart: 2,
+            clockBytesSearchEnd: 10);
+
+        // DDR4 has no system configuration info (type 25) entry, so no main / extended ODT block and no CCD_L magic
+        private static readonly ApobProfile Zen2Ddr4Profile = new ApobProfile(
+            "Zen2 DDR4", null, null, null, Zen2Ddr4ChannelTimingLayout);
+
+        private static readonly ApobProfile Zen3Ddr4Profile = new ApobProfile(
+            "Zen3 DDR4", null, null, null, Zen3Ddr4ChannelTimingLayout);
 
         // Desktop Zen4, presumably server as well (untested)
         private static readonly ApobProfile Zen4DesktopProfile = new ApobProfile(
@@ -617,10 +692,21 @@ namespace ZenStates.Core.Hardware.Apob
 
         public static ApobProfile Resolve(CPUInfo cpuInfo)
         {
+            if (cpuInfo.family == Family.FAMILY_17H)
+            {
+                return Zen2Ddr4Profile;
+            }
+
             if (cpuInfo.family == Family.FAMILY_19H)
             {
                 switch (cpuInfo.codeName)
                 {
+                    // Zen 3 with DDR4 (the Zen 4 profiles are DDR5 / LPDDR5)
+                    case CodeName.Vermeer:
+                    case CodeName.Cezanne:
+                    case CodeName.Chagall:
+                    case CodeName.Milan:
+                        return Zen3Ddr4Profile;
                     case CodeName.Rembrandt:
                     case CodeName.HawkPoint:
                     case CodeName.Phoenix:

@@ -86,16 +86,38 @@ namespace ZenStates.Core.Hardware.Apob
         {
             get
             {
-                int day = (int)(LastTrainingTimeRaw & 0xFF);
-                int month = (int)((LastTrainingTimeRaw >> 8) & 0xFF);
-                int century = (int)((LastTrainingTimeRaw >> 24) & 0xFF);
-                int year = (century == 0 ? 20 : century) * 100 + (int)((LastTrainingTimeRaw >> 16) & 0xFF);
+                // Binary on Zen 4 / Zen 5, BCD on Zen 1 to Zen 3 (0x24 0x09 0x26 = 2026-09-24)
+                DateTime? binary = ToDate(LastTrainingTimeRaw, false);
+                if (binary.HasValue && binary.Value.Year <= DateTime.Now.Year + 1)
+                    return binary;
 
-                if (year < 2000 || year > 2200 || month < 1 || month > 12 || day < 1 || day > DateTime.DaysInMonth(year, month))
-                    return null;
-
-                return new DateTime(year, month, day);
+                DateTime? bcd = ToDate(LastTrainingTimeRaw, true);
+                return bcd ?? binary;
             }
+        }
+
+        private static DateTime? ToDate(uint raw, bool bcd)
+        {
+            int[] parts = new int[4];
+            for (int i = 0; i < 4; i++)
+            {
+                int b = (int)((raw >> (8 * i)) & 0xFF);
+                if (bcd)
+                {
+                    if ((b & 0xF) > 9 || (b >> 4) > 9)
+                        return null;
+                    b = (b >> 4) * 10 + (b & 0xF);
+                }
+                parts[i] = b;
+            }
+
+            int day = parts[0], month = parts[1];
+            int year = (parts[3] == 0 ? 20 : parts[3]) * 100 + parts[2];
+
+            if (year < 2000 || year > 2200 || month < 1 || month > 12 || day < 1 || day > DateTime.DaysInMonth(year, month))
+                return null;
+
+            return new DateTime(year, month, day);
         }
 
         /// <summary>The 12 bytes after LastPmuTrainTime, of unknown use (LastPartSerialNum / reserved in openSIL).</summary>
@@ -132,6 +154,21 @@ namespace ZenStates.Core.Hardware.Apob
                 });
             }
 
+            // Zen 2 / Zen 3 have something else in front of the trailer: no DIMMs when a slot does not look like one
+            for (int i = 0; i < info.Dimms.Count; i++)
+            {
+                uint o = data + 4 + (uint)i * SLOT_SIZE;
+                ApobBootDimm dimm = info.Dimms[i];
+                // The bytes after the present flag are not always 0 (Summit Ridge)
+                bool valid = buffer[o + 8] <= 1 &&
+                    (!dimm.Present || (dimm.DramManufacturerId != 0 && dimm.ModuleManufacturerId != 0));
+                if (!valid)
+                {
+                    info.Dimms.Clear();
+                    break;
+                }
+            }
+
             uint t = data + 4 + slots * SLOT_SIZE;
             info.DimmConfigurationUpdated = buffer[t];
             info.ApcbRecoveryFlag = buffer[t + 1];
@@ -153,6 +190,11 @@ namespace ZenStates.Core.Hardware.Apob
             if (!ApobBytes.TryGetData(rawEntry, 0, out uint data, out uint size))
                 return;
             if (size < 4 + SLOT_SIZE + TRAILER_SIZE || (size - 4 - TRAILER_SIZE) % SLOT_SIZE != 0)
+                return;
+
+            // Nothing to hide when the slots are not DIMM records (Zen 2 / Zen 3)
+            ApobBootInfo info = Decode(rawEntry, 0);
+            if (info == null || info.Dimms.Count == 0)
                 return;
 
             uint slots = (size - 4 - TRAILER_SIZE) / SLOT_SIZE;

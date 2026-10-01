@@ -3,18 +3,29 @@ using System.Collections.Generic;
 
 namespace ZenStates.Core.Hardware.Apob
 {
-    /// <summary>A timing of <see cref="ApobChannelTimingLayout"/>, relative to the start of the block.</summary>
+    /// <summary>
+    /// A timing of <see cref="ApobChannelTimingLayout"/>, relative to the start of the block, or to the clock bytes
+    /// of a DDR4 block (<see cref="FromClocks"/>).
+    /// </summary>
     public sealed class ApobTimingField
     {
-        public ApobTimingField(string name, int offset, bool tentative = false)
+        public ApobTimingField(string name, int offset, bool tentative = false, ApobValueWidth? width = null, bool fromClocks = false)
         {
             Name = name;
             Offset = offset;
             Tentative = tentative;
+            Width = width;
+            FromClocks = fromClocks;
         }
 
         public string Name { get; private set; }
         public int Offset { get; private set; }
+
+        /// <summary>Width of the field, null for the width of the layout.</summary>
+        public ApobValueWidth? Width { get; private set; }
+
+        /// <summary>The offset is relative to the clock bytes found by the DDR4 search, not to the block.</summary>
+        public bool FromClocks { get; private set; }
 
         /// <summary>
         /// The field is placed by elimination (another field had the same value on the dumps it was worked out
@@ -25,16 +36,25 @@ namespace ZenStates.Core.Hardware.Apob
 
     /// <summary>
     /// Where the per channel timing blocks of the GEN configuration info entry are and what is in them. A block is
-    /// found by its clocks: MEMCLK in range, the field after it at half MEMCLK, the data rate (when the block has
-    /// one) at twice MEMCLK, and a sane CL.
+    /// found by its clocks: MEMCLK in range, the field after it at half MEMCLK (when the block has one), the data
+    /// rate (when the block has one) at twice MEMCLK, and a sane CL.
+    /// <para>
+    /// DDR4 blocks keep the timings in clocks as bytes a few bytes after MEMCLK, the distance differs between
+    /// programs: <see cref="ClockBytesSearchEnd"/> above 0 makes the search look for them between
+    /// <see cref="ClockBytesSearchStart"/> and <see cref="ClockBytesSearchEnd"/> bytes after MEMCLK, in the DDR4
+    /// order CL, CWL, RCD, RP, RTP, RAS, RC, WR, RRDS, WTRS, FAW, RRDL, WTRL.
+    /// </para>
     /// </summary>
     public sealed class ApobChannelTimingLayout
     {
         public ApobChannelTimingLayout(string name, uint sourceGroupId, uint sourceDataTypeId, ApobValueWidth valueWidth,
             int dataRateOffset, int memClkOffset, int halfMemClkOffset, int minMemClk, int maxMemClk,
             int clOffset, int minCl, int maxCl, ApobTimingField[] fields,
-            int extendedRecordOffset = -1, int extendedRecordStride = 0, int pStateBlockStride = 0)
+            int extendedRecordOffset = -1, int extendedRecordStride = 0, int pStateBlockStride = 0,
+            int clockBytesSearchStart = 0, int clockBytesSearchEnd = 0)
         {
+            ClockBytesSearchStart = clockBytesSearchStart;
+            ClockBytesSearchEnd = clockBytesSearchEnd;
             ExtendedRecordOffset = extendedRecordOffset;
             ExtendedRecordStride = extendedRecordStride;
             PStateBlockStride = pStateBlockStride;
@@ -54,10 +74,14 @@ namespace ZenStates.Core.Hardware.Apob
 
             int width = ValueBytes;
             int span = Math.Max(Math.Max(clOffset, memClkOffset), Math.Max(dataRateOffset, halfMemClkOffset)) + width;
+            if (clockBytesSearchEnd > 0)
+                span = Math.Max(span, clockBytesSearchEnd + DDR4_CLOCK_BYTES);
+
             for (int i = 0; i < fields.Length; i++)
             {
-                if (fields[i].Offset + width > span)
-                    span = fields[i].Offset + width;
+                int end = (fields[i].FromClocks ? clockBytesSearchEnd : 0) + fields[i].Offset + WidthBytes(fields[i].Width ?? valueWidth);
+                if (end > span)
+                    span = end;
             }
             Span = span;
         }
@@ -99,18 +123,74 @@ namespace ZenStates.Core.Hardware.Apob
         /// </summary>
         public int PStateBlockStride { get; private set; }
 
+        /// <summary>
+        /// First and last distance after MEMCLK to look for the DDR4 clock bytes at, 0 when the block has the
+        /// fields at fixed offsets.
+        /// </summary>
+        public int ClockBytesSearchStart { get; private set; }
+        public int ClockBytesSearchEnd { get; private set; }
+
         public int ValueBytes
         {
-            get { return ValueWidth == ApobValueWidth.UInt32 ? 4 : 2; }
+            get { return WidthBytes(ValueWidth); }
         }
 
         /// <summary>Bytes from the start of the block to the end of the last field.</summary>
         public int Span { get; private set; }
 
+        // CL, CWL, RCD, RP, RTP, RAS, RC, WR, RRDS, WTRS, FAW, RRDL, WTRL, CCDL
+        internal const int DDR4_CLOCK_BYTES = 14;
+
+        private static int WidthBytes(ApobValueWidth width)
+        {
+            switch (width)
+            {
+                case ApobValueWidth.UInt8: return 1;
+                case ApobValueWidth.UInt32: return 4;
+                default: return 2;
+            }
+        }
+
         internal uint Read(byte[] buffer, uint blockOffset, int fieldOffset)
         {
-            uint o = blockOffset + (uint)fieldOffset;
-            return ValueWidth == ApobValueWidth.UInt32 ? ApobBytes.U32(buffer, o) : ApobBytes.U16(buffer, o);
+            return Read(buffer, blockOffset + (uint)fieldOffset, ValueWidth);
+        }
+
+        internal uint ReadField(byte[] buffer, uint blockOffset, uint clockBytesOffset, ApobTimingField field)
+        {
+            uint o = (field.FromClocks ? clockBytesOffset : blockOffset) + (uint)field.Offset;
+            return Read(buffer, o, field.Width ?? ValueWidth);
+        }
+
+        private static uint Read(byte[] buffer, uint offset, ApobValueWidth width)
+        {
+            switch (width)
+            {
+                case ApobValueWidth.UInt8: return buffer[offset];
+                case ApobValueWidth.UInt32: return ApobBytes.U32(buffer, offset);
+                default: return ApobBytes.U16(buffer, offset);
+            }
+        }
+
+        /// <summary>
+        /// The DDR4 clock bytes at <paramref name="offset"/> are plausible: CL in range, CWL not above CL, RAS above
+        /// RCD, RC above RAS, and the S / L pairs in order.
+        /// </summary>
+        internal bool IsDdr4ClockBytes(byte[] buffer, uint offset, ulong end)
+        {
+            if ((ulong)offset + DDR4_CLOCK_BYTES > end)
+                return false;
+
+            int cl = buffer[offset], cwl = buffer[offset + 1], rcd = buffer[offset + 2], rp = buffer[offset + 3];
+            int rtp = buffer[offset + 4], ras = buffer[offset + 5], rc = buffer[offset + 6], wr = buffer[offset + 7];
+            int rrds = buffer[offset + 8], wtrs = buffer[offset + 9], faw = buffer[offset + 10];
+            int rrdl = buffer[offset + 11], wtrl = buffer[offset + 12];
+
+            return cl >= MinCl && cl <= MaxCl && cwl >= 5 && cwl <= cl &&
+                rcd >= 5 && rcd <= MaxCl && rp >= 5 && rp <= MaxCl && rtp >= 2 && rtp <= 32 &&
+                ras > rcd && rc > ras && wr >= 5 && wr <= 64 &&
+                rrds >= 2 && rrds <= 16 && wtrs >= 1 && wtrs <= 16 && faw >= rrds && faw <= 96 &&
+                rrdl >= rrds && wtrl >= wtrs;
         }
     }
 
@@ -188,25 +268,27 @@ namespace ZenStates.Core.Hardware.Apob
             return null;
         }
 
-        public uint? Cas { get { return Get("Cas"); } }
-        public uint? RcdRd { get { return Get("RcdRd"); } }
-        public uint? RcdWr { get { return Get("RcdWr"); } }
-        public uint? Rp { get { return Get("Rp"); } }
-        public uint? Ras { get { return Get("Ras"); } }
-        public uint? Rc { get { return Get("Rc"); } }
-        public uint? Wr { get { return Get("Wr"); } }
-        public uint? Rtp { get { return Get("Rtp"); } }
-        public uint? Refi { get { return Get("Refi"); } }
-        public uint? Rfc1 { get { return Get("Rfc1"); } }
-        public uint? Rfc2 { get { return Get("Rfc2"); } }
-        public uint? RfcSb { get { return Get("RfcSb"); } }
-        public uint? Ccdl { get { return Get("Ccdl"); } }
-        public uint? CcdlWr { get { return Get("CcdlWr"); } }
-        public uint? CcdlWr2 { get { return Get("CcdlWr2"); } }
+        public uint? Tcas { get { return Get("Tcas"); } }
+        /// <summary>DDR4 has one tRCD, DDR5 a read and a write one.</summary>
+        public uint? Trcd { get { return Get("Trcd"); } }
+        public uint? Trcdrd { get { return Get("Trcdrd"); } }
+        public uint? Trcdwr { get { return Get("Trcdwr"); } }
+        public uint? Trp { get { return Get("Trp"); } }
+        public uint? Tras { get { return Get("Tras"); } }
+        public uint? Trc { get { return Get("Trc"); } }
+        public uint? Twr { get { return Get("Twr"); } }
+        public uint? Trtp { get { return Get("Trtp"); } }
+        public uint? Trefi { get { return Get("Trefi"); } }
+        public uint? Trfc { get { return Get("Trfc"); } }
+        public uint? Trfc2 { get { return Get("Trfc2"); } }
+        public uint? Trfcsb { get { return Get("Trfcsb"); } }
+        public uint? Tccdl { get { return Get("Tccdl"); } }
+        public uint? Tccdlwr { get { return Get("Tccdlwr"); } }
+        public uint? Tccdlwr2 { get { return Get("Tccdlwr2"); } }
 
         public override string ToString()
         {
-            return string.Format("Block {0}: {1} MT/s, CAS {2}", Index, DataRate, Cas);
+            return string.Format("Block {0}: {1} MT/s, CAS {2}", Index, DataRate, Tcas);
         }
 
         /// <summary>
@@ -226,12 +308,34 @@ namespace ZenStates.Core.Hardware.Apob
             {
                 // ulong: the fields are arbitrary data until the block is found
                 ulong clk = layout.Read(buffer, o, layout.MemClkOffset);
-                ulong half = layout.Read(buffer, o, layout.HalfMemClkOffset);
+                ulong half = layout.HalfMemClkOffset >= 0 ? layout.Read(buffer, o, layout.HalfMemClkOffset) : clk / 2;
                 ulong rate = layout.DataRateOffset >= 0 ? layout.Read(buffer, o, layout.DataRateOffset) : clk * 2;
-                ulong cas = layout.Read(buffer, o, layout.ClOffset);
+                uint clocks = o;
+                bool found = false;
 
-                if (clk >= (ulong)layout.MinMemClk && clk <= (ulong)layout.MaxMemClk && half * 2 == clk && rate == clk * 2 &&
-                    cas >= (ulong)layout.MinCl && cas <= (ulong)layout.MaxCl)
+                if (clk >= (ulong)layout.MinMemClk && clk <= (ulong)layout.MaxMemClk && half * 2 == clk - (clk & 1) && rate == clk * 2)
+                {
+                    if (layout.ClockBytesSearchEnd > 0)
+                    {
+                        // DDR4: the clock bytes follow MEMCLK at a program dependent distance
+                        for (int gap = layout.ClockBytesSearchStart; gap <= layout.ClockBytesSearchEnd && !found; gap++)
+                        {
+                            uint candidate = o + (uint)layout.MemClkOffset + (uint)gap;
+                            if (layout.IsDdr4ClockBytes(buffer, candidate, end))
+                            {
+                                clocks = candidate;
+                                found = true;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        ulong cas = layout.Read(buffer, o, layout.ClOffset);
+                        found = cas >= (ulong)layout.MinCl && cas <= (ulong)layout.MaxCl;
+                    }
+                }
+
+                if (found)
                 {
                     var timings = new ApobChannelTimings
                     {
@@ -249,7 +353,7 @@ namespace ZenStates.Core.Hardware.Apob
                         timings.Values.Add(new ApobTimingValue
                         {
                             Field = field,
-                            Value = layout.Read(buffer, o, field.Offset),
+                            Value = layout.ReadField(buffer, o, clocks, field),
                         });
                     }
 
@@ -263,7 +367,7 @@ namespace ZenStates.Core.Hardware.Apob
                     }
 
                     result.Add(timings);
-                    o += (uint)layout.Span;
+                    o = layout.ClockBytesSearchEnd > 0 ? clocks + ApobChannelTimingLayout.DDR4_CLOCK_BYTES : o + (uint)layout.Span;
                     if ((o & 1) != (entryOffset & 1))
                         o++;
                     continue;

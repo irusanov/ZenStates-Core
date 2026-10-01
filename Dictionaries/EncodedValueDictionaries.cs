@@ -97,5 +97,64 @@ namespace ZenStates.Core.Dictionaries
             {6, "48.0 Ω"},
             {7, "40.0 Ω"},
         };
+
+        // DDR4 (APCB / BIOS memory controller table encoding)
+
+        // DDR4 CPU On-Die Termination
+        public static readonly Dictionary<int, string> Ddr4ProcOdtDict = new Dictionary<int, string>
+        {
+            {0, "Hi-Z"},
+            {1, "480.0 Ω"},
+            {2, "240.0 Ω"},
+            {3, "160.0 Ω"},
+            {8, "120.0 Ω"},
+            {9, "96.0 Ω"},
+            {10, "80.0 Ω"},
+            {11, "68.6 Ω"},
+            {24, "60.0 Ω"},
+            {25, "53.3 Ω"},
+            {26, "48.0 Ω"},
+            {27, "43.6 Ω"},
+            {56, "40.0 Ω"},
+            {57, "36.9 Ω"},
+            {58, "34.3 Ω"},
+            {59, "32.0 Ω"},
+            {62, "30.0 Ω"},
+            {63, "28.2 Ω"},
+        };
+
+        // DDR4 Clk / AddrCmd / CsOdt / Cke Drive Strength
+        public static readonly Dictionary<int, string> Ddr4DrvStrenDict = new Dictionary<int, string>
+        {
+            {0, "120.0 Ω"},
+            {1, "60.0 Ω"},
+            {3, "40.0 Ω"},
+            {7, "30.0 Ω"},
+            {15, "24.0 Ω"},
+            {31, "20.0 Ω"},
+        };
+
+        // DDR4 RttNom, RttPark (MR1 / MR5 encoding)
+        public static readonly Dictionary<int, string> Ddr4RttDict = new Dictionary<int, string>
+        {
+            {0, "Disabled"},
+            {1, "RZQ/4"},
+            {2, "RZQ/2"},
+            {3, "RZQ/6"},
+            {4, "RZQ/1"},
+            {5, "RZQ/5"},
+            {6, "RZQ/3"},
+            {7, "RZQ/7"},
+        };
+
+        // DDR4 RttWr (MR2 encoding)
+        public static readonly Dictionary<int, string> Ddr4RttWrDict = new Dictionary<int, string>
+        {
+            {0, "Off"},
+            {1, "RZQ/2"},
+            {2, "RZQ/1"},
+            {3, "Hi-Z"},
+            {4, "RZQ/3"},
+        };
     }
 }
