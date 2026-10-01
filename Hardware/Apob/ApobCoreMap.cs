@@ -69,7 +69,7 @@ namespace ZenStates.Core.Hardware.Apob
 
         public uint EntrySize { get; internal set; }
 
-        // Structure dimensions
+        // Structure dimensions (array sizes of the program, not the populated CCDs / CCXs, see PhysicalCcdCount)
         public int CcdSlots { get; internal set; }
         public int ComplexSlotsPerCcd { get; internal set; }
         public int CoreSlotsPerComplex { get; internal set; }
@@ -104,6 +104,40 @@ namespace ZenStates.Core.Hardware.Apob
             }
         }
 
+        /// <summary>Number of physical CCDs with enabled cores.</summary>
+        public int PhysicalCcdCount
+        {
+            get
+            {
+                int count = 0;
+                for (uint mask = PhysicalCcdMask; mask != 0; mask &= mask - 1)
+                    count++;
+                return count;
+            }
+        }
+
+        /// <summary>Number of physical CCXs (complexes) with enabled cores, over all CCDs.</summary>
+        public int PhysicalCcxCount
+        {
+            get
+            {
+                var seen = new Dictionary<int, bool>();
+                for (int i = 0; i < Cores.Count; i++)
+                    seen[Cores[i].PhysicalCcd * 256 + Cores[i].PhysicalCcx] = true;
+                return seen.Count;
+            }
+        }
+
+        /// <summary>The array sizes of the structure, e.g. "8 CCD x 2 CCX x 8 cores x 2 threads".</summary>
+        public string SlotLayout
+        {
+            get
+            {
+                return string.Format("{0} CCD x {1} CCX x {2} cores x {3} threads",
+                    CcdSlots, ComplexSlotsPerCcd, CoreSlotsPerComplex, ThreadSlotsPerCore);
+            }
+        }
+
         /// <summary>Bit mask of the enabled physical cores of a physical CCD (bit = CCX * cores per complex + core).</summary>
         public uint GetPhysicalCoreMask(int physicalCcd)
         {
@@ -126,9 +160,10 @@ namespace ZenStates.Core.Hardware.Apob
         public override string ToString()
         {
             var sb = new StringBuilder();
-            sb.AppendFormat("{0} map, instance {1}: {2} cores, {3} threads ({4} CCD x {5} CCX x {6} cores x {7} threads)",
-                DataTypeId == ApobCoreMapParser.CCD_MAP_TYPE ? "CCD" : "CCX", InstanceId, Cores.Count, EnabledThreads,
-                CcdSlots, ComplexSlotsPerCcd, CoreSlotsPerComplex, ThreadSlotsPerCore);
+            sb.AppendFormat("{0} map, instance {1}: {2} CCD{3}, {4} CCX{5}, {6} cores, {7} threads",
+                DataTypeId == ApobCoreMapParser.CCD_MAP_TYPE ? "CCD" : "CCX", InstanceId,
+                PhysicalCcdCount, PhysicalCcdCount == 1 ? "" : "s", PhysicalCcxCount, PhysicalCcxCount == 1 ? "" : "s",
+                Cores.Count, EnabledThreads);
             return sb.ToString();
         }
     }

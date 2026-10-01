@@ -1328,12 +1328,13 @@ namespace ZenStates.Core.Hardware.Apob
                 report.AppendLine(map.ToString());
                 report.AppendHexValue("Entry Offset", map.EntryOffset, 8, 28);
                 report.AppendHexValue("Physical CCD Mask", map.PhysicalCcdMask, 4, 28);
+                report.AppendValue("Structure Slots", map.SlotLayout, 28);
 
                 for (int i = 0; i < map.Cores.Count; i++)
                 {
                     ApobCoreMapCore core = map.Cores[i];
                     report.AppendLine(string.Format(CultureInfo.InvariantCulture,
-                        "Core {0,2} (CCD {1} CCX {2} Core {3}) -> CCD {4} CCX {5} Core {6}, threads {7}",
+                        "Core {0,2}: logical CCD {1} CCX {2} Core {3} -> physical CCD {4} CCX {5} Core {6}, {7} threads",
                         core.LogicalIndex, core.LogicalCcd, core.LogicalCcx, core.LogicalCore,
                         core.PhysicalCcd, core.PhysicalCcx, core.PhysicalCore, core.EnabledThreads));
                 }
