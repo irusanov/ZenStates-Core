@@ -37,13 +37,7 @@ namespace ZenStates.Core.Hardware.Mock
         /// PMIC of the first DIMM that has one, i.e. what the main window shows when no particular
         /// module is selected. Null when the report carries no readable PMIC block.
         /// </summary>
-        public Ddr5PmicData PmicData { get; private set; }
-
-        /// <summary>
-        /// PMIC block of each DIMM dump that has one, keyed by the SPD hub address like <see cref="SpdInfo"/>.
-        /// The SPD no longer carries PMIC data, so the report's PMIC blocks are kept here.
-        /// </summary>
-        public Dictionary<byte, Ddr5PmicData> PmicInfo { get; private set; } = new Dictionary<byte, Ddr5PmicData>();
+        public Ddr5Pmic PmicData { get; private set; }
 
         /// <summary>Decoded AOD fields as printed in the report - the mock counterpart of <c>cpu.info.aod.Table.Data</c>. Null when unavailable.</summary>
         public AodData AodData { get; private set; }
@@ -223,19 +217,18 @@ namespace ZenStates.Core.Hardware.Mock
         /// line up with the modules by index, the same assumption the live path makes. Falls back to
         /// <see cref="PmicData"/> when that module has no entry of its own.
         /// </summary>
-        public Ddr5PmicData GetPmicData(int moduleIndex)
+        public Ddr5Pmic GetPmicData(int moduleIndex)
         {
             if (moduleIndex >= 0 && moduleIndex < SpdInfo.Count)
             {
                 int index = 0;
-                foreach (byte address in SpdInfo.Keys)
+                foreach (Ddr5SpdInfo info in SpdInfo.Values)
                 {
                     if (index++ != moduleIndex)
                         continue;
 
-                    Ddr5PmicData pmic;
-                    if (PmicInfo.TryGetValue(address, out pmic) && pmic != null && pmic.IsValid)
-                        return pmic;
+                    if (info.Pmic != null && info.Pmic.IsValid)
+                        return info.Pmic;
 
                     break;
                 }
@@ -365,11 +358,13 @@ namespace ZenStates.Core.Hardware.Mock
                 return;
             }
 
-            PmicInfo = DebugReportParser.ParsePmicInfo(lines);
-            foreach (Ddr5PmicData pmic in PmicInfo.Values)
+            foreach (Ddr5SpdInfo info in SpdInfo.Values)
             {
-                PmicData = pmic;
-                break;
+                if (info.Pmic != null && info.Pmic.IsValid)
+                {
+                    PmicData = info.Pmic;
+                    break;
+                }
             }
 
             if (PmicData == null && isDdr5)

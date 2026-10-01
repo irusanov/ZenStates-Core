@@ -394,6 +394,16 @@ namespace ZenStates.Core.Hardware.DRAM.DDR4.Spd
             return Math.Round(mts * 3.0 / 100.0) * 100.0 / 3.0;
         }
 
+        /// <summary>
+        /// Clocks a minimum time takes at the speed of the cycle time <paramref name="tCKps"/>, rounded the way the
+        /// decoder rounds the SPD and XMP timings.
+        /// </summary>
+        public static int ToClocks(int ps, int tCKps)
+        {
+            double mts = SpeedFromTck(tCKps);
+            return mts > 0 ? Clocks(ps, 2000000.0 / mts) : 0;
+        }
+
         /// <summary>JEDEC rounding of a minimum time to clocks, with the 2.5 % guard band of the spec.</summary>
         internal static int Clocks(int ps, double tCKps)
         {

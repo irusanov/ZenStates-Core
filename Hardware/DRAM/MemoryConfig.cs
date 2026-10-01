@@ -5,6 +5,7 @@ using ZenStates.Core.Drivers;
 using ZenStates.Core.Hardware.DRAM.DDR4.Spd;
 using ZenStates.Core.Hardware.DRAM.DDR4.Thermal;
 using ZenStates.Core.Hardware.DRAM.DDR5.Hub;
+using ZenStates.Core.Hardware.DRAM.DDR5.Pmic;
 using ZenStates.Core.Hardware.DRAM.DDR5.Spd;
 using ZenStates.Core.Hardware.DRAM.DDR5.Thermal;
 using ZenStates.Core.Hardware.Smu.Commands;
@@ -102,7 +103,7 @@ namespace ZenStates.Core.Hardware.DRAM
         /// </summary>
         public Dictionary<byte, Ddr4ThermalData> Ddr4ThermalSensors { get; protected set; }
 
-        /// <summary>Whether any module reports live data (a DDR5 SPD hub or a DDR4 thermal sensor).</summary>
+        /// <summary>Whether any module reports live data (DDR5 SPD hub and PMIC, or a DDR4 thermal sensor).</summary>
         public bool HasDimmTelemetry
         {
             get
@@ -460,7 +461,7 @@ namespace ZenStates.Core.Hardware.DRAM
             return updated;
         }
 
-        // Reads the SPD hub temperature of every DDR5 module; the SMBus mutex must be held.
+        // Reads the PMIC and SPD hub temperature of every DDR5 module; the SMBus mutex must be held.
         private bool RefreshDdr5TelemetryNoLock(Dictionary<byte, Ddr5SpdInfo> snapshot)
         {
             bool updated = false;
@@ -474,6 +475,10 @@ namespace ZenStates.Core.Hardware.DRAM
 
                 foreach (var info in snapshot)
                 {
+                    Ddr5Pmic pmic = info.Value?.Pmic;
+                    if (pmic != null && pmic.IsValid && pmic.RefreshNoLock(smbusDriver))
+                        updated = true;
+
                     // Updated in place, so the limits read with the SPD are kept. The key is the hub address.
                     Ddr5ThermalData td = info.Value?.ThermalData;
                     if (td != null && td.IsValid && td.TempSensorEnabled &&

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text;
 using ZenStates.Core.Hardware.DRAM.DDR5.Hub;
+using ZenStates.Core.Hardware.DRAM.DDR5.Pmic;
 using ZenStates.Core.Hardware.DRAM.DDR5.Profiles;
 using ZenStates.Core.Hardware.DRAM.DDR5.Thermal;
 
@@ -194,6 +195,12 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         public Spd5118HubInfo HubInfo;
         public Ddr5ThermalData ThermalData;
 
+        /// <summary>
+        /// The module's PMIC, read when the SPD lists a supported model as PMIC0 (a <see cref="Pmic5100"/> so far);
+        /// null otherwise.
+        /// </summary>
+        public Ddr5Pmic Pmic;
+
         private static string Listed(Ddr5SpdDevice device)
         {
             return device != null ? device.ToString() : "Not listed";
@@ -378,6 +385,20 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
                     sb.AppendLine("  Sensor present but DISABLED");
                 else
                     sb.Append(ThermalData.ToString());
+            }
+
+            if (Pmic != null)
+            {
+                sb.AppendLine();
+                sb.AppendLine("-- PMIC (Power Management IC) ---------------");
+                sb.Append(Pmic.ToString());
+            }
+            else if (HubInfo != null && Pmic0 != null && Pmic0.Installed)
+            {
+                sb.AppendLine();
+                sb.AppendLine("-- PMIC (Power Management IC) ---------------");
+                sb.AppendFormat("  PMIC: not read ({0})\n",
+                    Ddr5PmicFactory.IsSupported(Pmic0.PmicType) ? "not detected" : Pmic0.TypeName + " is not supported yet");
             }
 
             sb.AppendLine("===============================================");

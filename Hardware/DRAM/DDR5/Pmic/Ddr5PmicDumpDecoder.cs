@@ -1,22 +1,25 @@
 using System;
 using System.Globalization;
 using System.Text.RegularExpressions;
-using static ZenStates.Core.Hardware.DRAM.DDR5.Tables.JedecPmicRegisters;
+using ZenStates.Core.Hardware.DRAM.DDR5.Spd;
 
 namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 {
     /// <summary>
-    /// Reverse of <see cref="Ddr5PmicData.ToString"/>: turns a textual PMIC dump - the
-    /// "-- PMIC (Power Management IC) ---" block of a ZenTimings debug report - back into a
-    /// <see cref="Ddr5PmicData"/> instance.
+    /// Reverse of <see cref="Ddr5Pmic.ToString"/>: turns a textual PMIC dump - the
+    /// "-- PMIC (Power Management IC) ---" block of a ZenTimings debug report - back into a PMIC.
+    /// Every report so far holds a PMIC5100, so the result is a <see cref="Pmic5100"/> (or its
+    /// Richtek variant, picked from the printed vendor).
     /// <para>
     /// The fields are filled straight from the printed values. Reports that also print the raw
-    /// register image ("Raw registers" and its hex rows) get <see cref="Ddr5PmicData.RawRegisters"/>
-    /// back, so vendor register flags apply as on the live machine; for older reports it stays
-    /// null. Labels that are absent leave their field at its default.
+    /// register image ("Raw registers" and its hex rows) get <see cref="Ddr5Pmic.RawRegisters"/>
+    /// back and the configuration is decoded from it as on the live machine (so older reports get
+    /// the current decoding, e.g. the JESD301-2 current limits and the error log); the live values
+    /// (ADC, telemetry, power) stay as printed. Without the image the fields are filled from the
+    /// printed values only, and labels that are absent leave their field at its default.
     /// </para>
     /// </summary>
-    public static partial class Ddr5PmicDecoder
+    public static class Ddr5PmicDumpDecoder
     {
         /// <summary>Header that introduces the PMIC block inside a decoded SPD dump.</summary>
         public const string PmicDumpHeading = "-- PMIC (Power Management IC)";
@@ -47,6 +50,8 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 
         // Register count of the raw image a report prints (0x00-0x51).
         private const int RawRegisterCount = 0x52;
+        private const byte REG_VENDOR_ID_0 = 0x3C;
+        private const byte REG_VENDOR_ID_1 = 0x3D;
 
         /// <summary>Which of the three rails the last "VDD/VDDQ/VPP" line described, for its continuation line.</summary>
         private enum DumpRail
@@ -59,10 +64,10 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 
         /// <summary>
         /// Decodes a printed PMIC dump. Returns null for null or empty input, and a
-        /// <see cref="Ddr5PmicData"/> with <see cref="Ddr5PmicData.IsValid"/> false when the text
-        /// carries no recognisable PMIC line (for example "PMIC: not detected").
+        /// PMIC with <see cref="Ddr5Pmic.IsValid"/> false when the text carries no recognisable
+        /// PMIC line (for example "PMIC: not detected").
         /// </summary>
-        public static Ddr5PmicData DecodeFromDump(string dumpText)
+        public static Ddr5Pmic DecodeFromDump(string dumpText)
         {
             if (string.IsNullOrEmpty(dumpText))
                 return null;
@@ -75,16 +80,31 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
         /// Decodes a printed PMIC dump that has already been split into lines, so a caller holding
         /// a whole report does not have to allocate the block as its own string first.
         /// </summary>
-        public static Ddr5PmicData DecodeFromDump(string[] dumpLines)
+        public static Ddr5Pmic DecodeFromDump(string[] dumpLines)
         {
             if (dumpLines == null || dumpLines.Length == 0)
                 return null;
 
-            Ddr5PmicData pd = new Ddr5PmicData();
+            // The class depends on the vendor, so the register image and the vendor line are read first
+            byte[] raw = ReadRawRegisters(dumpLines);
+            byte vendorBank = 0, vendorCode = 0;
+            if (raw != null)
+            {
+                vendorBank = raw[REG_VENDOR_ID_0];
+                vendorCode = raw[REG_VENDOR_ID_1];
+            }
+            else if (IsRichtekName(FindValue(dumpLines, "Vendor")))
+            {
+                vendorBank = Pmic5100Richtek.VENDOR_BANK;
+                vendorCode = Pmic5100Richtek.VENDOR_CODE;
+            }
+
+            Pmic5100 pd = (Pmic5100)Ddr5PmicFactory.Create(Ddr5PmicType.PMIC5100, vendorBank, vendorCode);
+            pd.VendorBank = vendorBank;
+            pd.VendorCode = vendorCode;
+
             int recognized = 0;
             DumpRail lastRail = DumpRail.None;
-            byte[] raw = new byte[RawRegisterCount];
-            int rawCount = 0;
             bool inRawRegisters = false;
 
             for (int i = 0; i < dumpLines.Length; i++)
@@ -100,12 +120,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                 if (inRawRegisters)
                 {
                     if (RawRegisterRowRegex.IsMatch(trimmed))
-                    {
-                        string[] bytes = trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-                        for (int b = 0; b < bytes.Length && rawCount < raw.Length; b++)
-                            raw[rawCount++] = byte.Parse(bytes[b], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
                         continue;
-                    }
 
                     inRawRegisters = false;
                 }
@@ -141,29 +156,84 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                     recognized++;
             }
 
-            // A complete raw image is the source of truth for the set points and the vendor flags.
-            if (rawCount >= RawRegisterCount)
+            // A complete raw image is the source of truth for the configuration, the status and the vendor
+            // flags. The telemetry registers were re-read for the printed values, so those are kept.
+            if (raw != null)
             {
+                int swa = pd.SwaTelemetryRaw, swb = pd.SwbTelemetryRaw, swc = pd.SwcTelemetryRaw;
                 pd.RawRegisters = raw;
-                pd.VendorBank = raw[REG_VENDOR_BANK];
-                pd.VendorCode = raw[REG_VENDOR_CODE];
-                DecodeVoltageSettings(pd);
+                pd.DecodeRegisters();
+                pd.SwaTelemetryRaw = swa;
+                pd.SwbTelemetryRaw = swb;
+                pd.SwcTelemetryRaw = swc;
             }
+
+            // In total power mode only the SWA register is valid; older reports also printed the stale SWB / SWC
+            if (pd.TelemetryReportsPower && pd.TelemetryReportsTotalPower)
+                pd.SwaW = pd.SwbW = pd.SwcW = 0;
 
             // Older reports flagged High Voltage Mode for every module; decide it the same way the
             // live reader does. A report with neither raw registers nor measured rails keeps its
             // printed flag.
             if (pd.RawRegisters != null || pd.SwaAdcMv > 0 || pd.SwbAdcMv > 0)
-                ResolveVoltageMode(pd);
+                pd.ResolveVoltageMode();
 
             // "  PMIC: not detected" and anything else without a single known label stays invalid,
             // so callers can tell "no PMIC in this report" from "PMIC reading all zeroes".
+            pd.PowerGoodFault = pd.SwaPowerGoodFault || pd.SwbPowerGoodFault || pd.SwcPowerGoodFault;
             pd.IsValid = recognized > 0;
             return pd;
         }
 
+        /// <summary>The register image after the "Raw registers" line, or null when it is not complete.</summary>
+        private static byte[] ReadRawRegisters(string[] dumpLines)
+        {
+            byte[] raw = new byte[RawRegisterCount];
+            int count = 0;
+            bool inRawRegisters = false;
+
+            for (int i = 0; i < dumpLines.Length && count < raw.Length; i++)
+            {
+                string trimmed = dumpLines[i] == null ? string.Empty : dumpLines[i].Trim();
+                if (trimmed.Length == 0)
+                    continue;
+
+                if (!inRawRegisters)
+                {
+                    Match m = DumpLabelRegex.Match(dumpLines[i]);
+                    inRawRegisters = m.Success && m.Groups["label"].Value.Trim() == "Raw registers";
+                    continue;
+                }
+
+                if (!RawRegisterRowRegex.IsMatch(trimmed))
+                    break;
+
+                string[] bytes = trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                for (int b = 0; b < bytes.Length && count < raw.Length; b++)
+                    raw[count++] = byte.Parse(bytes[b], NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+            }
+
+            return count >= RawRegisterCount ? raw : null;
+        }
+
+        private static string FindValue(string[] dumpLines, string label)
+        {
+            for (int i = 0; i < dumpLines.Length; i++)
+            {
+                Match m = dumpLines[i] == null ? Match.Empty : DumpLabelRegex.Match(dumpLines[i]);
+                if (m.Success && m.Groups["label"].Value.Trim() == label)
+                    return m.Groups["value"].Value.Trim();
+            }
+            return null;
+        }
+
+        private static bool IsRichtekName(string vendorName)
+        {
+            return vendorName != null && vendorName.IndexOf("Richtek", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
         /// <summary>Applies one "label : value" pair. Returns false for labels this decoder does not know.</summary>
-        private static bool ApplyDumpLine(Ddr5PmicData pd, string label, string value, ref DumpRail lastRail)
+        private static bool ApplyDumpLine(Pmic5100 pd, string label, string value, ref DumpRail lastRail)
         {
             switch (label)
             {
@@ -171,6 +241,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                 case "Vendor":
                     pd.VendorName = value;
                     return true;
+                case "Device type":
+                    // Only PMIC5100 so far; the line is recognised so a block is not mistaken for an empty one
+                    return value.Length > 0;
                 case "Revision":
                     return ApplyRevision(pd, value);
                 case "I2C Address":
@@ -198,8 +271,18 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                 case "High Voltage Mode":
                     pd.HighVoltageMode = value.Equals("Enabled", StringComparison.OrdinalIgnoreCase);
                     return true;
+                case "PMIC Mode":
+                    pd.PmicMode = value;
+                    return true;
                 case "Write Protect":
-                    pd.WriteProtectFunctionControl = value;
+                    // Earlier reports printed R0x2F [2] (SECURE_MODE) as "Disabled" / "CAMP input signal"
+                    pd.PmicMode = value.Equals("Disabled", StringComparison.OrdinalIgnoreCase) ? "Programmable" : "Secure";
+                    return true;
+                case "Interface":
+                    pd.ManagementInterface = value;
+                    return true;
+                case "PWR_GOOD":
+                    pd.PowerGoodControl = value;
                     return true;
 
                 // Programmed rail voltages. The printed value is the 8-bit decode whenever the PMIC
@@ -290,8 +373,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                     pd.SwcTelemetryRaw = ParseHexInt(value);
                     return true;
 
-                // Decoded power. Taken as printed rather than recomputed: in total power mode the
-                // SWA register holds the combined total and SwaW is deliberately zero.
+                // Decoded power, taken as printed rather than recomputed.
                 case "SWA power":
                     pd.SwaW = ParseWatts(value);
                     return true;
@@ -364,13 +446,58 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
                 case "Parity error":
                     pd.ParityError = IsYes(value);
                     return true;
+                case "VOUT_1.8V PG fault":
+                    pd.Vout18PowerGoodFault = IsYes(value);
+                    return true;
+                case "High current warn":
+                    pd.SwaHighCurrentWarning = HasRail(value, "SWA");
+                    pd.SwbHighCurrentWarning = HasRail(value, "SWB");
+                    pd.SwcHighCurrentWarning = HasRail(value, "SWC");
+                    return true;
+                case "Output OV":
+                    pd.SwaOverVoltage = HasRail(value, "SWA");
+                    pd.SwbOverVoltage = HasRail(value, "SWB");
+                    pd.SwcOverVoltage = HasRail(value, "SWC");
+                    return true;
+
+                // Error log of the previous power cycle
+                case "Last power cycle":
+                    pd.LastPowerOnStatus = value;
+                    return true;
+                case "Error history":
+                    ApplyErrorHistory(pd, value);
+                    return true;
 
                 default:
                     return false;
             }
         }
 
-        private static bool ApplyRevision(Ddr5PmicData pd, string value)
+        private const string MultipleErrorsSuffix = "(more than one error)";
+
+        /// <summary>"SWA UVLO, buck OV/UV (more than one error)" back into the error list and flag.</summary>
+        private static void ApplyErrorHistory(Pmic5100 pd, string value)
+        {
+            pd.ErrorLogMultipleErrors = value.EndsWith(MultipleErrorsSuffix, StringComparison.OrdinalIgnoreCase);
+            if (pd.ErrorLogMultipleErrors)
+                value = value.Substring(0, value.Length - MultipleErrorsSuffix.Length).Trim();
+
+            pd.ErrorLog.Clear();
+            string[] errors = value.Split(',');
+            for (int i = 0; i < errors.Length; i++)
+            {
+                string error = errors[i].Trim();
+                if (error.Length > 0)
+                    pd.ErrorLog.Add(error);
+            }
+        }
+
+        private static bool HasRail(string value, string rail)
+        {
+            return value.IndexOf(rail, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool ApplyRevision(Ddr5Pmic pd, string value)
         {
             Match m = RevisionRegex.Match(value);
             if (!m.Success)

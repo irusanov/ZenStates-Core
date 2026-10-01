@@ -152,10 +152,21 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Hub
         /// </summary>
         internal static bool SelectPageNoLock(SmbusDriverBase smbus, byte addr7, int page)
         {
-            if (page < 0 || page > MR11_PAGE_MASK || !IsHubNoLock(smbus, addr7))
+            if (page < 0 || page > MR11_PAGE_MASK)
                 return false;
 
-            if (!smbus.ReadByteDataNoLock(addr7, MR11_LEGACY_MODE, out byte mr11))
+            return CanPageNoLock(smbus, addr7, out int currentPage) &&
+                   (currentPage == page || WritePageNoLock(smbus, addr7, page));
+        }
+
+        /// <summary>
+        /// Identifies the hub (MR0, MR1) and checks that it uses 1-byte addressing (MR11 [3] = 0), the only mode the
+        /// SMBus byte and word transactions used here can address. Gives the page currently selected. Read-only.
+        /// </summary>
+        private static bool CanPageNoLock(SmbusDriverBase smbus, byte addr7, out int currentPage)
+        {
+            currentPage = -1;
+            if (!IsHubNoLock(smbus, addr7) || !smbus.ReadByteDataNoLock(addr7, MR11_LEGACY_MODE, out byte mr11))
                 return false;
 
             if ((mr11 & MR11_TWO_BYTE_ADDRESSING) != 0)
@@ -164,9 +175,13 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Hub
                 return false;
             }
 
-            if ((mr11 & MR11_PAGE_MASK) == page)
-                return true;
+            currentPage = mr11 & MR11_PAGE_MASK;
+            return true;
+        }
 
+        /// <summary>Writes the page pointer and reads it back. Only on a device <see cref="CanPageNoLock"/> accepted.</summary>
+        private static bool WritePageNoLock(SmbusDriverBase smbus, byte addr7, int page)
+        {
             // Bits [7:4] are reserved (0) and bit 3 is 0 here, so the page is the whole value.
             if (!smbus.WriteByteDataNoLock(addr7, MR11_LEGACY_MODE, (byte)page))
                 return false;
@@ -199,6 +214,10 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Hub
             if (dest == null || nvmOffset < 0 || count <= 0 || nvmOffset + count > NVM_SIZE || nvmOffset + count > dest.Length)
                 return false;
 
+            // The hub is identified once, before the first page write, rather than on every page change
+            if (!CanPageNoLock(smbus, addr7, out int currentPage))
+                return false;
+
             int failures = 0;
             int offset = nvmOffset;
             int end = nvmOffset + count;
@@ -206,10 +225,14 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Hub
             while (offset < end)
             {
                 int page = NvmPage(offset);
-                if (!SelectPageNoLock(smbus, addr7, page))
+                if (page != currentPage)
                 {
-                    Debug.WriteLine(string.Format("SPD5118 0x{0:X2}: failed to select page {1}.", addr7, page));
-                    return false;
+                    if (!WritePageNoLock(smbus, addr7, page))
+                    {
+                        Debug.WriteLine(string.Format("SPD5118 0x{0:X2}: failed to select page {1}.", addr7, page));
+                        return false;
+                    }
+                    currentPage = page;
                 }
 
                 int pageEnd = Math.Min(end, (page + 1) * PAGE_SIZE);

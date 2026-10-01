@@ -480,7 +480,8 @@ namespace ZenStates.Core.Hardware.Mock
         /// by the SPD hub's SMBus address.
         /// <para>
         /// The report holds decoded text rather than the raw 1024-byte SPD image, so the entries are
-        /// partial (<see cref="Ddr5SpdInfo.IsPartial"/>): identity and the headline JEDEC numbers.
+        /// partial (<see cref="Ddr5SpdInfo.IsPartial"/>): identity, the headline JEDEC numbers and -
+        /// the point of this - the PMIC block.
         /// Returns an empty dictionary for reports without the section, i.e. every DDR4 report and
         /// DDR5 reports written before it existed.
         /// </para>
@@ -491,34 +492,9 @@ namespace ZenStates.Core.Hardware.Mock
 
             foreach (DimmBlock block in FindDimmBlocks(lines))
             {
-                Ddr5SpdInfo info = ParseSpdInfoBlock(lines, block.Start, block.End);
+                Ddr5SpdInfo info = ParseSpdInfoBlock(lines, block.Start, block.End, block.Address);
                 if (info != null && !result.ContainsKey(block.Address))
                     result.Add(block.Address, info);
-            }
-
-            return result;
-        }
-
-        /// <summary>
-        /// The PMIC block of each decoded SPD dump that has one, keyed by the SPD hub's SMBus address.
-        /// Reports written while the PMIC was read together with the SPD carry it; the SPD itself no
-        /// longer holds PMIC data.
-        /// </summary>
-        public static Dictionary<byte, Ddr5PmicData> ParsePmicInfo(string[] lines)
-        {
-            var result = new Dictionary<byte, Ddr5PmicData>();
-
-            foreach (DimmBlock block in FindDimmBlocks(lines))
-            {
-                Ddr5PmicData pmic = ParsePmicData(lines, block.Start, block.End);
-                if (pmic == null || !pmic.IsValid || result.ContainsKey(block.Address))
-                    continue;
-
-                // The PMIC prints its own I2C address, but fall back to the SPD hub's when it doesn't.
-                if (pmic.SpdHubAddress == 0)
-                    pmic.SpdHubAddress = block.Address;
-
-                result.Add(block.Address, pmic);
             }
 
             return result;
@@ -529,13 +505,13 @@ namespace ZenStates.Core.Hardware.Mock
         /// "-- PMIC (Power Management IC) ---" up to the next sub-heading. Returns null when the
         /// dump has no PMIC block.
         /// </summary>
-        public static Ddr5PmicData ParsePmicData(string[] lines, int start, int end)
+        public static Ddr5Pmic ParsePmicData(string[] lines, int start, int end)
         {
             int pmicStart = -1;
 
             for (int i = start; i < end; i++)
             {
-                if (lines[i].Trim().StartsWith(Ddr5PmicDecoder.PmicDumpHeading, StringComparison.Ordinal))
+                if (lines[i].Trim().StartsWith(Ddr5PmicDumpDecoder.PmicDumpHeading, StringComparison.Ordinal))
                 {
                     pmicStart = i + 1;
                     break;
@@ -552,7 +528,7 @@ namespace ZenStates.Core.Hardware.Mock
             var block = new string[pmicEnd - pmicStart];
             Array.Copy(lines, pmicStart, block, 0, block.Length);
 
-            return Ddr5PmicDecoder.DecodeFromDump(block);
+            return Ddr5PmicDumpDecoder.DecodeFromDump(block);
         }
 
         /// <summary>
@@ -565,7 +541,7 @@ namespace ZenStates.Core.Hardware.Mock
                    line.StartsWith("==", StringComparison.Ordinal);
         }
 
-        private static Ddr5SpdInfo ParseSpdInfoBlock(string[] lines, int start, int end)
+        private static Ddr5SpdInfo ParseSpdInfoBlock(string[] lines, int start, int end, byte address)
         {
             var info = new Ddr5SpdInfo
             {
@@ -618,6 +594,15 @@ namespace ZenStates.Core.Hardware.Mock
 
             info.IsLpddr5 = info.MemoryFamily != null &&
                             info.MemoryFamily.IndexOf("LPDDR5", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            Ddr5Pmic pmic = ParsePmicData(lines, start, end);
+            if (pmic != null && pmic.IsValid)
+            {
+                // The PMIC prints its own I2C address, but fall back to the SPD hub's when it doesn't.
+                if (pmic.SpdHubAddress == 0)
+                    pmic.SpdHubAddress = address;
+                info.Pmic = pmic;
+            }
 
             return info;
         }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using ZenStates.Core.Drivers;
 using ZenStates.Core.Hardware.DRAM.DDR5.Hub;
+using ZenStates.Core.Hardware.DRAM.DDR5.Pmic;
 using ZenStates.Core.Hardware.DRAM.DDR5.Thermal;
 using ZenStates.Core.OHWM;
 
@@ -76,7 +77,10 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             }
         }
 
-        /// <summary>Reads and decodes the SPD of one hub, with the hub registers and thermal sensor. Null when not readable.</summary>
+        /// <summary>
+        /// Reads and decodes the SPD of one hub, with the hub registers, its thermal sensor and the PMIC the SPD lists.
+        /// Null when not readable.
+        /// </summary>
         internal static Ddr5SpdInfo ReadModuleNoLock(SmbusDriverBase smbus, byte addr7, bool full)
         {
             Spd5118HubInfo hub = Spd5118Hub.ReadInfoNoLock(smbus, addr7);
@@ -99,6 +103,8 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             info.HubInfo = hub;
             if (hub.TempSensorSupported)
                 info.ThermalData = Ddr5ThermalSensor.ReadAllRegsNoLock(smbus, addr7);
+
+            info.Pmic = Ddr5PmicReader.ReadNoLock(smbus, addr7, info.Pmic0);
 
             return info;
         }

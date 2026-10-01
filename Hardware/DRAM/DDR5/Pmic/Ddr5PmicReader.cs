@@ -1,466 +1,56 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Threading;
 using ZenStates.Core.Drivers;
-using ZenStates.Core.Hardware.MutexLock;
-using static ZenStates.Core.Hardware.DRAM.DDR5.Tables.JedecPmicRegisters;
+using ZenStates.Core.Hardware.DRAM.DDR5.Hub;
+using ZenStates.Core.Hardware.DRAM.DDR5.Spd;
 
 namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 {
+    /// <summary>
+    /// Reads the PMIC of a module. Which PMIC to expect comes from the SPD (PMIC0 in the support device bytes); its
+    /// address from the SPD hub's (same host ID, local device type 1001).
+    /// </summary>
     public static class Ddr5PmicReader
     {
-        // SMBus helpers
-        private static bool ReadRegNoLock(SmbusDriverBase smbus, byte addr, byte reg, out byte val)
-        {
-            return smbus.ReadByteDataNoLock(addr, reg, out val);
-        }
-
-        private static bool WriteRegNoLock(SmbusDriverBase smbus, byte addr, byte reg, byte val)
-        {
-            return smbus.WriteByteDataNoLock(addr, reg, val);
-        }
-
-        public static void ReadAdcVoltage(SmbusDriverBase smbus, byte pmicAddr, byte selectCode, out int mv)
-        {
-            if (Mutexes.WaitSmbus(5000))
-            {
-                try
-                {
-                    if (!ReadAdcVoltageNoLock(smbus, pmicAddr, selectCode, out mv))
-                        throw new Exception("Failed to read ADC voltage.");
-                }
-                finally
-                {
-                    Mutexes.ReleaseSmbus();
-                }
-            }
-            else
-            {
-                throw new TimeoutException("Timeout waiting for SMBus mutex.");
-            }
-        }
-
-        private static bool ReadAdcVoltageNoLock(SmbusDriverBase smbus, byte pmicAddr, byte selectCode, out int mv)
-        {
-            mv = 0;
-
-            byte reg30 = (byte)(0x80 | ((selectCode & 0x0F) << 3));
-            byte raw;
-
-            if (!WriteRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, reg30))
-                return false;
-
-            // JESD301-2: The host shall wait minimum of 9 ms delay after the input selection for ADC readout and the actual readout from Table 137, "Register 0x31" to get the latest reading
-            Thread.Sleep(9);
-
-            // First read may still be previous/stale sample after mux switch.
-            //if (!ReadRegNoLock(smbus, pmicAddr, REG_TELEMETRY_VALUE, out raw))
-            //    return false;
-
-            //Utils.DelayMicroseconds(200);
-
-            if (!ReadRegNoLock(smbus, pmicAddr, REG_TELEMETRY_VALUE, out raw))
-                return false;
-
-            mv = Ddr5PmicDecoder.DecodeAdcMv(selectCode, raw);
-            return true;
-        }
+        // R0x3C / R0x3D, the JEP106 vendor ID every JESD301 PMIC has
+        private const byte REG_VENDOR_ID_0 = 0x3C;
+        private const byte REG_VENDOR_ID_1 = 0x3D;
 
         /// <summary>
-        /// Re-reads the programmed rail voltages (R0x21 / R0x25 / R0x27) and R0x2B, which holds the
-        /// high-voltage mode flag on Richtek PMICs; all can be changed at runtime. Decodes them again. Call before <see cref="ReadAllAdcVoltagesNoLock"/>, which
-        /// decides the voltage mode from them.
+        /// Reads the PMIC the SPD lists as PMIC0 for the module whose hub is at <paramref name="hubAddress"/>. Null when
+        /// none is listed, the model is not supported or it does not answer. The bus must be on the module port and the
+        /// SMBus mutex held.
         /// </summary>
-        internal static void ReadVoltageSettingsNoLock(SmbusDriverBase smbus, byte pmicAddr, Ddr5PmicData pd)
+        internal static Ddr5Pmic ReadNoLock(SmbusDriverBase smbus, byte hubAddress, Ddr5SpdDevice listed)
         {
-            if (pd?.RawRegisters == null || pd.RawRegisters.Length <= REG_LDO_SETTINGS)
-                return;
+            if (smbus == null || listed == null || !listed.Installed)
+                return null;
 
-            bool changed = false;
-            byte[] registers = { REG_SWA_VID, REG_SWB_VID, REG_SWC_VID, REG_LDO_SETTINGS };
-            foreach (byte reg in registers)
+            Ddr5PmicType type = listed.PmicType;
+            if (!Ddr5PmicFactory.IsSupported(type))
             {
-                if (ReadRegNoLock(smbus, pmicAddr, reg, out byte value) && pd.RawRegisters[reg] != value)
-                {
-                    pd.RawRegisters[reg] = value;
-                    changed = true;
-                }
+                Debug.WriteLine(string.Format("PMIC of module 0x{0:X2}: {1} is not supported.", hubAddress, listed.TypeName));
+                return null;
             }
 
-            if (changed)
-                Ddr5PmicDecoder.DecodeVoltageSettings(pd);
-        }
-
-        internal static void ReadAllAdcVoltagesNoLock(SmbusDriverBase smbus, byte pmicAddr, Ddr5PmicData pd)
-        {
-            bool success = ReadRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, out byte originalReg30);
-
-            // Do we need to still try reading ADC voltages when the first read fails?
-            try
-            {
-                int mv;
-                if (ReadAdcVoltageNoLock(smbus, pmicAddr, 0x5, out mv)) pd.VinBulkMv = mv;
-                if (ReadAdcVoltageNoLock(smbus, pmicAddr, 0x0, out mv)) pd.SwaAdcMv = mv;
-                if (ReadAdcVoltageNoLock(smbus, pmicAddr, 0x2, out mv)) pd.SwbAdcMv = mv;
-                if (ReadAdcVoltageNoLock(smbus, pmicAddr, 0x3, out mv)) pd.SwcAdcMv = mv;
-                if (ReadAdcVoltageNoLock(smbus, pmicAddr, 0x8, out mv)) pd.Vout18AdcMv = mv;
-                if (ReadAdcVoltageNoLock(smbus, pmicAddr, 0x9, out mv)) pd.Vout10AdcMv = mv;
-            }
-            finally
-            {
-                if (success)
-                    WriteRegNoLock(smbus, pmicAddr, REG_TELEMETRY_SELECT, originalReg30);
-            }
-
-            // The measured rails tell which VID encoding the set points use.
-            Ddr5PmicDecoder.ResolveVoltageMode(pd);
-        }
-
-        /// <summary>
-        /// Read the live PMIC temperature register and update <see cref="Ddr5PmicData.PmicTemperature"/>
-        /// and <see cref="Ddr5PmicData.HighTemperatureWarning"/>.
-        /// The warning flag comes from R0x09 [7] (PMIC_HIGH_TEMP_WARNING_STATUS), which the PMIC
-        /// evaluates against the warning threshold programmed in R0x1B [2:0] - not against the
-        /// thermal shutdown (OTP) threshold in R0x2E [2:0].
-        /// If that status register cannot be read, the temperature code from R0x33 [7:5] is
-        /// compared against R0x1B [2:0] instead; both use the same encoding
-        /// (1=85°C, 2=95°C, 3=105°C, 4=115°C, 5=125°C, 6=135°C, and 0/7=>140°C for R0x33).
-        /// </summary>
-        internal static void ReadPmicTemperatureNoLock(SmbusDriverBase smbus, byte pmicAddr, Ddr5PmicData pd)
-        {
-            if (!ReadRegNoLock(smbus, pmicAddr, REG_PMIC_TEMP, out byte reg33))
-                return;
-
-            int tempCode = (reg33 >> 5) & 0x07;
-            pd.PmicTemperature = Ddr5PmicDecoder.DecodePmicTemp(tempCode);
-
-            if (ReadRegNoLock(smbus, pmicAddr, REG_STATUS_1, out byte reg09))
-            {
-                pd.HighTemperatureWarning = (reg09 & 0x80) != 0;
-            }
-            else if (ReadRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, out byte reg1B))
-            {
-                int warnCode = reg1B & 0x07;
-                pd.HighTemperatureWarningThreshold = Ddr5PmicDecoder.DecodeHighTempWarningThreshold(warnCode);
-                if (warnCode >= 1 && warnCode <= 6)
-                    pd.HighTemperatureWarning = tempCode >= warnCode;
-            }
-        }
-
-        /// <summary>
-        /// Read the live current/power telemetry registers (R0x0C, R0x0E, R0x0F), update
-        /// <see cref="Ddr5PmicData.SwaTelemetryRaw"/>, <see cref="Ddr5PmicData.SwbTelemetryRaw"/>,
-        /// <see cref="Ddr5PmicData.SwcTelemetryRaw"/> and recalculate
-        /// <see cref="Ddr5PmicData.SwaW"/>, <see cref="Ddr5PmicData.SwbW"/>,
-        /// <see cref="Ddr5PmicData.SwcW"/> and <see cref="Ddr5PmicData.TotalW"/>.
-        /// ADC voltages should be refreshed before calling this method so that
-        /// current-mode power calculations use up-to-date measured voltages.
-        /// </summary>
-        internal static void ReadPmicTelemetryNoLock(SmbusDriverBase smbus, byte pmicAddr, Ddr5PmicData pd)
-        {
-            if (ReadRegNoLock(smbus, pmicAddr, REG_SWA_CURRENT_OR_POWER, out byte swa))
-                pd.SwaTelemetryRaw = swa;
-            if (ReadRegNoLock(smbus, pmicAddr, REG_SWB_CURRENT_OR_POWER, out byte swb))
-                pd.SwbTelemetryRaw = swb & 0x3F;
-            if (ReadRegNoLock(smbus, pmicAddr, REG_SWC_CURRENT_OR_POWER, out byte swc))
-                pd.SwcTelemetryRaw = swc & 0x3F;
-
-            // Update power mode
-            if (ReadRegNoLock(smbus, pmicAddr, REG_POWER_MODE_CFG, out byte reg1A))
-                pd.TelemetryReportsTotalPower = (reg1A & 0x02) != 0;
-            if (ReadRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, out byte reg1B))
-                pd.TelemetryReportsPower = (reg1B & 0x40) != 0;
-
-            Ddr5PmicDecoder.DecodeTelemetryWatts(pd);
-        }
-
-        // Detection
-
-        /// <summary>Derive PMIC I2C address from SPD hub address.</summary>
-        public static byte CalculatePmicAddrFromSpd(byte spdAddr)
-        {
-            return unchecked((byte)(spdAddr - SPD_PMIC_OFFSET));
-        }
-
-        /// <summary>Check if a PMIC responds at the given I2C address.</summary>
-        internal static bool DetectNoLock(SmbusDriverBase smbus, byte pmicAddr)
-        {
-            try
-            {
-                if (!ReadRegNoLock(smbus, pmicAddr, REG_VENDOR_BANK, out byte bank)) return false;
-                if (!ReadRegNoLock(smbus, pmicAddr, REG_VENDOR_CODE, out byte code)) return false;
-                return code != 0x00 && code != 0xFF && bank != 0xFF;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        internal static Ddr5PmicData ReadPmicNoLock(SmbusDriverBase smbus, byte pmicAddr)
-        {
-            byte[] rawRegisters = new byte[0x52];
-
-            for (int i = 0; i < rawRegisters.Length; i++)
-            {
-                if (ReadRegNoLock(smbus, pmicAddr, (byte)i, out byte val))
-                    rawRegisters[i] = val;
-                else
-                    rawRegisters[i] = 0xFF;
-            }
-
-            Ddr5PmicData pd = Ddr5PmicDecoder.Decode(pmicAddr, rawRegisters);
-            ReadAllAdcVoltagesNoLock(smbus, pmicAddr, pd);
-            Ddr5PmicDecoder.DecodeTelemetryWatts(pd);
-
-            return pd;
-        }
-
-        // DDR5 PMICs reside on SMBus port 2 (DDR5/TSI port on KernCZ/AMD FCH) on most
-        // AMD platforms. Some boards route DDR5 through port 0 instead. PORT_DIMM is the
-        // compile-time default; ActiveDimmPort is set at runtime once the actual port is discovered.
-        public const int PORT_UNDEFINED = -1;
-        public const int PORT_DIMM = 2;
-        public const int PORT_BOARD = 0;
-
-        private static int ActiveDimmPort = PORT_UNDEFINED;
-
-        private static bool CheckActiveDimmPort(SmbusDriverBase smbus)
-        {
-            if (ActiveDimmPort != PORT_UNDEFINED)
-                return true;
-
-            smbus.ChangePortNoLock(-1, out int previousPort);
+            byte address = Ddr5LocalDeviceAddress.Pmic(hubAddress);
 
             try
             {
-                int[] ports = { PORT_DIMM, PORT_BOARD };
-                foreach (int port in ports)
-                {
-                    smbus.ChangePortNoLock(port, out int _);
-                    for (byte addr = PMIC_ADDR_BASE; addr <= PMIC_ADDR_LAST; addr++)
-                    {
-                        if (DetectNoLock(smbus, addr))
-                        {
-                            Debug.WriteLine($"[PMIC] PMICs found on port {port}; setting ActiveDimmPort");
-                            ActiveDimmPort = port;
-                            return true;
-                        }
-                    }
-                }
+                if (!smbus.ReadByteDataNoLock(address, REG_VENDOR_ID_0, out byte bank) ||
+                    !smbus.ReadByteDataNoLock(address, REG_VENDOR_ID_1, out byte code) ||
+                    code == 0x00 || code == 0xFF || bank == 0xFF)
+                    return null;
 
+                Ddr5Pmic pmic = Ddr5PmicFactory.Create(type, bank, code);
+                pmic.I2cAddress = address;
+                pmic.SpdHubAddress = hubAddress;
+                return pmic.ReadNoLock(smbus) ? pmic : null;
             }
-            finally
+            catch (Exception ex)
             {
-                smbus.ChangePortNoLock(previousPort, out int _);
-            }
-
-            Debug.WriteLine("[PMIC] CheckActiveDimmPort: no PMICs found on any port");
-            return false;
-        }
-
-        /// <summary>
-        /// Read single Pmic. Switches to <see cref="ActiveDimmPort"/> if not already
-        /// there and restores the previous port on exit.
-        /// </summary>
-        public static Ddr5PmicData ReadPmic(SmbusDriverBase smbus, byte pmicAddr)
-        {
-            if (!Mutexes.WaitSmbus(5000))
-            {
-                Debug.WriteLine("Timeout waiting for SMBus mutex to read PMIC data.");
-                return new Ddr5PmicData();
-            }
-
-            try
-            {
-                if (!CheckActiveDimmPort(smbus))
-                    return new Ddr5PmicData();
-
-                smbus.ChangePortNoLock(-1, out int originalPort);
-
-                bool needsSwitch = originalPort != ActiveDimmPort;
-
-                if (needsSwitch)
-                    smbus.ChangePortNoLock(ActiveDimmPort, out int _);
-
-                try
-                {
-                    return ReadPmicNoLock(smbus, pmicAddr);
-                }
-                finally
-                {
-                    if (needsSwitch)
-                        smbus.ChangePortNoLock(originalPort, out int _);
-                }
-            }
-            finally
-            {
-                Mutexes.ReleaseSmbus();
-            }
-        }
-
-        public static bool SetTotalPowerMode(byte pmicAddr, bool enable)
-        {
-            SmbusDriverBase smbus = SmbusProvider.Instance;
-
-            using (new SmbusLock())
-            {
-                if (!CheckActiveDimmPort(smbus))
-                    return false;
-
-                smbus.ChangePortNoLock(-1, out int originalPort);
-                bool needsSwitch = originalPort != ActiveDimmPort;
-
-                if (needsSwitch && !smbus.ChangePortNoLock(ActiveDimmPort, out int _))
-                    return false;
-
-                try
-                {
-                    // Secure Mode: if the PMIC is locked, 0x1A/0x1B writes are not allowed
-                    if (!ReadRegNoLock(smbus, pmicAddr, REG_WRITE_PROTECT_FUNCTION_CONTROL, out byte reg2F))
-                        return false;
-
-                    bool programmableMode = (reg2F & MASK_R2F_SECURE_MODE) != 0;
-                    if (!programmableMode)
-                        return false;
-
-                    if (!ReadRegNoLock(smbus, pmicAddr, REG_POWER_MODE_CFG, out byte reg1A))
-                        return false;
-                    if (!ReadRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, out byte reg1B))
-                        return false;
-
-                    byte newReg1A, newReg1B;
-
-                    if (enable)
-                    {
-                        // Power reporting must be selected before OUTPUT_POWER_SELECT is
-                        // asserted, or R0x1A[1] is simply ignored (Table 114 Note 4).
-                        newReg1B = (byte)(reg1B | MASK_R1B_CURRENT_OR_POWER_METER_SELECT);
-                        newReg1A = (byte)(reg1A | MASK_R1A_OUTPUT_POWER_SELECT);
-                    }
-                    else
-                    {
-                        newReg1A = (byte)(reg1A & ~MASK_R1A_OUTPUT_POWER_SELECT);
-                        newReg1B = (byte)(reg1B & ~MASK_R1B_CURRENT_OR_POWER_METER_SELECT);
-                    }
-
-                    if (newReg1B != reg1B && !WriteRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, newReg1B))
-                        return false;
-
-                    if (newReg1A != reg1A && !WriteRegNoLock(smbus, pmicAddr, REG_POWER_MODE_CFG, newReg1A))
-                    {
-                        // Try to roll back R0x1B so we don't leave the PMIC in a half-configured state
-                        if (newReg1B != reg1B)
-                            WriteRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, reg1B);
-
-                        return false;
-                    }
-
-                    // Read back to confirm the PMIC actually latched the change
-                    if (!ReadRegNoLock(smbus, pmicAddr, REG_POWER_MODE_CFG, out byte verify1A) ||
-                        !ReadRegNoLock(smbus, pmicAddr, REG_VIN_BULK_OV_CFG, out byte verify1B))
-                        return false;
-
-                    return verify1A == newReg1A && verify1B == newReg1B;
-                }
-                finally
-                {
-                    // Restore the previous port only if we actually changed it.
-                    if (needsSwitch)
-                        smbus.ChangePortNoLock(originalPort, out int _);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Write VDD (SWA), VDDQ (SWB) and VPP (SWC) voltages to a single PMIC using
-        /// JEDEC 7-bit VID encoding. Acquires the SMBus mutex and switches to the
-        /// correct DDR5 port automatically.
-        /// </summary>
-        /// <param name="smbus">SMBus driver instance.</param>
-        /// <param name="pmicAddr">7-bit I2C address of the PMIC (0x48–0x4F).</param>
-        /// <param name="vddRegByte">Encoded VDD  register byte  (SWA, REG 0x21).</param>
-        /// <param name="vddqRegByte">Encoded VDDQ register byte (SWB, REG 0x25).</param>
-        /// <param name="vppRegByte">Encoded VPP  register byte  (SWC, REG 0x27).</param>
-        public static bool WriteVoltageRegisters(SmbusDriverBase smbus, byte pmicAddr,
-            byte vddRegByte, byte vddqRegByte, byte vppRegByte)
-        {
-            using (new SmbusLock())
-            {
-                if (!CheckActiveDimmPort(smbus))
-                    return false;
-
-                smbus.ChangePortNoLock(-1, out int originalPort);
-                bool needsSwitch = originalPort != ActiveDimmPort;
-
-                if (needsSwitch)
-                    smbus.ChangePortNoLock(ActiveDimmPort, out int _);
-
-                try
-                {
-                    bool ok = WriteRegNoLock(smbus, pmicAddr, REG_SWA_VID, vddRegByte);
-                    ok &= WriteRegNoLock(smbus, pmicAddr, REG_SWB_VID, vddqRegByte);
-                    ok &= WriteRegNoLock(smbus, pmicAddr, REG_SWC_VID, vppRegByte);
-                    return ok;
-                }
-                finally
-                {
-                    if (needsSwitch)
-                        smbus.ChangePortNoLock(originalPort, out int _);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Read PMIC data for all detected DIMMs by scanning 0x48–0x4F on
-        /// <see cref="ActiveDimmPort"/>. If the port is not yet known,
-        /// <see cref="EnsureActiveDimmPortNoLock"/> probes <see cref="PORT_DIMM"/> then
-        /// <see cref="PORT_BOARD"/> to discover it. The original bus port is restored on exit.
-        /// </summary>
-        internal static Dictionary<byte, Ddr5PmicData> ReadAllPmicsNoLock(SmbusDriverBase smbus)
-        {
-            if (!CheckActiveDimmPort(smbus))
-                return new Dictionary<byte, Ddr5PmicData>();
-
-            smbus.ChangePortNoLock(-1, out int originalPort);
-
-            bool needsSwitch = originalPort != ActiveDimmPort;
-
-            if (needsSwitch)
-                smbus.ChangePortNoLock(ActiveDimmPort, out int _);
-
-            try
-            {
-                var results = new Dictionary<byte, Ddr5PmicData>();
-                for (byte addr = PMIC_ADDR_BASE; addr <= PMIC_ADDR_LAST; addr++)
-                {
-                    if (DetectNoLock(smbus, addr))
-                        results[addr] = ReadPmicNoLock(smbus, addr);
-                }
-                return results;
-            }
-            finally
-            {
-                if (needsSwitch)
-                    smbus.ChangePortNoLock(originalPort, out int _);
-            }
-        }
-
-        public static Dictionary<byte, Ddr5PmicData> ReadAllPmics(SmbusDriverBase smbus)
-        {
-            if (!Mutexes.WaitSmbus(5000))
-            {
-                Debug.WriteLine("Timeout waiting for SMBus mutex to read PMIC data.");
-                return new Dictionary<byte, Ddr5PmicData>();
-            }
-            try
-            {
-                return ReadAllPmicsNoLock(smbus);
-            }
-            finally
-            {
-                Mutexes.ReleaseSmbus();
+                Debug.WriteLine(string.Format("PMIC 0x{0:X2}: {1}", address, ex.Message));
+                return null;
             }
         }
     }
