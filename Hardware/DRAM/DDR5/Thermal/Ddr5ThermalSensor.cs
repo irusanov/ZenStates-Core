@@ -1,133 +1,45 @@
-using System.Collections.Generic;
-using System.Diagnostics;
 using ZenStates.Core.Drivers;
+using ZenStates.Core.Hardware.DRAM.DDR5.Hub;
+using static ZenStates.Core.Hardware.DRAM.DDR5.Hub.Spd5118Registers;
 
 namespace ZenStates.Core.Hardware.DRAM.DDR5.Thermal
 {
+    /// <summary>
+    /// Temperature sensor built into the SPD5118 hub (JESD300-5 MR26~MR51). The registers are volatile, so the hub
+    /// must be on NVM page 0 (see <see cref="Spd5118Hub.RestorePage0NoLock"/>). All methods expect the SMBus mutex
+    /// to be held and the bus to be on the hub port.
+    /// </summary>
     internal static class Ddr5ThermalSensor
     {
-        // SPD5118 Hub Register Addresses (Mode Registers)
-        /// <summary>MR0:MR1 – Device type identifier (reads 0x5118).</summary>
-        private const byte REG_TYPE = 0x00;
+        // MR19: clears MR51 [3:0]
+        private const byte CLEAR_ALL_STATUS = MR51_CRIT_LOW | MR51_CRIT_HIGH | MR51_LOW | MR51_HIGH;
 
-        /// <summary>MR2 – Hub revision.</summary>
-        private const byte REG_REVISION = 0x02;
-
-        /// <summary>MR3:MR4 – Vendor ID.</summary>
-        private const byte REG_VENDOR = 0x03;
-
-        /// <summary>MR5 – Device capability. Bit 1 = TS support.</summary>
-        private const byte REG_CAPABILITY = 0x05;
-
-        /// <summary>MR11 – I2C legacy mode / page select.</summary>
-        private const byte REG_I2C_LEGACY = 0x0B;
-
-        /// <summary>MR19 – Temperature status clear.</summary>
-        private const byte REG_TEMP_CLR = 0x13;
-
-        /// <summary>MR26 – Temperature sensor config. Bit 0 = disable.</summary>
-        private const byte REG_TEMP_CONFIG = 0x1A;
-
-        /// <summary>MR28:MR29 – High temperature limit.</summary>
-        private const byte REG_TEMP_MAX = 0x1C;
-
-        /// <summary>MR30:MR31 – Low temperature limit.</summary>
-        private const byte REG_TEMP_MIN = 0x1E;
-
-        /// <summary>MR32:MR33 – Critical-high temperature limit.</summary>
-        private const byte REG_TEMP_CRIT = 0x20;
-
-        /// <summary>MR34:MR35 – Critical-low temperature limit.</summary>
-        private const byte REG_TEMP_LCRIT = 0x22;
-
-        /// <summary>MR49:MR50 – Current temperature reading.</summary>
-        private const byte REG_TEMP = 0x31;
-
-        /// <summary>MR51 – Temperature alarm status flags.</summary>
-        private const byte REG_TEMP_STATUS = 0x33;
-
-        // Capability bits
-        private const byte CAP_TS_SUPPORT = 0x02;  // bit 1
-                                                   // Config bits
-        private const byte TS_DISABLE = 0x01;  // bit 0
-
-        // Status bits
-        private const byte STATUS_HIGH = 0x01;
-        private const byte STATUS_LOW = 0x02;
-        private const byte STATUS_CRIT = 0x04;
-        private const byte STATUS_LCRIT = 0x08;
-
-        // Temperature unit: 0.25 C = 250 millidegrees
-        private const int TEMP_UNIT_MC = 250;
-
-        /// <summary>
-        /// Check whether MR0:MR1 identify an SPD5118 device.
-        /// Accepts either byte order (MR0=0x51,MR1=0x18 or MR0=0x18,MR1=0x51)
-        /// </summary>
-        internal static bool IsSpd5118DeviceType(byte mr0, byte mr1)
-        {
-            // Normal order: MR0 low nibble = 0x8, MR1 = 0x51
-            if ((mr0 & 0x0F) == 0x08 && mr1 == 0x51)
-                return true;
-            // Swapped order: MR0 = 0x51, MR1 low nibble = 0x8
-            if (mr0 == 0x51 && (mr1 & 0x0F) == 0x08)
-                return true;
-            return false;
-        }
-
-        // Temperature conversion
-        /// <summary>
-        /// Convert a raw 16-bit SPD5118 temperature register value to
-        /// millidegrees Celsius. The format is:
-        ///   bits [12:2] = 11-bit signed temperature (0.25 C per LSB)
-        ///   bits [1:0]  = unused
-        /// </summary>
-        public static int RawToMilliC(int raw16)
-        {
-            // JESD406: temperature register bits[12:2] = 11-bit signed value, 0.25°C per LSB
-            // Equivalent to Linux kernel: sign_extend32(reg >> 2, 10)
-            int val = (raw16 >> 2) & 0x7FF;
-            if ((val & 0x400) != 0)
-                val |= unchecked((int)0xFFFFF800);
-            return val * TEMP_UNIT_MC;
-        }
-
-        // SMBus read helpers
-        // Uses SmbusPiix4.SmbusReadByteData(addr7, command, out result)
-        private static bool ReadMRNoLock(SmbusDriverBase smbus, byte addr7, byte mr, out byte value)
-        {
-            return smbus.ReadByteDataNoLock(addr7, mr, out value);
-        }
-
-        private static bool ReadMR16NoLock(SmbusDriverBase smbus, byte addr7, byte mr, out int milliC)
+        // Temperature and limit registers are 16 bits, low byte first.
+        private static bool ReadTemperatureNoLock(SmbusDriverBase smbus, byte addr7, byte mr, out int milliC)
         {
             milliC = 0;
-            byte lo, hi;
-            // SPD5118 temperature and limit registers are little-endian:
-            //   MR_N = LSB, MR_N+1 = MSB
-            // (Confirmed by Linux kernel spd5118.c: regmap_bulk_read + (regval[1]<<8)|regval[0])
-            // NOTE: Device type at MR0:MR1 is big-endian — handled separately in Detect().
-            if (!ReadMRNoLock(smbus, addr7, mr, out lo)) return false;
-            if (!ReadMRNoLock(smbus, addr7, (byte)(mr + 1), out hi)) return false;
-            milliC = RawToMilliC((hi << 8) | lo);
+            if (!smbus.ReadByteDataNoLock(addr7, mr, out byte lo) ||
+                !smbus.ReadByteDataNoLock(addr7, (byte)(mr + 1), out byte hi))
+                return false;
+
+            milliC = TemperatureToMilliC((hi << 8) | lo);
             return true;
         }
 
-        /// <summary>
-        /// Detect whether the device at the given I2C address is an SPD5118
-        /// hub with temperature sensor support.
-        /// </summary>
-        internal static bool DetectNoLock(SmbusDriverBase smbus, byte i2cAddr)
+        private static void ReadTemperatureInto(SmbusDriverBase smbus, byte addr7, byte mr, ref int field)
+        {
+            if (ReadTemperatureNoLock(smbus, addr7, mr, out int milliC))
+                field = milliC;
+        }
+
+        /// <summary>True when the device is an SPD5118 hub that reports a temperature sensor (MR5 [1]).</summary>
+        internal static bool DetectNoLock(SmbusDriverBase smbus, byte addr7)
         {
             try
             {
-                if (!ReadMRNoLock(smbus, i2cAddr, REG_TYPE, out byte mr0)) return false;
-                if (!ReadMRNoLock(smbus, i2cAddr, (byte)(REG_TYPE + 1), out byte mr1)) return false;
-                if (!IsSpd5118DeviceType(mr0, mr1))
-                    return false;
-
-                if (!ReadMRNoLock(smbus, i2cAddr, REG_CAPABILITY, out byte cap)) return false;
-                return (cap & CAP_TS_SUPPORT) != 0;
+                return Spd5118Hub.IsHubNoLock(smbus, addr7) &&
+                       smbus.ReadByteDataNoLock(addr7, MR5_CAPABILITY, out byte capability) &&
+                       (capability & MR5_TS_SUPPORT) != 0;
             }
             catch
             {
@@ -135,82 +47,34 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Thermal
             }
         }
 
-        /// <summary>
-        /// Read the current temperature from the SPD5118 sensor.
-        /// </summary>
-        /// <returns>Temperature in millidegrees Celsius, or int.MinValue on error.</returns>
-        internal static int ReadTemperatureMilliC(SmbusDriverBase smbus, byte i2cAddr)
+        // Reads the alarm flags into td and clears them on the device.
+        private static bool ReadAndClearAlarmStatusNoLock(SmbusDriverBase smbus, byte addr7, Ddr5ThermalData td)
         {
-            if (!ReadMR16NoLock(smbus, i2cAddr, REG_TEMP, out int mc))
-                return int.MinValue;
-            return mc;
-        }
-
-        /// <summary>
-        /// Read the current temperature from the SPD5118 sensor.
-        /// </summary>
-        /// <returns>Temperature in degrees Celsius, or double.NaN on error.</returns>
-        internal static double ReadTemperatureC(SmbusDriverBase smbus, byte i2cAddr)
-        {
-            int mc = ReadTemperatureMilliC(smbus, i2cAddr);
-            if (mc == int.MinValue) return double.NaN;
-            return mc / 1000.0;
-        }
-
-        private static bool ClearTempStatusNoLock(SmbusDriverBase smbus, byte addr7)
-        {
-            return smbus.WriteByteDataNoLock(addr7, REG_TEMP_CLR, 0x0F);
-        }
-
-        /// <summary>
-        /// Read a 16-bit MR register pair and, on success, store the value
-        /// (in millidegrees Celsius) into <paramref name="field"/>.
-        /// </summary>
-        /// <returns>True if the register was read successfully.</returns>
-        private static bool ReadMR16IntoNoLock(SmbusDriverBase smbus, byte addr7, byte mr, ref int field)
-        {
-            if (!ReadMR16NoLock(smbus, addr7, mr, out int mc))
+            if (!smbus.ReadByteDataNoLock(addr7, MR51_TS_STATUS, out byte status))
                 return false;
-            field = mc;
+
+            td.AlarmHigh = (status & MR51_HIGH) != 0;
+            td.AlarmLow = (status & MR51_LOW) != 0;
+            td.AlarmCritHigh = (status & MR51_CRIT_HIGH) != 0;
+            td.AlarmCritLow = (status & MR51_CRIT_LOW) != 0;
+
+            smbus.WriteByteDataNoLock(addr7, MR19_CLEAR_TS_STATUS, CLEAR_ALL_STATUS);
             return true;
         }
 
         /// <summary>
-        /// Read the alarm status flags into <paramref name="td"/> and clear
-        /// them on the device.
+        /// Updates the temperature and alarm flags of <paramref name="td"/> in place, keeping the limits read before.
+        /// Clears the alarm flags on the device.
         /// </summary>
-        /// <returns>True if the status register was read successfully.</returns>
-        private static bool ReadAndClearAlarmStatusNoLock(SmbusDriverBase smbus, byte i2cAddr, Ddr5ThermalData td)
-        {
-            if (!ReadMRNoLock(smbus, i2cAddr, REG_TEMP_STATUS, out byte status))
-                return false;
-
-            td.AlarmHigh = (status & STATUS_HIGH) != 0;
-            td.AlarmLow = (status & STATUS_LOW) != 0;
-            td.AlarmCritHigh = (status & STATUS_CRIT) != 0;
-            td.AlarmCritLow = (status & STATUS_LCRIT) != 0;
-
-            ClearTempStatusNoLock(smbus, i2cAddr);
-            return true;
-        }
-
-        /// <summary>
-        /// Refresh the current temperature and alarm status from the SPD5118 sensor,
-        /// merging the updated values into the existing <paramref name="td"/> instead
-        /// of replacing it, so other cached fields (e.g. limits) are preserved.
-        /// Clears the alarm status after reading.
-        /// </summary>
-        /// <returns>True if the temperature and status were refreshed successfully.</returns>
-        internal static bool RefreshTemperatureAndStatusNoLock(SmbusDriverBase smbus, byte i2cAddr, Ddr5ThermalData td)
+        internal static bool RefreshTemperatureAndStatusNoLock(SmbusDriverBase smbus, byte addr7, Ddr5ThermalData td)
         {
             try
             {
-                // Read current temperature
-                if (!ReadMR16IntoNoLock(smbus, i2cAddr, REG_TEMP, ref td.TemperatureMilliC))
+                if (!ReadTemperatureNoLock(smbus, addr7, MR49_TS_TEMPERATURE, out int milliC))
                     return false;
 
-                // Read alarm status flags and clear them
-                return ReadAndClearAlarmStatusNoLock(smbus, i2cAddr, td);
+                td.TemperatureMilliC = milliC;
+                return ReadAndClearAlarmStatusNoLock(smbus, addr7, td);
             }
             catch
             {
@@ -218,38 +82,33 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Thermal
             }
         }
 
-        /// <summary>
-        /// Read all thermal sensor data: current temp, limits, and alarms.
-        /// </summary>
-        internal static Ddr5ThermalData ReadAllRegsNoLock(SmbusDriverBase smbus, byte i2cAddr)
+        /// <summary>Reads the configuration, temperature, limits and alarm flags.</summary>
+        internal static Ddr5ThermalData ReadAllRegsNoLock(SmbusDriverBase smbus, byte addr7)
         {
             Ddr5ThermalData td = new Ddr5ThermalData();
 
             try
             {
-                td.TempSensorSupported = DetectNoLock(smbus, i2cAddr);
+                td.TempSensorSupported = DetectNoLock(smbus, addr7);
                 if (!td.TempSensorSupported)
                     return td;
 
-                byte cfg;
-                if (!ReadMRNoLock(smbus, i2cAddr, REG_TEMP_CONFIG, out cfg)) return td;
-                td.TempSensorEnabled = (cfg & TS_DISABLE) == 0;
+                if (!smbus.ReadByteDataNoLock(addr7, MR26_TS_CONFIG, out byte config))
+                    return td;
+
+                td.TempSensorEnabled = (config & MR26_TS_DISABLE) == 0;
+                td.IsValid = true;
 
                 if (!td.TempSensorEnabled)
-                {
-                    td.IsValid = true;
                     return td;
-                }
 
-                ReadMR16IntoNoLock(smbus, i2cAddr, REG_TEMP, ref td.TemperatureMilliC);
-                ReadMR16IntoNoLock(smbus, i2cAddr, REG_TEMP_MAX, ref td.TempMaxMilliC);
-                ReadMR16IntoNoLock(smbus, i2cAddr, REG_TEMP_MIN, ref td.TempMinMilliC);
-                ReadMR16IntoNoLock(smbus, i2cAddr, REG_TEMP_CRIT, ref td.TempCritMilliC);
-                ReadMR16IntoNoLock(smbus, i2cAddr, REG_TEMP_LCRIT, ref td.TempLCritMilliC);
+                ReadTemperatureInto(smbus, addr7, MR49_TS_TEMPERATURE, ref td.TemperatureMilliC);
+                ReadTemperatureInto(smbus, addr7, MR28_TS_HIGH_LIMIT, ref td.TempMaxMilliC);
+                ReadTemperatureInto(smbus, addr7, MR30_TS_LOW_LIMIT, ref td.TempMinMilliC);
+                ReadTemperatureInto(smbus, addr7, MR32_TS_CRIT_HIGH, ref td.TempCritMilliC);
+                ReadTemperatureInto(smbus, addr7, MR34_TS_CRIT_LOW, ref td.TempLCritMilliC);
 
-                ReadAndClearAlarmStatusNoLock(smbus, i2cAddr, td);
-
-                td.IsValid = true;
+                ReadAndClearAlarmStatusNoLock(smbus, addr7, td);
             }
             catch
             {

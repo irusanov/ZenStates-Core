@@ -39,6 +39,12 @@ namespace ZenStates.Core.Hardware.Mock
         /// </summary>
         public Ddr5PmicData PmicData { get; private set; }
 
+        /// <summary>
+        /// PMIC block of each DIMM dump that has one, keyed by the SPD hub address like <see cref="SpdInfo"/>.
+        /// The SPD no longer carries PMIC data, so the report's PMIC blocks are kept here.
+        /// </summary>
+        public Dictionary<byte, Ddr5PmicData> PmicInfo { get; private set; } = new Dictionary<byte, Ddr5PmicData>();
+
         /// <summary>Decoded AOD fields as printed in the report - the mock counterpart of <c>cpu.info.aod.Table.Data</c>. Null when unavailable.</summary>
         public AodData AodData { get; private set; }
 
@@ -222,13 +228,14 @@ namespace ZenStates.Core.Hardware.Mock
             if (moduleIndex >= 0 && moduleIndex < SpdInfo.Count)
             {
                 int index = 0;
-                foreach (Ddr5SpdInfo info in SpdInfo.Values)
+                foreach (byte address in SpdInfo.Keys)
                 {
                     if (index++ != moduleIndex)
                         continue;
 
-                    if (info.PmicData != null && info.PmicData.IsValid)
-                        return info.PmicData;
+                    Ddr5PmicData pmic;
+                    if (PmicInfo.TryGetValue(address, out pmic) && pmic != null && pmic.IsValid)
+                        return pmic;
 
                     break;
                 }
@@ -358,13 +365,11 @@ namespace ZenStates.Core.Hardware.Mock
                 return;
             }
 
-            foreach (Ddr5SpdInfo info in SpdInfo.Values)
+            PmicInfo = DebugReportParser.ParsePmicInfo(lines);
+            foreach (Ddr5PmicData pmic in PmicInfo.Values)
             {
-                if (info.PmicData != null && info.PmicData.IsValid)
-                {
-                    PmicData = info.PmicData;
-                    break;
-                }
+                PmicData = pmic;
+                break;
             }
 
             if (PmicData == null && isDdr5)

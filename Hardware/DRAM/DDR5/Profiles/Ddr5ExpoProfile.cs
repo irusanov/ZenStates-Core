@@ -28,14 +28,13 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Profiles
         public int tRP;
         public string TimingString;
 
-        /// <summary>Raw VDD voltage code from SPD (multiply by 5mV + 1100mV base).</summary>
+        /// <summary>Voltage bytes as stored: bits [7:5] volts, bits [4:0] 50 mV steps.</summary>
         public int VddCode;
-        /// <summary>Raw VDDQ voltage code from SPD.</summary>
         public int VddqCode;
-        /// <summary>Calculated VDD in millivolts.</summary>
+        public int VppCode;
         public int VddMv;
-        /// <summary>Calculated VDDQ in millivolts.</summary>
         public int VddqMv;
+        public int VppMv;
 
         public override string ToString()
         {
@@ -58,6 +57,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Profiles
             sb.AppendFormat("  tRFCsb             : {0} ns\n", tRFCsbMinNs);
             sb.AppendFormat("  VDD                : {0} mV ({1:F3} V)\n", VddMv, VddMv / 1000.0);
             sb.AppendFormat("  VDDQ               : {0} mV ({1:F3} V)\n", VddqMv, VddqMv / 1000.0);
+            sb.AppendFormat("  VPP                : {0} mV ({1:F3} V)\n", VppMv, VppMv / 1000.0);
             return sb.ToString();
         }
     }

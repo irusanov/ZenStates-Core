@@ -4,7 +4,7 @@ using System.Diagnostics;
 using ZenStates.Core.Drivers;
 using ZenStates.Core.Hardware.DRAM.DDR4.Spd;
 using ZenStates.Core.Hardware.DRAM.DDR4.Thermal;
-using ZenStates.Core.Hardware.DRAM.DDR5.Pmic;
+using ZenStates.Core.Hardware.DRAM.DDR5.Hub;
 using ZenStates.Core.Hardware.DRAM.DDR5.Spd;
 using ZenStates.Core.Hardware.DRAM.DDR5.Thermal;
 using ZenStates.Core.Hardware.Smu.Commands;
@@ -102,7 +102,7 @@ namespace ZenStates.Core.Hardware.DRAM
         /// </summary>
         public Dictionary<byte, Ddr4ThermalData> Ddr4ThermalSensors { get; protected set; }
 
-        /// <summary>Whether any module reports live data (DDR5 SPD hub and PMIC, or a DDR4 thermal sensor).</summary>
+        /// <summary>Whether any module reports live data (a DDR5 SPD hub or a DDR4 thermal sensor).</summary>
         public bool HasDimmTelemetry
         {
             get
@@ -186,7 +186,7 @@ namespace ZenStates.Core.Hardware.DRAM
                 return;
 
             // Only read partial info needed for initialization as reading whole SPD data is expensive
-            SpdInfo = Ddr5SpdReader.ReadDdr5SpdInitInfoAll();
+            SpdInfo = Ddr5SpdReader.ReadInitInfoAll();
 
             var ddr5Names = new List<string>();
             foreach (var spdEntry in SpdInfo.Values)
@@ -210,10 +210,6 @@ namespace ZenStates.Core.Hardware.DRAM
             {
                 Debug.WriteLine($"MemoryConfig: Failed to get EXPO profile status: {ex.Message}");
             }
-            //Ddr5SpdReader.DumpDdr5SpdToFiles(Directory.GetCurrentDirectory());
-
-            // Populate PMIC data for telemetry
-            //RefreshTelemetry();
         }
 
         // The module manufacturers from SPD, in module order, replace the SMBIOS names unless SPD doesn't know the vendor.
@@ -318,7 +314,7 @@ namespace ZenStates.Core.Hardware.DRAM
             if (!IsSpdSupported)
                 return null;
 
-            return Ddr5SpdDecoder.ReadAndDecodeAll(smbusDriver);
+            return Ddr5SpdReader.ReadAll();
         }
 
         public bool RefreshSpdInfo()
@@ -464,7 +460,7 @@ namespace ZenStates.Core.Hardware.DRAM
             return updated;
         }
 
-        // Reads the PMIC and SPD hub temperature of every DDR5 module; the SMBus mutex must be held.
+        // Reads the SPD hub temperature of every DDR5 module; the SMBus mutex must be held.
         private bool RefreshDdr5TelemetryNoLock(Dictionary<byte, Ddr5SpdInfo> snapshot)
         {
             bool updated = false;
@@ -473,32 +469,16 @@ namespace ZenStates.Core.Hardware.DRAM
 
             try
             {
-                if (!Ddr5SpdReader.SelectHubPortNoLock(false))
+                if (!Spd5118Hub.SelectHubPortNoLock(smbusDriver, false))
                     return false;
 
                 foreach (var info in snapshot)
                 {
-                    Ddr5PmicData pd = info.Value?.PmicData;
-                    if (pd != null && pd.IsValid)
-                    {
-                        // Set points first: they can be changed at runtime, and the voltage mode is decided
-                        // from them together with the measured rails.
-                        Ddr5PmicReader.ReadVoltageSettingsNoLock(smbusDriver, pd.I2cAddress, pd);
-                        Ddr5PmicReader.ReadAllAdcVoltagesNoLock(smbusDriver, pd.I2cAddress, pd);
-                        Ddr5PmicReader.ReadPmicTemperatureNoLock(smbusDriver, pd.I2cAddress, pd);
-                        Ddr5PmicReader.ReadPmicTelemetryNoLock(smbusDriver, pd.I2cAddress, pd);
-                        updated = true;
-                    }
-
-                    // The SPD hub sensor is read even when the module's PMIC is not readable. The key is the hub address.
+                    // Updated in place, so the limits read with the SPD are kept. The key is the hub address.
                     Ddr5ThermalData td = info.Value?.ThermalData;
-                    if (td != null && td.IsValid && td.TempSensorEnabled)
-                    {
-                        // Merge updated temperature and status into the existing thermal data
-                        // instead of replacing the whole object, preserving other cached fields.
-                        if (Ddr5ThermalSensor.RefreshTemperatureAndStatusNoLock(smbusDriver, info.Key, td))
-                            updated = true;
-                    }
+                    if (td != null && td.IsValid && td.TempSensorEnabled &&
+                        Ddr5ThermalSensor.RefreshTemperatureAndStatusNoLock(smbusDriver, info.Key, td))
+                        updated = true;
                 }
             }
             finally

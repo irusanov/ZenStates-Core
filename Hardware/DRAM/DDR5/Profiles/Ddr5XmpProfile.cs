@@ -29,17 +29,12 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Profiles
         public int tRP;
         public string TimingString;
 
-        /// <summary>Raw VDD voltage code (code * 5mV + 1100mV).</summary>
+        /// <summary>Voltage bytes as stored: bits [7:5] volts, bits [4:0] 50 mV steps.</summary>
         public int VddCode;
-        /// <summary>Raw VDDQ voltage code (code * 5mV + 1100mV).</summary>
         public int VddqCode;
-        /// <summary>Raw VPP voltage code (code * 5mV + 1500mV).</summary>
         public int VppCode;
-        /// <summary>Calculated VDD in millivolts.</summary>
         public int VddMv;
-        /// <summary>Calculated VDDQ in millivolts.</summary>
         public int VddqMv;
-        /// <summary>Calculated VPP in millivolts.</summary>
         public int VppMv;
 
         /// <summary>Supported CAS latencies for this profile.</summary>
@@ -48,7 +43,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Profiles
         /// <summary>Intel Dynamic Memory Boost flag.</summary>
         public bool DynamicMemoryBoost;
 
-        /// <summary>Profile name (XMP 3.0 supports up to 15 chars).</summary>
+        /// <summary>Profile name (XMP 3.0 header, up to 16 characters).</summary>
         public string ProfileName;
 
         public override string ToString()
