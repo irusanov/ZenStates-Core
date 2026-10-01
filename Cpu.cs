@@ -1261,12 +1261,22 @@ namespace ZenStates.Core
             return Equals(GetPBOScalar(), 0.0f);
         }
 
+        /// <summary>
+        /// The PBO scalar, or <see cref="Constants.PBO_SCALAR_MIN"/> when it can't be read. Use <see cref="TryGetPBOScalar"/> to
+        /// tell a failed read from a real value.
+        /// </summary>
         public float GetPBOScalar()
         {
-            var cmd = new GetPBOScalar(smu);
-            cmd.Execute();
+            return TryGetPBOScalar(out float scalar) ? scalar : Constants.PBO_SCALAR_MIN;
+        }
 
-            return cmd.Scalar;
+        /// <summary>Reads the PBO scalar. False when the SMU has no such message, refuses it or returns a value out of range.</summary>
+        public bool TryGetPBOScalar(out float scalar)
+        {
+            var cmd = new GetPBOScalar(smu);
+            bool ok = cmd.Execute().Success && cmd.IsValid;
+            scalar = ok ? cmd.Scalar : 0;
+            return ok;
         }
 
         public bool SendTestMessage(uint arg = 1, Mailbox mbox = null)

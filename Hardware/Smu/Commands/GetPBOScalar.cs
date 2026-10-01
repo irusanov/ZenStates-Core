@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using ZenStates.Core.Common;
 
 namespace ZenStates.Core.Hardware.Smu.Commands
@@ -6,6 +6,7 @@ namespace ZenStates.Core.Hardware.Smu.Commands
     internal class GetPBOScalar : BaseSMUCommand
     {
         public float Scalar { get; protected set; }
+        public bool IsValid { get; protected set; }
         public GetPBOScalar(SMU smu) : base(smu)
         {
             Scalar = Constants.PBO_SCALAR_MIN;
@@ -20,7 +21,8 @@ namespace ZenStates.Core.Hardware.Smu.Commands
                 {
                     byte[] bytes = BitConverter.GetBytes(result.args[0]);
                     Scalar = BitConverter.ToSingle(bytes, 0);
-                    if (Scalar < Constants.PBO_SCALAR_MIN || Scalar > Constants.PBO_SCALAR_MAX)
+                    IsValid = Scalar >= Constants.PBO_SCALAR_MIN && Scalar <= Constants.PBO_SCALAR_MAX;
+                    if (!IsValid)
                         Scalar = Constants.PBO_SCALAR_DEFAULT;
                 }
             }
