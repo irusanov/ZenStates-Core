@@ -10,7 +10,8 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Profiles
     /// XMP 3.0: a 64-byte header at 640 ("0x0C 0x4A", revision, enabled profiles, profile names) followed by the three
     /// vendor profiles as 64-byte blocks at 704, 768 and 832.
     /// EXPO: "EXPO" at 832, revision, enabled profiles, two 40-byte profiles at 842 and 882 and a CRC of bytes 832~957
-    /// at 958. A module with both has EXPO in place of the third XMP profile.
+    /// at 958. A module with both has EXPO in place of the third XMP profile. An EXPO profile is VDD, VDDQ, VPP, tCK,
+    /// the primary timings and tRFC, then optionally eight secondary timings (tRRD_L ~ tRTP) in its last 16 bytes.
     ///
     /// Profile voltages are encoded as bits [7:5] whole volts plus bits [4:0] x 50 mV.
     /// </summary>
@@ -46,6 +47,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Profiles
         private const int EXPO_VDDQ = 1;
         private const int EXPO_VPP = 2;
         private const int EXPO_TCK = 4;     // then tAA, tRCD, tRP, tRAS, tRC, tWR (ps), tRFC1, tRFC2, tRFCsb (ns)
+        private const int EXPO_SECONDARY = 24;  // tRRD_L, tCCD_L, tCCD_L_WR, tCCD_L_WR2, tFAW, tCCD_L_WTR, tCCD_S_WTR, tRTP (ps)
 
         /// <summary>Sets empty (not valid) profiles, so the profile fields are never null.</summary>
         public static void SetEmptyProfiles(Ddr5SpdInfo info)
@@ -126,7 +128,25 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Profiles
             p.CL = Ddr5SpdTimingMath.ToCl(p.tAAminPs, p.tCKAVGminPs, null);
             p.tRCD = Ddr5SpdTimingMath.ToNck(p.tRCDminPs, p.tCKAVGminPs);
             p.tRP = Ddr5SpdTimingMath.ToNck(p.tRPminPs, p.tCKAVGminPs);
+            p.tRAS = Ddr5SpdTimingMath.ToNck(p.tRASminPs, p.tCKAVGminPs);
+            // tRC also has to cover tRAS + tRP
+            p.tRC = Math.Max(Ddr5SpdTimingMath.ToNck(p.tRCminPs, p.tCKAVGminPs), p.tRAS + p.tRP);
+            p.tWR = Ddr5SpdTimingMath.ToNck(p.tWRminPs, p.tCKAVGminPs);
             p.TimingString = string.Format("{0}-{1}-{2} @ {3}", p.CL, p.tRCD, p.tRP, p.SpeedGrade);
+
+            int s = offset + EXPO_SECONDARY;
+            int tck = p.tCKAVGminPs;
+            p.tRRD_L = Ddr5SpdTiming.Create(U16(spd, s), 0, tck);
+            p.tCCD_L = Ddr5SpdTiming.Create(U16(spd, s + 2), 0, tck);
+            p.tCCD_L_WR = Ddr5SpdTiming.Create(U16(spd, s + 4), 0, tck);
+            p.tCCD_L_WR2 = Ddr5SpdTiming.Create(U16(spd, s + 6), 0, tck);
+            p.tFAW = Ddr5SpdTiming.Create(U16(spd, s + 8), 0, tck);
+            p.tCCD_L_WTR = Ddr5SpdTiming.Create(U16(spd, s + 10), 0, tck);
+            p.tCCD_S_WTR = Ddr5SpdTiming.Create(U16(spd, s + 12), 0, tck);
+            p.tRTP = Ddr5SpdTiming.Create(U16(spd, s + 14), 0, tck);
+            p.HasSecondaryTimings = p.tRRD_L.IsDefined || p.tCCD_L.IsDefined || p.tCCD_L_WR.IsDefined || p.tCCD_L_WR2.IsDefined ||
+                                    p.tFAW.IsDefined || p.tCCD_L_WTR.IsDefined || p.tCCD_S_WTR.IsDefined || p.tRTP.IsDefined;
+
             p.IsValid = true;
             return p;
         }
