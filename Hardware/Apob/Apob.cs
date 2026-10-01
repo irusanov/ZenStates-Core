@@ -45,6 +45,53 @@ namespace ZenStates.Core.Hardware.Apob
         private const uint DATA_PARSE_LEAD_BYTES = 48;
         private const uint RTT_BLOCK_SIZE = 5;
 
+        // APOB Group Definitons
+        private const uint APOB_MEM      = 1;
+        private const uint APOB_DF       = 2;
+        private const uint APOB_CCX      = 3;
+        private const uint APOB_GNB      = 4;
+        private const uint APOB_FCH      = 5;
+        private const uint APOB_PSP      = 6;
+        private const uint APOB_GEN      = 7;
+        private const uint APOB_SMBIOS   = 8;
+        private const uint APOB_FABRIC   = 9;
+
+        // APOB Type Definitons
+        private const uint APOB_MEM_GENERAL_ERRORS_TYPE                             = 1;
+        private const uint APOB_MEM_GENERAL_CONFIGURATION_INFO_TYPE                 = 2;
+        private const uint APOB_GEN_CONFIGURATION_INFO_TYPE                         = 3;
+        private const uint APOB_GEN_S3_REPLAY_BUFFER_INFO_TYPE                      = 4;
+        private const uint APOB_MEM_PMU_SMB_TYPE                                    = 5;
+        private const uint APOB_GEN_EVENT_LOG_TYPE                                  = 6;
+        private const uint APOB_MEM_DIMM_SMBUS_INFO_TYPE                            = 7;
+        private const uint APOB_MEM_SMBIOS_TYPE                                     = 8;
+        private const uint APOB_SYS_MAP_INFO_TYPE                                   = 9;
+        private const uint APOB_MEM_NVDIMM_INFO_TYPE                                = 15;
+        private const uint APOB_APCB_BOOT_INFO_TYPE                                 = 16;
+        private const uint APOB_MEM_DIMM_SPD_DATA_TYPE                              = 17;
+        private const uint APOB_MEM_MBIST_RESULT_INFO_TYPE                          = 18;
+        private const uint APOB_SYS_NPS_INFO_TYPE                                   = 19;
+        private const uint APOB_SYS_SLINK_INFO_TYPE                                 = 20;
+        private const uint APOB_DF_DXIO_PHY_FW_OVERRIDE_INFO_TYPE                   = 21;
+        private const uint APOB_MEM_PMU_TRAINING_FAILURE_INFO_TYPE                  = 22;
+        private const uint APOB_ENV_FLAGS_INFO_TYPE                                 = 23;
+        private const uint APOB_SYS_CXL_INFO_TYPE                                   = 24;
+        private const uint APOB_MEM_SYSTEM_CONFIGURATION_INFO_TYPE                  = 25;
+        private const uint APOB_GEN_CONFIG_DATA_TYPE                                = 26;
+        private const uint APOB_MEM_SOC_INIT_CONFIG_TYPE                            = 27;
+        private const uint APOB_MEM_RMP_INFO                                        = 28;
+
+        private const uint APOB_MEM_S3_DDR_PHY_REPLAY_PHASE0_BUFFER_INFO_TYPE       = 30;
+        private const uint APOB_MEM_S3_DDR_PHY_REPLAY_MAX_ENTRIES                   = 10;
+
+        private const uint APOB_MEM_S3_MOP_ARRAY_REPLAY_CHANNEL0_BUFFER_INFO_TYPE   = 40;
+        //private const uint APOB_MEM_S3_MOP_ARRAY_REPLAY_MAX_ENTRIES                 = ABL_APOB_MAX_CHANNELS_PER_DIE;
+
+        // APOB CCX Type Definitons
+        private const uint APOB_CCX_LOGICAL_TO_PHYSICAL_MAP_TYPE  = 1;
+        private const uint APOB_CCX_EDC_THROTTLE_THRESH_TYPE      = 2;
+        private const uint APOB_CCD_LOGICAL_TO_PHYSICAL_MAP_TYPE  = 3;
+
         private static readonly uint[] KnownAddresses = new uint[] { 0xA200000, 0x9F00000, 0x4000000 };
         private static IODriver io => IODriver.Instance;
 
@@ -283,7 +330,7 @@ namespace ZenStates.Core.Hardware.Apob
             if (secondOffset + 5 >= RawTable.Length)
                 return false;
 
-            if (RawTable[secondOffset] != 0x01 || RawTable[secondOffset + 4] != 0x19)
+            if (RawTable[secondOffset] != APOB_MEM_GENERAL_ERRORS_TYPE || RawTable[secondOffset + 4] != APOB_MEM_SYSTEM_CONFIGURATION_INFO_TYPE)
                 return false;
 
             uint secondSize = Utils.ReadUInt32(RawTable, (uint)secondOffset + ENTRY_SIZE_OFFSET);
@@ -305,7 +352,7 @@ namespace ZenStates.Core.Hardware.Apob
                 if (offset + 5 >= RawTable.Length)
                     continue;
 
-                if (RawTable[offset] == 0x07 && RawTable[offset + 4] == 0x03)
+                if (RawTable[offset] == APOB_GEN && RawTable[offset + 4] == APOB_GEN_CONFIGURATION_INFO_TYPE)
                 {
                     if (offset + ENTRY_SIZE_OFFSET + 4 >= RawTable.Length)
                         return false;
