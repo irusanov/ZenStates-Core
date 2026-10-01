@@ -466,13 +466,8 @@ namespace ZenStates.Core
 
         public static float ToNanoseconds(uint value, float frequency)
         {
-            if (frequency != 0)
-            {
-                float refiValue = value;
-                float trefins = refiValue * 2000f / frequency;
-                if (trefins > refiValue) trefins /= 2;
-                return trefins;
-            }
+            if (frequency > 0)
+                return value * 2000f / frequency;
             return 0;
         }
 

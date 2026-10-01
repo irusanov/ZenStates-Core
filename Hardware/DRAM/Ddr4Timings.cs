@@ -13,7 +13,45 @@ namespace ZenStates.Core.Hardware.DRAM
 
         // Specific DDR4 timings
         public uint RFC4 { get; set; }
-        public new float RFCns { get; private set; }
+
+        /// <summary>
+        /// Refresh rate of the fine granularity refresh mode (<see cref="BaseDramTimings.FGR"/>, encoded like the DDR4 MR3
+        /// A8:A6 field): 1 normal, 2 or 4 fixed or on the fly. 0 for a reserved code.
+        /// </summary>
+        public uint FgrMultiplier
+        {
+            get
+            {
+                switch (FGR)
+                {
+                    case 0: return 1;
+                    case 1: case 5: return 2;
+                    case 2: case 6: return 4;
+                    default: return 0;
+                }
+            }
+        }
+
+        /// <summary>The refresh rate switches on the fly between 1x and <see cref="FgrMultiplier"/> (FGR 5 and 6).</summary>
+        public bool FgrOnTheFly
+        {
+            get { return FGR == 5 || FGR == 6; }
+        }
+
+        /// <summary>tRFC of the refresh mode in use (tRFC, tRFC2 or tRFC4) in ns; 0 for a reserved mode.</summary>
+        public new float RFCns
+        {
+            get
+            {
+                switch (FgrMultiplier)
+                {
+                    case 1: return Utils.ToNanoseconds(RFC, Frequency);
+                    case 2: return Utils.ToNanoseconds(RFC2, Frequency);
+                    case 4: return Utils.ToNanoseconds(RFC4, Frequency);
+                    default: return 0;
+                }
+            }
+        }
 
         // 0x50130
         public uint SwCmdThrotEn { get; internal set; }
@@ -49,28 +87,13 @@ namespace ZenStates.Core.Hardware.DRAM
                 RFC4 = Utils.BitSlice(trfcRegValue, 31, 22);
             }
 
-            // Refresh mode
+            // Refresh mode: 0x5012C [18:16] is the fine granularity refresh mode, encoded like DDR4 MR3 A8:A6
+            // (0 normal, 1 fixed 2x, 2 fixed 4x, 5 on the fly 1x/2x, 6 on the fly 1x/4x)
             uint refreshModeValue = ReadRegister(offset | 0x5012C);
             FGR = Utils.BitSlice(refreshModeValue, 18, 16);
             //var allBankRefresh = Utils.GetBit(refreshModeValue, 19);
 
-            if (FGR < 2)
-            {
-                RefreshMode = BankRefreshMode.NORMAL;
-                RFCns = Utils.ToNanoseconds(RFC, Frequency);
-            }
-            else
-            {
-                RefreshMode = BankRefreshMode.FGR;
-                if (FGR == 2)
-                {
-                    RFCns = Utils.ToNanoseconds(RFC2, Frequency);
-                }
-                else if (FGR == 4)
-                {
-                    RFCns = Utils.ToNanoseconds(RFC4, Frequency);
-                }
-            }
+            RefreshMode = FGR == 0 ? BankRefreshMode.NORMAL : BankRefreshMode.FGR;
         }
     }
 }

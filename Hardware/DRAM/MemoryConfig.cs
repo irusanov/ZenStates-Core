@@ -575,11 +575,23 @@ namespace ZenStates.Core.Hardware.DRAM
         }
 
         // TODO: Use rank from spd with priority over register value
-        private MemRank GetRank(uint address)
+        /// <param name="address">DDR5: the DIMM's first address mask register.</param>
+        /// <param name="channelOffset">The UMC offset of the channel.</param>
+        /// <param name="dimm">The DIMM in the channel, 0 or 1.</param>
+        private MemRank GetRank(uint address, uint channelOffset, int dimm)
         {
             if (Type == MemType.DDR4 || Type == MemType.LPDDR4)
             {
-                return (MemRank)Utils.GetBits(cpu.ReadDwordNoLock(address), 0, 1);
+                // The ranks are the chip selects in use: DIMM n has CS 2n and 2n+1, whose base address registers
+                // (0x50000 + 4 x CS) have bit 0 set when enabled (Linux amd64_edac). Bit 0 of DIMM_CFG, read before, is
+                // OnDimmMirror (see DimmConfiguration), which only usually goes with a second rank.
+                int ranks = 0;
+                for (int cs = 2 * dimm; cs <= 2 * dimm + 1; cs++)
+                {
+                    if ((cpu.ReadDwordNoLock(channelOffset | (uint)(0x50000 + 4 * cs)) & 1) != 0)
+                        ranks++;
+                }
+                return ranks > 1 ? MemRank.DR : MemRank.SR;
             }
             if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
             {
@@ -594,7 +606,7 @@ namespace ZenStates.Core.Hardware.DRAM
             return MemRank.SR;
         }
 
-        private DramAddressConfig GetAddressConfig(uint address)
+        private DramAddressConfig GetAddressConfig(uint address, uint channelOffset, int dimm)
         {
             var value = cpu.ReadDwordNoLock(address);
             var config = new DramAddressConfig();
@@ -605,7 +617,7 @@ namespace ZenStates.Core.Hardware.DRAM
                 config.NumRow = 10 + Utils.GetBits(value, 8, 4);
                 config.NumRM = Utils.GetBits(value, 4, 3);
                 config.NumBankGroups = Utils.GetBits(value, 2, 2);
-                config.Rank = GetRank(address - 0x20);
+                config.Rank = GetRank(address - 0x20, channelOffset, dimm);
             }
             return config;
         }
@@ -648,8 +660,8 @@ namespace ZenStates.Core.Hardware.DRAM
                             MemoryModule module = Modules[dimmIndex];
                             module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}1";
                             module.DctOffset = offset;
-                            module.Rank = GetRank(address);
-                            module.AddressConfig = GetAddressConfig(offset | 0x50040);
+                            module.Rank = GetRank(address, offset, 0);
+                            module.AddressConfig = GetAddressConfig(offset | 0x50040, offset, 0);
                             dimmIndex += 1;
                         }
 
@@ -659,8 +671,8 @@ namespace ZenStates.Core.Hardware.DRAM
                             MemoryModule module = Modules[dimmIndex];
                             module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}2";
                             module.DctOffset = offset;
-                            module.Rank = GetRank(address);
-                            module.AddressConfig = GetAddressConfig(offset | 0x50048);
+                            module.Rank = GetRank(address, offset, 1);
+                            module.AddressConfig = GetAddressConfig(offset | 0x50048, offset, 1);
                             dimmIndex += 1;
                         }
                     }

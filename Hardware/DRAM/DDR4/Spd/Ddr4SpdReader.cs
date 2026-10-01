@@ -170,6 +170,54 @@ namespace ZenStates.Core.Hardware.DRAM.DDR4.Spd
             return failures == 0;
         }
 
+        // CRC-protected blocks of page 0: bytes 0~125 with the CRC at 126, and 128~253 with the CRC at 254
+        private const int BLOCK_SIZE = 128;
+        private const int REREAD_PASSES = 2;
+
+        private static bool BlockCrcValid(byte[] image, int start)
+        {
+            int crc = Ddr4SpdDecoder.Crc16(image, start, BLOCK_SIZE - 2);
+            return crc == (image[start + BLOCK_SIZE - 2] | (image[start + BLOCK_SIZE - 1] << 8));
+        }
+
+        /// <summary>
+        /// Reads a 128-byte block of page 0 again when its CRC does not match: twice more, a byte at a time, keeping for
+        /// each byte the value two of the three reads agree on. SMBus reads of SPD EEPROMs are seen to return a wrong
+        /// byte now and then, which would otherwise be decoded as is. A module whose CRC is really wrong reads the
+        /// same and keeps its bytes. The page must be selected.
+        /// </summary>
+        private static void VerifyBlockNoLock(SmbusDriverBase smbus, byte addr7, byte[] image, int start)
+        {
+            if (BlockCrcValid(image, start))
+                return;
+
+            byte[][] passes = new byte[REREAD_PASSES][];
+            for (int p = 0; p < REREAD_PASSES; p++)
+            {
+                passes[p] = new byte[BLOCK_SIZE];
+                for (int i = 0; i < BLOCK_SIZE; i++)
+                {
+                    if (!smbus.ReadByteDataNoLock(addr7, (byte)(start + i), out passes[p][i]))
+                        passes[p][i] = image[start + i];
+                }
+            }
+
+            int changed = 0;
+            for (int i = 0; i < BLOCK_SIZE; i++)
+            {
+                byte first = image[start + i], second = passes[0][i], third = passes[1][i];
+                byte voted = first == second || first == third ? first : second == third ? second : first;
+                if (voted != first)
+                {
+                    image[start + i] = voted;
+                    changed++;
+                }
+            }
+
+            Debug.WriteLine(string.Format("DDR4 SPD 0x{0:X2}: CRC of bytes {1}~{2} did not match; {3} byte(s) corrected on re-read, CRC {4}.",
+                addr7, start, start + BLOCK_SIZE - 1, changed, BlockCrcValid(image, start) ? "now valid" : "still invalid"));
+        }
+
         /// <summary>
         /// Reads and decodes the SPD of every module; restores page 0 and the previously selected port.
         /// </summary>
@@ -191,7 +239,12 @@ namespace ZenStates.Core.Hardware.DRAM.DDR4.Spd
                 {
                     byte[] image = new byte[Ddr4SpdDecoder.SPD_SIZE];
                     if (ReadRangeNoLock(smbus, addresses[i], image, 0, 0, full ? PAGE_SIZE : PARTIAL_PAGE0_LENGTH))
+                    {
+                        VerifyBlockNoLock(smbus, addresses[i], image, 0);
+                        if (full)
+                            VerifyBlockNoLock(smbus, addresses[i], image, BLOCK_SIZE);
                         images[addresses[i]] = image;
+                    }
                 }
 
                 if (images.Count > 0 && SelectPageNoLock(smbus, 1, addresses[0]))
