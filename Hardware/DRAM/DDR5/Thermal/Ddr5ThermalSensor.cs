@@ -6,7 +6,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Thermal
 {
     /// <summary>
     /// Temperature sensor built into the SPD5118 hub (JESD300-5 MR26~MR51). The registers are volatile, so the hub
-    /// must be on NVM page 0 (see <see cref="Spd5118Hub.RestorePage0NoLock"/>). All methods expect the SMBus mutex
+    /// must be on NVM page 0 (restored by <see cref="Spd5118Hub.ReadNvmNoLock"/>). All methods expect the SMBus mutex
     /// to be held and the bus to be on the hub port.
     /// </summary>
     internal static class Ddr5ThermalSensor
@@ -14,10 +14,16 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Thermal
         // MR19: clears MR51 [3:0]
         private const byte CLEAR_ALL_STATUS = MR51_CRIT_LOW | MR51_CRIT_HIGH | MR51_LOW | MR51_HIGH;
 
-        // Temperature and limit registers are 16 bits, low byte first.
+        // Temperature and limit registers are 16 bits, low byte first, as an SMBus word.
         private static bool ReadTemperatureNoLock(SmbusDriverBase smbus, byte addr7, byte mr, out int milliC)
         {
             milliC = 0;
+            if (smbus.ReadWordDataNoLock(addr7, mr, out ushort word))
+            {
+                milliC = TemperatureToMilliC(word);
+                return true;
+            }
+
             if (!smbus.ReadByteDataNoLock(addr7, mr, out byte lo) ||
                 !smbus.ReadByteDataNoLock(addr7, (byte)(mr + 1), out byte hi))
                 return false;
@@ -30,21 +36,6 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Thermal
         {
             if (ReadTemperatureNoLock(smbus, addr7, mr, out int milliC))
                 field = milliC;
-        }
-
-        /// <summary>True when the device is an SPD5118 hub that reports a temperature sensor (MR5 [1]).</summary>
-        internal static bool DetectNoLock(SmbusDriverBase smbus, byte addr7)
-        {
-            try
-            {
-                return Spd5118Hub.IsHubNoLock(smbus, addr7) &&
-                       smbus.ReadByteDataNoLock(addr7, MR5_CAPABILITY, out byte capability) &&
-                       (capability & MR5_TS_SUPPORT) != 0;
-            }
-            catch
-            {
-                return false;
-            }
         }
 
         // Reads the alarm flags into td and clears them on the device.
@@ -82,17 +73,19 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Thermal
             }
         }
 
-        /// <summary>Reads the configuration, temperature, limits and alarm flags.</summary>
-        internal static Ddr5ThermalData ReadAllRegsNoLock(SmbusDriverBase smbus, byte addr7)
+        /// <summary>
+        /// Reads the configuration, temperature, limits and alarm flags of a hub already identified by
+        /// <see cref="Spd5118Hub.ReadInfoNoLock"/>.
+        /// </summary>
+        internal static Ddr5ThermalData ReadAllRegsNoLock(SmbusDriverBase smbus, Spd5118HubInfo hub)
         {
-            Ddr5ThermalData td = new Ddr5ThermalData();
+            Ddr5ThermalData td = new Ddr5ThermalData { TempSensorSupported = hub.TempSensorSupported };
+            if (!td.TempSensorSupported)
+                return td;
 
+            byte addr7 = hub.Address;
             try
             {
-                td.TempSensorSupported = DetectNoLock(smbus, addr7);
-                if (!td.TempSensorSupported)
-                    return td;
-
                 if (!smbus.ReadByteDataNoLock(addr7, MR26_TS_CONFIG, out byte config))
                     return td;
 

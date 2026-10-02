@@ -52,30 +52,23 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             byte[] image = new byte[Ddr5SpdDecoder.SPD_SIZE];
             complete = false;
 
-            try
-            {
-                if (!Spd5118Hub.ReadNvmNoLock(smbus, addr7, image, 0, Ddr5SpdDecoder.BASE_LENGTH))
-                    return null;
+            if (!Spd5118Hub.ReadNvmNoLock(smbus, addr7, image, 0, Ddr5SpdDecoder.BASE_LENGTH))
+                return null;
 
-                if (full)
-                {
-                    complete = Spd5118Hub.ReadNvmNoLock(smbus, addr7, image, Ddr5SpdDecoder.BASE_LENGTH,
-                        Ddr5SpdDecoder.SPD_SIZE - Ddr5SpdDecoder.BASE_LENGTH);
-                }
-                else
-                {
-                    bool common = Spd5118Hub.ReadNvmNoLock(smbus, addr7, image, Ddr5SpdDecoder.COMMON_FIRST, Ddr5SpdDecoder.COMMON_LENGTH);
-                    bool manufacturing = Spd5118Hub.ReadNvmNoLock(smbus, addr7, image,
-                        Ddr5SpdDecoder.MANUFACTURING_FIRST, Ddr5SpdDecoder.MANUFACTURING_LENGTH);
-                    complete = common && manufacturing;
-                }
-
-                return image;
-            }
-            finally
+            if (full)
             {
-                Spd5118Hub.RestorePage0NoLock(smbus, addr7);
+                complete = Spd5118Hub.ReadNvmNoLock(smbus, addr7, image, Ddr5SpdDecoder.BASE_LENGTH,
+                    Ddr5SpdDecoder.SPD_SIZE - Ddr5SpdDecoder.BASE_LENGTH);
             }
+            else
+            {
+                bool common = Spd5118Hub.ReadNvmNoLock(smbus, addr7, image, Ddr5SpdDecoder.COMMON_FIRST, Ddr5SpdDecoder.COMMON_LENGTH);
+                bool manufacturing = Spd5118Hub.ReadNvmNoLock(smbus, addr7, image,
+                    Ddr5SpdDecoder.MANUFACTURING_FIRST, Ddr5SpdDecoder.MANUFACTURING_LENGTH);
+                complete = common && manufacturing;
+            }
+
+            return image;
         }
 
         /// <summary>
@@ -102,8 +95,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
                 return null;
 
             info.HubInfo = hub;
-            if (hub.TempSensorSupported)
-                info.ThermalData = Ddr5ThermalSensor.ReadAllRegsNoLock(smbus, addr7);
+            info.ThermalData = Ddr5ThermalSensor.ReadAllRegsNoLock(smbus, hub);
 
             info.Pmic = Ddr5PmicReader.ReadNoLock(smbus, addr7, info.Pmic0);
 

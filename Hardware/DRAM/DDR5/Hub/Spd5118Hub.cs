@@ -11,7 +11,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Hub
     /// non-volatile memory (the SPD) page by page. Used by DDR5 and LPDDR5/5X modules alike.
     ///
     /// The only register ever written is the page pointer MR11[2:0], and only on a device identified as a hub that
-    /// uses 1-byte addressing. Callers put the hub back on page 0 when they are done (<see cref="RestorePage0NoLock"/>):
+    /// uses 1-byte addressing. Each NVM read puts the hub back on page 0 when it is done:
     /// that is what the BIOS and other software expect, and the volatile registers (the thermal sensor) are only
     /// reachable on page 0.
     ///
@@ -31,22 +31,76 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Hub
             get { return hubPort; }
         }
 
-        /// <summary>Identifies a hub by its device type (MR0, MR1). Read-only.</summary>
+        /// <summary>
+        /// Identifies a hub by its device type (MR0, MR1). A hub left on a nonzero page by other software is put back
+        /// on page 0 (see <see cref="TryRecoverPage0NoLock"/>); otherwise read-only.
+        /// </summary>
         internal static bool IsHubNoLock(SmbusDriverBase smbus, byte addr7)
         {
+            return ReadDeviceTypeNoLock(smbus, addr7, out _, out _);
+        }
+
+        /// <summary>
+        /// Reads MR0 / MR1 and tells whether they identify a hub, recovering page 0 first when needed. The values given
+        /// back are the ones read after recovery.
+        /// </summary>
+        private static bool ReadDeviceTypeNoLock(SmbusDriverBase smbus, byte addr7, out byte mr0, out byte mr1)
+        {
+            mr0 = 0;
+            mr1 = 0;
             if (smbus == null || !IsHubAddress(addr7))
                 return false;
 
             try
             {
-                return smbus.ReadByteDataNoLock(addr7, MR0_DEVICE_TYPE_MSB, out byte mr0) &&
-                       smbus.ReadByteDataNoLock(addr7, MR1_DEVICE_TYPE_LSB, out byte mr1) &&
-                       IsHubDeviceType(mr0, mr1);
+                if (!smbus.ReadByteDataNoLock(addr7, MR0_DEVICE_TYPE_MSB, out mr0) ||
+                    !smbus.ReadByteDataNoLock(addr7, MR1_DEVICE_TYPE_LSB, out mr1))
+                    return false;
+
+                if (IsHubDeviceType(mr0, mr1))
+                    return true;
+
+                return mr0 == 0 && mr1 == 0 && TryRecoverPage0NoLock(smbus, addr7, out mr0, out mr1);
             }
             catch
             {
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Same as the Linux spd5118 driver: when the device type reads 0, the chip may have a nonzero page selected
+        /// and hide the volatile registers besides MR11 (Renesas/ITD hubs). Requires the vendor ID to read 0 too and
+        /// MR11 to hold only the addressing and page bits with a nonzero page. Selects page 0 and checks the device
+        /// type again; restores the original MR11 value when it is still not a hub.
+        /// </summary>
+        private static bool TryRecoverPage0NoLock(SmbusDriverBase smbus, byte addr7, out byte mr0, out byte mr1)
+        {
+            mr0 = 0;
+            mr1 = 0;
+            if (!smbus.ReadByteDataNoLock(addr7, MR3_VENDOR_ID_0, out byte mr3) ||
+                !smbus.ReadByteDataNoLock(addr7, MR4_VENDOR_ID_1, out byte mr4) ||
+                mr3 != 0 || mr4 != 0)
+                return false;
+
+            if (!smbus.ReadByteDataNoLock(addr7, MR11_LEGACY_MODE, out byte mode) ||
+                (mode & ~(MR11_TWO_BYTE_ADDRESSING | MR11_PAGE_MASK)) != 0 ||
+                (mode & MR11_PAGE_MASK) == 0)
+                return false;
+
+            if (!smbus.WriteByteDataNoLock(addr7, MR11_LEGACY_MODE, (byte)(mode & MR11_TWO_BYTE_ADDRESSING)))
+                return false;
+
+            if (smbus.ReadByteDataNoLock(addr7, MR0_DEVICE_TYPE_MSB, out mr0) &&
+                smbus.ReadByteDataNoLock(addr7, MR1_DEVICE_TYPE_LSB, out mr1) &&
+                IsHubDeviceType(mr0, mr1))
+            {
+                Debug.WriteLine(string.Format("SPD5118 0x{0:X2}: hub was left on page {1}, restored page 0.", addr7, mode & MR11_PAGE_MASK));
+                return true;
+            }
+
+            smbus.WriteByteDataNoLock(addr7, MR11_LEGACY_MODE, mode);
+            return false;
         }
 
         /// <summary>
@@ -93,14 +147,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Hub
         /// <summary>Reads the identification and configuration registers. Null when the device is not a hub.</summary>
         internal static Spd5118HubInfo ReadInfoNoLock(SmbusDriverBase smbus, byte addr7)
         {
-            if (!IsHubAddress(addr7))
-                return null;
-
             try
             {
-                if (!smbus.ReadByteDataNoLock(addr7, MR0_DEVICE_TYPE_MSB, out byte mr0) ||
-                    !smbus.ReadByteDataNoLock(addr7, MR1_DEVICE_TYPE_LSB, out byte mr1) ||
-                    !IsHubDeviceType(mr0, mr1))
+                if (!ReadDeviceTypeNoLock(smbus, addr7, out byte mr0, out byte mr1))
                     return null;
 
                 Spd5118HubInfo info = new Spd5118HubInfo
@@ -147,19 +196,6 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Hub
         }
 
         /// <summary>
-        /// Selects an NVM page. Refused on a device that is not a hub, and on a hub in 2-byte addressing mode, where the
-        /// page pointer does not apply. The page is read back, so bytes are never taken from the wrong page.
-        /// </summary>
-        internal static bool SelectPageNoLock(SmbusDriverBase smbus, byte addr7, int page)
-        {
-            if (page < 0 || page > MR11_PAGE_MASK)
-                return false;
-
-            return CanPageNoLock(smbus, addr7, out int currentPage) &&
-                   (currentPage == page || WritePageNoLock(smbus, addr7, page));
-        }
-
-        /// <summary>
         /// Identifies the hub (MR0, MR1) and checks that it uses 1-byte addressing (MR11 [3] = 0), the only mode the
         /// SMBus byte and word transactions used here can address. Gives the page currently selected. Read-only.
         /// </summary>
@@ -182,19 +218,29 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Hub
         /// <summary>Writes the page pointer and reads it back. Only on a device <see cref="CanPageNoLock"/> accepted.</summary>
         private static bool WritePageNoLock(SmbusDriverBase smbus, byte addr7, int page)
         {
-            // Bits [7:4] are reserved (0) and bit 3 is 0 here, so the page is the whole value.
-            if (!smbus.WriteByteDataNoLock(addr7, MR11_LEGACY_MODE, (byte)page))
+            if (!smbus.ReadByteDataNoLock(addr7, MR11_LEGACY_MODE, out byte mr11) ||
+                (mr11 & MR11_TWO_BYTE_ADDRESSING) != 0)
                 return false;
 
-            return smbus.ReadByteDataNoLock(addr7, MR11_LEGACY_MODE, out byte verify) && (verify & MR11_PAGE_MASK) == page;
+            if ((mr11 & MR11_PAGE_MASK) == page)
+                return true;
+
+            byte value = (byte)((mr11 & ~MR11_PAGE_MASK) | page);
+            if (!smbus.WriteByteDataNoLock(addr7, MR11_LEGACY_MODE, value))
+                return false;
+
+            return smbus.ReadByteDataNoLock(addr7, MR11_LEGACY_MODE, out byte verify) &&
+                   (verify & (MR11_PAGE_MASK | MR11_TWO_BYTE_ADDRESSING)) ==
+                   (value & (MR11_PAGE_MASK | MR11_TWO_BYTE_ADDRESSING));
         }
 
-        /// <summary>Best effort, never throws: puts the hub back on page 0.</summary>
-        internal static void RestorePage0NoLock(SmbusDriverBase smbus, byte addr7)
+        /// <summary>Best effort, never throws: puts a previously identified hub back on page 0.</summary>
+        private static void RestorePage0NoLock(SmbusDriverBase smbus, byte addr7)
         {
             try
             {
-                if (!SelectPageNoLock(smbus, addr7, 0))
+                // Renesas hubs hide MR0/MR1 on nonzero pages; only MR11 can be used for cleanup.
+                if (!WritePageNoLock(smbus, addr7, 0))
                     Debug.WriteLine(string.Format("SPD5118 0x{0:X2}: failed to restore page 0.", addr7));
             }
             catch (Exception ex)
@@ -205,8 +251,8 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Hub
 
         /// <summary>
         /// Reads <paramref name="count"/> NVM bytes starting at <paramref name="nvmOffset"/> into the same positions of
-        /// <paramref name="dest"/>, switching pages as needed. Bytes that can't be read are set to 0xFF. Leaves the hub on
-        /// the last page read; the caller restores page 0.
+        /// <paramref name="dest"/>, switching pages as needed. Bytes that can't be read are set to 0xFF. Restores page 0
+        /// after every range, including failures and exceptions, so later reads can identify the hub again.
         /// </summary>
         /// <returns>False when a page could not be selected or a byte could not be read.</returns>
         internal static bool ReadNvmNoLock(SmbusDriverBase smbus, byte addr7, byte[] dest, int nvmOffset, int count)
@@ -222,45 +268,52 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Hub
             int offset = nvmOffset;
             int end = nvmOffset + count;
 
-            while (offset < end)
+            try
             {
-                int page = NvmPage(offset);
-                if (page != currentPage)
+                while (offset < end)
                 {
-                    if (!WritePageNoLock(smbus, addr7, page))
+                    int page = NvmPage(offset);
+                    if (page != currentPage)
                     {
-                        Debug.WriteLine(string.Format("SPD5118 0x{0:X2}: failed to select page {1}.", addr7, page));
-                        return false;
+                        if (!WritePageNoLock(smbus, addr7, page))
+                        {
+                            Debug.WriteLine(string.Format("SPD5118 0x{0:X2}: failed to select page {1}.", addr7, page));
+                            return false;
+                        }
+                        currentPage = page;
                     }
-                    currentPage = page;
+
+                    int pageEnd = Math.Min(end, (page + 1) * PAGE_SIZE);
+                    while (offset < pageEnd)
+                    {
+                        byte reg = NvmRegister(offset);
+
+                        // Word reads only from an even offset, so a read never crosses a page or 16-byte block boundary
+                        if ((offset & 1) == 0 && offset + 1 < pageEnd && smbus.ReadWordDataNoLock(addr7, reg, out ushort word))
+                        {
+                            dest[offset] = (byte)(word & 0xFF);
+                            dest[offset + 1] = (byte)(word >> 8);
+                            offset += 2;
+                            continue;
+                        }
+
+                        if (smbus.ReadByteDataNoLock(addr7, reg, out byte value))
+                        {
+                            dest[offset] = value;
+                        }
+                        else
+                        {
+                            dest[offset] = 0xFF;
+                            failures++;
+                        }
+
+                        offset++;
+                    }
                 }
-
-                int pageEnd = Math.Min(end, (page + 1) * PAGE_SIZE);
-                while (offset < pageEnd)
-                {
-                    byte reg = NvmRegister(offset);
-
-                    // Word reads only from an even offset, so a read never crosses a page or 16-byte block boundary
-                    if ((offset & 1) == 0 && offset + 1 < pageEnd && smbus.ReadWordDataNoLock(addr7, reg, out ushort word))
-                    {
-                        dest[offset] = (byte)(word & 0xFF);
-                        dest[offset + 1] = (byte)(word >> 8);
-                        offset += 2;
-                        continue;
-                    }
-
-                    if (smbus.ReadByteDataNoLock(addr7, reg, out byte value))
-                    {
-                        dest[offset] = value;
-                    }
-                    else
-                    {
-                        dest[offset] = 0xFF;
-                        failures++;
-                    }
-
-                    offset++;
-                }
+            }
+            finally
+            {
+                RestorePage0NoLock(smbus, addr7);
             }
 
             if (failures > 0)
