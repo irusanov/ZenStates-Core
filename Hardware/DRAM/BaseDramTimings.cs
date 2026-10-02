@@ -257,15 +257,33 @@ namespace ZenStates.Core.Hardware.DRAM
         {
             get
             {
-                var mclk = PowerTable.Instance?.MCLK ?? 0;
+                // The PM table MCLK is an average over the reading interval: with LPDDR5 the memory changes speed
+                // with load, so the ratio is used there
+                var mclk = ClockToDataRate == 2 ? PowerTable.Instance?.MCLK ?? 0 : 0;
                 if (mclk > 0)
                 {
                     return mclk * 2;
                 }
 
                 double bclk = Mmio.Instance?.GetBclk() ?? DefaultBclk;
-                return Ratio * (float)bclk * 2;
+                return Ratio * (float)bclk * ClockToDataRate;
             }
+        }
+
+        /// <summary>
+        /// Data rate over the memory controller clock (MEMCLK, the clock the timings count): 2 for DDR4 and DDR5, 4 or 8
+        /// for LPDDR5, whose data runs on WCK at 2 or 4 times MEMCLK.
+        /// </summary>
+        public virtual int ClockToDataRate
+        {
+            get { return 2; }
+        }
+
+        /// <summary>Memory controller clocks to nanoseconds at the current <see cref="Frequency"/>.</summary>
+        protected float ClocksToNs(uint clocks)
+        {
+            float frequency = Frequency;
+            return frequency > 0 ? clocks * ClockToDataRate * 1000f / frequency : 0;
         }
         public float Ratio { get; internal set; }
         // public string TotalCapacity { get; internal set; }
@@ -334,8 +352,8 @@ namespace ZenStates.Core.Hardware.DRAM
         }
         public uint RDPOST { get; internal set; }
         public uint WRPOST { get; internal set; }
-        public float RFCns { get => Utils.ToNanoseconds(RFC, Frequency); }
-        public float REFIns { get => Utils.ToNanoseconds(REFI, Frequency); }
+        public float RFCns { get => ClocksToNs(RFC); }
+        public float REFIns { get => ClocksToNs(REFI); }
         public uint FGR { get; internal set; }
         public BankRefreshMode RefreshMode { get; internal set; } = BankRefreshMode.UNKNOWN;
 

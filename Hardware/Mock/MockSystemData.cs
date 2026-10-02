@@ -430,6 +430,10 @@ namespace ZenStates.Core.Hardware.Mock
 
             if (!string.IsNullOrEmpty(Apob?.ErrorReason))
                 Warnings.Add("APOB: " + Apob.ErrorReason);
+
+            // Soldered LPDDR5: no SPD in the report, the APOB has the BIOS copy
+            if (SpdInfo.Count == 0 && Apob != null && Apob.DimmSpd.Count > 0)
+                SpdInfo = Ddr5SpdReader.DecodeApobSpd(Apob.DimmSpd);
         }
     }
 }

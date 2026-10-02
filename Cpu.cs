@@ -771,6 +771,9 @@ namespace ZenStates.Core
             try
             {
                 info.apob = new Apob(info, memoryConfig);
+
+                // Soldered LPDDR5 has no SPD device; the APOB keeps the copy the BIOS used
+                memoryConfig?.UseApobSpd(info.apob.DimmSpd);
             }
             catch (Exception ex)
             {

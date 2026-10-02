@@ -649,6 +649,57 @@ namespace ZenStates.Core.Hardware.Apob
             clockBytesSearchStart: 2,
             clockBytesSearchEnd: 10);
 
+        // Zen 3+ APU (Rembrandt) with LPDDR5: the DDR4 block shape. MEMCLK (u16), WCK (u16, 4 x MEMCLK at 4:1), a u32,
+        // then the clocks as bytes in the DDR4 order and after them tRFCab, tRFC2 (?), tRFCpb and tXS in clocks (u16).
+        // Worked out on a 6800HS with LPDDR5-6400 (MEMCLK 800, WCK 3200): 19 9 15 17 6 34 51 31 4 9 16 4 13 4, tRFC 168,
+        // tRFCpb 96 and tXS 174, the values the UMC holds. The values differ, so the DDR4 order is confirmed here. Four
+        // blocks per UMC channel, 0x10A apart: LPDDR5-6400, 3200 (MEMCLK 800, WCK 2:1), 6400 again and 1600 (MEMCLK
+        // 400), taken as memory P-states; why 6400 is there twice is not known. At 0x7A MR0 to MR41 (two copies),
+        // with the DQ / CA / WCK / SoC ODT and the drive strength (ApobLpddr5ModeRegisters).
+        private static readonly ApobChannelTimingLayout Zen3PlusLpddr5ChannelTimingLayout = new ApobChannelTimingLayout(
+            "Zen3+ LPDDR5 channel timings",
+            7, 3,
+            ApobValueWidth.UInt16,
+            dataRateOffset: -1,
+            memClkOffset: 0x00,
+            halfMemClkOffset: -1,
+            minMemClk: 400,
+            maxMemClk: 2400,
+            clOffset: 0,
+            minCl: 6,
+            maxCl: 60,
+            fields: new[]
+            {
+                new ApobTimingField("Tcas", 0x00, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Tcwl", 0x01, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Trcd", 0x02, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Trp", 0x03, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Trtp", 0x04, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Tras", 0x05, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Trc", 0x06, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Twr", 0x07, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("TrrdS", 0x08, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("TwtrS", 0x09, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Tfaw", 0x0A, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("TrrdL", 0x0B, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("TwtrL", 0x0C, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Tccdl", 0x0D, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("Trfc", 0x10, false, ApobValueWidth.UInt16, true),
+                new ApobTimingField("Trfc2", 0x12, true, ApobValueWidth.UInt16, true),
+                new ApobTimingField("Trfcsb", 0x1C, false, ApobValueWidth.UInt16, true),
+                new ApobTimingField("Txs", 0x1E, false, ApobValueWidth.UInt16, true),
+            },
+            pStateBlockStride: 0x10A,
+            clockBytesSearchStart: 8,
+            clockBytesSearchEnd: 8,
+            wckOffset: 0x02,
+            lpddr5ModeRegisterOffset: 0x7A,
+            lpddr5ModeRegisterCopies: 2);
+
+        // The system configuration info (type 25) entry is encrypted on Rembrandt, so only the timing blocks
+        private static readonly ApobProfile Zen3PlusApuProfile = new ApobProfile(
+            "Zen3+ APU", null, null, null, Zen3PlusLpddr5ChannelTimingLayout);
+
         // DDR4 has no system configuration info (type 25) entry, so no main / extended ODT block and no CCD_L magic
         private static readonly ApobProfile Zen2Ddr4Profile = new ApobProfile(
             "Zen2 DDR4", null, null, null, Zen2Ddr4ChannelTimingLayout);
@@ -708,6 +759,7 @@ namespace ZenStates.Core.Hardware.Apob
                     case CodeName.Milan:
                         return Zen3Ddr4Profile;
                     case CodeName.Rembrandt:
+                        return Zen3PlusApuProfile;
                     case CodeName.HawkPoint:
                     case CodeName.Phoenix:
                     case CodeName.Phoenix2:

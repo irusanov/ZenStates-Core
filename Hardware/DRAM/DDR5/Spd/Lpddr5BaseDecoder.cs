@@ -66,9 +66,17 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
 
             int bankGroupsCode = (densityBanks >> 6) & 0x03;
             int banksCode = (densityBanks >> 4) & 0x03;
-            int banks = banksCode <= 2 ? 4 << banksCode : 0;
             info.FirstBankGroups = bankGroupsCode <= 2 ? 1 << bankGroupsCode : 0;
-            info.FirstBanksPerBankGroup = info.FirstBankGroups > 0 ? banks / info.FirstBankGroups : 0;
+            if (info.IsMemoryDownLayout)
+            {
+                // LPDDR4 layout: [5:4] are the bank address bits within a bank group (00 = 4 banks)
+                info.FirstBanksPerBankGroup = banksCode <= 1 ? 4 << banksCode : 0;
+            }
+            else
+            {
+                int banks = banksCode <= 2 ? 4 << banksCode : 0;
+                info.FirstBanksPerBankGroup = info.FirstBankGroups > 0 ? banks / info.FirstBankGroups : 0;
+            }
 
             byte addressing = B(spd, SPD_ADDRESSING);
             int rowCode = (addressing >> 3) & 0x07;
@@ -141,6 +149,13 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
 
             info.tCKAVGminPs = Time(spd, SPD_TCK_MIN, SPD_FINE_TCK_MIN);
             info.tCKAVGmaxPs = Time(spd, SPD_TCK_MAX, SPD_FINE_TCK_MAX);
+
+            // The memory-down layout gives the WCK period (LPDDR5-6400: 0.3125 ns); CK runs at a quarter of WCK
+            if (info.IsMemoryDownLayout)
+            {
+                info.tCKAVGminPs *= 4;
+                info.tCKAVGmaxPs *= 4;
+            }
 
             if (info.tCKAVGminPs > 0)
             {

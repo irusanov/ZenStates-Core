@@ -15,6 +15,11 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
     ///   bytes 510~511  CRC of bytes 0~509
     ///   bytes 512~554  manufacturing         <see cref="Ddr5CommonDecoder"/>
     ///   bytes 640~959  XMP 3.0 / EXPO        <see cref="Ddr5ProfileDecoder"/> (DDR5 only)
+    ///
+    /// Soldered LPDDR5 comes with a 512-byte SPD in the LPDDR4 layout (JESD21-C) instead, in the BIOS image (the APOB
+    /// keeps a copy, see <see cref="ZenStates.Core.Hardware.Apob.ApobDimmSpd"/>): byte 0 says 512 bytes, the same
+    /// base bytes, but tCK counts WCK (LPDDR5-6400: 0.3125 ns), the organisation is in bytes 12~13, the CRC of bytes
+    /// 0~125 at 126 and the manufacturing bytes at 320~352. See <see cref="Ddr5SpdInfo.IsMemoryDownLayout"/>.
     /// </summary>
     public static class Ddr5SpdDecoder
     {
@@ -38,6 +43,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         private const int SPD_DEVICE_TYPE = 2;    // key byte
         private const int SPD_MODULE_TYPE = 3;    // [7] hybrid, [6:4] hybrid media, [3:0] base module type
         private const int SPD_CRC = 510;          // CRC of bytes 0~509, low byte first
+        private const int SPD_CRC_MEMORY_DOWN = 126;  // 512-byte LPDDR4 layout: CRC of bytes 0~125
+        private const int SPD_ORGANISATION_MEMORY_DOWN = 12;  // [5:3] package ranks - 1, [2:0] die width x4 << n
+        private const int SPD_BUS_WIDTH_MEMORY_DOWN = 13;     // [2:0] channel width 8 << n
 
         public static bool IsSupportedDeviceType(byte keyByte)
         {
@@ -81,19 +89,23 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             DecodeGeneral(spd, info);
 
             // The organisation (bytes 234~235) is needed by the base decoders for the capacity
-            Ddr5CommonDecoder.DecodeModuleCommon(spd, info);
+            if (info.IsMemoryDownLayout)
+                DecodeMemoryDownOrganisation(spd, info);
+            else
+                Ddr5CommonDecoder.DecodeModuleCommon(spd, info);
 
             if (info.IsLpddr5)
                 Lpddr5BaseDecoder.Decode(spd, info);
             else
                 Ddr5BaseDecoder.Decode(spd, info);
 
-            Ddr5CommonDecoder.DecodeManufacturing(spd, info);
+            Ddr5CommonDecoder.DecodeManufacturing(spd, info, info.IsMemoryDownLayout);
 
             if (!partial)
             {
-                info.BaseCrc = U16(spd, SPD_CRC);
-                info.BaseCrcValid = Crc16(spd, 0, SPD_CRC) == info.BaseCrc;
+                int crcOffset = info.IsMemoryDownLayout ? SPD_CRC_MEMORY_DOWN : SPD_CRC;
+                info.BaseCrc = U16(spd, crcOffset);
+                info.BaseCrcValid = Crc16(spd, 0, crcOffset) == info.BaseCrc;
 
                 if (!info.IsLpddr5)
                     Ddr5ProfileDecoder.Decode(spd, info);
@@ -143,7 +155,10 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
 
             byte moduleType = spd[SPD_MODULE_TYPE];
             info.BaseModuleType = (byte)(moduleType & 0x0F);
-            info.ModuleTypeString = ModuleTypeName(info.BaseModuleType);
+            info.IsMemoryDownLayout = info.IsLpddr5 && info.BytesTotal == 512;
+            info.ModuleTypeString = info.IsMemoryDownLayout && info.BaseModuleType == 0x0E
+                ? "Memory down"     // "non-DIMM solution" in the LPDDR4 layout
+                : ModuleTypeName(info.BaseModuleType);
             info.IsHybrid = (moduleType & 0x80) != 0;
             switch ((moduleType >> 4) & 0x07)
             {
@@ -152,6 +167,18 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
                 case 2: info.HybridTypeString = "NVDIMM-P"; break;
                 default: info.HybridTypeString = "Reserved"; break;
             }
+        }
+
+        /// <summary>
+        /// The organisation of a memory-down SPD: one channel of the bus width, package ranks from byte 12. A 6800HS
+        /// SPD (x16 dies, 32-bit channel, 2 ranks, 8 Gb dies) gives 4 GB, what each of its 4 channels has.
+        /// </summary>
+        private static void DecodeMemoryDownOrganisation(byte[] spd, Ddr5SpdInfo info)
+        {
+            info.RanksPerChannel = ((spd[SPD_ORGANISATION_MEMORY_DOWN] >> 3) & 0x07) + 1;
+            info.SubChannelsPerDimm = 1;
+            int width = spd[SPD_BUS_WIDTH_MEMORY_DOWN] & 0x07;
+            info.PrimaryBusWidthBits = width <= 3 ? 8 << width : 0;
         }
 
         public static string ModuleTypeName(int baseModuleType)

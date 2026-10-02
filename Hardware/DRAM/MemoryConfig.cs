@@ -310,6 +310,27 @@ namespace ZenStates.Core.Hardware.DRAM
             }
         }
 
+        /// <summary>
+        /// Uses the SPD copies of the APOB when no module SPD could be read (soldered LPDDR5 has no SPD device). Called
+        /// once the APOB is read; does nothing for DDR4 or when SPDs were read from the bus.
+        /// </summary>
+        internal void UseApobSpd(IList<Hardware.Apob.ApobDimmSpd> slots)
+        {
+            if (!IsSpdSupported || slots == null || slots.Count == 0)
+                return;
+
+            lock (spdInfoLock)
+            {
+                Dictionary<byte, Ddr5SpdInfo> current = SpdInfo;
+                if (current != null && current.Count > 0)
+                    return;
+
+                Dictionary<byte, Ddr5SpdInfo> fromApob = Ddr5SpdReader.DecodeApobSpd(slots);
+                if (fromApob.Count > 0)
+                    SpdInfo = fromApob;
+            }
+        }
+
         public Dictionary<byte, Ddr5SpdInfo> ReadAndDecodeAll()
         {
             if (!IsSpdSupported)

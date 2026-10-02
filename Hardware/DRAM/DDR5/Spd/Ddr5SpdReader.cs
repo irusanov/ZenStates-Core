@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using ZenStates.Core.Drivers;
+using ZenStates.Core.Hardware.Apob;
 using ZenStates.Core.Hardware.DRAM.DDR5.Hub;
 using ZenStates.Core.Hardware.DRAM.DDR5.Pmic;
 using ZenStates.Core.Hardware.DRAM.DDR5.Thermal;
@@ -169,6 +170,31 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         }
 
         /// <summary>Reads and decodes the full SPD of all DDR5 / LPDDR5 modules, keyed by hub address in module order.</summary>
+        /// <summary>
+        /// Decodes the SPD copies of the APOB (<see cref="Apob.Apob.DimmSpd"/>), for memory whose SPD can't be read
+        /// from the bus: soldered LPDDR5 has no SPD device. Keyed by slot order (0, 1, ...), not by an address; the
+        /// entries are marked <see cref="Ddr5SpdInfo.FromApob"/>. DDR4 copies are skipped.
+        /// </summary>
+        public static Dictionary<byte, Ddr5SpdInfo> DecodeApobSpd(IList<ApobDimmSpd> slots)
+        {
+            Dictionary<byte, Ddr5SpdInfo> result = new Dictionary<byte, Ddr5SpdInfo>();
+            if (slots == null)
+                return result;
+
+            for (int i = 0; i < slots.Count && result.Count < 256; i++)
+            {
+                ApobDimmSpd slot = slots[i];
+                if (slot == null || !Ddr5SpdDecoder.IsSupportedDeviceType(slot.DeviceType))
+                    continue;
+
+                Ddr5SpdInfo info = Ddr5SpdDecoder.Decode(slot.Data, false);
+                info.FromApob = true;
+                result[(byte)result.Count] = info;
+            }
+
+            return result;
+        }
+
         public static Dictionary<byte, Ddr5SpdInfo> ReadAll()
         {
             return ReadAllLocked(true);

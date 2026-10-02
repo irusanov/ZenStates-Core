@@ -154,6 +154,12 @@ namespace ZenStates.Core.Hardware.Apob
         /// <summary>Memory SMBIOS info (SMBIOS group, type 8): memory type, DIMM speed, voltage and address ranges.</summary>
         public ApobDmiInfo DmiInfo { get; private set; }
 
+        /// <summary>
+        /// The SPD of each populated slot as the ABL used it (MEM group, type 17); for soldered LPDDR5 the only copy.
+        /// Empty when the APOB has none.
+        /// </summary>
+        public List<ApobDimmSpd> DimmSpd { get; private set; } = new List<ApobDimmSpd>();
+
         /// <summary>System memory map (FABRIC group, type 9): top of memory and the reserved holes.</summary>
         public ApobMemoryMap MemoryMap { get; private set; }
 
@@ -177,6 +183,32 @@ namespace ZenStates.Core.Hardware.Apob
 
         /// <summary>The timings of each channel (GEN group, type 3), empty when the profile has no timing layout.</summary>
         public List<ApobChannelTimings> ChannelTimings { get; private set; } = new List<ApobChannelTimings>();
+
+        /// <summary>
+        /// LPDDR5 (Rembrandt): the mode registers of the first active timing block, or of the first block when the
+        /// active one is not known. Null when the timing blocks have none.
+        /// </summary>
+        public ApobLpddr5ModeRegisters ActiveLpddr5ModeRegisters
+        {
+            get
+            {
+                if (ChannelTimings == null)
+                    return null;
+
+                ApobLpddr5ModeRegisters first = null;
+                for (int i = 0; i < ChannelTimings.Count; i++)
+                {
+                    ApobLpddr5ModeRegisters registers = ChannelTimings[i].Lpddr5ModeRegisters;
+                    if (registers == null)
+                        continue;
+                    if (ChannelTimings[i].IsActive)
+                        return registers;
+                    if (first == null)
+                        first = registers;
+                }
+                return ActiveMemClk > 0 ? null : first;
+            }
+        }
 
         /// <summary>
         /// MEMCLK the memory runs at, from the timings ratio (ratio x 100, as for AOD), used to mark the active
@@ -496,6 +528,7 @@ namespace ZenStates.Core.Hardware.Apob
             new[] { APOB_MEM, APOB_MEM_RMP_INFO },
             new[] { APOB_GEN, APOB_GEN_EVENT_LOG_TYPE },
             new[] { APOB_MEM, APOB_MEM_GENERAL_CONFIGURATION_INFO_TYPE },
+            new[] { APOB_MEM, APOB_MEM_DIMM_SPD_DATA_TYPE },
         };
 
         /// <summary>
@@ -520,6 +553,8 @@ namespace ZenStates.Core.Hardware.Apob
                     EventLog = ApobEventLog.Decode(raw, 0);
                 if ((raw = getRawEntry(APOB_MEM, APOB_MEM_GENERAL_CONFIGURATION_INFO_TYPE)) != null)
                     MemGeneralConfig = ApobMemGeneralConfig.Decode(raw, 0);
+                if ((raw = getRawEntry(APOB_MEM, APOB_MEM_DIMM_SPD_DATA_TYPE)) != null)
+                    DimmSpd = ApobDimmSpdParser.Decode(raw, 0);
             }
             catch (Exception ex)
             {
@@ -598,10 +633,20 @@ namespace ZenStates.Core.Hardware.Apob
                 uint mclk = (uint)Math.Round(ratio * 100);
                 ActiveMemClk = mclk;
 
+                // LPDDR5 P-states can share MEMCLK and differ in the WCK ratio (Rembrandt: LPDDR5-6400 and 3200 both at
+                // MEMCLK 800), so the data rate decides when the timings know it
+                uint activeRate = timings.ClockToDataRate != 2 ? (uint)Math.Round(mclk * (double)timings.ClockToDataRate) : 0;
+
                 for (int i = 0; i < ChannelTimings.Count; i++)
                 {
                     uint clk = ChannelTimings[i].MemClk;
-                    // AOD uses 4 x MEMCLK on LPDDR5, the APOB blocks are not known there (no LPDDR5 dump yet)
+                    if (activeRate > 0 && ChannelTimings[i].DataRate > 0 && _profile?.ChannelTimingLayout?.WckOffset >= 0)
+                    {
+                        ChannelTimings[i].IsActive = NearlyEqual(clk, mclk) && NearlyEqual(ChannelTimings[i].DataRate, activeRate);
+                        continue;
+                    }
+
+                    // AOD uses 4 x MEMCLK on LPDDR5; the Rembrandt LPDDR5 blocks hold MEMCLK itself
                     ChannelTimings[i].IsActive = NearlyEqual(clk, mclk) ||
                         (lpddr5 && (NearlyEqual(clk, mclk * 2) || NearlyEqual(clk, mclk * 4)));
                 }
@@ -1236,6 +1281,10 @@ namespace ZenStates.Core.Hardware.Apob
                 AppendDmiInfo(report);
 
                 report.AppendLine();
+                report.AppendSection("DIMM SPD");
+                AppendDimmSpd(report);
+
+                report.AppendLine();
                 report.AppendSection("Memory Map");
                 AppendMemoryMap(report);
 
@@ -1257,6 +1306,13 @@ namespace ZenStates.Core.Hardware.Apob
                 report.AppendLine();
                 report.AppendSection("Channel Timings");
                 AppendChannelTimings(report);
+
+                if (HasLpddr5ModeRegisters())
+                {
+                    report.AppendLine();
+                    report.AppendSection("LPDDR5 Mode Registers");
+                    AppendLpddr5ModeRegisters(report);
+                }
 
                 report.AppendLine();
                 report.AppendSection("Event Log");
@@ -1298,6 +1354,8 @@ namespace ZenStates.Core.Hardware.Apob
                     byte[] raw = entry.GetRawEntry(RawTable);
                     if (raw != null && groupId == APOB_MEM && dataTypeId == APOB_APCB_BOOT_INFO_TYPE && !CoreOptions.Current.PrintSerialNumbers)
                         ApobBootInfo.MaskSerialNumbers(raw);
+                    if (raw != null && groupId == APOB_MEM && dataTypeId == APOB_MEM_DIMM_SPD_DATA_TYPE && !CoreOptions.Current.PrintSerialNumbers)
+                        ApobDimmSpdParser.MaskSerialNumbers(raw);
 
                     report.AppendLine();
                     AppendRawBlock(report, RawEntryTitle(groupId, dataTypeId), raw, "<APOB raw entry not available>");
@@ -1398,6 +1456,44 @@ namespace ZenStates.Core.Hardware.Apob
                     dimm.Slot, dimm.SlotName, dimm.ModuleManufacturer, dimm.ModuleManufacturerId,
                     dimm.DramManufacturer, dimm.DramManufacturerId,
                     CoreOptions.Current.PrintSerialNumbers ? dimm.SerialNumber.ToString("X8", CultureInfo.InvariantCulture) : "****"));
+            }
+        }
+
+        // One line per slot with what its SPD decodes to; the SPD itself is in the raw 1/17 entry
+        private void AppendDimmSpd(ReportBuilder report)
+        {
+            if (DimmSpd == null || DimmSpd.Count == 0)
+            {
+                report.AppendLine("<APOB DIMM SPD data not available>");
+                return;
+            }
+
+            foreach (ApobDimmSpd slot in DimmSpd)
+            {
+                string decoded;
+                try
+                {
+                    if (slot.DeviceType == 0x0C)
+                    {
+                        var ddr4 = DRAM.DDR4.Spd.Ddr4SpdDecoder.Decode(slot.Data, false);
+                        decoded = string.Format("{0}, {1} MB, {2}", ddr4.ModulePartNumber, ddr4.TotalCapacityMB, ddr4.TimingString);
+                    }
+                    else if (DRAM.DDR5.Spd.Ddr5SpdDecoder.IsSupportedDeviceType(slot.DeviceType))
+                    {
+                        var ddr5 = DRAM.DDR5.Spd.Ddr5SpdDecoder.Decode(slot.Data, false);
+                        decoded = string.Format("{0}, {1} MB, {2}", ddr5.ModulePartNumber, ddr5.TotalCapacityMB, ddr5.TimingString);
+                    }
+                    else
+                    {
+                        decoded = "not decoded";
+                    }
+                }
+                catch (Exception ex)
+                {
+                    decoded = "<FAILED> " + ex.Message;
+                }
+
+                report.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0}: {1}", slot, decoded));
             }
         }
 
@@ -1637,6 +1733,73 @@ namespace ZenStates.Core.Hardware.Apob
                     report.Append(ext.GetReport());
                 }
             }
+        }
+
+        private bool HasLpddr5ModeRegisters()
+        {
+            if (ChannelTimings == null)
+                return false;
+            for (int i = 0; i < ChannelTimings.Count; i++)
+            {
+                if (ChannelTimings[i].Lpddr5ModeRegisters != null)
+                    return true;
+            }
+            return false;
+        }
+
+        // Each block's decoded mode registers, a block equal to an earlier one only named
+        private void AppendLpddr5ModeRegisters(ReportBuilder report)
+        {
+            bool first = true;
+            for (int c = 0; c < ChannelTimings.Count; c++)
+            {
+                ApobChannelTimings t = ChannelTimings[c];
+                List<ApobLpddr5ModeRegisters> sets = t.Lpddr5ModeRegisterSets;
+                if (sets.Count == 0)
+                    continue;
+
+                if (!first)
+                    report.AppendLine();
+                first = false;
+
+                string title = string.Format(CultureInfo.InvariantCulture, "Blk{0} (channel {1}, P{2}, {3} MT/s{4})",
+                    t.Index, t.Channel, t.PState, t.DataRate, t.IsActive ? ", active" : "");
+
+                int same = -1;
+                for (int k = 0; k < c && same < 0; k++)
+                {
+                    if (SameModeRegisterSets(ChannelTimings[k].Lpddr5ModeRegisterSets, sets))
+                        same = k;
+                }
+
+                if (same >= 0)
+                {
+                    report.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0}: same as Blk{1}", title, ChannelTimings[same].Index));
+                    continue;
+                }
+
+                report.AppendLine(title + ":");
+                foreach (KeyValuePair<string, string> setting in sets[0].GetSettings())
+                    report.AppendValue("  " + setting.Key, setting.Value, 22);
+                for (int s = 0; s < sets.Count; s++)
+                {
+                    bool copy = s > 0 && sets[s].SameAs(sets[0]);
+                    report.AppendValue(string.Format(CultureInfo.InvariantCulture, "  MR0-41 copy {0}", s),
+                        copy ? "same as copy 0" : sets[s].ToHexString(), 22);
+                }
+            }
+        }
+
+        private static bool SameModeRegisterSets(List<ApobLpddr5ModeRegisters> a, List<ApobLpddr5ModeRegisters> b)
+        {
+            if (a.Count != b.Count)
+                return false;
+            for (int i = 0; i < a.Count; i++)
+            {
+                if (!a[i].SameAs(b[i]))
+                    return false;
+            }
+            return true;
         }
 
         private delegate string TimingCell(ApobChannelTimings timings);

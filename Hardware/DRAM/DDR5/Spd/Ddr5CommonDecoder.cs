@@ -33,6 +33,13 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         private const int SPD_DRAM_MFG_ID = 552;
         private const int SPD_DRAM_STEPPING = 554;
 
+        // The same fields in the 512-byte LPDDR4 layout of memory-down LPDDR5 (JESD21-C), 20-byte part number
+        private const int MEMORY_DOWN_MANUFACTURING_SHIFT = 512 - 320;
+        private const int MEMORY_DOWN_PARTNO_LENGTH = 20;
+        private const int MEMORY_DOWN_MOD_REVISION = 349;
+        private const int MEMORY_DOWN_DRAM_MFG_ID = 350;
+        private const int MEMORY_DOWN_DRAM_STEPPING = 352;
+
         private static readonly string[] RawCardNames =
         {
             "A", "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "P", "R", "T",
@@ -191,15 +198,22 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             }
         }
 
-        public static void DecodeManufacturing(byte[] spd, Ddr5SpdInfo info)
+        /// <param name="memoryDown">The 512-byte LPDDR4 layout: the fields start at 320 and the part number is 20 bytes.</param>
+        public static void DecodeManufacturing(byte[] spd, Ddr5SpdInfo info, bool memoryDown = false)
         {
-            info.ModuleMfgIdBank = B(spd, SPD_MOD_MFG_ID);
-            info.ModuleMfgIdMfr = B(spd, SPD_MOD_MFG_ID + 1);
-            info.ModuleManufacturer = ManufacturerMapping.Lookup(info.ModuleMfgIdBank, info.ModuleMfgIdMfr);
-            info.ModuleMfgLocation = B(spd, SPD_MOD_MFG_LOCATION);
+            // Module ID, location, date and serial number keep their order, 192 bytes earlier
+            int shift = memoryDown ? MEMORY_DOWN_MANUFACTURING_SHIFT : 0;
 
-            byte year = B(spd, SPD_MOD_MFG_YEAR);
-            byte week = B(spd, SPD_MOD_MFG_WEEK);
+            info.ModuleMfgIdBank = B(spd, SPD_MOD_MFG_ID - shift);
+            info.ModuleMfgIdMfr = B(spd, SPD_MOD_MFG_ID + 1 - shift);
+            // Memory down has no module maker
+            info.ModuleManufacturer = memoryDown && info.ModuleMfgIdBank == 0 && info.ModuleMfgIdMfr == 0
+                ? "Not set"
+                : ManufacturerMapping.Lookup(info.ModuleMfgIdBank, info.ModuleMfgIdMfr);
+            info.ModuleMfgLocation = B(spd, SPD_MOD_MFG_LOCATION - shift);
+
+            byte year = B(spd, SPD_MOD_MFG_YEAR - shift);
+            byte week = B(spd, SPD_MOD_MFG_WEEK - shift);
             info.ModuleMfgYear = Bcd(year);
             info.ModuleMfgWeek = Bcd(week);
             info.ModuleMfgDate = year == 0 && week == 0
@@ -208,16 +222,19 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
 
             StringBuilder serial = new StringBuilder();
             for (int i = 0; i < 4; i++)
-                serial.AppendFormat("{0:X2}", B(spd, SPD_MOD_SERIAL + i));
+                serial.AppendFormat("{0:X2}", B(spd, SPD_MOD_SERIAL - shift + i));
             info.ModuleSerialNumber = serial.ToString();
 
-            info.ModulePartNumber = Ascii(spd, SPD_MOD_PARTNO, SPD_MOD_PARTNO_LENGTH);
-            info.ModuleRevisionCode = B(spd, SPD_MOD_REVISION);
+            info.ModulePartNumber = memoryDown
+                ? Ascii(spd, SPD_MOD_PARTNO - shift, MEMORY_DOWN_PARTNO_LENGTH)
+                : Ascii(spd, SPD_MOD_PARTNO, SPD_MOD_PARTNO_LENGTH);
+            info.ModuleRevisionCode = B(spd, memoryDown ? MEMORY_DOWN_MOD_REVISION : SPD_MOD_REVISION);
 
-            info.DramMfgIdBank = B(spd, SPD_DRAM_MFG_ID);
-            info.DramMfgIdMfr = B(spd, SPD_DRAM_MFG_ID + 1);
+            int dramId = memoryDown ? MEMORY_DOWN_DRAM_MFG_ID : SPD_DRAM_MFG_ID;
+            info.DramMfgIdBank = B(spd, dramId);
+            info.DramMfgIdMfr = B(spd, dramId + 1);
             info.DramManufacturer = ManufacturerMapping.Lookup(info.DramMfgIdBank, info.DramMfgIdMfr);
-            info.DramStepping = B(spd, SPD_DRAM_STEPPING);
+            info.DramStepping = B(spd, memoryDown ? MEMORY_DOWN_DRAM_STEPPING : SPD_DRAM_STEPPING);
         }
     }
 }

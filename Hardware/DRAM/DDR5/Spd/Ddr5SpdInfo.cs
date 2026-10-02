@@ -41,6 +41,15 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         /// <summary>LPDDR5 or LPDDR5X: the base configuration follows JESD406-5.</summary>
         public bool IsLpddr5;
 
+        /// <summary>
+        /// A 512-byte LPDDR5 SPD in the LPDDR4 layout (JESD21-C), as BIOS images carry for soldered memory: tCK counts
+        /// WCK, the manufacturing bytes are at 320~352 and there are no module bytes. See <see cref="Ddr5SpdDecoder"/>.
+        /// </summary>
+        public bool IsMemoryDownLayout;
+
+        /// <summary>The SPD was taken from the APOB (the copy the BIOS trained with), not read from a module.</summary>
+        public bool FromApob;
+
         public byte BaseModuleType;
         public string ModuleTypeString;
         public bool IsHybrid;
@@ -227,10 +236,13 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             sb.AppendFormat("  Memory Family      : {0}\n", MemoryFamily);
             sb.AppendFormat("  Module Type        : {0}\n", ModuleTypeString);
             sb.AppendFormat("  SPD Bytes Total    : {0}\n", BytesTotal);
+            if (FromApob)
+                sb.Append("  Source             : APOB (BIOS copy)\n");
             if (IsHybrid)
                 sb.AppendFormat("  Hybrid Type        : {0}\n", HybridTypeString);
             if (!IsPartial)
-                sb.AppendFormat("  CRC                : 0x{0:X4} ({1})\n", BaseCrc, BaseCrcValid ? "OK" : "MISMATCH");
+                sb.AppendFormat("  CRC                : 0x{0:X4} ({1})\n", BaseCrc,
+                    BaseCrcValid ? "OK" : IsMemoryDownLayout && BaseCrc == 0 ? "not set" : "MISMATCH");
 
             sb.AppendLine();
             sb.AppendLine("-- Capacity & Organisation -----------------");
@@ -300,30 +312,34 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
                 sb.AppendFormat("  VPP                : {0}\n", VppString);
             }
 
-            sb.AppendLine();
-            sb.AppendLine("-- Module ----------------------------------");
-            sb.AppendFormat("  Module SPD Revision: {0}\n", ModuleSpdRevision);
-            sb.AppendFormat("  Height             : {0}\n", ModuleHeight);
-            sb.AppendFormat("  Thickness          : {0}\n", ModuleThickness);
-            sb.AppendFormat("  Raw Card           : {0}\n", ReferenceRawCard);
-            sb.AppendFormat("  Temperature Range  : {0}\n", OperatingTemperatureRange);
-            sb.AppendFormat("  Heat Spreader      : {0}\n", HeatSpreader ? "Yes" : "No");
-            if (DramRows > 0)
-                sb.AppendFormat("  DRAM Rows          : {0}\n", DramRows);
+            // The memory-down layout has no module bytes
+            if (!IsMemoryDownLayout)
+            {
+                sb.AppendLine();
+                sb.AppendLine("-- Module ----------------------------------");
+                sb.AppendFormat("  Module SPD Revision: {0}\n", ModuleSpdRevision);
+                sb.AppendFormat("  Height             : {0}\n", ModuleHeight);
+                sb.AppendFormat("  Thickness          : {0}\n", ModuleThickness);
+                sb.AppendFormat("  Raw Card           : {0}\n", ReferenceRawCard);
+                sb.AppendFormat("  Temperature Range  : {0}\n", OperatingTemperatureRange);
+                sb.AppendFormat("  Heat Spreader      : {0}\n", HeatSpreader ? "Yes" : "No");
+                if (DramRows > 0)
+                    sb.AppendFormat("  DRAM Rows          : {0}\n", DramRows);
 
-            sb.AppendLine();
-            sb.AppendLine("-- Thermal ---------------------------------");
-            sb.AppendFormat("  Thermal Sensor     : {0}\n", HasThermalSensor ? "Present" : "Not present");
+                sb.AppendLine();
+                sb.AppendLine("-- Thermal ---------------------------------");
+                sb.AppendFormat("  Thermal Sensor     : {0}\n", HasThermalSensor ? "Present" : "Not present");
 
-            sb.AppendLine();
-            sb.AppendLine("-- Support Devices -------------------------");
-            sb.AppendFormat("  SPD Device         : {0}\n", Listed(SpdDevice));
-            sb.AppendFormat("  PMIC0              : {0}\n", Listed(Pmic0));
-            sb.AppendFormat("  PMIC1              : {0}\n", Listed(Pmic1));
-            sb.AppendFormat("  PMIC2              : {0}\n", Listed(Pmic2));
-            sb.AppendFormat("  TS0 / TS1          : {0} / {1}\n",
-                ThermalSensor0Present ? "Present" : "Not listed",
-                ThermalSensor1Present ? "Present" : "Not listed");
+                sb.AppendLine();
+                sb.AppendLine("-- Support Devices -------------------------");
+                sb.AppendFormat("  SPD Device         : {0}\n", Listed(SpdDevice));
+                sb.AppendFormat("  PMIC0              : {0}\n", Listed(Pmic0));
+                sb.AppendFormat("  PMIC1              : {0}\n", Listed(Pmic1));
+                sb.AppendFormat("  PMIC2              : {0}\n", Listed(Pmic2));
+                sb.AppendFormat("  TS0 / TS1          : {0} / {1}\n",
+                    ThermalSensor0Present ? "Present" : "Not listed",
+                    ThermalSensor1Present ? "Present" : "Not listed");
+            }
 
             sb.AppendLine();
             sb.AppendLine("-- Manufacturing ---------------------------");

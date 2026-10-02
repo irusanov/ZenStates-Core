@@ -49,6 +49,23 @@ namespace ZenStates.Core.Hardware.DRAM
         public uint UclkGtFclk { get; internal set; }
         public uint WckRatioMode { get; internal set; }
 
+        /// <summary>
+        /// LPDDR5 runs the data on WCK, at 2:1 (<see cref="WckRatioMode"/> 1) or 4:1 (2) to MEMCLK; DDR5 has no WCK (0).
+        /// 4:1 is from a Rembrandt dump, LPDDR5-6400: ratio 8 (MEMCLK 800), and the APOB lists MEMCLK 800 with WCK 3200.
+        /// </summary>
+        public override int ClockToDataRate
+        {
+            get
+            {
+                switch (WckRatioMode)
+                {
+                    case 1: return 4;
+                    case 2: return 8;
+                    default: return 2;
+                }
+            }
+        }
+
         // 0x50208
         public uint RPpb { get; internal set; }
         public uint RCpb { get; internal set; }
@@ -140,10 +157,10 @@ namespace ZenStates.Core.Hardware.DRAM
             {
                 if (RefreshMode == BankRefreshMode.NORMAL)
                 {
-                    return Utils.ToNanoseconds(RFC, Frequency);
+                    return ClocksToNs(RFC);
                 }
 
-                return Utils.ToNanoseconds(RFC2, Frequency);
+                return ClocksToNs(RFC2);
             }
         }
 

@@ -51,8 +51,12 @@ namespace ZenStates.Core.Hardware.Apob
             int dataRateOffset, int memClkOffset, int halfMemClkOffset, int minMemClk, int maxMemClk,
             int clOffset, int minCl, int maxCl, ApobTimingField[] fields,
             int extendedRecordOffset = -1, int extendedRecordStride = 0, int pStateBlockStride = 0,
-            int clockBytesSearchStart = 0, int clockBytesSearchEnd = 0)
+            int clockBytesSearchStart = 0, int clockBytesSearchEnd = 0, int wckOffset = -1,
+            int lpddr5ModeRegisterOffset = -1, int lpddr5ModeRegisterCopies = 0)
         {
+            Lpddr5ModeRegisterOffset = lpddr5ModeRegisterOffset;
+            Lpddr5ModeRegisterCopies = lpddr5ModeRegisterOffset >= 0 ? lpddr5ModeRegisterCopies : 0;
+            WckOffset = wckOffset;
             ClockBytesSearchStart = clockBytesSearchStart;
             ClockBytesSearchEnd = clockBytesSearchEnd;
             ExtendedRecordOffset = extendedRecordOffset;
@@ -73,9 +77,11 @@ namespace ZenStates.Core.Hardware.Apob
             Fields = fields;
 
             int width = ValueBytes;
-            int span = Math.Max(Math.Max(clOffset, memClkOffset), Math.Max(dataRateOffset, halfMemClkOffset)) + width;
+            int span = Math.Max(Math.Max(Math.Max(clOffset, memClkOffset), Math.Max(dataRateOffset, halfMemClkOffset)), wckOffset) + width;
             if (clockBytesSearchEnd > 0)
                 span = Math.Max(span, clockBytesSearchEnd + DDR4_CLOCK_BYTES);
+            if (Lpddr5ModeRegisterCopies > 0)
+                span = Math.Max(span, lpddr5ModeRegisterOffset + Lpddr5ModeRegisterCopies * ApobLpddr5ModeRegisters.Count);
 
             for (int i = 0; i < fields.Length; i++)
             {
@@ -97,6 +103,12 @@ namespace ZenStates.Core.Hardware.Apob
         public int DataRateOffset { get; private set; }
 
         public int MemClkOffset { get; private set; }
+
+        /// <summary>
+        /// Offset of the LPDDR5 WCK (MHz, 2 or 4 x MEMCLK), -1 when the block has none. The data rate is twice WCK; it
+        /// replaces the data rate check.
+        /// </summary>
+        public int WckOffset { get; private set; }
 
         /// <summary>Offset of the field that holds half MEMCLK, used to find the block.</summary>
         public int HalfMemClkOffset { get; private set; }
@@ -129,6 +141,13 @@ namespace ZenStates.Core.Hardware.Apob
         /// </summary>
         public int ClockBytesSearchStart { get; private set; }
         public int ClockBytesSearchEnd { get; private set; }
+
+        /// <summary>
+        /// Offset of the LPDDR5 mode registers (<see cref="ApobLpddr5ModeRegisters"/>) from the start of the block, -1
+        /// when the block has none. <see cref="Lpddr5ModeRegisterCopies"/> sets follow each other there.
+        /// </summary>
+        public int Lpddr5ModeRegisterOffset { get; private set; }
+        public int Lpddr5ModeRegisterCopies { get; private set; }
 
         public int ValueBytes
         {
@@ -257,6 +276,18 @@ namespace ZenStates.Core.Hardware.Apob
 
         public List<ApobTimingValue> Values { get; private set; }
 
+        /// <summary>
+        /// The LPDDR5 mode registers of the block, one set per copy the layout has (two on Rembrandt, equal on the
+        /// dumps seen so far). Empty when the layout has none or they do not decode.
+        /// </summary>
+        public List<ApobLpddr5ModeRegisters> Lpddr5ModeRegisterSets { get; private set; } = new List<ApobLpddr5ModeRegisters>();
+
+        /// <summary>The first set of <see cref="Lpddr5ModeRegisterSets"/>, null when there is none.</summary>
+        public ApobLpddr5ModeRegisters Lpddr5ModeRegisters
+        {
+            get { return Lpddr5ModeRegisterSets.Count > 0 ? Lpddr5ModeRegisterSets[0] : null; }
+        }
+
         /// <summary>The value of the named field, null when the layout has no such field.</summary>
         public uint? Get(string name)
         {
@@ -310,10 +341,18 @@ namespace ZenStates.Core.Hardware.Apob
                 ulong clk = layout.Read(buffer, o, layout.MemClkOffset);
                 ulong half = layout.HalfMemClkOffset >= 0 ? layout.Read(buffer, o, layout.HalfMemClkOffset) : clk / 2;
                 ulong rate = layout.DataRateOffset >= 0 ? layout.Read(buffer, o, layout.DataRateOffset) : clk * 2;
+                bool rateOk = rate == clk * 2;
+                if (layout.WckOffset >= 0)
+                {
+                    ulong wck = layout.Read(buffer, o, layout.WckOffset);
+                    rateOk = clk > 0 && (wck == clk * 2 || wck == clk * 4);
+                    rate = wck * 2;
+                }
+
                 uint clocks = o;
                 bool found = false;
 
-                if (clk >= (ulong)layout.MinMemClk && clk <= (ulong)layout.MaxMemClk && half * 2 == clk - (clk & 1) && rate == clk * 2)
+                if (clk >= (ulong)layout.MinMemClk && clk <= (ulong)layout.MaxMemClk && half * 2 == clk - (clk & 1) && rateOk)
                 {
                     if (layout.ClockBytesSearchEnd > 0)
                     {
@@ -355,6 +394,16 @@ namespace ZenStates.Core.Hardware.Apob
                             Field = field,
                             Value = layout.ReadField(buffer, o, clocks, field),
                         });
+                    }
+
+                    // LPDDR5: the mode registers, checked against the WCK ratio of the block
+                    for (int copy = 0; copy < layout.Lpddr5ModeRegisterCopies && clk > 0; copy++)
+                    {
+                        uint mrOffset = o + (uint)layout.Lpddr5ModeRegisterOffset + (uint)(copy * ApobLpddr5ModeRegisters.Count);
+                        ApobLpddr5ModeRegisters registers = ApobLpddr5ModeRegisters.TryRead(buffer, mrOffset, end, (int)(rate / 2 / clk));
+                        if (registers == null)
+                            break;
+                        timings.Lpddr5ModeRegisterSets.Add(registers);
                     }
 
                     if (result.Count > 0)
