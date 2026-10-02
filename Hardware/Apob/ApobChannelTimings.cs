@@ -52,8 +52,11 @@ namespace ZenStates.Core.Hardware.Apob
             int clOffset, int minCl, int maxCl, ApobTimingField[] fields,
             int extendedRecordOffset = -1, int extendedRecordStride = 0, int pStateBlockStride = 0,
             int clockBytesSearchStart = 0, int clockBytesSearchEnd = 0, int wckOffset = -1,
-            int lpddr5ModeRegisterOffset = -1, int lpddr5ModeRegisterCopies = 0)
+            int lpddr5ModeRegisterOffset = -1, int lpddr5ModeRegisterCopies = 0,
+            int ddr4ModeRegisterSearchStart = 0, int ddr4ModeRegisterSearchEnd = 0)
         {
+            Ddr4ModeRegisterSearchStart = ddr4ModeRegisterSearchStart;
+            Ddr4ModeRegisterSearchEnd = ddr4ModeRegisterSearchEnd;
             Lpddr5ModeRegisterOffset = lpddr5ModeRegisterOffset;
             Lpddr5ModeRegisterCopies = lpddr5ModeRegisterOffset >= 0 ? lpddr5ModeRegisterCopies : 0;
             WckOffset = wckOffset;
@@ -148,6 +151,13 @@ namespace ZenStates.Core.Hardware.Apob
         /// </summary>
         public int Lpddr5ModeRegisterOffset { get; private set; }
         public int Lpddr5ModeRegisterCopies { get; private set; }
+
+        /// <summary>
+        /// First and last distance after the DDR4 clock bytes to look for the DDR4 mode registers
+        /// (<see cref="ApobDdr4ModeRegisters"/>) at, 0 when the blocks have none.
+        /// </summary>
+        public int Ddr4ModeRegisterSearchStart { get; private set; }
+        public int Ddr4ModeRegisterSearchEnd { get; private set; }
 
         public int ValueBytes
         {
@@ -282,6 +292,9 @@ namespace ZenStates.Core.Hardware.Apob
         /// </summary>
         public List<ApobLpddr5ModeRegisters> Lpddr5ModeRegisterSets { get; private set; } = new List<ApobLpddr5ModeRegisters>();
 
+        /// <summary>DDR4: the mode registers MR0 to MR6 of the block, null when the layout has none or they are not found.</summary>
+        public ApobDdr4ModeRegisters Ddr4ModeRegisters { get; internal set; }
+
         /// <summary>The first set of <see cref="Lpddr5ModeRegisterSets"/>, null when there is none.</summary>
         public ApobLpddr5ModeRegisters Lpddr5ModeRegisters
         {
@@ -404,6 +417,14 @@ namespace ZenStates.Core.Hardware.Apob
                         if (registers == null)
                             break;
                         timings.Lpddr5ModeRegisterSets.Add(registers);
+                    }
+
+                    // DDR4: the mode registers, found by the timings they encode
+                    if (layout.Ddr4ModeRegisterSearchEnd > 0 && layout.ClockBytesSearchEnd > 0)
+                    {
+                        timings.Ddr4ModeRegisters = ApobDdr4ModeRegisters.Find(buffer,
+                            clocks + (uint)layout.Ddr4ModeRegisterSearchStart, clocks + (uint)layout.Ddr4ModeRegisterSearchEnd, end,
+                            timings.Tcas, timings.Get("Tcwl"), timings.Twr, timings.Tccdl);
                     }
 
                     if (result.Count > 0)

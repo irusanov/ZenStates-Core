@@ -118,8 +118,8 @@ namespace ZenStates.Core.Hardware.Apob
                 Setting("CK/CS ODT (MR17)", string.Format("{0} / {1}", CkOdtDisabled ? "Off" : "On", CsOdtDisabled ? "Off" : "On")),
                 Setting("SoC ODT (MR17)", SocOdt.ToString()),
                 Setting("PDDS (MR3)", Pdds.ToString()),
-                Setting("VrefCA (MR12)", Percent(VrefCa)),
-                Setting("VrefDQ (MR14/15)", VrefDqLower == VrefDqUpper ? Percent(VrefDqLower) : Percent(VrefDqLower) + " / " + Percent(VrefDqUpper)),
+                Setting("VrefCA (MR12)", Vref(12)),
+                Setting("VrefDQ (MR14/15)", values[14] == values[15] ? Vref(14) : Vref(14) + " / " + Vref(15)),
                 Setting("WCK:CK (MR18)", WckCkRatio + ":1"),
                 Setting("Bank mode (MR3)", BankMode),
                 Setting("DBI RD/WR (MR3)", string.Format("{0} / {1}", ReadDbi ? "On" : "Off", WriteDbi ? "On" : "Off")),
@@ -131,9 +131,11 @@ namespace ZenStates.Core.Hardware.Apob
             return new KeyValuePair<string, string>(name, value);
         }
 
-        private static string Percent(double value)
+        // The Vref of MR<index> in % of VDDQ with the raw value, e.g. "38.0% (0x38)"
+        private string Vref(int index)
         {
-            return value.ToString("F1", CultureInfo.InvariantCulture) + "%";
+            return VrefPercent(values[index]).ToString("F1", CultureInfo.InvariantCulture) + "% (0x" +
+                values[index].ToString("X2", CultureInfo.InvariantCulture) + ")";
         }
 
         /// <summary>The registers as hex bytes, MR0 first.</summary>

@@ -66,6 +66,20 @@ namespace ZenStates.Core.Hardware.DRAM
             }
         }
 
+        /// <summary>LPDDR5 WCK:CK, "4:1" or "2:1"; "N/A" for DDR5 (<see cref="WckRatioMode"/> 0).</summary>
+        public string WckCkRatio
+        {
+            get
+            {
+                switch (WckRatioMode)
+                {
+                    case 1: return "2:1";
+                    case 2: return "4:1";
+                    default: return "N/A";
+                }
+            }
+        }
+
         // 0x50208
         public uint RPpb { get; internal set; }
         public uint RCpb { get; internal set; }

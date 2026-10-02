@@ -128,6 +128,73 @@ namespace ZenStates.Core.Common
         }
     }
 
+    /// <summary>
+    /// DRAM Vref as the APCB / APOB hold it, the mode register code: DDR5 MR10 / MR11 / MR12 (VrefDQ / VrefCA /
+    /// VrefCS) 97.5% of VDDQ minus 0.5% per step, codes above 0x7D reserved; LPDDR5 MR12 / MR14 / MR15 10% plus 0.5%
+    /// per step. Shown as a percentage of VDDQ with the raw code, e.g. "71.5% (0x34)".
+    /// </summary>
+    public class DramVref : EncodedValueBase
+    {
+        private static readonly Dictionary<int, string> Empty = new Dictionary<int, string>();
+        private readonly bool lpddr5;
+
+        public DramVref(int value, bool lpddr5 = false) : base(value)
+        {
+            this.lpddr5 = lpddr5;
+        }
+
+        protected override Dictionary<int, string> Lookup { get; } = Empty;
+
+        /// <summary>Vref in % of VDDQ, null for a reserved code.</summary>
+        public double? Percent
+        {
+            get
+            {
+                if (IsNull)
+                    return null;
+                int code = RawValue.Value;
+                if (lpddr5)
+                    return code <= 0x7F ? 10.0 + code * 0.5 : (double?)null;
+                return code <= 0x7D ? 97.5 - code * 0.5 : (double?)null;
+            }
+        }
+
+        public override string ToString()
+        {
+            if (IsNull)
+                return "N/A";
+            double? percent = Percent;
+            string raw = "0x" + RawValue.Value.ToString("X2", CultureInfo.InvariantCulture);
+            return percent.HasValue ? percent.Value.ToString("F1", CultureInfo.InvariantCulture) + "% (" + raw + ")" : "N/A (" + raw + ")";
+        }
+    }
+
+    /// <summary>
+    /// The receiver Vref of the memory PHY (PMU PhyVref): VDDQ x code / 128, shown as a percentage of VDDQ with the
+    /// raw code, e.g. "72.7% (0x5D)".
+    /// </summary>
+    public class PhyVref : EncodedValueBase
+    {
+        private static readonly Dictionary<int, string> Empty = new Dictionary<int, string>();
+
+        public PhyVref(int value) : base(value) { }
+
+        protected override Dictionary<int, string> Lookup { get; } = Empty;
+
+        public double? Percent
+        {
+            get { return IsNull ? (double?)null : RawValue.Value * 100.0 / 128; }
+        }
+
+        public override string ToString()
+        {
+            if (IsNull)
+                return "N/A";
+            return Percent.Value.ToString("F1", CultureInfo.InvariantCulture) + "% (0x" +
+                RawValue.Value.ToString("X2", CultureInfo.InvariantCulture) + ")";
+        }
+    }
+
     public class Voltage
     {
         protected int Value;

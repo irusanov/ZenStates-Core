@@ -51,7 +51,11 @@ namespace ZenStates.Core.Hardware.Apob
             int procCkOdt = -1,
             int procDqOdt = -1,
             int procDqsOdt = -1,
-            int procDataDsApu = -1)
+            int procDataDsApu = -1,
+            int phyVref = -1,
+            int dramVrefDq = -1,
+            int dramVrefCa = -1,
+            int dramVrefCs = -1)
         {
             Gdm = gdm;
 
@@ -94,6 +98,11 @@ namespace ZenStates.Core.Hardware.Apob
             ProcDqOdt = procDqOdt;
             ProcDqsOdt = procDqsOdt;
             ProcDataDsApu = procDataDsApu;
+
+            PhyVref = phyVref;
+            DramVrefDq = dramVrefDq;
+            DramVrefCa = dramVrefCa;
+            DramVrefCs = dramVrefCs;
         }
 
         public int Gdm { get; private set; }
@@ -136,6 +145,15 @@ namespace ZenStates.Core.Hardware.Apob
         public int ProcDqOdt { get; private set; }
         public int ProcDqsOdt { get; private set; }
         public int ProcDataDsApu { get; private set; }
+
+        /// <summary>
+        /// The Vrefs the PMU starts training with, in the order of the APCB DDR5 bus element (phy_vref, dq_vref,
+        /// ca_vref, cs_vref): right after the CA / CK / CS drive strengths, followed by the DFE byte.
+        /// </summary>
+        public int PhyVref { get; private set; }
+        public int DramVrefDq { get; private set; }
+        public int DramVrefCa { get; private set; }
+        public int DramVrefCs { get; private set; }
     }
 
     public sealed class ApobBlockLayout
@@ -212,7 +230,11 @@ namespace ZenStates.Core.Hardware.Apob
             caOdtB: 0xD,
             procOdt: 0xE,
             procDqDs: 0xF,
-            procCaDs: 0x11);
+            procCaDs: 0x11,
+            phyVref: 0x12,
+            dramVrefDq: 0x13,
+            dramVrefCa: 0x14,
+            dramVrefCs: 0x15);
 
         private static readonly ApobFieldOffsets Zen4ExtendedOffsets = new ApobFieldOffsets(
             gdm: 0x1,
@@ -233,7 +255,11 @@ namespace ZenStates.Core.Hardware.Apob
             procCaDs: 0x11,
             // Zen4 extended properties
             procCkDs: 0x12,
-            procCsDs: 0x13);
+            procCsDs: 0x13,
+            phyVref: 0x14,
+            dramVrefDq: 0x15,
+            dramVrefCa: 0x16,
+            dramVrefCs: 0x17);
 
         private static readonly ApobFieldOffsets Zen4ApuMainOffsets = new ApobFieldOffsets(
             gdm: 0x1,
@@ -254,7 +280,11 @@ namespace ZenStates.Core.Hardware.Apob
             // unknown_10
             procCaDs: 0x11,
             procCkDs: 0x12,
-            procCsDs: 0x13);
+            procCsDs: 0x13,
+            phyVref: 0x17,
+            dramVrefDq: 0x18,
+            dramVrefCa: 0x19,
+            dramVrefCs: 0x1A);
 
         private static readonly ApobFieldOffsets Zen4ApuExtendedOffsets = new ApobFieldOffsets(
             gdm: 0x1,
@@ -280,7 +310,11 @@ namespace ZenStates.Core.Hardware.Apob
             procCkOdt: 0x1C,
             procDqOdt: 0x1D,
             procDqsOdt: 0x1E,
-            procDataDsApu: 0xF);
+            procDataDsApu: 0xF,
+            phyVref: 0x12,
+            dramVrefDq: 0x13,
+            dramVrefCa: 0x14,
+            dramVrefCs: 0x15);
 
         private static readonly ApobFieldOffsets Zen5MainOffsets = new ApobFieldOffsets(
             gdm: 0x1,
@@ -311,7 +345,11 @@ namespace ZenStates.Core.Hardware.Apob
             procOdtPullUpP0: 0x21,
             procOdtPullDownP0: 0x22,
             procDqDsPullUpP0: 0x23,
-            procDqDsPullDownP0: 0x24);
+            procDqDsPullDownP0: 0x24,
+            phyVref: 0x14,
+            dramVrefDq: 0x15,
+            dramVrefCa: 0x16,
+            dramVrefCs: 0x17);
 
         private static readonly ApobFieldOffsets Zen5ExtendedOffsets = new ApobFieldOffsets(
             gdm: 0x1,
@@ -331,7 +369,11 @@ namespace ZenStates.Core.Hardware.Apob
             procDqDs: 0xF,
             procCaDs: 0x11,
             procCkDs: 0x12,
-            procCsDs: 0x13);
+            procCsDs: 0x13,
+            phyVref: 0x14,
+            dramVrefDq: 0x15,
+            dramVrefCa: 0x16,
+            dramVrefCs: 0x17);
 
 
         /// <summary>
@@ -361,12 +403,11 @@ namespace ZenStates.Core.Hardware.Apob
             procDqsOdt: 0x13, // 0x3c
             procDataDsApu: 0x14, // 0x1e
             // unknown_15 ? // 0x0c
-            procCaDs: 0x16 // 0x1e
-            // unknown_16 ? // 0x1e
-            // unknown_17 ? // 0x63
-            // unknown_18 ? // 0x3f
-            // unknown_19 ? // 0x2c
-            // unknown_1A ? // 0x2c
+            procCaDs: 0x16, // 0x1e
+            phyVref: 0x17, // 0x63
+            dramVrefDq: 0x18, // 0x3f
+            dramVrefCa: 0x19, // 0x2c
+            dramVrefCs: 0x1A // 0x2c
             // unknown_1B ? // 0x01
          );
 
@@ -394,7 +435,11 @@ namespace ZenStates.Core.Hardware.Apob
             procCaOdt: 0x1C,
             procCkOdt: 0x1D,
             procDqOdt: 0x1E,
-            procDqsOdt: 0x1F);
+            procDqsOdt: 0x1F,
+            phyVref: 0x12,
+            dramVrefDq: 0x13,
+            dramVrefCa: 0x14,
+            dramVrefCs: 0x15);
 
 
         // The main block sizes are the per channel record sizes of the type 25 entry: 24 bytes on a 7950X, 29 on an
@@ -629,9 +674,12 @@ namespace ZenStates.Core.Hardware.Apob
             fields: Ddr4TimingFields(0x0E),
             pStateBlockStride: 0x70,
             clockBytesSearchStart: 2,
-            clockBytesSearchEnd: 10);
+            clockBytesSearchEnd: 10,
+            ddr4ModeRegisterSearchStart: 0x10,
+            ddr4ModeRegisterSearchEnd: 0x70);
 
-        // Zen 3: two more bytes before tRFC, the memory P-state blocks 0x108 apart (Vermeer, Cezanne)
+        // Zen 3: two more bytes before tRFC, the memory P-state blocks 0x108 apart (Vermeer, Cezanne). Both DDR4 layouts
+        // have MR0 to MR6 a few bytes after tRFC (ApobDdr4ModeRegisters), with the starting VrefDQ in MR6.
         private static readonly ApobChannelTimingLayout Zen3Ddr4ChannelTimingLayout = new ApobChannelTimingLayout(
             "Zen3 DDR4 channel timings",
             7, 3,
@@ -647,7 +695,9 @@ namespace ZenStates.Core.Hardware.Apob
             fields: Ddr4TimingFields(0x10),
             pStateBlockStride: 0x108,
             clockBytesSearchStart: 2,
-            clockBytesSearchEnd: 10);
+            clockBytesSearchEnd: 10,
+            ddr4ModeRegisterSearchStart: 0x10,
+            ddr4ModeRegisterSearchEnd: 0x70);
 
         // Zen 3+ APU (Rembrandt) with LPDDR5: the DDR4 block shape. MEMCLK (u16), WCK (u16, 4 x MEMCLK at 4:1), a u32,
         // then the clocks as bytes in the DDR4 order and after them tRFCab, tRFC2 (?), tRFCpb and tXS in clocks (u16).

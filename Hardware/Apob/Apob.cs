@@ -102,6 +102,9 @@ namespace ZenStates.Core.Hardware.Apob
 
         private readonly MemoryConfig _memoryConfig;
 
+        // The memory is LPDDR5: the DRAM Vrefs of the ODT records use the LPDDR5 encoding
+        private bool _lpddr5;
+
         /// <summary>Gets a value indicating whether a valid APOB was located in physical memory.</summary>
         public bool IsAvailable { get { return Address != 0; } }
 
@@ -366,6 +369,34 @@ namespace ZenStates.Core.Hardware.Apob
             ParseDataBlocks();
             TryParseChannelBlocks();
             TryGetCcdlBlock();
+            ApplyMemoryType();
+        }
+
+        // Tells the ODT records which DRAM Vref encoding applies
+        private void ApplyMemoryType()
+        {
+            if (_memoryConfig != null && _memoryConfig.Type == MemType.LPDDR5)
+                _lpddr5 = true;
+            if (!_lpddr5)
+                return;
+
+            if (Data != null)
+                Data.IsLpddr5 = true;
+            if (ExtendedData != null)
+                ExtendedData.IsLpddr5 = true;
+            if (ChannelData != null)
+            {
+                for (int i = 0; i < ChannelData.Count; i++)
+                    ChannelData[i].IsLpddr5 = true;
+            }
+            if (ChannelTimings != null)
+            {
+                for (int i = 0; i < ChannelTimings.Count; i++)
+                {
+                    if (ChannelTimings[i].ExtendedData != null)
+                        ChannelTimings[i].ExtendedData.IsLpddr5 = true;
+                }
+            }
         }
 
         /// <summary>Returns a copy of the requested region, or <c>null</c> when unavailable.</summary>
@@ -1006,6 +1037,8 @@ namespace ZenStates.Core.Hardware.Apob
                 apob.TryGetCcdlBlock(timings as Ddr5Timings);
             }
 
+            apob._lpddr5 = string.Equals(ParseLabelValue(text, "MemType:"), "LPDDR5", StringComparison.OrdinalIgnoreCase);
+            apob.ApplyMemoryType();
             return apob;
         }
 
@@ -1312,6 +1345,13 @@ namespace ZenStates.Core.Hardware.Apob
                     report.AppendLine();
                     report.AppendSection("LPDDR5 Mode Registers");
                     AppendLpddr5ModeRegisters(report);
+                }
+
+                if (HasDdr4ModeRegisters())
+                {
+                    report.AppendLine();
+                    report.AppendSection("DDR4 Mode Registers");
+                    AppendDdr4ModeRegisters(report);
                 }
 
                 report.AppendLine();
@@ -1745,6 +1785,54 @@ namespace ZenStates.Core.Hardware.Apob
                     return true;
             }
             return false;
+        }
+
+        private bool HasDdr4ModeRegisters()
+        {
+            if (ChannelTimings == null)
+                return false;
+            for (int i = 0; i < ChannelTimings.Count; i++)
+            {
+                if (ChannelTimings[i].Ddr4ModeRegisters != null)
+                    return true;
+            }
+            return false;
+        }
+
+        // Each block's decoded DDR4 mode registers, a block equal to an earlier one only named
+        private void AppendDdr4ModeRegisters(ReportBuilder report)
+        {
+            for (int c = 0; c < ChannelTimings.Count; c++)
+            {
+                ApobChannelTimings t = ChannelTimings[c];
+                ApobDdr4ModeRegisters registers = t.Ddr4ModeRegisters;
+                string title = string.Format(CultureInfo.InvariantCulture, "Blk{0} (channel {1}, P{2}, {3} MT/s{4})",
+                    t.Index, t.Channel, t.PState, t.DataRate, t.IsActive ? ", active" : "");
+                if (registers == null)
+                {
+                    report.AppendLine(title + ": not found");
+                    continue;
+                }
+
+                int same = -1;
+                for (int k = 0; k < c && same < 0; k++)
+                {
+                    ApobDdr4ModeRegisters other = ChannelTimings[k].Ddr4ModeRegisters;
+                    if (other != null && other.ToHexString() == registers.ToHexString())
+                        same = k;
+                }
+
+                if (same >= 0)
+                {
+                    report.AppendLine(string.Format(CultureInfo.InvariantCulture, "{0}: same as Blk{1}", title, ChannelTimings[same].Index));
+                    continue;
+                }
+
+                report.AppendLine(title + ":");
+                foreach (KeyValuePair<string, string> setting in registers.GetSettings())
+                    report.AppendValue("  " + setting.Key, setting.Value, 22);
+                report.AppendValue("  MR0-6", registers.ToHexString(), 22);
+            }
         }
 
         // Each block's decoded mode registers, a block equal to an earlier one only named
