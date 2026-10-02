@@ -389,9 +389,12 @@ namespace ZenStates.Core.Hardware.Mock
             CapacityUnit unit;
             switch (m.Groups["unit"].Value.ToUpperInvariant())
             {
+                case "B": unit = CapacityUnit.B; break;
                 case "KB": unit = CapacityUnit.KB; break;
                 case "MB": unit = CapacityUnit.MB; break;
-                default: unit = CapacityUnit.GB; break; // GB, or bare "B"/"TB" fall back to GB-scale storage
+                case "GB": unit = CapacityUnit.GB; break;
+                case "TB": unit = CapacityUnit.TB; break;
+                default: return;
             }
 
             double scaled = Math.Round(capValue * Math.Pow(1024, (int)unit));
@@ -423,29 +426,25 @@ namespace ZenStates.Core.Hardware.Mock
 
         private const string SpdInvalidMarker = "*** INVALID OR UNSUPPORTED SPD DATA ***";
 
-        /// <summary>
-        /// Parses the "SMBUS Memory Modules" section into the same shape
-        /// <see cref="MemoryConfig.SpdInfo"/> carries on a live machine: one entry per DIMM, keyed
-        /// by the SPD hub's SMBus address.
-        /// <para>
-        /// The report holds decoded text rather than the raw 1024-byte SPD image, so the entries are
-        /// partial (<see cref="Ddr5SpdInfo.IsPartial"/>): identity, the headline JEDEC numbers and -
-        /// the point of this - the PMIC block. Returns an empty dictionary for reports without the
-        /// section, i.e. every DDR4 report and DDR5 reports written before it existed.
-        /// </para>
-        /// </summary>
-        public static Dictionary<byte, Ddr5SpdInfo> ParseSpdInfo(string[] lines)
+        // One decoded dump of the "SMBUS Memory Modules" section: lines [Start, End) and the SPD hub address.
+        private sealed class DimmBlock
         {
-            var result = new Dictionary<byte, Ddr5SpdInfo>();
+            public int Start;
+            public int End;
+            public byte Address;
+        }
+
+        /// <summary>Splits the "SMBUS Memory Modules" section at its "DIMM at I2C address 0x.." lines.</summary>
+        private static List<DimmBlock> FindDimmBlocks(string[] lines)
+        {
+            var blocks = new List<DimmBlock>();
 
             int start = FindSectionContentStart(lines, SmbusModulesSection);
             if (start < 0)
-                return result;
+                return blocks;
 
             int end = FindNextHeadingLine(lines, start);
-
-            int blockStart = -1;
-            byte blockAddress = 0;
+            DimmBlock current = null;
 
             for (int i = start; i <= end; i++)
             {
@@ -455,22 +454,50 @@ namespace ZenStates.Core.Hardware.Mock
                 if (!m.Success && i < end)
                     continue;
 
-                if (blockStart >= 0)
+                if (current != null)
                 {
-                    Ddr5SpdInfo info = ParseSpdInfoBlock(lines, blockStart, i, blockAddress);
-                    if (info != null && !result.ContainsKey(blockAddress))
-                        result.Add(blockAddress, info);
+                    current.End = i;
+                    blocks.Add(current);
                 }
 
                 if (i < end)
                 {
                     // The regex allows at most two hex digits, so this always fits a byte.
                     uint parsedAddress;
-                    blockAddress = TryParseHex(m.Groups["addr"].Value, out parsedAddress) && parsedAddress <= 0xFF
-                        ? (byte)parsedAddress
-                        : (byte)0;
-                    blockStart = i + 1;
+                    current = new DimmBlock
+                    {
+                        Start = i + 1,
+                        Address = TryParseHex(m.Groups["addr"].Value, out parsedAddress) && parsedAddress <= 0xFF
+                            ? (byte)parsedAddress
+                            : (byte)0,
+                    };
                 }
+            }
+
+            return blocks;
+        }
+
+        /// <summary>
+        /// Parses the "SMBUS Memory Modules" section into the same shape
+        /// <see cref="MemoryConfig.SpdInfo"/> carries on a live machine: one entry per DIMM, keyed
+        /// by the SPD hub's SMBus address.
+        /// <para>
+        /// The report holds decoded text rather than the raw 1024-byte SPD image, so the entries are
+        /// partial (<see cref="Ddr5SpdInfo.IsPartial"/>): identity, the headline JEDEC numbers and -
+        /// the point of this - the PMIC block.
+        /// Returns an empty dictionary for reports without the section, i.e. every DDR4 report and
+        /// DDR5 reports written before it existed.
+        /// </para>
+        /// </summary>
+        public static Dictionary<byte, Ddr5SpdInfo> ParseSpdInfo(string[] lines)
+        {
+            var result = new Dictionary<byte, Ddr5SpdInfo>();
+
+            foreach (DimmBlock block in FindDimmBlocks(lines))
+            {
+                Ddr5SpdInfo info = ParseSpdInfoBlock(lines, block.Start, block.End, block.Address);
+                if (info != null && !result.ContainsKey(block.Address))
+                    result.Add(block.Address, info);
             }
 
             return result;
@@ -481,13 +508,13 @@ namespace ZenStates.Core.Hardware.Mock
         /// "-- PMIC (Power Management IC) ---" up to the next sub-heading. Returns null when the
         /// dump has no PMIC block.
         /// </summary>
-        public static Ddr5PmicData ParsePmicData(string[] lines, int start, int end)
+        public static Ddr5Pmic ParsePmicData(string[] lines, int start, int end)
         {
             int pmicStart = -1;
 
             for (int i = start; i < end; i++)
             {
-                if (lines[i].Trim().StartsWith(Ddr5PmicDecoder.PmicDumpHeading, StringComparison.Ordinal))
+                if (lines[i].Trim().StartsWith(Ddr5PmicDumpDecoder.PmicDumpHeading, StringComparison.Ordinal))
                 {
                     pmicStart = i + 1;
                     break;
@@ -504,7 +531,7 @@ namespace ZenStates.Core.Hardware.Mock
             var block = new string[pmicEnd - pmicStart];
             Array.Copy(lines, pmicStart, block, 0, block.Length);
 
-            return Ddr5PmicDecoder.DecodeFromDump(block);
+            return Ddr5PmicDumpDecoder.DecodeFromDump(block);
         }
 
         /// <summary>
@@ -556,13 +583,10 @@ namespace ZenStates.Core.Hardware.Mock
             info.HasThermalSensor = string.Equals(
                 FindBlockValue(lines, start, end, "Thermal Sensor"), "Present", StringComparison.OrdinalIgnoreCase);
 
-            string spdDevice = FindBlockValue(lines, start, end, "SPD Device");
-            info.SpdDevicePresent = IsListed(spdDevice);
-            info.SpdDeviceTypeString = info.SpdDevicePresent ? spdDevice : null;
-
-            string pmic0 = FindBlockValue(lines, start, end, "PMIC0");
-            info.Pmic0Present = IsListed(pmic0);
-            info.Pmic0TypeString = info.Pmic0Present ? pmic0 : null;
+            info.SpdDevice = ParseListedDevice("SPD", FindBlockValue(lines, start, end, "SPD Device"));
+            info.Pmic0 = ParseListedDevice("PMIC0", FindBlockValue(lines, start, end, "PMIC0"));
+            info.Pmic1 = ParseListedDevice("PMIC1", FindBlockValue(lines, start, end, "PMIC1"));
+            info.Pmic2 = ParseListedDevice("PMIC2", FindBlockValue(lines, start, end, "PMIC2"));
 
             info.ModuleManufacturer = FindBlockValue(lines, start, end, "Module Manufacturer");
             info.ModulePartNumber = FindBlockValue(lines, start, end, "Module Part Number");
@@ -574,13 +598,29 @@ namespace ZenStates.Core.Hardware.Mock
             info.IsLpddr5 = info.MemoryFamily != null &&
                             info.MemoryFamily.IndexOf("LPDDR5", StringComparison.OrdinalIgnoreCase) >= 0;
 
-            info.PmicData = ParsePmicData(lines, start, end);
-
-            // The PMIC prints its own I2C address, but fall back to the SPD hub's when it doesn't.
-            if (info.PmicData != null && info.PmicData.IsValid && info.PmicData.SpdHubAddress == 0)
-                info.PmicData.SpdHubAddress = address;
+            Ddr5Pmic pmic = ParsePmicData(lines, start, end);
+            if (pmic != null && pmic.IsValid)
+            {
+                // The PMIC prints its own I2C address, but fall back to the SPD hub's when it doesn't.
+                if (pmic.SpdHubAddress == 0)
+                    pmic.SpdHubAddress = address;
+                info.Pmic = pmic;
+            }
 
             return info;
+        }
+
+        /// <summary>A support device line of the dump: its text, or "Not listed".</summary>
+        private static Ddr5SpdDevice ParseListedDevice(string role, string value)
+        {
+            bool listed = IsListed(value);
+            return new Ddr5SpdDevice
+            {
+                Role = role,
+                Installed = listed,
+                TypeName = listed ? value : null,
+                TypeCode = -1,
+            };
         }
 
         /// <summary>"Not listed" is what the dump prints for a support device the SPD doesn't declare.</summary>
@@ -773,7 +813,12 @@ namespace ZenStates.Core.Hardware.Mock
 
             // Rtt prints its divider after the text: "RZQ/6 (40)".
             Match text = AodTextSuffixRegex.Match(value);
-            return text.Success && TryFindCode(lookup, text.Groups["text"].Value, out code);
+            if (text.Success && TryFindCode(lookup, text.Groups["text"].Value, out code))
+                return true;
+
+            Match suffix = AodRawSuffixRegex.Match(value);
+            return suffix.Success &&
+                   int.TryParse(suffix.Groups["raw"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out code);
         }
 
         private static bool TryParseAodMillivolts(string value, out int millivolts)

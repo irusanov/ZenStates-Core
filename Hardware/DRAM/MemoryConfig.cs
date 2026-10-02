@@ -2,9 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using ZenStates.Core.Drivers;
+using ZenStates.Core.Hardware.DRAM.DDR4.Spd;
+using ZenStates.Core.Hardware.DRAM.DDR4.Thermal;
+using ZenStates.Core.Hardware.DRAM.DDR5.Hub;
 using ZenStates.Core.Hardware.DRAM.DDR5.Pmic;
 using ZenStates.Core.Hardware.DRAM.DDR5.Spd;
 using ZenStates.Core.Hardware.DRAM.DDR5.Thermal;
+using ZenStates.Core.Hardware.Smu.Commands;
 using ZenStates.Core.OHWM;
 
 namespace ZenStates.Core.Hardware.DRAM
@@ -45,11 +49,14 @@ namespace ZenStates.Core.Hardware.DRAM
             KB = 1,
             MB = 2,
             GB = 3,
+            TB = 4,
         }
 
         public MemType Type { get; protected set; } = MemType.UNKNOWN;
 
         public Capacity TotalCapacity { get; protected set; }
+
+        public bool IsExpoProfileActive { get; protected set; } = false;
 
         public List<KeyValuePair<uint, BaseDramTimings>> Timings { get; protected set; }
 
@@ -57,9 +64,8 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public List<MemoryModule> Modules { get; protected set; }
 
-        // SpdInfo is replaced as a whole (copy-on-write) and never mutated after it has been
-        // published, so readers such as RefreshTelemetry can iterate a snapshot safely while
-        // RefreshSpdInfo runs on another thread.
+        // Dictionary membership is copy-on-write. Public accessors copy the dictionary, while
+        // SPD and telemetry objects remain shared so live updates are visible to consumers.
         private volatile Dictionary<byte, Ddr5SpdInfo> spdInfo;
 
         // Serializes writers of spdInfo (RefreshSpdInfo) so concurrent merges don't lose updates.
@@ -67,8 +73,22 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public Dictionary<byte, Ddr5SpdInfo> SpdInfo
         {
-            get { return spdInfo; }
-            protected set { spdInfo = value; }
+            get { return CopySnapshot(spdInfo); }
+            protected set { spdInfo = CopySnapshot(value); }
+        }
+
+        // Same copy-on-write rule as spdInfo, guarded by the same lock.
+        private volatile Dictionary<byte, Ddr4SpdInfo> ddr4Spd;
+
+        /// <summary>
+        /// DDR4 SPD of each module, keyed by the SPD address in module order. Null when the memory is not DDR4.
+        /// The entries read at startup are partial (<see cref="Ddr4SpdInfo.IsPartial"/>); <see cref="RefreshSpdInfo"/>
+        /// reads the whole SPD.
+        /// </summary>
+        public Dictionary<byte, Ddr4SpdInfo> Ddr4Spd
+        {
+            get { return CopySnapshot(ddr4Spd); }
+            protected set { ddr4Spd = CopySnapshot(value); }
         }
 
         private bool IsSpdSupported
@@ -76,7 +96,63 @@ namespace ZenStates.Core.Hardware.DRAM
             get { return Type == MemType.DDR5 || Type == MemType.LPDDR5; }
         }
 
+        /// <summary>
+        /// DDR4 module thermal sensors: one entry per module SPD found, keyed by the SPD address and in the order
+        /// of the modules. The value is null for a module without a sensor. Null when the memory is not DDR4.
+        /// The entries are read at startup and updated in place by <see cref="RefreshTelemetry"/>.
+        /// </summary>
+        private volatile Dictionary<byte, Ddr4ThermalData> ddr4ThermalSensors;
+
+        public Dictionary<byte, Ddr4ThermalData> Ddr4ThermalSensors
+        {
+            get { return CopySnapshot(ddr4ThermalSensors); }
+            protected set { ddr4ThermalSensors = CopySnapshot(value); }
+        }
+
+        private static Dictionary<byte, T> CopySnapshot<T>(Dictionary<byte, T> source)
+        {
+            return source == null ? null : new Dictionary<byte, T>(source, source.Comparer);
+        }
+
+        /// <summary>Whether any module reports live data (DDR5 SPD hub and PMIC, or a DDR4 thermal sensor).</summary>
+        public bool HasDimmTelemetry
+        {
+            get
+            {
+                Dictionary<byte, Ddr5SpdInfo> spd = spdInfo;
+                if (IsSpdSupported && spd != null)
+                {
+                    foreach (Ddr5SpdInfo info in spd.Values)
+                    {
+                        if (HasDdr5Telemetry(info))
+                            return true;
+                    }
+                }
+
+                Dictionary<byte, Ddr4ThermalData> ddr4td = ddr4ThermalSensors;
+
+                if (ddr4td != null && Type == MemType.DDR4)
+                {
+                    foreach (Ddr4ThermalData td in ddr4td.Values)
+                    {
+                        if (td != null && td.IsValid)
+                            return true;
+                    }
+                }
+
+                return false;
+            }
+        }
+
         private long LastTelemetryRefreshTick;
+        private readonly object telemetryThrottleLock = new object();
+
+        private static bool HasDdr5Telemetry(Ddr5SpdInfo info)
+        {
+            return info != null && info.IsValid && !info.FromApob &&
+                ((info.Pmic != null && info.Pmic.IsValid) ||
+                 (info.ThermalData != null && info.ThermalData.IsValid && info.ThermalData.TempSensorEnabled));
+        }
 
         public MemoryConfig(Cpu cpuInstance)
         {
@@ -115,29 +191,97 @@ namespace ZenStates.Core.Hardware.DRAM
                 Mutexes.ReleasePciBus();
             }
 
+            if (Type == MemType.DDR4)
+            {
+                // Module thermal sensors (TSOD); read-only, modules without one are simply listed without data.
+                Dictionary<byte, Ddr4ThermalData> sensors = Ddr4ThermalSensor.ReadAll(smbusDriver);
+                Ddr4ThermalSensors = sensors;
+
+                // Only the SPD bytes needed at startup; the SPD window reads the rest
+                Dictionary<byte, Ddr4SpdInfo> ddr4Info = Ddr4SpdReader.ReadInitInfoAll();
+                LinkDdr4ThermalSensors(ddr4Info);
+                Ddr4Spd = ddr4Info;
+
+                var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (Ddr4SpdInfo entry in ddr4Info.Values)
+                {
+                    if (entry != null && entry.IsValid)
+                        AddModuleManufacturer(names, entry.ModulePartNumber, entry.ModuleManufacturer);
+                }
+                UpdateModuleManufacturers(names);
+                return;
+            }
+
             if (Type != MemType.DDR5 && Type != MemType.LPDDR5)
                 return;
 
             // Only read partial info needed for initialization as reading whole SPD data is expensive
-            SpdInfo = Ddr5SpdReader.ReadDdr5SpdInitInfoAll();
+            Dictionary<byte, Ddr5SpdInfo> ddr5Info = Ddr5SpdReader.ReadInitInfoAll();
+            SpdInfo = ddr5Info;
 
+            var ddr5Names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var spdEntry in ddr5Info.Values)
+            {
+                if (spdEntry != null && spdEntry.IsValid)
+                    AddModuleManufacturer(ddr5Names, spdEntry.ModulePartNumber, spdEntry.ModuleManufacturer);
+            }
+            UpdateModuleManufacturers(ddr5Names);
+
+            // Should not need a try/catch here, but just in case
+            // The command is largely untested and may not return a valid result for all platforms
             try
             {
-                int moduleIndex = 0;
-                foreach (var spdEntry in SpdInfo.Values)
+                using (var cmd = new GetEXPOProfileActive(cpu.smu))
                 {
-                    if (spdEntry == null)
+                    cmd.Execute();
+                    IsExpoProfileActive = cmd.IsEXPOProfileActive;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"MemoryConfig: Failed to get EXPO profile status: {ex.Message}");
+            }
+        }
+
+        // Sparse SPD reads cannot be matched by position. Only unambiguous part numbers update SMBIOS names.
+        private static void AddModuleManufacturer(Dictionary<string, string> names, string partNumber, string name)
+        {
+            partNumber = SafeTrim(partNumber);
+            name = SafeTrim(name);
+            if (partNumber.Length == 0 || name.Length == 0)
+                return;
+
+            if (names.TryGetValue(partNumber, out string previous))
+            {
+                if (previous == null || string.Equals(previous, name, StringComparison.OrdinalIgnoreCase))
+                    return;
+                bool previousUnknown = previous.StartsWith("Unknown", StringComparison.OrdinalIgnoreCase);
+                bool currentUnknown = name.StartsWith("Unknown", StringComparison.OrdinalIgnoreCase);
+                if (previousUnknown && !currentUnknown)
+                    names[partNumber] = name;
+                else if (previousUnknown == currentUnknown)
+                    names[partNumber] = null;
+                return;
+            }
+
+            names.Add(partNumber, name);
+        }
+
+        private void UpdateModuleManufacturers(Dictionary<string, string> spdNames)
+        {
+            try
+            {
+                foreach (MemoryModule module in Modules)
+                {
+                    if (module == null || !spdNames.TryGetValue(SafeTrim(module.PartNumber), out string name) ||
+                        string.IsNullOrEmpty(name))
                         continue;
 
-                    if (moduleIndex < Modules.Count)
+                    if (string.IsNullOrEmpty(module.Manufacturer) ||
+                        module.Manufacturer.StartsWith("Unknown", StringComparison.OrdinalIgnoreCase) ||
+                        !name.StartsWith("Unknown", StringComparison.OrdinalIgnoreCase))
                     {
-                        if (string.IsNullOrEmpty(Modules[moduleIndex].Manufacturer) ||
-                            Modules[moduleIndex].Manufacturer.StartsWith("Unknown") ||
-                            !spdEntry.ModuleManufacturer.StartsWith("Unknown"))
-                        {
-                            Modules[moduleIndex].Manufacturer = spdEntry.ModuleManufacturer;
-                        }
-                        moduleIndex++;
+                        module.Manufacturer = name;
                     }
                 }
             }
@@ -145,11 +289,31 @@ namespace ZenStates.Core.Hardware.DRAM
             {
                 Debug.WriteLine($"MemoryConfig: Failed to update manufacturer info from SPD: {ex.Message}");
             }
+        }
 
-            //Ddr5SpdReader.DumpDdr5SpdToFiles(Directory.GetCurrentDirectory());
+        // Attaches the thermal sensor of each module (found at startup) to its SPD entry.
+        private void LinkDdr4ThermalSensors(Dictionary<byte, Ddr4SpdInfo> spd)
+        {
+            Dictionary<byte, Ddr4ThermalData> sensors = ddr4ThermalSensors;
+            if (spd == null || sensors == null)
+                return;
 
-            // Populate PMIC data for telemetry
-            //RefreshTelemetry();
+            foreach (KeyValuePair<byte, Ddr4SpdInfo> entry in spd)
+            {
+                if (entry.Value != null && sensors.TryGetValue(entry.Key, out Ddr4ThermalData sensor))
+                    entry.Value.ThermalData = sensor;
+            }
+        }
+
+        /// <summary>Reads and decodes the whole SPD of all DDR4 modules (not cached; see <see cref="RefreshSpdInfo"/>).</summary>
+        public Dictionary<byte, Ddr4SpdInfo> ReadAndDecodeAllDdr4()
+        {
+            if (Type != MemType.DDR4)
+                return null;
+
+            Dictionary<byte, Ddr4SpdInfo> info = Ddr4SpdReader.ReadAll();
+            LinkDdr4ThermalSensors(info);
+            return info;
         }
 
         internal static MemType SMBiosDramTypeToMemType(MemoryType type)
@@ -199,41 +363,76 @@ namespace ZenStates.Core.Hardware.DRAM
             }
         }
 
+        /// <summary>
+        /// Uses the SPD copies of the APOB when no module SPD could be read (soldered LPDDR5 has no SPD device). Called
+        /// once the APOB is read; does nothing for DDR4 or when SPDs were read from the bus.
+        /// </summary>
+        internal void UseApobSpd(IList<Hardware.Apob.ApobDimmSpd> slots)
+        {
+            if (!IsSpdSupported || slots == null || slots.Count == 0)
+                return;
+
+            lock (spdInfoLock)
+            {
+                Dictionary<byte, Ddr5SpdInfo> current = spdInfo;
+                if (current != null && current.Count > 0)
+                    return;
+
+                Dictionary<byte, Ddr5SpdInfo> fromApob = Ddr5SpdReader.DecodeApobSpd(slots);
+                if (fromApob.Count > 0)
+                    spdInfo = fromApob;
+            }
+        }
+
         public Dictionary<byte, Ddr5SpdInfo> ReadAndDecodeAll()
         {
             if (!IsSpdSupported)
                 return null;
 
-            return Ddr5SpdDecoder.ReadAndDecodeAll(smbusDriver);
+            return Ddr5SpdReader.ReadAll();
         }
 
         public bool RefreshSpdInfo()
         {
+            if (Type == MemType.DDR4)
+                return RefreshDdr4SpdInfo();
+
             if (!IsSpdSupported)
                 return false;
+
+            // @TODO: Extract common spd properties in base class
+            Dictionary<byte, Ddr5SpdInfo> cached = spdInfo;
+            if (IsDdr5SpdCacheComplete(cached))
+                return true;
 
             try
             {
                 Dictionary<byte, Ddr5SpdInfo> info = ReadAndDecodeAll();
-                if (info == null)
+                if (info == null || info.Count == 0)
                     return false;
 
                 lock (spdInfoLock)
                 {
                     // Build a new dictionary and publish it with a single reference swap, so
                     // readers iterating the previous snapshot never see it mutated.
-                    Dictionary<byte, Ddr5SpdInfo> current = SpdInfo;
+                    Dictionary<byte, Ddr5SpdInfo> current = spdInfo;
                     Dictionary<byte, Ddr5SpdInfo> merged = current != null
                         ? new Dictionary<byte, Ddr5SpdInfo>(current)
                         : new Dictionary<byte, Ddr5SpdInfo>();
 
+                    bool updated = false;
                     foreach (var entry in info)
                     {
-                        if (entry.Value != null)
+                        if (entry.Value != null && entry.Value.IsValid)
+                        {
                             merged[entry.Key] = entry.Value;
+                            updated = true;
+                        }
                     }
 
-                    SpdInfo = merged;
+                    if (!updated)
+                        return false;
+                    spdInfo = merged;
                 }
                 return true;
             }
@@ -244,72 +443,131 @@ namespace ZenStates.Core.Hardware.DRAM
             }
         }
 
+        private static bool IsDdr5SpdCacheComplete(Dictionary<byte, Ddr5SpdInfo> cached)
+        {
+            if (cached == null || cached.Count == 0)
+                return false;
+            foreach (Ddr5SpdInfo entry in cached.Values)
+            {
+                if (entry == null || entry.IsPartial || !entry.IsValid)
+                    return false;
+            }
+            return true;
+        }
+
+        private bool RefreshDdr4SpdInfo()
+        {
+            Dictionary<byte, Ddr4SpdInfo> cached = ddr4Spd;
+            if (cached != null && cached.Count > 0)
+            {
+                bool anyPartial = false;
+                foreach (Ddr4SpdInfo entry in cached.Values)
+                {
+                    if (entry == null || entry.IsPartial || !entry.IsValid)
+                    {
+                        anyPartial = true;
+                        break;
+                    }
+                }
+                if (!anyPartial)
+                    return true;
+            }
+
+            try
+            {
+                Dictionary<byte, Ddr4SpdInfo> info = ReadAndDecodeAllDdr4();
+                if (info == null || info.Count == 0)
+                    return false;
+
+                lock (spdInfoLock)
+                {
+                    Dictionary<byte, Ddr4SpdInfo> current = ddr4Spd;
+                    Dictionary<byte, Ddr4SpdInfo> merged = current != null
+                        ? new Dictionary<byte, Ddr4SpdInfo>(current)
+                        : new Dictionary<byte, Ddr4SpdInfo>();
+
+                    foreach (var entry in info)
+                    {
+                        // Keep what was read at startup if this read came back worse
+                        if (entry.Value != null && entry.Value.IsValid)
+                            merged[entry.Key] = entry.Value;
+                    }
+
+                    ddr4Spd = merged;
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"RefreshDdr4SpdInfo: {ex.Message}");
+                return false;
+            }
+        }
+
         public bool RefreshTelemetry(int uiRefreshIntervalMs = 2000)
         {
-            if (!IsSpdSupported)
-                return false;
+            // Work on snapshots; RefreshSpdInfo may swap SpdInfo concurrently.
+            Dictionary<byte, Ddr5SpdInfo> snapshot = null;
+            Dictionary<byte, Ddr4ThermalData> ddr4Sensors = null;
 
-            // Work on a snapshot; RefreshSpdInfo may swap SpdInfo concurrently.
-            Dictionary<byte, Ddr5SpdInfo> snapshot = SpdInfo;
-            if (snapshot == null || snapshot.Count == 0)
-                return false;
+            if (Type == MemType.DDR4)
+            {
+                ddr4Sensors = ddr4ThermalSensors;
+                if (ddr4Sensors == null || ddr4Sensors.Count == 0)
+                    return false;
+            }
+            else
+            {
+                if (!IsSpdSupported)
+                    return false;
+
+                snapshot = spdInfo;
+                if (snapshot == null || snapshot.Count == 0)
+                    return false;
+                bool hasTelemetry = false;
+                foreach (Ddr5SpdInfo info in snapshot.Values)
+                {
+                    if (HasDdr5Telemetry(info))
+                    {
+                        hasTelemetry = true;
+                        break;
+                    }
+                }
+                if (!hasTelemetry)
+                    return false;
+            }
 
             // Mask off the sign bit to handle TickCount wrap-around safely.
             long now = Environment.TickCount & int.MaxValue;
-            long elapsed = now - LastTelemetryRefreshTick;
+            long previousTick;
 
-            if (elapsed >= 0 && elapsed < uiRefreshIntervalMs)
-                return false;
+            // Reserve this refresh before any I/O: a second caller that arrives while this one waits for
+            // or holds the SMBus sees the new tick and skips, instead of queueing the same reads again.
+            lock (telemetryThrottleLock)
+            {
+                previousTick = LastTelemetryRefreshTick;
+                long elapsed = now - previousTick;
+
+                if (elapsed >= 0 && elapsed < uiRefreshIntervalMs)
+                    return false;
+
+                LastTelemetryRefreshTick = now;
+            }
 
             bool updated = false;
 
             if (!Mutexes.WaitSmbus(5000))
             {
                 Debug.WriteLine("RefreshTelemetry: Timeout waiting for SMBus bus mutex.");
+                ReleaseTelemetryReservation(now, previousTick);
                 return false;
             }
 
             try
             {
-                smbusDriver.ChangePortNoLock(-1, out int savedPort);
-
-                try
-                {
-                    if (Ddr5SpdReader.SelectHubPortNoLock(false))
-                    {
-                        foreach (var info in snapshot)
-                        {
-                            Ddr5PmicData pd = info.Value?.PmicData;
-                            if (pd == null || !pd.IsValid)
-                                continue;
-
-                            // Set points first: they can be changed at runtime, and the voltage mode is decided
-                            // from them together with the measured rails.
-                            Ddr5PmicReader.ReadVoltageSettingsNoLock(smbusDriver, pd.I2cAddress, pd);
-                            Ddr5PmicReader.ReadAllAdcVoltagesNoLock(smbusDriver, pd.I2cAddress, pd);
-                            Ddr5PmicReader.ReadPmicTemperatureNoLock(smbusDriver, pd.I2cAddress, pd);
-                            Ddr5PmicReader.ReadPmicTelemetryNoLock(smbusDriver, pd.I2cAddress, pd);
-
-                            Ddr5ThermalData td = info.Value?.ThermalData;
-                            if (td != null && td.IsValid && td.TempSensorEnabled)
-                            {
-                                // Merge updated temperature and status into the existing thermal data
-                                // instead of replacing the whole object, preserving other cached fields.
-                                Ddr5ThermalSensor.RefreshTemperatureAndStatusNoLock(smbusDriver, pd.SpdHubAddress, td);
-                            }
-
-                            updated = true;
-                        }
-                    }
-                }
-                finally
-                {
-                    if (savedPort >= 0)
-                        smbusDriver.ChangePortNoLock(savedPort);
-                }
-
-                if (updated)
-                    LastTelemetryRefreshTick = now;
+                updated = ddr4Sensors != null
+                    ? Ddr4ThermalSensor.RefreshAllNoLock(smbusDriver, ddr4Sensors)
+                    : RefreshDdr5TelemetryNoLock(snapshot);
             }
             catch (Exception ex)
             {
@@ -320,19 +578,75 @@ namespace ZenStates.Core.Hardware.DRAM
                 Mutexes.ReleaseSmbus();
             }
 
+            // Nothing was read: let the next call try again right away, as before.
+            if (!updated)
+                ReleaseTelemetryReservation(now, previousTick);
+
             return updated;
+        }
+
+        // Reads the PMIC and SPD hub temperature of every DDR5 module; the SMBus mutex must be held.
+        private bool RefreshDdr5TelemetryNoLock(Dictionary<byte, Ddr5SpdInfo> snapshot)
+        {
+            bool updated = false;
+
+            if (smbusDriver == null || !smbusDriver.ChangePortNoLock(-1, out int savedPort))
+                return false;
+
+            try
+            {
+                if (!Spd5118Hub.SelectHubPortNoLock(smbusDriver, false))
+                    return false;
+
+                foreach (var info in snapshot)
+                {
+                    if (!HasDdr5Telemetry(info.Value))
+                        continue;
+
+                    Ddr5Pmic pmic = info.Value?.Pmic;
+                    if (pmic != null && pmic.IsValid && pmic.RefreshNoLock(smbusDriver))
+                        updated = true;
+
+                    // Updated in place, so the limits read with the SPD are kept. The key is the hub address.
+                    Ddr5ThermalData td = info.Value?.ThermalData;
+                    if (td != null && td.IsValid && td.TempSensorEnabled &&
+                        Ddr5ThermalSensor.RefreshTemperatureAndStatusNoLock(smbusDriver, info.Key, td))
+                        updated = true;
+                }
+            }
+            finally
+            {
+                if (savedPort >= 0)
+                    smbusDriver.ChangePortNoLock(savedPort);
+            }
+
+            return updated;
+        }
+
+        // Undoes a reservation that read nothing, unless a later refresh has reserved since.
+        private void ReleaseTelemetryReservation(long reservedTick, long previousTick)
+        {
+            lock (telemetryThrottleLock)
+            {
+                if (LastTelemetryRefreshTick == reservedTick)
+                    LastTelemetryRefreshTick = previousTick;
+            }
         }
 
         private void ReadModulesInfo()
         {
-            foreach (var module in SMBiosSingleton.Instance.MemoryDevices)
+            MemoryDevice[] devices = SMBiosSingleton.Instance.MemoryDevices;
+            if (devices == null)
+                return;
+
+            foreach (var module in devices)
             {
-                if (module.Size > 0)
+                if (module != null && module.Size > 0)
                 {
                     ulong sizeInBytes = (ulong)module.Size * 1024 * 1024;
                     var type = SMBiosDramTypeToMemType(module.Type);
-                    Modules.Add(new MemoryModule(module.PartNumber.Trim(), module.BankLocator.Trim(),
-                        module.ManufacturerName.Trim(), module.DeviceLocator.Trim(),
+                    Modules.Add(new MemoryModule(SafeTrim(module.PartNumber), SafeTrim(module.BankLocator),
+                        SafeTrim(module.ManufacturerName), SafeTrim(module.DeviceLocator),
                         sizeInBytes, module.Speed, type));
                 }
             }
@@ -349,12 +663,29 @@ namespace ZenStates.Core.Hardware.DRAM
             }
         }
 
+        private static string SafeTrim(string value)
+        {
+            return value == null ? string.Empty : value.Trim();
+        }
+
         // TODO: Use rank from spd with priority over register value
-        private MemRank GetRank(uint address)
+        /// <param name="address">DDR5: the DIMM's first address mask register.</param>
+        /// <param name="channelOffset">The UMC offset of the channel.</param>
+        /// <param name="dimm">The DIMM in the channel, 0 or 1.</param>
+        private MemRank GetRank(uint address, uint channelOffset, int dimm)
         {
             if (Type == MemType.DDR4 || Type == MemType.LPDDR4)
             {
-                return (MemRank)Utils.GetBits(cpu.ReadDwordNoLock(address), 0, 1);
+                // The ranks are the chip selects in use: DIMM n has CS 2n and 2n+1, whose base address registers
+                // (0x50000 + 4 x CS) have bit 0 set when enabled (Linux amd64_edac). Bit 0 of DIMM_CFG, read before, is
+                // OnDimmMirror (see DimmConfiguration), which only usually goes with a second rank.
+                int ranks = 0;
+                for (int cs = 2 * dimm; cs <= 2 * dimm + 1; cs++)
+                {
+                    if ((cpu.ReadDwordNoLock(channelOffset | (uint)(0x50000 + 4 * cs)) & 1) != 0)
+                        ranks++;
+                }
+                return ranks > 1 ? MemRank.DR : MemRank.SR;
             }
             if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
             {
@@ -369,7 +700,7 @@ namespace ZenStates.Core.Hardware.DRAM
             return MemRank.SR;
         }
 
-        private DramAddressConfig GetAddressConfig(uint address)
+        private DramAddressConfig GetAddressConfig(uint address, uint channelOffset, int dimm)
         {
             var value = cpu.ReadDwordNoLock(address);
             var config = new DramAddressConfig();
@@ -380,7 +711,7 @@ namespace ZenStates.Core.Hardware.DRAM
                 config.NumRow = 10 + Utils.GetBits(value, 8, 4);
                 config.NumRM = Utils.GetBits(value, 4, 3);
                 config.NumBankGroups = Utils.GetBits(value, 2, 2);
-                config.Rank = GetRank(address - 0x20);
+                config.Rank = GetRank(address - 0x20, channelOffset, dimm);
             }
             return config;
         }
@@ -423,8 +754,8 @@ namespace ZenStates.Core.Hardware.DRAM
                             MemoryModule module = Modules[dimmIndex];
                             module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}1";
                             module.DctOffset = offset;
-                            module.Rank = GetRank(address);
-                            module.AddressConfig = GetAddressConfig(offset | 0x50040);
+                            module.Rank = GetRank(address, offset, 0);
+                            module.AddressConfig = GetAddressConfig(offset | 0x50040, offset, 0);
                             dimmIndex += 1;
                         }
 
@@ -434,8 +765,8 @@ namespace ZenStates.Core.Hardware.DRAM
                             MemoryModule module = Modules[dimmIndex];
                             module.Slot = $"{Convert.ToChar(i / ChannelsPerDimm + 65)}2";
                             module.DctOffset = offset;
-                            module.Rank = GetRank(address);
-                            module.AddressConfig = GetAddressConfig(offset | 0x50048);
+                            module.Rank = GetRank(address, offset, 1);
+                            module.AddressConfig = GetAddressConfig(offset | 0x50048, offset, 1);
                             dimmIndex += 1;
                         }
                     }

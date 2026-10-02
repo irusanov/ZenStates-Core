@@ -8,8 +8,6 @@ namespace ZenStates.Core.Hardware.Apob
         {
         }
 
-        public ApobData Clone() => new ApobData(RawBytes, Offset, Layout);
-
         private byte? RttNomRdRaw { get { return ReadRawValue(Layout.Offsets.RttNomRd); } }
         private byte? RttNomWrRaw { get { return ReadRawValue(Layout.Offsets.RttNomWr); } }
         private byte? RttWrRaw { get { return ReadRawValue(Layout.Offsets.RttWr); } }
@@ -49,6 +47,17 @@ namespace ZenStates.Core.Hardware.Apob
         private byte? ProcDqOdtRaw { get { return ReadRawValue(Layout.Offsets.ProcDqOdt); } }
         private byte? ProcDqsOdtRaw { get { return ReadRawValue(Layout.Offsets.ProcDqsOdt); } }
         private byte? ProcDataDsApuRaw { get { return ReadRawValue(Layout.Offsets.ProcDataDsApu); } }
+
+        private byte? PhyVrefRaw { get { return ReadRawValue(Layout.Offsets.PhyVref); } }
+        private byte? DramVrefDqRaw { get { return ReadRawValue(Layout.Offsets.DramVrefDq); } }
+        private byte? DramVrefCaRaw { get { return ReadRawValue(Layout.Offsets.DramVrefCa); } }
+        private byte? DramVrefCsRaw { get { return ReadRawValue(Layout.Offsets.DramVrefCs); } }
+
+        /// <summary>
+        /// The memory is LPDDR5, the DRAM Vrefs use the LPDDR5 mode register encoding. Not public: the APOB window
+        /// shows the public properties as rows.
+        /// </summary>
+        internal bool IsLpddr5 { get; set; }
 
         public Rtt RttNomRd { get { return RttNomRdRaw.HasValue ? new Rtt(RttNomRdRaw.Value) : null; } }
         public Rtt RttNomWr { get { return RttNomWrRaw.HasValue ? new Rtt(RttNomWrRaw.Value) : null; } }
@@ -90,6 +99,14 @@ namespace ZenStates.Core.Hardware.Apob
         public ProcOdtImpedance ProcDqOdt { get { return ProcDqOdtRaw.HasValue ? new ProcOdtImpedance(ProcDqOdtRaw.Value) : null; } }
         public ProcOdtImpedance ProcDqsOdt { get { return ProcDqsOdtRaw.HasValue ? new ProcOdtImpedance(ProcDqsOdtRaw.Value) : null; } }
         public CadBusDrvStren ProcDataDsApu { get { return ProcDataDsApuRaw.HasValue ? new CadBusDrvStren(ProcDataDsApuRaw.Value) : null; } }
+
+        /// <summary>The PHY receiver (read) Vref the PMU starts training with.</summary>
+        public PhyVref PhyVref { get { return PhyVrefRaw.HasValue ? new PhyVref(PhyVrefRaw.Value) : null; } }
+
+        /// <summary>The DRAM VrefDQ / VrefCA / VrefCS the PMU starts training with (mode register code).</summary>
+        public DramVref DramVrefDq { get { return DramVrefDqRaw.HasValue ? new DramVref(DramVrefDqRaw.Value, IsLpddr5) : null; } }
+        public DramVref DramVrefCa { get { return DramVrefCaRaw.HasValue ? new DramVref(DramVrefCaRaw.Value, IsLpddr5) : null; } }
+        public DramVref DramVrefCs { get { return DramVrefCsRaw.HasValue ? new DramVref(DramVrefCsRaw.Value, IsLpddr5) : null; } }
 
         public string GetReport()
         {
@@ -135,6 +152,11 @@ namespace ZenStates.Core.Hardware.Apob
             report.AppendEncodedValueWithHex("ProcDqOdt", ProcDqOdt);
             report.AppendEncodedValueWithHex("ProcDqsOdt", ProcDqsOdt);
             report.AppendEncodedValueWithHex("ProcDataDsApu", ProcDataDsApu);
+
+            report.AppendEncodedValueWithHex("PhyVref", PhyVref);
+            report.AppendEncodedValueWithHex("DramVrefDq", DramVrefDq);
+            report.AppendEncodedValueWithHex("DramVrefCa", DramVrefCa);
+            report.AppendEncodedValueWithHex("DramVrefCs", DramVrefCs);
 
             report.AppendLine();
             report.AppendLine("RawBytes:");

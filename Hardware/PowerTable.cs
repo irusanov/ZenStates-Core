@@ -24,6 +24,8 @@ namespace ZenStates.Core
         private const int RETRY_LOCK_TIMEOUT_MS = 500;
         private const int RETRY_BACKOFF_MS = 20;
 
+        private readonly object _refreshLock = new object();
+
         private static PowerTable _instance;
         public static PowerTable Instance => _instance;
 
@@ -757,38 +759,41 @@ namespace ZenStates.Core
 
         public SMU.Status Refresh()
         {
-            if (DramBaseAddress == 0 && !TryLateResolve())
-                return SMU.Status.FAILED;
-
-            for (int attempt = 0; attempt < MAX_REFRESH_RETRIES; attempt++)
+            lock (_refreshLock)
             {
-                int lockTimeoutMs = 5000;
+                if (DramBaseAddress == 0 && !TryLateResolve())
+                    return SMU.Status.FAILED;
 
-                if (attempt > 0)
+                for (int attempt = 0; attempt < MAX_REFRESH_RETRIES; attempt++)
                 {
-                    System.Threading.Thread.Sleep(RETRY_BACKOFF_MS * attempt);
-                    lockTimeoutMs = RETRY_LOCK_TIMEOUT_MS;
+                    int lockTimeoutMs = 5000;
+
+                    if (attempt > 0)
+                    {
+                        System.Threading.Thread.Sleep(RETRY_BACKOFF_MS * attempt);
+                        lockTimeoutMs = RETRY_LOCK_TIMEOUT_MS;
+                    }
+
+                    try
+                    {
+                        if (TryRefreshOnce(lockTimeoutMs))
+                            return SMU.Status.OK;
+                    }
+                    catch (TimeoutException ex)
+                    {
+                        // Another process holds the bus; retrying right away won't help.
+                        // The next periodic refresh will try again.
+                        Debug.WriteLine($"Refresh skipped: {ex.Message}");
+                        return SMU.Status.TIMEOUT_MUTEX_LOCK;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Refresh attempt failed: {ex.Message}");
+                    }
                 }
 
-                try
-                {
-                    if (TryRefreshOnce(lockTimeoutMs))
-                        return SMU.Status.OK;
-                }
-                catch (TimeoutException ex)
-                {
-                    // Another process holds the bus; retrying right away won't help.
-                    // The next periodic refresh will try again.
-                    Debug.WriteLine($"Refresh skipped: {ex.Message}");
-                    return SMU.Status.TIMEOUT_MUTEX_LOCK;
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Refresh attempt failed: {ex.Message}");
-                }
+                return SMU.Status.FAILED;
             }
-
-            return SMU.Status.FAILED;
         }
 
         private bool TryRefreshOnce(int lockTimeoutMs)

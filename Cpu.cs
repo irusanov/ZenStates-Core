@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Text;
 
 #if !NET20
 using System.Globalization;
@@ -149,6 +152,14 @@ namespace ZenStates.Core
             public uint ccdsPresent;
             public uint ccdsDown;
             public uint[] performanceOfCore;
+            /// <summary>Cores of each CCX (L3 domain) in APIC ID order; on Strix Point they differ in size. Null when unknown.</summary>
+            public uint[] ccxCoreCounts;
+            /// <summary>Core fuse of the first CCD (or die), the bit position of its mask and the raw value per CCD as read.</summary>
+            public uint coreFuseAddress;
+            public int coreFuseShift;
+            public uint[] coreFuseValues;
+            /// <summary>Why a fuse reading was not used (it disagreed with CPUID or could not be read); null when all was used.</summary>
+            public string fuseNote;
         }
 
         public struct CPUInfo
@@ -181,34 +192,197 @@ namespace ZenStates.Core
         public CoreOptions Options { get; }
 
         public IODriver.LibStatus Status { get; }
+
+        /// <summary>
+        /// The non-fatal initialization error. When several subsystems failed, an exception whose message lists all
+        /// of them (see <see cref="InitErrors"/>) and whose InnerException is the first failure.
+        /// </summary>
         public Exception LastError { get; }
 
-        /**
-         * Core fuse
-         * Summit: 0x5D25C
-         * Colfax: 0x5D25C
-         * Pinnacle: 0x5D25C
-         * Threadripper: 0x5D25C
-         * 
-         * Matisse: 0x30081A38
-         * CastlePeak: 0x30081A38
-         * Chagall: 0x30081D98
-         * Vermeer: 0x30081D98
-         * Raphael: 0x30081CD0
-         * ShimadaPeak: 0x3820094 ?
-         * 
-         * Raven:  0x5D254
-         * Raven2: 0x5D254
-         * Picasso: 0x5D254
-         * Cezanne: 0x5D449
-         * Renoir: 0x5D3E8
-         * Rembrandt: 0x5D4DC
-         * Phoenix: 0x5D528
-         * StrixPoint: 0x3820AB0
-         * KrackanPoint: 0x3820AB0
-         */
+        /// <summary>Every non-fatal error recorded during initialization, in the order they occurred.</summary>
+        public ReadOnlyCollection<CpuInitError> InitErrors { get; }
 
-        // TODO: Refactor topology retrieval and fix for known fuse addresses
+        public sealed class CpuInitError
+        {
+            public CpuInitError(string subsystem, Exception exception)
+            {
+                Subsystem = subsystem;
+                Exception = exception;
+            }
+
+            public string Subsystem { get; }
+            public Exception Exception { get; }
+
+            public override string ToString()
+            {
+                return string.Format("{0}: {1}", Subsystem, Exception != null ? Exception.Message : string.Empty);
+            }
+        }
+
+        /// <summary>
+        /// Where a family keeps its CCD and core fuses. Values read from debug reports and checked against the APOB core
+        /// map of the same machine are marked as verified; the others are kept from earlier versions.
+        /// </summary>
+        private sealed class TopologyFuses
+        {
+            /// <summary>Several CCDs on the package; their presence is read from the CCD fuses.</summary>
+            public bool Chiplet;
+            /// <summary>Zen / Zen+: one die per node (Threadripper and EPYC have several), each counted as a CCD.</summary>
+            public bool DiePerNode;
+            /// <summary>CCD fuses: present [23:22] (CCD0/1) and down [31:30], plus CCD2~7 down in [5:0] of the second.</summary>
+            public uint CcdFuse1;
+            public uint CcdFuse2;
+            /// <summary>Packages with up to 8 CCDs (Zen 2/3): the enabled CCDs are the ones not marked down.</summary>
+            public bool CcdMapFromDown;
+            /// <summary>Core disable fuse of the first CCD (or the die); 0 when not known.</summary>
+            public uint CoreFuse;
+            /// <summary>Bit position of the core disable mask in <see cref="CoreFuse"/>.</summary>
+            public int CoreFuseShift;
+            /// <summary>Address step between the core fuses of consecutive CCDs; 0 for a single die.</summary>
+            public uint CoreFuseCcdStride;
+            public uint CcxPerCcd;
+            public uint CoreSlotsPerCcx;
+        }
+
+        private const uint CCD_FUSE_ZEN2 = 0x5D218;          // Matisse 3600 / Vermeer 5600X: 0x80400000, 0x3F
+        private const uint CCD_FUSE_ZEN4 = 0x5D218 + 0x1A4;  // 0x5D3BC; Raphael 7950X: 0x00E97051, Granite Ridge 9600X: 0x024BEBA3
+        private const uint CCD_CORE_FUSE_STRIDE = 1u << 25;
+
+        private static TopologyFuses GetTopologyFuses(Family family, CodeName codeName)
+        {
+            switch (codeName)
+            {
+                // Zen / Zen+ desktop and HEDT: one die per node, 2 CCX of 4 cores. 0x5D25C [7:0], CCX0 in [3:0]
+                // (verified: 1800X 0x100, 1600 AF 0x188 = cores 3 and 7 down)
+                case CodeName.SummitRidge:
+                case CodeName.PinnacleRidge:
+                case CodeName.Whitehaven:
+                case CodeName.Colfax:
+                case CodeName.Naples:
+                    return new TopologyFuses { DiePerNode = true, CoreFuse = 0x5D25C, CcxPerCcd = 2, CoreSlotsPerCcx = 4 };
+
+                // Zen 2 chiplets: 2 CCX of 4 per CCD, core fuse per CCD
+                case CodeName.Matisse:
+                case CodeName.CastlePeak:
+                case CodeName.Rome:
+                    return new TopologyFuses
+                    {
+                        Chiplet = true, CcdFuse1 = CCD_FUSE_ZEN2, CcdFuse2 = CCD_FUSE_ZEN2 + 4, CcdMapFromDown = true,
+                        CoreFuse = 0x30081A38, CoreFuseCcdStride = CCD_CORE_FUSE_STRIDE, CcxPerCcd = 2, CoreSlotsPerCcx = 4,
+                    };
+
+                // Zen 3 chiplets: 1 CCX of 8 per CCD
+                case CodeName.Vermeer:
+                case CodeName.Chagall:
+                case CodeName.Milan:
+                    return new TopologyFuses
+                    {
+                        Chiplet = true, CcdFuse1 = CCD_FUSE_ZEN2, CcdFuse2 = CCD_FUSE_ZEN2 + 4, CcdMapFromDown = true,
+                        CoreFuse = 0x30081D98, CoreFuseCcdStride = CCD_CORE_FUSE_STRIDE, CcxPerCcd = 1, CoreSlotsPerCcx = 8,
+                    };
+
+                // Zen 4 / Zen 5 desktop: up to 2 CCDs
+                case CodeName.Raphael:
+                case CodeName.DragonRange:
+                    return new TopologyFuses
+                    {
+                        Chiplet = true, CcdFuse1 = CCD_FUSE_ZEN4, CcdFuse2 = CCD_FUSE_ZEN4 + 4,
+                        CoreFuse = 0x30081CD0, CoreFuseCcdStride = CCD_CORE_FUSE_STRIDE, CcxPerCcd = 1, CoreSlotsPerCcx = 8,
+                    };
+                case CodeName.GraniteRidge:
+                    return new TopologyFuses
+                    {
+                        Chiplet = true, CcdFuse1 = CCD_FUSE_ZEN4, CcdFuse2 = CCD_FUSE_ZEN4 + 4,
+                        CoreFuse = 0x304A03DC, CoreFuseCcdStride = CCD_CORE_FUSE_STRIDE, CcxPerCcd = 1, CoreSlotsPerCcx = 8,
+                    };
+
+                // Monolithic APUs: one die, no CCD fuses. The core mask sits at a bit offset in an SMUFUSE register.
+                // Cezanne: 0x5D448 [18:11] (verified: 5300G 0x002D9470 = 0xB2, cores 1, 4, 5, 7 down as in its APOB)
+                case CodeName.Cezanne:
+                    return new TopologyFuses { CoreFuse = 0x5D448, CoreFuseShift = 11, CcxPerCcd = 1, CoreSlotsPerCcx = 8 };
+                // Phoenix: 0x5D528 [14:7] (verified: 8400F 0x00002860 = 0x50, cores 4 and 6 down as in its APOB)
+                case CodeName.Phoenix:
+                case CodeName.HawkPoint:
+                    return new TopologyFuses { CoreFuse = 0x5D528, CoreFuseShift = 7, CcxPerCcd = 1, CoreSlotsPerCcx = 8 };
+
+                // Monolithic APUs whose core fuse layout is not known yet (Raven / Picasso 0x5D254, Renoir 0x5D3E8,
+                // Rembrandt 0x5D4DC, Strix / Krackan 0x3820AB0 are candidates): counts come from CPUID only
+                case CodeName.RavenRidge:
+                case CodeName.Picasso:
+                case CodeName.Dali:
+                case CodeName.FireFlight:
+                case CodeName.Mendocino:
+                case CodeName.VanGogh:
+                    return new TopologyFuses { CcxPerCcd = 1, CoreSlotsPerCcx = 4 };
+                case CodeName.Renoir:
+                case CodeName.Lucienne:
+                    return new TopologyFuses { CcxPerCcd = 2, CoreSlotsPerCcx = 4 };
+                case CodeName.Rembrandt:
+                case CodeName.Phoenix2:
+                case CodeName.Mero:
+                    return new TopologyFuses { CcxPerCcd = 1, CoreSlotsPerCcx = 8 };
+                // Zen 5 + Zen 5c on one die, no CCDs. The CCXs (L3 domains) come from CPUID; these values are only the
+                // fallback when it can't be read. Strix Point has two L3s (Zen 5 and Zen 5c); Krackan is not confirmed.
+                case CodeName.StrixPoint:
+                    return new TopologyFuses { CcxPerCcd = 2 };
+                case CodeName.KrackanPoint:
+                case CodeName.KrackanPoint2:
+                    return new TopologyFuses { CcxPerCcd = 1 };
+
+                default:
+                    // Server parts and anything newer: CCDs from CPUID, assuming one CCX per CCD
+                    return new TopologyFuses { Chiplet = family >= Family.FAMILY_19H, CcxPerCcd = family >= Family.FAMILY_19H ? 1u : 2u };
+            }
+        }
+
+        /// <summary>
+        /// The cores of each CCX, in APIC ID order: the extended APIC ID of every core (CPUID 0x8000001E on its first
+        /// thread) grouped by the L3 it shares (CPUID 0x8000001D). Null when CPUID can't tell.
+        /// </summary>
+        private static List<uint> GetCcxCoreCounts(CpuTopology topology)
+        {
+            int shift = -1;
+            for (uint leaf = 0; leaf < 8; leaf++)
+            {
+                if (!Opcode.Cpuid(0x8000001D, leaf, out uint eax, out _, out _, out _) || (eax & 0x1F) == 0)
+                    break;
+
+                if (Utils.GetBits(eax, 5, 3) == 3)
+                {
+                    uint sharing = Utils.GetBits(eax, 14, 12) + 1;
+                    shift = 0;
+                    while ((1u << shift) < sharing)
+                        shift++;
+                    break;
+                }
+            }
+
+            if (shift < 0 || topology.threadsPerCore == 0)
+                return null;
+
+            List<uint> ccxIds = new List<uint>();
+            List<uint> counts = new List<uint>();
+            for (int i = 0; i < topology.logicalCores; i += (int)topology.threadsPerCore)
+            {
+                if (!Opcode.CpuidTx(0x8000001E, 0, out uint apicId, out _, out _, out _, GroupAffinity.ForLogicalProcessor(i)))
+                    return null;
+
+                uint ccx = apicId >> shift;
+                int index = ccxIds.IndexOf(ccx);
+                if (index < 0)
+                {
+                    ccxIds.Add(ccx);
+                    counts.Add(1);
+                }
+                else
+                {
+                    counts[index]++;
+                }
+            }
+
+            return counts;
+        }
+
         private CpuTopology GetCpuTopology(Family family, CodeName codeName, uint model)
         {
             CpuTopology topology = new CpuTopology();
@@ -228,7 +402,6 @@ namespace ZenStates.Core
                 else
                     topology.cores = topology.logicalCores / topology.threadsPerCore;
 
-                topology.coresPerCcx = topology.cores > 8 ? 8 : topology.cores;
             }
             else
             {
@@ -250,88 +423,53 @@ namespace ZenStates.Core
             }
             catch { }
 
-            uint ccdsPresent = 0, ccdsDown = 0, coreFuse = 0;
-            uint fuse1 = 0x5D218;
-            uint fuse2 = 0x5D21C;
-            uint offset = 0x238;
-            uint ccxPerCcd = 2;
+            TopologyFuses fuses = GetTopologyFuses(family, codeName);
 
-            // Get CCD and CCX configuration
-            // https://gitlab.com/leogx9r/ryzen_smu/-/blob/master/userspace/monitor_cpu.c
-            if (family == Family.FAMILY_19H)
+            // CCX and core counts from CPUID: what the OS sees, whatever the fuse layout
+            List<uint> ccxCores = null;
+            try
             {
-                offset = 0x598;
-                ccxPerCcd = 1;
-                if (codeName == CodeName.Raphael || codeName == CodeName.DragonRange)
-                {
-                    offset = 0x4D0;
-                    fuse1 += 0x1A4;
-                    fuse2 += 0x1A4;
-                }
+                ccxCores = GetCcxCoreCounts(topology);
             }
-            else if (family == Family.FAMILY_17H && model != 0x71 && model != 0x31)
+            catch (Exception ex)
             {
-                fuse1 += 0x40; // 0x5D258
-                fuse2 += 0x40; // 0x5D25C
+                Debug.WriteLine($"CPU topology: CCX enumeration failed. {ex.Message}");
             }
-            else if (family == Family.FAMILY_1AH)
+
+            if (ccxCores != null && ccxCores.Count > 0)
             {
-                ccxPerCcd = 1;
-                fuse1 += 0x1A4;
-                fuse2 += 0x1A4;
+                topology.ccxCoreCounts = ccxCores.ToArray();
+                topology.ccxs = (uint)ccxCores.Count;
+                foreach (uint count in ccxCores)
+                    topology.coresPerCcx = Math.Max(topology.coresPerCcx, count);
+            }
+
+            uint ccxPerCcd = Math.Max(1, fuses.CcxPerCcd);
+            uint ccdsFromCcx = topology.ccxs > 0 ? Math.Max(1, topology.ccxs / ccxPerCcd) : 1;
+
+            if (!fuses.Chiplet)
+            {
+                // A single die, or one per node on Zen / Zen+ multi-die parts
+                topology.ccds = fuses.DiePerNode ? Math.Max(1, topology.cpuNodes) : 1;
+                topology.ccdEnableMap = (1u << (int)topology.ccds) - 1;
             }
 
             if (Mutexes.WaitPciBus(5000))
             {
                 try
                 {
-                    if (ReadDwordExNoLock(fuse1, ref ccdsPresent) && ReadDwordExNoLock(fuse2, ref ccdsDown))
+                    if (fuses.Chiplet && fuses.CcdFuse1 != 0)
+                        ReadCcdFusesNoLock(fuses, ccdsFromCcx, ref topology);
+
+                    // The core fuses are read per enabled CCD, so the CCDs have to be known first
+                    if (topology.ccds == 0)
                     {
-                        uint ccdEnableMap = Utils.BitSlice(ccdsPresent, 23, 22);
-                        uint ccdDisableMap = Utils.BitSlice(ccdsPresent, 31, 30) | (Utils.BitSlice(ccdsDown, 5, 0) << 2);
-                        uint coreDisableMapAddress = family == Family.FAMILY_1AH ? 0x304A03DC : 0x30081800 + offset;
-                        uint enabledCcd = Utils.CountSetBits(ccdEnableMap);
-
-                        topology.ccds = enabledCcd > 0 ? enabledCcd : 1;
-                        topology.ccxs = topology.ccds * ccxPerCcd;
-                        topology.physicalCores = topology.ccxs * 8 / ccxPerCcd;
-                        topology.ccdEnableMap = ccdEnableMap;
-                        topology.ccdDisableMap = ccdDisableMap;
-                        topology.fuse1 = fuse1;
-                        topology.fuse2 = fuse2;
-                        topology.ccdsPresent = ccdsPresent;
-                        topology.ccdsDown = ccdsDown;
-
-                        if (ReadDwordExNoLock(coreDisableMapAddress, ref coreFuse))
-                        {
-                            var coresPerCcx = (8 - Utils.CountSetBits(coreFuse & 0xff)) / ccxPerCcd;
-                            if (coresPerCcx > 0)
-                            {
-                                topology.coresPerCcx = coresPerCcx;
-                            }
-                        }
-                        else
-                        {
-                            Debug.WriteLine("Could not read core fuse!");
-                        }
-
-                        topology.coreDisableMap = new uint[topology.ccds];
-
-                        for (int i = 0; i < topology.ccds; i++)
-                        {
-                            if (Utils.GetBits(ccdEnableMap, i, 1) == 1)
-                            {
-                                if (ReadDwordExNoLock(((uint)i << 25) + coreDisableMapAddress, ref coreFuse))
-                                    topology.coreDisableMap[i] = coreFuse & 0xff;
-                                else
-                                    Debug.WriteLine($"Could not read core fuse for CCD{i}!");
-                            }
-                        }
+                        topology.ccds = ccdsFromCcx;
+                        topology.ccdEnableMap = (1u << (int)Math.Min(topology.ccds, 31)) - 1;
                     }
-                    else
-                    {
-                        Debug.WriteLine("Could not read CCD fuse!");
-                    }
+
+                    if (fuses.CoreFuse != 0)
+                        ReadCoreFusesNoLock(fuses, ref topology);
                 }
                 catch (Exception ex)
                 {
@@ -343,7 +481,140 @@ namespace ZenStates.Core
                 }
             }
 
+            if (topology.ccds == 0)
+            {
+                topology.ccds = ccdsFromCcx;
+                topology.ccdEnableMap = (1u << (int)Math.Min(topology.ccds, 31)) - 1;
+            }
+
+            if (topology.ccxs == 0)
+                topology.ccxs = topology.ccds * ccxPerCcd;
+
+            if (topology.coresPerCcx == 0)
+                topology.coresPerCcx = Math.Max(1, topology.cores / Math.Max(1, topology.ccxs));
+
+            topology.physicalCores = fuses.CoreSlotsPerCcx > 0
+                ? topology.ccds * ccxPerCcd * fuses.CoreSlotsPerCcx
+                : topology.cores;
+
             return topology;
+        }
+
+        private static void AddFuseNote(ref CpuTopology topology, string note)
+        {
+            topology.fuseNote = topology.fuseNote == null ? note : topology.fuseNote + "; " + note;
+        }
+
+        private static uint CcdDisableMap(uint ccdsPresent, uint ccdsDown)
+        {
+            return Utils.BitSlice(ccdsPresent, 31, 30) | (Utils.BitSlice(ccdsDown, 5, 0) << 2);
+        }
+
+        private static uint CcdEnableMap(TopologyFuses fuses, uint ccdsPresent, uint ccdsDown)
+        {
+            uint down = CcdDisableMap(ccdsPresent, ccdsDown);
+            return fuses.CcdMapFromDown ? ~down & 0xFF : Utils.BitSlice(ccdsPresent, 23, 22) & ~down;
+        }
+
+        /// <summary>Disabled core slots of one CCD (or die) from its core fuse value.</summary>
+        private static uint CoreDisableMask(TopologyFuses fuses, uint value)
+        {
+            uint slots = fuses.CcxPerCcd * fuses.CoreSlotsPerCcx;
+            uint slotMask = slots >= 32 ? 0xFFFFFFFF : (1u << (int)slots) - 1;
+            return (value >> fuses.CoreFuseShift) & slotMask;
+        }
+
+        /// <summary>
+        /// The enabled CCDs from the CCD fuses. Kept only when their number matches the CCXs CPUID reports.
+        /// </summary>
+        private void ReadCcdFusesNoLock(TopologyFuses fuses, uint ccdsFromCcx, ref CpuTopology topology)
+        {
+            uint ccdsPresent = 0, ccdsDown = 0;
+            if (!ReadDwordExNoLock(fuses.CcdFuse1, ref ccdsPresent) || !ReadDwordExNoLock(fuses.CcdFuse2, ref ccdsDown) ||
+                ccdsPresent == 0xFFFFFFFF)
+            {
+                Debug.WriteLine("Could not read CCD fuse!");
+                AddFuseNote(ref topology, string.Format("CCD fuse 0x{0:X5} could not be read; CCDs from CPUID", fuses.CcdFuse1));
+                return;
+            }
+
+            uint ccdDisableMap = CcdDisableMap(ccdsPresent, ccdsDown);
+            uint ccdEnableMap = CcdEnableMap(fuses, ccdsPresent, ccdsDown);
+
+            topology.fuse1 = fuses.CcdFuse1;
+            topology.fuse2 = fuses.CcdFuse2;
+            topology.ccdsPresent = ccdsPresent;
+            topology.ccdsDown = ccdsDown;
+
+            uint enabled = Utils.CountSetBits(ccdEnableMap);
+            if (enabled == 0 || (topology.ccxs > 0 && enabled != ccdsFromCcx))
+            {
+                string note = $"CCD fuses (0x{ccdsPresent:X8}, 0x{ccdsDown:X8}) give {enabled} CCD(s), CPUID {ccdsFromCcx}; CPUID is used";
+                Debug.WriteLine(note);
+                AddFuseNote(ref topology, note);
+                return;
+            }
+
+            topology.ccds = enabled;
+            topology.ccdEnableMap = ccdEnableMap;
+            topology.ccdDisableMap = ccdDisableMap;
+        }
+
+        /// <summary>
+        /// The disabled cores of each CCD (or die), one bit per core slot, in logical CCD order. The map is dropped when
+        /// the cores it leaves enabled don't add up to the cores CPUID reports.
+        /// </summary>
+        private void ReadCoreFusesNoLock(TopologyFuses fuses, ref CpuTopology topology)
+        {
+            uint ccds = topology.ccds > 0 ? topology.ccds : 1;
+            uint slots = fuses.CcxPerCcd * fuses.CoreSlotsPerCcx;
+            uint[] map = new uint[ccds];
+            uint enabledCores = 0;
+            uint enableMap = topology.ccdEnableMap != 0 ? topology.ccdEnableMap : 1;
+            uint[] values = new uint[ccds];
+
+            topology.coreFuseAddress = fuses.CoreFuse;
+            topology.coreFuseShift = fuses.CoreFuseShift;
+            topology.coreFuseValues = values;
+
+            int logical = 0;
+            for (int physical = 0; physical < 32 && logical < ccds; physical++)
+            {
+                if ((enableMap & (1u << physical)) == 0)
+                    continue;
+
+                // Zen / Zen+ multi-die parts: only the fuse of the first die is reachable here; the dies match
+                uint address = fuses.CoreFuse + fuses.CoreFuseCcdStride * (uint)physical;
+                uint value = 0;
+                bool read = ReadDwordExNoLock(address, ref value);
+                values[logical] = read ? value : 0xFFFFFFFF;
+                if (!read || value == 0xFFFFFFFF)
+                {
+                    Debug.WriteLine($"Could not read core fuse for CCD{physical}!");
+                    AddFuseNote(ref topology, string.Format("Core fuse 0x{0:X8} of CCD{1} could not be read; no core map", address, physical));
+                    return;
+                }
+
+                map[logical] = CoreDisableMask(fuses, value);
+                enabledCores += slots - Utils.CountSetBits(map[logical]);
+                logical++;
+            }
+
+            if (enabledCores != topology.cores)
+            {
+                string note = $"Core fuses give {enabledCores} core(s), CPUID {topology.cores}; the core map is not used";
+                Debug.WriteLine(note);
+                AddFuseNote(ref topology, note);
+                return;
+            }
+
+            topology.coreDisableMap = map;
+
+            if (topology.ccxs == 0)
+            {
+                // No CPUID enumeration: cores per CCX from the first CCD's fuse
+                topology.coresPerCcx = (slots - Utils.CountSetBits(map[0])) / fuses.CcxPerCcd;
+            }
         }
 
         public Cpu(CoreOptions options = null)
@@ -356,11 +627,13 @@ namespace ZenStates.Core
 #endif
             if (!PawnIo.PawnIo.IsInstalled)
             {
-                throw new ApplicationException("PawnIO is not installed.");
+                ApplicationException notInstalled = new ApplicationException("PawnIO is not installed.");
+                WriteCrashLog(notInstalled, null);
+                throw notInstalled;
             }
 
-            // Non-fatal errors are collected here and reported through LastError/Status.
-            Exception recordedError = null;
+            // Non-fatal errors are collected here and reported through InitErrors/LastError/Status.
+            List<CpuInitError> errors = new List<CpuInitError>();
 
             try
             {
@@ -372,6 +645,7 @@ namespace ZenStates.Core
 
                 Mutexes.Open();
 
+                ReportProgress("PawnIO modules");
                 try
                 {
                     _pawnAmd = new AmdFamily17();
@@ -397,8 +671,7 @@ namespace ZenStates.Core
                 catch (Exception ex)
                 {
                     io = null;
-                    recordedError = ex;
-                    Debug.WriteLine($"IODriver initialization failed: {ex.Message}");
+                    RecordError(errors, ex, "IODriver");
                 }
 
                 if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
@@ -423,6 +696,7 @@ namespace ZenStates.Core
                 {
                     info.packageType = (PackageType)(ebx >> 28);
                     info.codeName = GetCodeName(info);
+                    ReportProgress("SMU");
                     SMU.SetRyzenSmu(_pawnRyzenSmu);
                     smu = GetMaintainedSettings.GetByType(info.codeName);
                     smu.Hsmp.Init(this);
@@ -445,29 +719,32 @@ namespace ZenStates.Core
 
                 mmio = new Mmio(info.family);
             }
-            catch
+            catch (Exception ex)
             {
+                WriteCrashLog(ex, errors);
                 Dispose(true);
                 throw;
             }
 
             // Non-critical block
+            ReportProgress("CPU topology");
             try
             {
                 info.topology = GetCpuTopology(info.family, info.codeName, info.model);
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "CPU topology");
+                RecordError(errors, ex, "CPU topology");
             }
 
+            ReportProgress("Memory configuration");
             try
             {
                 memoryConfig = new MemoryConfig(this);
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "MemoryConfig");
+                RecordError(errors, ex, "MemoryConfig");
             }
 
             try
@@ -477,36 +754,43 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "Patch level/SVI2");
+                RecordError(errors, ex, "Patch level/SVI2");
             }
 
+            ReportProgress("AOD");
             try
             {
                 info.aod = new AOD(io, this);
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "AOD");
+                RecordError(errors, ex, "AOD");
             }
 
+            ReportProgress("APOB");
             try
             {
                 info.apob = new Apob(info, memoryConfig);
+
+                // Soldered LPDDR5 has no SPD device; the APOB keeps the copy the BIOS used
+                memoryConfig?.UseApobSpd(info.apob.DimmSpd);
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "APOB");
+                RecordError(errors, ex, "APOB");
             }
 
+            ReportProgress("System info");
             try
             {
                 systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "SystemInfo");
+                RecordError(errors, ex, "SystemInfo");
             }
 
+            ReportProgress("Power table");
             try
             {
                 powerTable = new PowerTable(_pawnRyzenSmu, info.codeName);
@@ -514,17 +798,18 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "PowerTable");
+                RecordError(errors, ex, "PowerTable");
             }
 
+            ReportProgress("SMU test");
             try
             {
                 if (!SendTestMessage())
-                    RecordError(ref recordedError, new ApplicationException("SMU is not responding to test message!"), "SMU");
+                    RecordError(errors, new ApplicationException("SMU is not responding to test message!"), "SMU");
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "SMU test message");
+                RecordError(errors, ex, "SMU test message");
             }
 
             try
@@ -533,18 +818,83 @@ namespace ZenStates.Core
             }
             catch (Exception ex)
             {
-                RecordError(ref recordedError, ex, "PowerTable refresh");
+                RecordError(errors, ex, "PowerTable refresh");
             }
 
-            LastError = recordedError;
-            Status = recordedError != null ? IODriver.LibStatus.PARTIALLY_OK : IODriver.LibStatus.OK;
+            InitErrors = errors.AsReadOnly();
+            LastError = BuildInitException(errors);
+            Status = errors.Count > 0 ? IODriver.LibStatus.PARTIALLY_OK : IODriver.LibStatus.OK;
         }
 
-        private static void RecordError(ref Exception recordedError, Exception ex, string subsystem)
+        private void ReportProgress(string stage)
         {
-            Debug.WriteLine($"{subsystem} initialization failed: {ex.Message}");
-            if (recordedError == null)
-                recordedError = ex;
+            Action<string> callback = Options?.InitProgress;
+            if (callback == null)
+                return;
+
+            try
+            {
+                callback(stage);
+            }
+            catch (Exception ex)
+            {
+                // Progress is informational only; never let it break initialization.
+                Debug.WriteLine($"InitProgress callback failed: {ex.Message}");
+            }
+        }
+
+        private const string CrashLogFileName = "zenstates-core.crash.log";
+
+        // Appends a fatal initialization error (and any non-fatal errors recorded before it) to the crash log.
+        private static void WriteCrashLog(Exception ex, List<CpuInitError> errors)
+        {
+            try
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.AppendFormat("[{0:yyyy-MM-dd HH:mm:ss}] ZenStates-Core fatal initialization error", DateTime.Now).AppendLine();
+                sb.AppendFormat("Version: {0}", Assembly.GetExecutingAssembly().GetName().Version).AppendLine();
+                sb.AppendFormat("OS: {0}", Environment.OSVersion).AppendLine();
+                sb.AppendLine(ex != null ? ex.ToString() : "Unknown error");
+
+                if (errors != null && errors.Count > 0)
+                {
+                    sb.AppendLine("Errors recorded before the failure:");
+                    foreach (CpuInitError error in errors)
+                        sb.Append("- ").AppendLine(error.Exception != null ? error.Subsystem + ": " + error.Exception : error.ToString());
+                }
+
+                sb.AppendLine();
+
+                string path = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, CrashLogFileName);
+                System.IO.File.AppendAllText(path, sb.ToString());
+            }
+            catch (Exception logEx)
+            {
+                // Logging must never mask the original error.
+                Debug.WriteLine($"Could not write crash log: {logEx.Message}");
+            }
+        }
+
+        private static void RecordError(List<CpuInitError> errors, Exception ex, string subsystem)
+        {
+            Debug.WriteLine($"{subsystem} initialization failed: {ex?.Message}");
+            errors.Add(new CpuInitError(subsystem, ex));
+        }
+
+        private static Exception BuildInitException(List<CpuInitError> errors)
+        {
+            if (errors.Count == 0)
+                return null;
+
+            if (errors.Count == 1)
+                return errors[0].Exception;
+
+            StringBuilder sb = new StringBuilder();
+            sb.AppendFormat("{0} subsystems failed to initialize:", errors.Count);
+            foreach (CpuInitError error in errors)
+                sb.Append(Environment.NewLine).Append("- ").Append(error.ToString());
+
+            return new ApplicationException(sb.ToString(), errors[0].Exception);
         }
 
         // [31-28] ccd index
@@ -558,6 +908,21 @@ namespace ZenStates.Core
             }
 
             return (ccd << 28) | ((ccx % 2) << 24) | ((core % 4) << 20);
+        }
+
+        /// <summary>
+        /// The core mask (see <see cref="MakeCoreMask"/>) of a core given by its logical index: the logical processor
+        /// number divided by the threads per core, in the order the OS enumerates them. The physical CCD, CCX and
+        /// core come from the APOB core map, so disabled CCDs and cores are skipped the way the firmware did.
+        /// Returns null when the APOB has no core map or the index is out of range.
+        /// </summary>
+        public uint? MakeCoreMaskForLogicalCore(int logicalCore)
+        {
+            ApobCoreMapCore core = info.apob?.CoreMap?.GetLogicalCore(logicalCore);
+            if (core == null)
+                return null;
+
+            return MakeCoreMask((uint)core.PhysicalCore, (uint)core.PhysicalCcd, (uint)core.PhysicalCcx);
         }
 
         public bool ReadDwordExNoLock(uint addr, ref uint data, int maxRetries = 10)
@@ -640,41 +1005,28 @@ namespace ZenStates.Core
             {
                 return _pawnRyzenSmu.SmuWriteRegNoLock(addr, data);
             }
-
-            //for (int retry = 0; retry < maxRetries; retry++)
-            //{
-            //    if (Mutexes.WaitPciBus(10))
-            //    {
-            //        if (Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_ADDR, addr) &&
-            //            Ring0.WritePciConfig(smu.SMU_PCI_ADDR, (byte)smu.SMU_OFFSET_DATA, data))
-            //        {
-            //            Mutexes.ReleasePciBus();
-            //            return true;
-            //        }
-
-            //        Mutexes.ReleasePciBus();
-            //    }
-            //}
-
-            //return false;
         }
 
+        // Get the core multiplier for a given logical core index.
         public double GetCoreMulti(int index = 0)
         {
             HwPstateStatus status = GetHwPstateStatus(index);
 
             if (info.family < Family.FAMILY_1AH)
             {
-                double fid = status.CurCpuFid;
-                double dfs = status.CurCpuDfsId;
+                if (status.CurCpuDfsId == 0)
+                    return 0;
 
-                if (dfs == 0) return 0;
-
-                double multi = 25 * fid / (12.5 * dfs);
-                return Math.Round(multi * 4, MidpointRounding.ToEven) / 4;
+                return 2.0 * status.CurCpuFid / status.CurCpuDfsId;
             }
 
-            return Utils.BitSlice(status.Value, 11, 0) * 5;
+            return Utils.BitSlice(status.Value, 11, 0) * 5 / 100.0;
+        }
+
+        // Get core clock in MHz for a given logical core index and BCLK in MHz (default 100.0).
+        public double GetCoreClockMhz(int index = 0, double bclkMhz = 100.0)
+        {
+            return GetCoreMulti(index) * bclkMhz;
         }
 
         public struct HwPstateStatus
@@ -1142,12 +1494,22 @@ namespace ZenStates.Core
             return Equals(GetPBOScalar(), 0.0f);
         }
 
+        /// <summary>
+        /// The PBO scalar, or <see cref="Constants.PBO_SCALAR_MIN"/> when it can't be read. Use <see cref="TryGetPBOScalar"/> to
+        /// tell a failed read from a real value.
+        /// </summary>
         public float GetPBOScalar()
         {
-            var cmd = new GetPBOScalar(smu);
-            cmd.Execute();
+            return TryGetPBOScalar(out float scalar) ? scalar : Constants.PBO_SCALAR_MIN;
+        }
 
-            return cmd.Scalar;
+        /// <summary>Reads the PBO scalar. False when the SMU has no such message, refuses it or returns a value out of range.</summary>
+        public bool TryGetPBOScalar(out float scalar)
+        {
+            var cmd = new GetPBOScalar(smu);
+            bool ok = cmd.Execute().Success && cmd.IsValid;
+            scalar = ok ? cmd.Scalar : 0;
+            return ok;
         }
 
         public bool SendTestMessage(uint arg = 1, Mailbox mbox = null)
@@ -1601,8 +1963,10 @@ namespace ZenStates.Core
                     // Range sel = 0 to 255C (Temp = Tctl - offset)
                     float temperature = (thmData >> 21) * 0.125f + offset;
 
-                    // Range sel = -49 to 206C (Temp = Tctl - offset - 49)
-                    if ((thmData & Constants.THM_CUR_TEMP_RANGE_SEL_MASK) != 0)
+                    // Range sel = -49 to 206C (Temp = Tctl - offset - 49), also selected by TJ_SEL [17:16] = 3
+                    // (Linux k10temp)
+                    if ((thmData & Constants.THM_CUR_TEMP_RANGE_SEL_MASK) != 0 ||
+                        (thmData & Constants.THM_CUR_TEMP_TJ_SEL_MASK) == Constants.THM_CUR_TEMP_TJ_SEL_MASK)
                         temperature -= 49.0f;
 
                     return temperature;
@@ -1616,6 +1980,10 @@ namespace ZenStates.Core
             }
         }
 
+        /// <summary>
+        /// Temperature of one CCD in degrees C, or null when it can't be read or the CCD reports no valid reading
+        /// (bit 11 clear, e.g. an absent CCD).
+        /// </summary>
         public float? GetSingleCcdTemperature(uint ccd)
         {
             if (!Mutexes.WaitPciBus(5000))
@@ -1627,14 +1995,11 @@ namespace ZenStates.Core
             try
             {
                 uint thmData = 0;
-                uint register = info.family >= Family.FAMILY_19H ? Constants.F19H_CCD_TEMP : Constants.F17H_CCD_TEMP;
 
-                if (ReadDwordExNoLock(register + (ccd * 0x4), ref thmData))
+                if (ReadDwordExNoLock(GetCcdTemperatureRegister() + (ccd * 0x4), ref thmData) &&
+                    thmData != 0xFFFFFFFF && (thmData & Constants.THM_CCD_TEMP_VALID) != 0)
                 {
-                    float ccdTemp = (thmData & 0xfff) * 0.125f - 305.0f;
-                    if (ccdTemp > 0 && ccdTemp < 125) // Zen 2 reports 95 degrees C max, but it might exceed that.
-                        return ccdTemp;
-                    return 0;
+                    return (thmData & Constants.THM_CCD_TEMP_MASK) * 0.125f - 49.0f;
                 }
 
                 return null;
@@ -1642,6 +2007,38 @@ namespace ZenStates.Core
             finally
             {
                 Mutexes.ReleasePciBus();
+            }
+        }
+
+        /// <summary>
+        /// SMN address of the first CCD temperature register: THM base 0x59800 plus a per family / model offset, as in
+        /// Linux k10temp (k10temp_probe). Models it does not list keep the register used so far for their family.
+        /// </summary>
+        private uint GetCcdTemperatureRegister()
+        {
+            uint model = info.model;
+
+            switch (info.family)
+            {
+                case Family.FAMILY_17H:
+                    if (model >= 0xA0 && model <= 0xAF)
+                        return Constants.THM_CUR_TEMP + 0x300;      // Mendocino
+                    return Constants.F17H_CCD_TEMP;                  // 0x154
+
+                case Family.FAMILY_19H:
+                    if (model <= 0x0F || (model >= 0x20 && model <= 0x2F) || (model >= 0x50 && model <= 0x5F))
+                        return Constants.F17H_CCD_TEMP;              // Milan, Chagall, Vermeer, Cezanne: 0x154
+                    if ((model >= 0x10 && model <= 0x1F) || (model >= 0x40 && model <= 0x4F) || (model >= 0xA0 && model <= 0xAF))
+                        return Constants.THM_CUR_TEMP + 0x300;      // Genoa, Rembrandt, Storm Peak
+                    return Constants.F19H_CCD_TEMP;                  // Raphael, Phoenix (0x60~0x7F): 0x308
+
+                case Family.FAMILY_1AH:
+                    if (model <= 0x1F)
+                        return Constants.THM_CUR_TEMP + 0x1F0;      // Turin
+                    return Constants.F19H_CCD_TEMP;                  // Granite Ridge (0x40~0x4F): 0x308
+
+                default:
+                    return info.family > Family.FAMILY_1AH ? Constants.F19H_CCD_TEMP : Constants.F17H_CCD_TEMP;
             }
         }
 

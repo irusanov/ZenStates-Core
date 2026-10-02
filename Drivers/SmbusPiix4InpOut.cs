@@ -10,7 +10,7 @@ namespace ZenStates.Core.Drivers
         private static volatile SmbusPiix4InpOut _instance;
         private static readonly object _instanceLock = new object();
 
-        private static readonly IODriver ioDriver = IODriver.Instance;
+        private static IODriver ioDriver => IODriver.Instance;
 
         // PCI config mechanism #1
         private const ushort PCI_CONFIG_ADDRESS = 0xCF8;

@@ -1,3 +1,5 @@
+using System;
+
 namespace ZenStates.Core
 {
     public class CoreOptions
@@ -19,6 +21,12 @@ namespace ZenStates.Core
         public ModuleSettings Aod { get; set; }
         public ModuleSettings Wmi { get; set; }
         public ModuleSettings Sensors { get; set; }
+
+        /// <summary>
+        /// Called with a short description of each initialization stage as <see cref="Cpu"/> starts it,
+        /// e.g. to show progress on a splash screen. Runs on the constructing thread; exceptions are ignored.
+        /// </summary>
+        public Action<string> InitProgress { get; set; }
 
         public CoreOptions()
         {

@@ -27,12 +27,13 @@ namespace ZenStates.Core.Hardware.Mock
         /// Frequency for a captured system: the value the report stated, or the ratio decoded from
         /// the captured registers against a default reference clock when it did not state one.
         /// </summary>
-        internal float ResolveFrequency(float ratio, double defaultBclk)
+        internal float ResolveFrequency(float ratio, double defaultBclk, int clockToDataRate = 2)
         {
-            if (reportedFrequency > 0)
+            // Reports printed the averaged PM table MCLK x 2 for LPDDR5, so the ratio is used there
+            if (reportedFrequency > 0 && clockToDataRate == 2)
                 return reportedFrequency;
 
-            return ratio * (float)defaultBclk * 2;
+            return ratio * (float)defaultBclk * clockToDataRate;
         }
     }
 
@@ -75,7 +76,7 @@ namespace ZenStates.Core.Hardware.Mock
             return source.TryReadRegister(address, out value);
         }
 
-        public override float Frequency => source.ResolveFrequency(Ratio, DefaultBclk);
+        public override float Frequency => source.ResolveFrequency(Ratio, DefaultBclk, ClockToDataRate);
     }
 
     /// <summary>

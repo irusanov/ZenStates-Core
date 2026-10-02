@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ZenStates.Core.Common;
 using ZenStates.Core.Hardware.Aod;
 using ZenStates.Core.Hardware.DRAM;
 using ZenStates.Core.Hardware.DRAM.DDR5.Pmic;
@@ -31,13 +32,19 @@ namespace ZenStates.Core.Hardware.Mock
 
         public ApobTable Apob { get; private set; }
 
-        public Dictionary<byte, Ddr5SpdInfo> SpdInfo { get; private set; } = new Dictionary<byte, Ddr5SpdInfo>();
+        private Dictionary<byte, Ddr5SpdInfo> spdInfo = new Dictionary<byte, Ddr5SpdInfo>();
+
+        public Dictionary<byte, Ddr5SpdInfo> SpdInfo
+        {
+            get { return new Dictionary<byte, Ddr5SpdInfo>(spdInfo, spdInfo.Comparer); }
+            private set { spdInfo = new Dictionary<byte, Ddr5SpdInfo>(value, value.Comparer); }
+        }
 
         /// <summary>
         /// PMIC of the first DIMM that has one, i.e. what the main window shows when no particular
         /// module is selected. Null when the report carries no readable PMIC block.
         /// </summary>
-        public Ddr5PmicData PmicData { get; private set; }
+        public Ddr5Pmic PmicData { get; private set; }
 
         /// <summary>Decoded AOD fields as printed in the report - the mock counterpart of <c>cpu.info.aod.Table.Data</c>. Null when unavailable.</summary>
         public AodData AodData { get; private set; }
@@ -217,7 +224,7 @@ namespace ZenStates.Core.Hardware.Mock
         /// line up with the modules by index, the same assumption the live path makes. Falls back to
         /// <see cref="PmicData"/> when that module has no entry of its own.
         /// </summary>
-        public Ddr5PmicData GetPmicData(int moduleIndex)
+        public Ddr5Pmic GetPmicData(int moduleIndex)
         {
             if (moduleIndex >= 0 && moduleIndex < SpdInfo.Count)
             {
@@ -227,8 +234,8 @@ namespace ZenStates.Core.Hardware.Mock
                     if (index++ != moduleIndex)
                         continue;
 
-                    if (info.PmicData != null && info.PmicData.IsValid)
-                        return info.PmicData;
+                    if (info.Pmic != null && info.Pmic.IsValid)
+                        return info.Pmic;
 
                     break;
                 }
@@ -360,9 +367,9 @@ namespace ZenStates.Core.Hardware.Mock
 
             foreach (Ddr5SpdInfo info in SpdInfo.Values)
             {
-                if (info.PmicData != null && info.PmicData.IsValid)
+                if (info.Pmic != null && info.Pmic.IsValid)
                 {
-                    PmicData = info.PmicData;
+                    PmicData = info.Pmic;
                     break;
                 }
             }
@@ -430,6 +437,10 @@ namespace ZenStates.Core.Hardware.Mock
 
             if (!string.IsNullOrEmpty(Apob?.ErrorReason))
                 Warnings.Add("APOB: " + Apob.ErrorReason);
+
+            // Soldered LPDDR5: no SPD in the report, the APOB has the BIOS copy
+            if (SpdInfo.Count == 0 && Apob != null && Apob.DimmSpd.Count > 0)
+                SpdInfo = Ddr5SpdReader.DecodeApobSpd(Apob.DimmSpd);
         }
     }
 }

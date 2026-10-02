@@ -48,6 +48,65 @@ namespace ZenStates.Core.Hardware.DRAM
         public static implicit operator uint(CommandRateProp flag) => flag.value;
     }
 
+    /// <summary>
+    /// UMC::UmcConfig[9:8] BurstLength. BL2, BL4 and BL16 are reserved in DDR4 mode, BL2, BL4 and BL8 in
+    /// DDR5 mode (PPR #55901).
+    /// </summary>
+    public readonly struct BurstLengthProp
+    {
+        private readonly uint value;
+
+        public BurstLengthProp(uint value)
+        {
+            this.value = value;
+        }
+
+        public override string ToString()
+        {
+            switch (value)
+            {
+                case 0: return "BL2";
+                case 1: return "BL4";
+                case 2: return "BL8";
+                case 3: return "BL16";
+                default: return "Unknown";
+            }
+        }
+
+        // Allow implicit conversion both ways
+        public static implicit operator BurstLengthProp(uint value) => new BurstLengthProp(value);
+        public static implicit operator uint(BurstLengthProp prop) => prop.value;
+    }
+
+    /// <summary>
+    /// UMC::UmcConfig[11:10] BurstCtrl. Dynamic is BL8/BC4 in DDR4 mode and BL16/BC8 in DDR5 mode (PPR #55901).
+    /// </summary>
+    public readonly struct BurstCtrlProp
+    {
+        private readonly uint value;
+
+        public BurstCtrlProp(uint value)
+        {
+            this.value = value;
+        }
+
+        public override string ToString()
+        {
+            switch (value)
+            {
+                case 0: return "Dynamic BL/BC";
+                case 1: return "Fixed BL";
+                case 2:
+                case 3: return "Reserved";
+                default: return "Unknown";
+            }
+        }
+
+        // Allow implicit conversion both ways
+        public static implicit operator BurstCtrlProp(uint value) => new BurstCtrlProp(value);
+        public static implicit operator uint(BurstCtrlProp prop) => prop.value;
+    }
+
     [Serializable]
     public abstract class BaseDramTimings : IDramTimings, IDisposable
     {
@@ -198,15 +257,33 @@ namespace ZenStates.Core.Hardware.DRAM
         {
             get
             {
-                var mclk = PowerTable.Instance?.MCLK ?? 0;
+                // The PM table MCLK is an average over the reading interval: with LPDDR5 the memory changes speed
+                // with load, so the ratio is used there
+                var mclk = ClockToDataRate == 2 ? PowerTable.Instance?.MCLK ?? 0 : 0;
                 if (mclk > 0)
                 {
                     return mclk * 2;
                 }
 
                 double bclk = Mmio.Instance?.GetBclk() ?? DefaultBclk;
-                return Ratio * (float)bclk * 2;
+                return Ratio * (float)bclk * ClockToDataRate;
             }
+        }
+
+        /// <summary>
+        /// Data rate over the memory controller clock (MEMCLK, the clock the timings count): 2 for DDR4 and DDR5, 4 or 8
+        /// for LPDDR5, whose data runs on WCK at 2 or 4 times MEMCLK.
+        /// </summary>
+        public virtual int ClockToDataRate
+        {
+            get { return 2; }
+        }
+
+        /// <summary>Memory controller clocks to nanoseconds at the current <see cref="Frequency"/>.</summary>
+        protected float ClocksToNs(uint clocks)
+        {
+            float frequency = Frequency;
+            return frequency > 0 ? clocks * ClockToDataRate * 1000f / frequency : 0;
         }
         public float Ratio { get; internal set; }
         // public string TotalCapacity { get; internal set; }
@@ -275,10 +352,79 @@ namespace ZenStates.Core.Hardware.DRAM
         }
         public uint RDPOST { get; internal set; }
         public uint WRPOST { get; internal set; }
-        public float RFCns { get => Utils.ToNanoseconds(RFC, Frequency); }
-        public float REFIns { get => Utils.ToNanoseconds(REFI, Frequency); }
+        public float RFCns { get => ClocksToNs(RFC); }
+        public float REFIns { get => ClocksToNs(REFI); }
         public uint FGR { get; internal set; }
         public BankRefreshMode RefreshMode { get; internal set; } = BankRefreshMode.UNKNOWN;
+
+        // 0x50100
+        public uint DimmEccEn { get; internal set; }
+        public BurstCtrlProp BurstCtrl { get; internal set; }
+        public BurstLengthProp BurstLength { get; internal set; }
+
+        // 0x5012C
+        public uint AggrPwrDownEn { get; internal set; }
+        public uint PowerDownMode { get; internal set; }
+
+        // 0x50130
+        public uint OdtsIncRefEn { get; internal set; }
+        public uint OdtsEn { get; internal set; }
+        public uint ForcePwrDownThrotEn { get; internal set; }
+        public uint OdtsCmdThrotEn { get; internal set; }
+        public uint OdtsCmdThrotCyc { get; internal set; }
+        public uint RollWindowDepth { get; internal set; }
+
+        // 0x50200
+        public uint BankGroupEn { get; internal set; }
+
+        // 0x50220
+        public uint RDRDBan { get; internal set; }
+
+        // 0x50224
+        public uint WRWRBan { get; internal set; }
+
+        // 0x5022C
+        public uint ShortInit { get; internal set; }
+        public uint ZqcsInterval { get; internal set; }
+        public uint TzqOperCal { get; internal set; }
+        public uint Tzqcs { get; internal set; }
+
+        // 0x50238
+        public uint DLLK { get; internal set; }
+        public uint XS { get; internal set; }
+
+        // 0x5023C
+        public uint RankBusyDly { get; internal set; }
+        public uint CmdParLatency { get; internal set; }
+        public uint AlertParDly { get; internal set; }
+        public uint AlertCrcDly { get; internal set; }
+
+        // 0x50244
+        public uint AggrPwrDownDly { get; internal set; }
+        public uint PwrDownDly { get; internal set; }
+        public uint PD { get; internal set; }
+
+        // 0x50254
+        public uint CPDED { get; internal set; }
+
+        // 0x50258
+        public uint PARINL { get; internal set; }
+        public uint RDDATAEN { get; internal set; }
+
+        // 0x5025C
+        public uint LpExitDly { get; internal set; }
+        public uint LpDly { get; internal set; }
+
+        // 0x5028C
+        public uint WRMPR { get; internal set; }
+        public uint CmdStgCnt { get; internal set; }
+        public uint RcvrWait { get; internal set; }
+
+        // 0x50DF0
+        public uint DdrMaxRate { get; internal set; }
+
+        // 0x50DF4
+        public uint DdrMaxRateEnf { get; internal set; }
 
         protected virtual void Dispose(bool disposing)
         {

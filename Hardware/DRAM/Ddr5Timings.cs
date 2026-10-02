@@ -37,23 +37,8 @@ namespace ZenStates.Core.Hardware.DRAM
             this.Dict = DDR5Dictionary.defs;
         }
 
-        // 0x50100
-        public uint DimmEccEn { get; internal set; }
-        public uint BurstCtrl { get; internal set; }
-        public uint BurstLength { get; internal set; }
-
-        // 0x5012C
-        public uint AggrPwrDownEn { get; internal set; }
-        public uint PowerDownMode { get; internal set; }
-
         // 0x50130
-        public uint OdtsIncRefEn { get; internal set; }
-        public uint OdtsEn { get; internal set; }
-        public uint ForcePwrDownThrotEn { get; internal set; }
-        public uint OdtsCmdThrotEn { get; internal set; }
         public uint I2CThermEvent { get; internal set; }
-        public uint OdtsCmdThrotCyc { get; internal set; }
-        public uint RollWindowDepth { get; internal set; }
 
         // 0x50198
         public uint WrBrstGap { get; internal set; }
@@ -63,7 +48,37 @@ namespace ZenStates.Core.Hardware.DRAM
         // 0x50200
         public uint UclkGtFclk { get; internal set; }
         public uint WckRatioMode { get; internal set; }
-        public uint BankGroupEn { get; internal set; }
+
+        /// <summary>
+        /// LPDDR5 runs the data on WCK, at 2:1 (<see cref="WckRatioMode"/> 1) or 4:1 (2) to MEMCLK; DDR5 has no WCK (0).
+        /// 4:1 is from a Rembrandt dump, LPDDR5-6400: ratio 8 (MEMCLK 800), and the APOB lists MEMCLK 800 with WCK 3200.
+        /// </summary>
+        public override int ClockToDataRate
+        {
+            get
+            {
+                switch (WckRatioMode)
+                {
+                    case 1: return 4;
+                    case 2: return 8;
+                    default: return 2;
+                }
+            }
+        }
+
+        /// <summary>LPDDR5 WCK:CK, "4:1" or "2:1"; "N/A" for DDR5 (<see cref="WckRatioMode"/> 0).</summary>
+        public string WckCkRatio
+        {
+            get
+            {
+                switch (WckRatioMode)
+                {
+                    case 1: return "2:1";
+                    case 2: return "4:1";
+                    default: return "N/A";
+                }
+            }
+        }
 
         // 0x50208
         public uint RPpb { get; internal set; }
@@ -72,32 +87,11 @@ namespace ZenStates.Core.Hardware.DRAM
         // 0x5021C
         public uint PPD { get; internal set; }
 
-        // 0x50220
-        public uint RDRDBan { get; internal set; }
-
-        // 0x50224
-        public uint WRWRBan { get; internal set; }
-
         // 0x50228
         public uint MW { get; internal set; }
 
-        // 0x5022C
-        public uint ShortInit { get; internal set; }
-        public uint ZqcsInterval { get; internal set; }
-        public uint Tzqcs { get; internal set; }
-
         // 0x50230
         public uint OdtsReadInterval { get; internal set; }
-
-        // 0x50238
-        public uint DLLK { get; internal set; }
-        public uint XS { get; internal set; }
-
-        // 0x5023C
-        public uint RankBusyDly { get; internal set; }
-        public uint CmdParLatency { get; internal set; }
-        public uint AlertParDly { get; internal set; }
-        public uint AlertCrcDly { get; internal set; }
 
         // 0x50240
         public uint MRRI { get; internal set; }
@@ -106,10 +100,7 @@ namespace ZenStates.Core.Hardware.DRAM
         public uint CtrlSwitchClks { get; internal set; }
 
         // 0x50244
-        public uint AggrPwrDownDly { get; internal set; }
         public uint CSH { get; internal set; }
-        public uint PwrDownDly { get; internal set; }
-        public uint PD { get; internal set; }
 
         // 0x50248
         public uint SRX2SRX { get; internal set; }
@@ -120,16 +111,7 @@ namespace ZenStates.Core.Hardware.DRAM
         public uint AlertParPulse { get; internal set; }
 
         // 0x50254
-        public uint CPDED { get; internal set; }
         public uint CACSH { get; internal set; }
-
-        // 0x50258
-        public uint PARINL { get; internal set; }
-        public uint RDDATAEN { get; internal set; }
-
-        // 0x5025C
-        public uint LpExitDly { get; internal set; }
-        public uint LpDly { get; internal set; }
 
         //// 0x50278
         //public uint CombinationalBypass_Master { get; internal set; }
@@ -150,11 +132,6 @@ namespace ZenStates.Core.Hardware.DRAM
         public uint PHYUPD_CmdDly { get; internal set; }
         public uint PHYUPD_WrDatDly { get; internal set; }
         public uint PHYUPD_resp { get; internal set; }
-
-        // 0x5028C
-        public uint WRMPR { get; internal set; }
-        public uint CmdStgCnt { get; internal set; }
-        public uint RcvrWait { get; internal set; }
 
         // 0x50294
         public uint WCK_en_fs { get; internal set; }
@@ -184,10 +161,6 @@ namespace ZenStates.Core.Hardware.DRAM
         internal uint CcdlWr2RawReg { get; set; }
         internal bool IsCcdlWr2RawValid => CcdlWr2RawReg != uint.MaxValue && CcdlWr2Raw != 0;
 
-        // 0x50DF0
-        public uint DdrMaxRate { get; internal set; }
-        public uint DdrMaxRateEnf { get; internal set; }
-
         public uint RFCsb { get; private set; }
 
         public NitroSettings Nitro { get; private set; }
@@ -198,10 +171,10 @@ namespace ZenStates.Core.Hardware.DRAM
             {
                 if (RefreshMode == BankRefreshMode.NORMAL)
                 {
-                    return Utils.ToNanoseconds(RFC, Frequency);
+                    return ClocksToNs(RFC);
                 }
 
-                return Utils.ToNanoseconds(RFC2, Frequency);
+                return ClocksToNs(RFC2);
             }
         }
 
@@ -279,7 +252,6 @@ namespace ZenStates.Core.Hardware.DRAM
                 FGR = Utils.BitSlice(refreshModeValue, 18, 16);
                 //var allBankRefresh = Utils.GetBit(refreshModeValue, 19);
                 var perBankRefresh = Utils.GetBit(refreshModeValue, 1);
-
 
                 if (/*allBankRefresh == 1 && */perBankRefresh == 0)
                 {

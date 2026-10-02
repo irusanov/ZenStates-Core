@@ -95,23 +95,30 @@ namespace ZenStates.Core.PawnIo
             if (handle == IntPtr.Zero || handle.ToInt64() == -1)
                 return new PawnIo(null);
 
-            byte[] bin;
-            using (Stream stream = assembly.GetManifestResourceStream(resourceName))
+            try
             {
-                if (stream == null)
+                byte[] bin;
+                using (Stream stream = assembly.GetManifestResourceStream(resourceName))
                 {
-                    CloseRawHandle(handle);
-                    throw new InvalidOperationException($"Embedded resource '{resourceName}' not found in assembly '{assembly.FullName}'.");
+                    if (stream == null)
+                        throw new InvalidOperationException($"Embedded resource '{resourceName}' not found in assembly '{assembly.FullName}'.");
+
+                    using (MemoryStream memory = new MemoryStream())
+                    {
+                        // Use manual copy for .NET 2.0 compatibility
+                        StreamCopyTo(stream, memory);
+                        bin = memory.ToArray();
+                    }
                 }
 
-                MemoryStream memory = new MemoryStream();
-                // Use manual copy for .NET 2.0 compatibility
-                StreamCopyTo(stream, memory);
-                bin = memory.ToArray();
+                if (DeviceIoControl(handle, ControlCode.LoadBinary, bin, (uint)bin.Length, null, 0, out uint read, IntPtr.Zero))
+                    return new PawnIo(new SafeFileHandle(handle, true));
             }
-
-            if (DeviceIoControl(handle, ControlCode.LoadBinary, bin, (uint)bin.Length, null, 0, out uint read, IntPtr.Zero))
-                return new PawnIo(new SafeFileHandle(handle, true));
+            catch
+            {
+                CloseRawHandle(handle);
+                throw;
+            }
 
             CloseRawHandle(handle);
             return new PawnIo(null);
@@ -131,10 +138,18 @@ namespace ZenStates.Core.PawnIo
             if (handle == IntPtr.Zero || handle.ToInt64() == -1)
                 return new PawnIo(null);
 
-            byte[] bin = File.ReadAllBytes(filePath);
+            try
+            {
+                byte[] bin = File.ReadAllBytes(filePath);
 
-            if (DeviceIoControl(handle, ControlCode.LoadBinary, bin, (uint)bin.Length, null, 0, out uint read, IntPtr.Zero))
-                return new PawnIo(new SafeFileHandle(handle, true));
+                if (DeviceIoControl(handle, ControlCode.LoadBinary, bin, (uint)bin.Length, null, 0, out uint read, IntPtr.Zero))
+                    return new PawnIo(new SafeFileHandle(handle, true));
+            }
+            catch
+            {
+                CloseRawHandle(handle);
+                throw;
+            }
 
             CloseRawHandle(handle);
             return new PawnIo(null);
