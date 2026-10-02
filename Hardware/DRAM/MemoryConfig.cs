@@ -49,6 +49,7 @@ namespace ZenStates.Core.Hardware.DRAM
             KB = 1,
             MB = 2,
             GB = 3,
+            TB = 4,
         }
 
         public MemType Type { get; protected set; } = MemType.UNKNOWN;
@@ -63,9 +64,8 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public List<MemoryModule> Modules { get; protected set; }
 
-        // SpdInfo is replaced as a whole (copy-on-write) and never mutated after it has been
-        // published, so readers such as RefreshTelemetry can iterate a snapshot safely while
-        // RefreshSpdInfo runs on another thread.
+        // Dictionary membership is copy-on-write. Public accessors copy the dictionary, while
+        // SPD and telemetry objects remain shared so live updates are visible to consumers.
         private volatile Dictionary<byte, Ddr5SpdInfo> spdInfo;
 
         // Serializes writers of spdInfo (RefreshSpdInfo) so concurrent merges don't lose updates.
@@ -73,8 +73,8 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public Dictionary<byte, Ddr5SpdInfo> SpdInfo
         {
-            get { return spdInfo; }
-            protected set { spdInfo = value; }
+            get { return CopySnapshot(spdInfo); }
+            protected set { spdInfo = CopySnapshot(value); }
         }
 
         // Same copy-on-write rule as spdInfo, guarded by the same lock.
@@ -87,8 +87,8 @@ namespace ZenStates.Core.Hardware.DRAM
         /// </summary>
         public Dictionary<byte, Ddr4SpdInfo> Ddr4Spd
         {
-            get { return ddr4Spd; }
-            protected set { ddr4Spd = value; }
+            get { return CopySnapshot(ddr4Spd); }
+            protected set { ddr4Spd = CopySnapshot(value); }
         }
 
         private bool IsSpdSupported
@@ -101,21 +101,39 @@ namespace ZenStates.Core.Hardware.DRAM
         /// of the modules. The value is null for a module without a sensor. Null when the memory is not DDR4.
         /// The entries are read at startup and updated in place by <see cref="RefreshTelemetry"/>.
         /// </summary>
-        public Dictionary<byte, Ddr4ThermalData> Ddr4ThermalSensors { get; protected set; }
+        private volatile Dictionary<byte, Ddr4ThermalData> ddr4ThermalSensors;
+
+        public Dictionary<byte, Ddr4ThermalData> Ddr4ThermalSensors
+        {
+            get { return CopySnapshot(ddr4ThermalSensors); }
+            protected set { ddr4ThermalSensors = CopySnapshot(value); }
+        }
+
+        private static Dictionary<byte, T> CopySnapshot<T>(Dictionary<byte, T> source)
+        {
+            return source == null ? null : new Dictionary<byte, T>(source, source.Comparer);
+        }
 
         /// <summary>Whether any module reports live data (DDR5 SPD hub and PMIC, or a DDR4 thermal sensor).</summary>
         public bool HasDimmTelemetry
         {
             get
             {
-                Dictionary<byte, Ddr5SpdInfo> spd = SpdInfo;
-                if (spd != null && spd.Count > 0)
-                    return true;
-
-                Dictionary<byte, Ddr4ThermalData> ddr4 = Ddr4ThermalSensors;
-                if (ddr4 != null)
+                Dictionary<byte, Ddr5SpdInfo> spd = spdInfo;
+                if (IsSpdSupported && spd != null)
                 {
-                    foreach (Ddr4ThermalData td in ddr4.Values)
+                    foreach (Ddr5SpdInfo info in spd.Values)
+                    {
+                        if (HasDdr5Telemetry(info))
+                            return true;
+                    }
+                }
+
+                Dictionary<byte, Ddr4ThermalData> ddr4td = ddr4ThermalSensors;
+
+                if (ddr4td != null && Type == MemType.DDR4)
+                {
+                    foreach (Ddr4ThermalData td in ddr4td.Values)
                     {
                         if (td != null && td.IsValid)
                             return true;
@@ -128,6 +146,13 @@ namespace ZenStates.Core.Hardware.DRAM
 
         private long LastTelemetryRefreshTick;
         private readonly object telemetryThrottleLock = new object();
+
+        private static bool HasDdr5Telemetry(Ddr5SpdInfo info)
+        {
+            return info != null && info.IsValid && !info.FromApob &&
+                ((info.Pmic != null && info.Pmic.IsValid) ||
+                 (info.ThermalData != null && info.ThermalData.IsValid && info.ThermalData.TempSensorEnabled));
+        }
 
         public MemoryConfig(Cpu cpuInstance)
         {
@@ -169,16 +194,20 @@ namespace ZenStates.Core.Hardware.DRAM
             if (Type == MemType.DDR4)
             {
                 // Module thermal sensors (TSOD); read-only, modules without one are simply listed without data.
-                Ddr4ThermalSensors = Ddr4ThermalSensor.ReadAll(smbusDriver);
+                Dictionary<byte, Ddr4ThermalData> sensors = Ddr4ThermalSensor.ReadAll(smbusDriver);
+                Ddr4ThermalSensors = sensors;
 
                 // Only the SPD bytes needed at startup; the SPD window reads the rest
                 Dictionary<byte, Ddr4SpdInfo> ddr4Info = Ddr4SpdReader.ReadInitInfoAll();
                 LinkDdr4ThermalSensors(ddr4Info);
                 Ddr4Spd = ddr4Info;
 
-                var names = new List<string>();
+                var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
                 foreach (Ddr4SpdInfo entry in ddr4Info.Values)
-                    names.Add(entry != null && entry.IsValid ? entry.ModuleManufacturer : null);
+                {
+                    if (entry != null && entry.IsValid)
+                        AddModuleManufacturer(names, entry.ModulePartNumber, entry.ModuleManufacturer);
+                }
                 UpdateModuleManufacturers(names);
                 return;
             }
@@ -187,13 +216,14 @@ namespace ZenStates.Core.Hardware.DRAM
                 return;
 
             // Only read partial info needed for initialization as reading whole SPD data is expensive
-            SpdInfo = Ddr5SpdReader.ReadInitInfoAll();
+            Dictionary<byte, Ddr5SpdInfo> ddr5Info = Ddr5SpdReader.ReadInitInfoAll();
+            SpdInfo = ddr5Info;
 
-            var ddr5Names = new List<string>();
-            foreach (var spdEntry in SpdInfo.Values)
+            var ddr5Names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var spdEntry in ddr5Info.Values)
             {
-                if (spdEntry != null)
-                    ddr5Names.Add(spdEntry.ModuleManufacturer);
+                if (spdEntry != null && spdEntry.IsValid)
+                    AddModuleManufacturer(ddr5Names, spdEntry.ModulePartNumber, spdEntry.ModuleManufacturer);
             }
             UpdateModuleManufacturers(ddr5Names);
 
@@ -213,22 +243,45 @@ namespace ZenStates.Core.Hardware.DRAM
             }
         }
 
-        // The module manufacturers from SPD, in module order, replace the SMBIOS names unless SPD doesn't know the vendor.
-        private void UpdateModuleManufacturers(List<string> spdNames)
+        // Sparse SPD reads cannot be matched by position. Only unambiguous part numbers update SMBIOS names.
+        private static void AddModuleManufacturer(Dictionary<string, string> names, string partNumber, string name)
+        {
+            partNumber = SafeTrim(partNumber);
+            name = SafeTrim(name);
+            if (partNumber.Length == 0 || name.Length == 0)
+                return;
+
+            if (names.TryGetValue(partNumber, out string previous))
+            {
+                if (previous == null || string.Equals(previous, name, StringComparison.OrdinalIgnoreCase))
+                    return;
+                bool previousUnknown = previous.StartsWith("Unknown", StringComparison.OrdinalIgnoreCase);
+                bool currentUnknown = name.StartsWith("Unknown", StringComparison.OrdinalIgnoreCase);
+                if (previousUnknown && !currentUnknown)
+                    names[partNumber] = name;
+                else if (previousUnknown == currentUnknown)
+                    names[partNumber] = null;
+                return;
+            }
+
+            names.Add(partNumber, name);
+        }
+
+        private void UpdateModuleManufacturers(Dictionary<string, string> spdNames)
         {
             try
             {
-                for (int i = 0; i < spdNames.Count && i < Modules.Count; i++)
+                foreach (MemoryModule module in Modules)
                 {
-                    string name = spdNames[i];
-                    if (string.IsNullOrEmpty(name))
+                    if (module == null || !spdNames.TryGetValue(SafeTrim(module.PartNumber), out string name) ||
+                        string.IsNullOrEmpty(name))
                         continue;
 
-                    if (string.IsNullOrEmpty(Modules[i].Manufacturer) ||
-                        Modules[i].Manufacturer.StartsWith("Unknown") ||
-                        !name.StartsWith("Unknown"))
+                    if (string.IsNullOrEmpty(module.Manufacturer) ||
+                        module.Manufacturer.StartsWith("Unknown", StringComparison.OrdinalIgnoreCase) ||
+                        !name.StartsWith("Unknown", StringComparison.OrdinalIgnoreCase))
                     {
-                        Modules[i].Manufacturer = name;
+                        module.Manufacturer = name;
                     }
                 }
             }
@@ -241,7 +294,7 @@ namespace ZenStates.Core.Hardware.DRAM
         // Attaches the thermal sensor of each module (found at startup) to its SPD entry.
         private void LinkDdr4ThermalSensors(Dictionary<byte, Ddr4SpdInfo> spd)
         {
-            Dictionary<byte, Ddr4ThermalData> sensors = Ddr4ThermalSensors;
+            Dictionary<byte, Ddr4ThermalData> sensors = ddr4ThermalSensors;
             if (spd == null || sensors == null)
                 return;
 
@@ -321,13 +374,13 @@ namespace ZenStates.Core.Hardware.DRAM
 
             lock (spdInfoLock)
             {
-                Dictionary<byte, Ddr5SpdInfo> current = SpdInfo;
+                Dictionary<byte, Ddr5SpdInfo> current = spdInfo;
                 if (current != null && current.Count > 0)
                     return;
 
                 Dictionary<byte, Ddr5SpdInfo> fromApob = Ddr5SpdReader.DecodeApobSpd(slots);
                 if (fromApob.Count > 0)
-                    SpdInfo = fromApob;
+                    spdInfo = fromApob;
             }
         }
 
@@ -348,44 +401,38 @@ namespace ZenStates.Core.Hardware.DRAM
                 return false;
 
             // @TODO: Extract common spd properties in base class
-            Dictionary<byte, Ddr5SpdInfo> cached = SpdInfo;
-            if (cached != null && cached.Count > 0)
-            {
-                bool anyPartial = false;
-                foreach (Ddr5SpdInfo entry in cached.Values)
-                {
-                    if (entry == null || entry.IsPartial)
-                    {
-                        anyPartial = true;
-                        break;
-                    }
-                }
-                if (!anyPartial)
-                    return true;
-            }
+            Dictionary<byte, Ddr5SpdInfo> cached = spdInfo;
+            if (IsDdr5SpdCacheComplete(cached))
+                return true;
 
             try
             {
                 Dictionary<byte, Ddr5SpdInfo> info = ReadAndDecodeAll();
-                if (info == null)
+                if (info == null || info.Count == 0)
                     return false;
 
                 lock (spdInfoLock)
                 {
                     // Build a new dictionary and publish it with a single reference swap, so
                     // readers iterating the previous snapshot never see it mutated.
-                    Dictionary<byte, Ddr5SpdInfo> current = SpdInfo;
+                    Dictionary<byte, Ddr5SpdInfo> current = spdInfo;
                     Dictionary<byte, Ddr5SpdInfo> merged = current != null
                         ? new Dictionary<byte, Ddr5SpdInfo>(current)
                         : new Dictionary<byte, Ddr5SpdInfo>();
 
+                    bool updated = false;
                     foreach (var entry in info)
                     {
-                        if (entry.Value != null)
+                        if (entry.Value != null && entry.Value.IsValid)
+                        {
                             merged[entry.Key] = entry.Value;
+                            updated = true;
+                        }
                     }
 
-                    SpdInfo = merged;
+                    if (!updated)
+                        return false;
+                    spdInfo = merged;
                 }
                 return true;
             }
@@ -396,9 +443,21 @@ namespace ZenStates.Core.Hardware.DRAM
             }
         }
 
+        private static bool IsDdr5SpdCacheComplete(Dictionary<byte, Ddr5SpdInfo> cached)
+        {
+            if (cached == null || cached.Count == 0)
+                return false;
+            foreach (Ddr5SpdInfo entry in cached.Values)
+            {
+                if (entry == null || entry.IsPartial || !entry.IsValid)
+                    return false;
+            }
+            return true;
+        }
+
         private bool RefreshDdr4SpdInfo()
         {
-            Dictionary<byte, Ddr4SpdInfo> cached = Ddr4Spd;
+            Dictionary<byte, Ddr4SpdInfo> cached = ddr4Spd;
             if (cached != null && cached.Count > 0)
             {
                 bool anyPartial = false;
@@ -422,7 +481,7 @@ namespace ZenStates.Core.Hardware.DRAM
 
                 lock (spdInfoLock)
                 {
-                    Dictionary<byte, Ddr4SpdInfo> current = Ddr4Spd;
+                    Dictionary<byte, Ddr4SpdInfo> current = ddr4Spd;
                     Dictionary<byte, Ddr4SpdInfo> merged = current != null
                         ? new Dictionary<byte, Ddr4SpdInfo>(current)
                         : new Dictionary<byte, Ddr4SpdInfo>();
@@ -434,7 +493,7 @@ namespace ZenStates.Core.Hardware.DRAM
                             merged[entry.Key] = entry.Value;
                     }
 
-                    Ddr4Spd = merged;
+                    ddr4Spd = merged;
                 }
                 return true;
             }
@@ -453,7 +512,7 @@ namespace ZenStates.Core.Hardware.DRAM
 
             if (Type == MemType.DDR4)
             {
-                ddr4Sensors = Ddr4ThermalSensors;
+                ddr4Sensors = ddr4ThermalSensors;
                 if (ddr4Sensors == null || ddr4Sensors.Count == 0)
                     return false;
             }
@@ -462,8 +521,19 @@ namespace ZenStates.Core.Hardware.DRAM
                 if (!IsSpdSupported)
                     return false;
 
-                snapshot = SpdInfo;
+                snapshot = spdInfo;
                 if (snapshot == null || snapshot.Count == 0)
+                    return false;
+                bool hasTelemetry = false;
+                foreach (Ddr5SpdInfo info in snapshot.Values)
+                {
+                    if (HasDdr5Telemetry(info))
+                    {
+                        hasTelemetry = true;
+                        break;
+                    }
+                }
+                if (!hasTelemetry)
                     return false;
             }
 
@@ -530,6 +600,9 @@ namespace ZenStates.Core.Hardware.DRAM
 
                 foreach (var info in snapshot)
                 {
+                    if (!HasDdr5Telemetry(info.Value))
+                        continue;
+
                     Ddr5Pmic pmic = info.Value?.Pmic;
                     if (pmic != null && pmic.IsValid && pmic.RefreshNoLock(smbusDriver))
                         updated = true;

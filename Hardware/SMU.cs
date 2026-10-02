@@ -255,81 +255,83 @@ namespace ZenStates.Core
 
     public static class GetMaintainedSettings
     {
-        private static readonly Dictionary<Cpu.CodeName, SMU> settings = new Dictionary<Cpu.CodeName, SMU>
+        private delegate SMU SettingsFactory();
+
+        private static readonly Dictionary<Cpu.CodeName, SettingsFactory> settings = new Dictionary<Cpu.CodeName, SettingsFactory>
         {
             // Pre-Ryzen
-            { Cpu.CodeName.Carrizo, new BristolRidgeSettings() },
-            { Cpu.CodeName.BristolRidge, new BristolRidgeSettings() },
-            { Cpu.CodeName.StoneyRidge, new BristolRidgeSettings() },
+            { Cpu.CodeName.Carrizo, () => new BristolRidgeSettings() },
+            { Cpu.CodeName.BristolRidge, () => new BristolRidgeSettings() },
+            { Cpu.CodeName.StoneyRidge, () => new BristolRidgeSettings() },
 
             // Zen
-            { Cpu.CodeName.SummitRidge, new ZenSettings() },
-            { Cpu.CodeName.Naples, new ZenSettings() },
-            { Cpu.CodeName.Whitehaven, new ZenSettings() },
+            { Cpu.CodeName.SummitRidge, () => new ZenSettings() },
+            { Cpu.CodeName.Naples, () => new ZenSettings() },
+            { Cpu.CodeName.Whitehaven, () => new ZenSettings() },
 
             // Zen+
-            { Cpu.CodeName.PinnacleRidge, new ZenPSettings() },
-            { Cpu.CodeName.Colfax, new ZenPSettings_Colfax() },
+            { Cpu.CodeName.PinnacleRidge, () => new ZenPSettings() },
+            { Cpu.CodeName.Colfax, () => new ZenPSettings_Colfax() },
 
             // Zen2
-            { Cpu.CodeName.Matisse, new Zen2Settings() },
-            { Cpu.CodeName.CastlePeak, new Zen2Settings() },
-            { Cpu.CodeName.Rome, new Zen2Settings_Rome() },
+            { Cpu.CodeName.Matisse, () => new Zen2Settings() },
+            { Cpu.CodeName.CastlePeak, () => new Zen2Settings() },
+            { Cpu.CodeName.Rome, () => new Zen2Settings_Rome() },
 
             // Zen3
-            { Cpu.CodeName.Vermeer, new Zen3Settings() },
-            { Cpu.CodeName.Chagall, new Zen3Settings() },
-            { Cpu.CodeName.Milan, new Zen3Settings() },
+            { Cpu.CodeName.Vermeer, () => new Zen3Settings() },
+            { Cpu.CodeName.Chagall, () => new Zen3Settings() },
+            { Cpu.CodeName.Milan, () => new Zen3Settings() },
 
             // Zen4
-            { Cpu.CodeName.Raphael, new Zen4Settings() },
-            { Cpu.CodeName.Genoa, new Zen4Settings() },
-            { Cpu.CodeName.StormPeak, new Zen4Settings() },
-            { Cpu.CodeName.DragonRange, new Zen4Settings() },
+            { Cpu.CodeName.Raphael, () => new Zen4Settings() },
+            { Cpu.CodeName.Genoa, () => new Zen4Settings() },
+            { Cpu.CodeName.StormPeak, () => new Zen4Settings() },
+            { Cpu.CodeName.DragonRange, () => new Zen4Settings() },
 
             // Zen5
-            { Cpu.CodeName.GraniteRidge, new Zen5Settings() },
-            { Cpu.CodeName.Bergamo, new Zen5Settings() },
+            { Cpu.CodeName.GraniteRidge, () => new Zen5Settings() },
+            { Cpu.CodeName.Bergamo, () => new Zen5Settings() },
             // Experimental
-            { Cpu.CodeName.Turin, new Zen5Settings() },
-            { Cpu.CodeName.TurinD, new Zen5Settings() },
-            { Cpu.CodeName.ShimadaPeak, new Zen5Settings_ShimadaPeak() },
+            { Cpu.CodeName.Turin, () => new Zen5Settings() },
+            { Cpu.CodeName.TurinD, () => new Zen5Settings() },
+            { Cpu.CodeName.ShimadaPeak, () => new Zen5Settings_ShimadaPeak() },
 
             // APU
-            { Cpu.CodeName.RavenRidge, new APUSettings0() },
-            { Cpu.CodeName.FireFlight, new APUSettings0() },
-            { Cpu.CodeName.Dali, new APUSettings0_Picasso() },
-            { Cpu.CodeName.Picasso, new APUSettings0_Picasso() },
+            { Cpu.CodeName.RavenRidge, () => new APUSettings0() },
+            { Cpu.CodeName.FireFlight, () => new APUSettings0() },
+            { Cpu.CodeName.Dali, () => new APUSettings0_Picasso() },
+            { Cpu.CodeName.Picasso, () => new APUSettings0_Picasso() },
 
-            { Cpu.CodeName.Renoir, new APUSettings1() },
-            { Cpu.CodeName.Lucienne, new APUSettings1() },
-            { Cpu.CodeName.Cezanne, new APUSettings1_Cezanne() },
+            { Cpu.CodeName.Renoir, () => new APUSettings1() },
+            { Cpu.CodeName.Lucienne, () => new APUSettings1() },
+            { Cpu.CodeName.Cezanne, () => new APUSettings1_Cezanne() },
 
-            { Cpu.CodeName.Mero, new APUSettings1_VanGogh() }, // unknown, presumably based on VanGogh
-            { Cpu.CodeName.VanGogh, new APUSettings1_VanGogh() },
-            { Cpu.CodeName.Rembrandt, new APUSettings1_Rembrandt() },
+            { Cpu.CodeName.Mero, () => new APUSettings1_VanGogh() }, // unknown, presumably based on VanGogh
+            { Cpu.CodeName.VanGogh, () => new APUSettings1_VanGogh() },
+            { Cpu.CodeName.Rembrandt, () => new APUSettings1_Rembrandt() },
             // https://github.com/coreboot/coreboot/blob/master/src/soc/amd/mendocino/include/soc/smu.h
-            { Cpu.CodeName.Mendocino, new APUSettings1_Rembrandt() },
+            { Cpu.CodeName.Mendocino, () => new APUSettings1_Rembrandt() },
             // https://github.com/coreboot/coreboot/blob/master/src/soc/amd/phoenix/include/soc/smu.h
-            { Cpu.CodeName.Phoenix, new APUSettings1_Phoenix() },
-            { Cpu.CodeName.Phoenix2, new APUSettings1_Phoenix() },
-            { Cpu.CodeName.HawkPoint, new APUSettings1_Phoenix() },
+            { Cpu.CodeName.Phoenix, () => new APUSettings1_Phoenix() },
+            { Cpu.CodeName.Phoenix2, () => new APUSettings1_Phoenix() },
+            { Cpu.CodeName.HawkPoint, () => new APUSettings1_Phoenix() },
 
-            { Cpu.CodeName.StrixPoint, new APUSettings1_Strix() },
-            { Cpu.CodeName.StrixHalo, new APUSettings1_Strix() },
-            { Cpu.CodeName.KrackanPoint, new APUSettings1_Strix() },
-            { Cpu.CodeName.KrackanPoint2, new APUSettings1_Strix() },
+            { Cpu.CodeName.StrixPoint, () => new APUSettings1_Strix() },
+            { Cpu.CodeName.StrixHalo, () => new APUSettings1_Strix() },
+            { Cpu.CodeName.KrackanPoint, () => new APUSettings1_Strix() },
+            { Cpu.CodeName.KrackanPoint2, () => new APUSettings1_Strix() },
 
-            { Cpu.CodeName.Unsupported, new UnsupportedSettings() },
+            { Cpu.CodeName.Unsupported, () => new UnsupportedSettings() },
         };
 
         public static SMU GetByType(Cpu.CodeName type)
         {
-            if (!settings.TryGetValue(type, out SMU output))
+            if (!settings.TryGetValue(type, out SettingsFactory factory))
             {
                 return new UnsupportedSettings();
             }
-            return output;
+            return factory();
         }
     }
 

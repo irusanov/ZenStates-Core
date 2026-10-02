@@ -389,9 +389,12 @@ namespace ZenStates.Core.Hardware.Mock
             CapacityUnit unit;
             switch (m.Groups["unit"].Value.ToUpperInvariant())
             {
+                case "B": unit = CapacityUnit.B; break;
                 case "KB": unit = CapacityUnit.KB; break;
                 case "MB": unit = CapacityUnit.MB; break;
-                default: unit = CapacityUnit.GB; break; // GB, or bare "B"/"TB" fall back to GB-scale storage
+                case "GB": unit = CapacityUnit.GB; break;
+                case "TB": unit = CapacityUnit.TB; break;
+                default: return;
             }
 
             double scaled = Math.Round(capValue * Math.Pow(1024, (int)unit));
@@ -810,7 +813,12 @@ namespace ZenStates.Core.Hardware.Mock
 
             // Rtt prints its divider after the text: "RZQ/6 (40)".
             Match text = AodTextSuffixRegex.Match(value);
-            return text.Success && TryFindCode(lookup, text.Groups["text"].Value, out code);
+            if (text.Success && TryFindCode(lookup, text.Groups["text"].Value, out code))
+                return true;
+
+            Match suffix = AodRawSuffixRegex.Match(value);
+            return suffix.Success &&
+                   int.TryParse(suffix.Groups["raw"].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out code);
         }
 
         private static bool TryParseAodMillivolts(string value, out int millivolts)

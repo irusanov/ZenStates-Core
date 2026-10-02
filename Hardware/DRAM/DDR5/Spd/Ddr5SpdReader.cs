@@ -181,7 +181,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             if (slots == null)
                 return result;
 
-            for (int i = 0; i < slots.Count && result.Count < 256; i++)
+            for (int i = 0; i < slots.Count && i < 256; i++)
             {
                 ApobDimmSpd slot = slots[i];
                 if (slot == null || !Ddr5SpdDecoder.IsSupportedDeviceType(slot.DeviceType))
@@ -189,7 +189,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
 
                 Ddr5SpdInfo info = Ddr5SpdDecoder.Decode(slot.Data, false);
                 info.FromApob = true;
-                result[(byte)result.Count] = info;
+                result[(byte)i] = info;
             }
 
             return result;

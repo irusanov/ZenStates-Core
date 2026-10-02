@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ZenStates.Core.Common;
 using ZenStates.Core.Hardware.Aod;
 using ZenStates.Core.Hardware.DRAM;
 using ZenStates.Core.Hardware.DRAM.DDR5.Pmic;
@@ -31,7 +32,13 @@ namespace ZenStates.Core.Hardware.Mock
 
         public ApobTable Apob { get; private set; }
 
-        public Dictionary<byte, Ddr5SpdInfo> SpdInfo { get; private set; } = new Dictionary<byte, Ddr5SpdInfo>();
+        private Dictionary<byte, Ddr5SpdInfo> spdInfo = new Dictionary<byte, Ddr5SpdInfo>();
+
+        public Dictionary<byte, Ddr5SpdInfo> SpdInfo
+        {
+            get { return new Dictionary<byte, Ddr5SpdInfo>(spdInfo, spdInfo.Comparer); }
+            private set { spdInfo = new Dictionary<byte, Ddr5SpdInfo>(value, value.Comparer); }
+        }
 
         /// <summary>
         /// PMIC of the first DIMM that has one, i.e. what the main window shows when no particular

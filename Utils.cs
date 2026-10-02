@@ -254,6 +254,14 @@ namespace ZenStates.Core
             if (byteArray == null)
                 return default;
 
+#if NET8_0_OR_GREATER
+            int size = Marshal.SizeOf<T>();
+#else
+            int size = Marshal.SizeOf(typeof(T));
+#endif
+            if (byteArray.Length < size)
+                throw new ArgumentException("The buffer is smaller than the requested structure.", nameof(byteArray));
+
             T structure;
             GCHandle handle = GCHandle.Alloc(byteArray, GCHandleType.Pinned);
             try

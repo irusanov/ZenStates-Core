@@ -119,7 +119,7 @@ namespace ZenStates.Core.Hardware.DRAM.DDR4.Thermal
             // The flags only mean something against limits that were actually set.
             td.AlarmCritHigh = (raw & TEMP_CRIT) != 0 && IsLimitSet(td.TempCritMilliC);
             td.AlarmHigh = (raw & TEMP_HIGH) != 0 && IsLimitSet(td.TempMaxMilliC);
-            td.AlarmLow = (raw & TEMP_LOW) != 0 && IsLimitSet(td.TempMinMilliC) && td.TempMinMilliC < td.TempMaxMilliC;
+            td.AlarmLow = (raw & TEMP_LOW) != 0 && IsLimitSet(td.TempMinMilliC);
         }
 
         /// <summary>

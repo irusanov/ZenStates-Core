@@ -980,7 +980,14 @@ namespace ZenStates.Core.Hardware.Apob
 
             uint dataOffset = ParseHexValue(text, "-- Main Data Offset:") ?? (uint)(rawHeaderBytes?.Length ?? 0);
             uint dataSize = hasData ? Math.Max(ParseHexValue(text, "-- Main Data Size:") ?? 0, (uint)rawDataBytes.Length) : 0;
-            uint extendedDataOffset = ParseHexValue(text, "-- Ext. Data Offset:") ?? (dataOffset + dataSize);
+            long defaultExtendedDataOffset = (long)dataOffset + dataSize;
+            uint? declaredExtendedDataOffset = ParseHexValue(text, "-- Ext. Data Offset:");
+            if (!declaredExtendedDataOffset.HasValue && defaultExtendedDataOffset > uint.MaxValue)
+            {
+                apob.ErrorReason = "The APOB data offsets exceed the supported range.";
+                return apob;
+            }
+            uint extendedDataOffset = declaredExtendedDataOffset ?? (uint)defaultExtendedDataOffset;
             uint extendedDataSize = Math.Max(
                 ParseHexValue(text, "-- Ext. Data Size:") ?? 0,
                 (uint)(rawExtendedDataBytes?.Length ?? 0));
@@ -990,6 +997,12 @@ namespace ZenStates.Core.Hardware.Apob
             long tableLength = Math.Max(
                 header.HeaderSize,
                 Math.Max((long)dataOffset + dataSize, (long)extendedDataOffset + extendedDataSize));
+
+            if (tableLength > int.MaxValue)
+            {
+                apob.ErrorReason = "The APOB data offsets and sizes exceed the supported buffer length.";
+                return apob;
+            }
 
             byte[] rawTable = new byte[tableLength];
             if (rawHeaderBytes != null)
@@ -1188,7 +1201,8 @@ namespace ZenStates.Core.Hardware.Apob
                 if (lengthMatch.Success)
                 {
                     lengthLine = i;
-                    expectedLength = int.Parse(lengthMatch.Groups[1].Value, CultureInfo.InvariantCulture);
+                    if (!int.TryParse(lengthMatch.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out expectedLength))
+                        return null;
                     break;
                 }
             }
@@ -1204,7 +1218,7 @@ namespace ZenStates.Core.Hardware.Apob
                 return null;
             }
 
-            var bytes = new List<byte>(expectedLength == int.MaxValue ? 4096 : expectedLength);
+            var bytes = new List<byte>(Math.Min(expectedLength == int.MaxValue ? 4096 : expectedLength, text.Length / 2));
             for (int i = lengthLine + 1; i < lines.Length && bytes.Count < expectedLength; i++)
             {
                 string line = lines[i].Trim();
