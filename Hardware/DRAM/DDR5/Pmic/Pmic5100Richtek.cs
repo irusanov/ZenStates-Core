@@ -43,6 +43,9 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Pmic
 
         protected override byte EncodeSwabVid(int mv, byte current)
         {
+            if (!HighVoltageMode && mv <= JEDEC_SWAB_MAX_MV)
+                return base.EncodeSwabVid(mv, current);
+
             return (byte)VidSteps(mv, SWAB_BASE_MV);
         }
 
