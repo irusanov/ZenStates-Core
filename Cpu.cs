@@ -267,8 +267,14 @@ namespace ZenStates.Core
                 case CodeName.Rome:
                     return new TopologyFuses
                     {
-                        Chiplet = true, CcdFuse1 = CCD_FUSE_ZEN2, CcdFuse2 = CCD_FUSE_ZEN2 + 4, CcdMapFromDown = true,
-                        CoreFuse = 0x30081A38, CoreFuseCcdStride = CCD_CORE_FUSE_STRIDE, CcxPerCcd = 2, CoreSlotsPerCcx = 4,
+                        Chiplet = true,
+                        CcdFuse1 = CCD_FUSE_ZEN2,
+                        CcdFuse2 = CCD_FUSE_ZEN2 + 4,
+                        CcdMapFromDown = true,
+                        CoreFuse = 0x30081A38,
+                        CoreFuseCcdStride = CCD_CORE_FUSE_STRIDE,
+                        CcxPerCcd = 2,
+                        CoreSlotsPerCcx = 4,
                     };
 
                 // Zen 3 chiplets: 1 CCX of 8 per CCD
@@ -277,8 +283,14 @@ namespace ZenStates.Core
                 case CodeName.Milan:
                     return new TopologyFuses
                     {
-                        Chiplet = true, CcdFuse1 = CCD_FUSE_ZEN2, CcdFuse2 = CCD_FUSE_ZEN2 + 4, CcdMapFromDown = true,
-                        CoreFuse = 0x30081D98, CoreFuseCcdStride = CCD_CORE_FUSE_STRIDE, CcxPerCcd = 1, CoreSlotsPerCcx = 8,
+                        Chiplet = true,
+                        CcdFuse1 = CCD_FUSE_ZEN2,
+                        CcdFuse2 = CCD_FUSE_ZEN2 + 4,
+                        CcdMapFromDown = true,
+                        CoreFuse = 0x30081D98,
+                        CoreFuseCcdStride = CCD_CORE_FUSE_STRIDE,
+                        CcxPerCcd = 1,
+                        CoreSlotsPerCcx = 8,
                     };
 
                 // Zen 4 / Zen 5 desktop: up to 2 CCDs
@@ -286,14 +298,24 @@ namespace ZenStates.Core
                 case CodeName.DragonRange:
                     return new TopologyFuses
                     {
-                        Chiplet = true, CcdFuse1 = CCD_FUSE_ZEN4, CcdFuse2 = CCD_FUSE_ZEN4 + 4,
-                        CoreFuse = 0x30081CD0, CoreFuseCcdStride = CCD_CORE_FUSE_STRIDE, CcxPerCcd = 1, CoreSlotsPerCcx = 8,
+                        Chiplet = true,
+                        CcdFuse1 = CCD_FUSE_ZEN4,
+                        CcdFuse2 = CCD_FUSE_ZEN4 + 4,
+                        CoreFuse = 0x30081CD0,
+                        CoreFuseCcdStride = CCD_CORE_FUSE_STRIDE,
+                        CcxPerCcd = 1,
+                        CoreSlotsPerCcx = 8,
                     };
                 case CodeName.GraniteRidge:
                     return new TopologyFuses
                     {
-                        Chiplet = true, CcdFuse1 = CCD_FUSE_ZEN4, CcdFuse2 = CCD_FUSE_ZEN4 + 4,
-                        CoreFuse = 0x304A03DC, CoreFuseCcdStride = CCD_CORE_FUSE_STRIDE, CcxPerCcd = 1, CoreSlotsPerCcx = 8,
+                        Chiplet = true,
+                        CcdFuse1 = CCD_FUSE_ZEN4,
+                        CcdFuse2 = CCD_FUSE_ZEN4 + 4,
+                        CoreFuse = 0x304A03DC,
+                        CoreFuseCcdStride = CCD_CORE_FUSE_STRIDE,
+                        CcxPerCcd = 1,
+                        CoreSlotsPerCcx = 8,
                     };
 
                 // Monolithic APUs: one die, no CCD fuses. The core mask sits at a bit offset in an SMUFUSE register.
@@ -643,6 +665,22 @@ namespace ZenStates.Core
                 if (info.vendor != Constants.VENDOR_AMD && info.vendor != Constants.VENDOR_HYGON)
                     throw new Exception("Not an AMD CPU");
 
+                ReportProgress("CPUID");
+                if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
+                {
+                    info.cpuid = eax;
+                    info.family = (Family)(((eax & 0xf00) >> 8) + ((eax & 0xff00000) >> 20));
+                    info.baseModel = (eax & 0xf0) >> 4;
+                    info.extModel = (eax & 0xf0000) >> 16;
+                    info.model = info.baseModel + info.extModel * 0x10;
+                    info.stepping = eax & 0xf;
+                    // info.logicalCores = Utils.GetBits(ebx, 16, 8);
+                }
+                else
+                {
+                    throw new ApplicationException(InitializationExceptionText);
+                }
+
                 Mutexes.Open();
 
                 ReportProgress("PawnIO modules");
@@ -658,10 +696,16 @@ namespace ZenStates.Core
                     throw new ApplicationException("Error initializing PawnIO AMD module.", ex);
                 }
 
-                if (!_pawnAmd.IsLoaded || !_pawnRyzenSmu.IsLoaded)
+                if (info.family >= Family.FAMILY_17H && !_pawnAmd.IsLoaded)
                 {
                     throw new ApplicationException(
-                        "PawnIO AMD module could not be loaded. Make sure the PawnIO driver is installed and running, and that the application runs as administrator.");
+                        "PawnIO Ryzen SMN module could not be loaded. Make sure the PawnIO driver is installed and running, and that the application runs as administrator.");
+                }
+
+                if (!_pawnRyzenSmu.IsLoaded)
+                {
+                    throw new ApplicationException(
+                        "PawnIO Ryzen SMU module could not be loaded. Make sure the PawnIO driver is installed and running, and that the application runs as administrator.");
                 }
 
                 try
@@ -672,21 +716,6 @@ namespace ZenStates.Core
                 {
                     io = null;
                     RecordError(errors, ex, "IODriver");
-                }
-
-                if (Opcode.Cpuid(0x00000001, 0, out uint eax, out uint ebx, out uint ecx, out uint edx))
-                {
-                    info.cpuid = eax;
-                    info.family = (Family)(((eax & 0xf00) >> 8) + ((eax & 0xff00000) >> 20));
-                    info.baseModel = (eax & 0xf0) >> 4;
-                    info.extModel = (eax & 0xf0000) >> 16;
-                    info.model = info.baseModel + info.extModel * 0x10;
-                    info.stepping = eax & 0xf;
-                    // info.logicalCores = Utils.GetBits(ebx, 16, 8);
-                }
-                else
-                {
-                    throw new ApplicationException(InitializationExceptionText);
                 }
 
                 info.cpuName = GetCpuName();
