@@ -529,6 +529,7 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                     switch (model)
                     {
+                        case Model.B650_TOMAHAWK_WIFI: // Mapped from a debug report (AMD Ryzen 9 7950X 16-Core Processor, BIOS 1.R3, Debug_Report_29852610.5624242.txt)
                         case Model.X870E_TOMAHAWK_WIFI:
                         case Model.X870E_TOMAHAWK_MAX_WIFI_PZ:
                         case Model.X870E_EDGE_TI_WIFI:

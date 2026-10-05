@@ -375,6 +375,8 @@ namespace ZenStates.Core.Hardware.Motherboard
                     return Model.B650M_C;
                 case var _ when name.Equals("B650M GAMING PLUS WIFI (MS-7E24)", StringComparison.OrdinalIgnoreCase):
                     return Model.B650M_Gaming_Plus_Wifi;
+                case var _ when name.Equals("MAG B650 TOMAHAWK WIFI (MS-7D75)", StringComparison.OrdinalIgnoreCase):
+                    return Model.B650_TOMAHAWK_WIFI;
                 case var _ when name.Equals("MEG X570 UNIFY", StringComparison.OrdinalIgnoreCase):
                 case var _ when name.Equals("MEG X570 UNIFY (MS-7C35)", StringComparison.OrdinalIgnoreCase):
                 case var _ when name.Equals("MEG X570 ACE", StringComparison.OrdinalIgnoreCase):

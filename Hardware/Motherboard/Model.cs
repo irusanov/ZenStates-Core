@@ -93,6 +93,7 @@ namespace ZenStates.Core.Hardware.Motherboard
         B450A_PRO,
         B550A_PRO,
         B650M_Gaming_Plus_Wifi,
+        B650_TOMAHAWK_WIFI,
         X570_Gaming_Plus,
         X570_MS7C35,
         B850M_MORTAR,
