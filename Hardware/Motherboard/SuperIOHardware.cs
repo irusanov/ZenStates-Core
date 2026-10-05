@@ -605,7 +605,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             v.Add(new Voltage("+12V", 0));
                             v.Add(new Voltage("+5V", 1));
                             v.Add(new Voltage("CPU NB/SoC", 2));
-                            v.Add(new Voltage("VDIMM", 3, 1, 1));
+                            v.Add(new Voltage("CPU VDDIO", 3, 1, 1));
                             v.Add(new Voltage("Vcore", 4, -1, 2));
                             v.Add(new Voltage("Chipset", 5));
                             v.Add(new Voltage("CPU SA", 6));
