@@ -227,6 +227,9 @@ namespace ZenStates.Core
             { 0x650006, 0xB80, 0x4C8, 0x4CC, 0x4D0, 0x74, -1, -1, -1, -1, -1 },
             // size is not confirmed
             { 0x650007, 0xB80, 0x4C8, 0x4CC, 0x4D0, 0x74, -1, -1, -1, -1, -1 },
+            // 0x650008 is in SMU 101.72.0 (AGESA ComboAm5PI 1.3.0.1d). Placeholder: size and offsets copied
+            // from 0x650007, unverified. TODO: real offsets.
+            { 0x650008, 0xB80, 0x4C8, 0x4CC, 0x4D0, 0x74, -1, -1, -1, -1, -1 },
             { 0x000650, 0xB80, 0x4C8, 0x4CC, 0x4D0, 0x74, -1, -1, -1, -1, -1 },
 
             // StrixPoint
@@ -323,6 +326,9 @@ namespace ZenStates.Core
             // Unverified (no reports): the clocks sit 0x10 above 0x4C0008, so the SVI3 block is assumed to
             // move by the same 0x10 (VDD at 0x1B4) with 4-float rails like 0x4C0008. 0x1C8 is then the
             // measured SOC voltage, or the SOC VID if these tables turn out to use 5-float rails.
+            // 0x4C0001 is in SMU 76.103.0 (AGESA ComboAm5PI 1.3.0.1d) next to 0x4C0009. Placeholder: size and
+            // offsets copied from 0x4C0003, unverified. TODO: real offsets.
+            { 0x4C0001, 0xB18, 0x174, 0x184, 0x194, 0x1C8, 0x768, -1, -1, -1, -1, 0x1B4, SVI3_RAIL_NO_TEMP, Svi3Rails.VddSoc },
             { 0x4C0003, 0xB18, 0x174, 0x184, 0x194, 0x1C8, 0x768, -1, -1, -1, -1, 0x1B4, SVI3_RAIL_NO_TEMP, Svi3Rails.VddSoc },
             { 0x4C0004, 0xB1C, 0x174, 0x184, 0x194, 0x1C8, 0x768, -1, -1, -1, -1, 0x1B4, SVI3_RAIL_NO_TEMP, Svi3Rails.VddSoc },
             { 0x4C0005, 0xAF8, 0x174, 0x184, 0x194, 0x1C8, 0x768, -1, -1, -1, -1, 0x1B4, SVI3_RAIL_NO_TEMP, Svi3Rails.VddSoc },
@@ -344,6 +350,11 @@ namespace ZenStates.Core
             // version, size,  FCLK,  UCLK,  MCLK, VDDCR_SOC, CLDO_VDDP, CLDO_VDDG_IOD, CLDO_VDDG_CCD, Cores Power Offset, MISC
             { 0x621102, 0x724, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, 0x40C, 0x414, -1, 0xEC, 0xC0, SVI3_RAIL, Svi3Rails.VddSocMisc },
             { 0x621202, 0x994, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, 0x40C, 0x414, -1, 0xEC, 0xC0, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            // 0x621101 / 0x621201 are the versions SMU 98.84.0 (AGESA ComboAm5PI 1.3.0.1d) carries next to
+            // 0x620105 / 0x620205, with the 0x994 size literal. Unverified (no reports yet): size and offsets
+            // are copied from 0x621102 / 0x621202.  The middle byte is most likely the CCD count.
+            { 0x621101, 0x724, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, 0x40C, 0x414, -1, 0xEC, 0xC0, SVI3_RAIL, Svi3Rails.VddSocMisc },
+            { 0x621201, 0x994, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, 0x40C, 0x414, -1, 0xEC, 0xC0, SVI3_RAIL, Svi3Rails.VddSocMisc },
             { 0x620205, 0x994, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, 0x40C, 0x414, -1, 0xEC, 0xC0, SVI3_RAIL, Svi3Rails.VddSocMisc },
             { 0x620105, 0x724, 0x11C, 0x12C, 0x13C, 0xD8, 0x434, 0x40C, 0x414, -1, 0xEC, 0xC0, SVI3_RAIL, Svi3Rails.VddSocMisc },
             // Generic Zen5
