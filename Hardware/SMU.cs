@@ -137,7 +137,23 @@ namespace ZenStates.Core
                    msg != 0;
         }
 
+        /// <summary>
+        /// Sends a command to the given mailbox. On <see cref="Status.OK"/>, <paramref name="args"/> holds the values
+        /// the firmware returned. On any other status the array is cleared, so the input arguments (or a partial
+        /// read-back) are never mistaken for firmware output. Callers that retry with a fallback command must set
+        /// their arguments again.
+        /// </summary>
         public Status SendSmuCommand(Mailbox mailbox, uint msg, ref uint[] args)
+        {
+            Status status = SendSmuCommandNoReset(mailbox, msg, ref args);
+
+            if (status != Status.OK && args != null)
+                Array.Clear(args, 0, args.Length);
+
+            return status;
+        }
+
+        private Status SendSmuCommandNoReset(Mailbox mailbox, uint msg, ref uint[] args)
         {
             if (!ValidateMailbox(mailbox, msg))
                 return Status.UNKNOWN_CMD;

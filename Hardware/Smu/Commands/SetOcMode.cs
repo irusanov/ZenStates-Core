@@ -14,7 +14,7 @@ namespace ZenStates.Core.Hardware.Smu.Commands
             switch (smu.SMU_TYPE)
             {
                 case SMU.SmuType.TYPE_CPU9:
-                    result.status = ExecuteBristolOcMode(enabled);
+                    result.status = ExecuteBristolOcMode(enabled, arg);
                     break;
                 case SMU.SmuType.TYPE_APU0:
                 case SMU.SmuType.TYPE_CPU0:
@@ -33,13 +33,16 @@ namespace ZenStates.Core.Hardware.Smu.Commands
             return base.Execute();
         }
 
-        private SMU.Status ExecuteBristolOcMode(bool enabled)
+        private SMU.Status ExecuteBristolOcMode(bool enabled, uint arg)
         {
             uint cmd = enabled ? smu.GpuMb.SMU_MSG_EnableOcMode : smu.GpuMb.SMU_MSG_DisableOcMode;
             var status = smu.SendGpuMbCommand(cmd, ref result.args);
 
             if (status != SMU.Status.OK && enabled)
+            {
+                result.args = Utils.MakeCmdArgs(arg);
                 status = smu.SendGpuMbCommand(smu.GpuMb.SMU_MSG_EnableOcModeAlt, ref result.args);
+            }
 
             return status;
         }
@@ -52,7 +55,8 @@ namespace ZenStates.Core.Hardware.Smu.Commands
             uint cmd = enabled ? smu.Rsmu.SMU_MSG_EnableOcMode : smu.Rsmu.SMU_MSG_DisableOcMode;
             uint fallback = enabled ? smu.Mp1Smu.SMU_MSG_EnableOcMode : smu.Mp1Smu.SMU_MSG_DisableOcMode;
 
-            // Apply BOTH commands: Disable PROCHOT + enable/disable volt/freq override
+            // Apply BOTH commands: Disable PROCHOT + enable/disable volt/freq override.
+            // The args are rebuilt for the second one, as a failed send clears them.
             smu.SendRsmuCommand(cmd, ref result.args);
 
             result.args = Utils.MakeCmdArgs(enabled ? 1U : arg);
