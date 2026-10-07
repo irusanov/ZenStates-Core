@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Reflection;
@@ -187,7 +187,8 @@ namespace ZenStates.Core.Hardware.DRAM
 
         private PropertyInfo GetPropertyInfo(string propertyName)
         {
-            PropertyInfo info = GetType().GetProperty(propertyName);
+            PropertyInfo info = GetType().GetProperty(propertyName,
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
             // Under a trimmed or NativeAOT build a missing property means the member was
             // trimmed, not that the name was wrong — and the callers' null checks turn that

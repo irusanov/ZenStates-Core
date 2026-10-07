@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using ZenStates.Core.Drivers;
 using ZenStates.Core.Hardware.DRAM.DDR4.Spd;
 using ZenStates.Core.Hardware.DRAM.DDR4.Thermal;
@@ -55,8 +56,6 @@ namespace ZenStates.Core.Hardware.DRAM
         public MemType Type { get; protected set; } = MemType.UNKNOWN;
 
         public Capacity TotalCapacity { get; protected set; }
-
-        public bool IsExpoProfileActive { get; protected set; } = false;
 
         public List<KeyValuePair<uint, BaseDramTimings>> Timings { get; protected set; }
 
@@ -191,55 +190,120 @@ namespace ZenStates.Core.Hardware.DRAM
                 Mutexes.ReleasePciBus();
             }
 
-            if (Type == MemType.DDR4)
-            {
-                // Module thermal sensors (TSOD); read-only, modules without one are simply listed without data.
-                Dictionary<byte, Ddr4ThermalData> sensors = Ddr4ThermalSensor.ReadAll(smbusDriver);
-                Ddr4ThermalSensors = sensors;
+            // The SPD, the hub / PMIC telemetry and the DDR4 thermal sensors are read on a background thread
+            // (hundreds of ms of SMBus traffic), so startup only waits for the UMC registers above. Consumers get
+            // SpdInfoLoaded when they are in, or wait for them with WaitForSpdInfo.
+            if (Type == MemType.DDR4 || IsSpdSupported)
+                StartSpdLoad();
+            else
+                spdLoaded.Set();
+        }
 
-                // Only the SPD bytes needed at startup; the SPD window reads the rest
-                Dictionary<byte, Ddr4SpdInfo> ddr4Info = Ddr4SpdReader.ReadInitInfoAll();
-                LinkDdr4ThermalSensors(ddr4Info);
-                Ddr4Spd = ddr4Info;
+        // ---------------------------------------------------------------- background SPD load
 
-                var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                foreach (Ddr4SpdInfo entry in ddr4Info.Values)
-                {
-                    if (entry != null && entry.IsValid)
-                        AddModuleManufacturer(names, entry.ModulePartNumber, entry.ModuleManufacturer);
-                }
-                UpdateModuleManufacturers(names);
-                return;
-            }
+        // Set once the background SPD load has finished (or there is nothing to load).
+        private readonly ManualResetEvent spdLoaded = new ManualResetEvent(false);
 
-            if (Type != MemType.DDR5 && Type != MemType.LPDDR5)
-                return;
+        /// <summary>
+        /// Raised on a background thread once the startup SPD read is done: <see cref="SpdInfo"/> / <see cref="Ddr4Spd"/>,
+        /// the DDR4 thermal sensors and the module manufacturers from the SPD are then available. Also raised when it
+        /// failed (the data is then empty). Handlers must not block; marshal to the UI thread as needed.
+        /// </summary>
+        public event EventHandler SpdInfoLoaded;
 
-            // Only read partial info needed for initialization as reading whole SPD data is expensive
-            Dictionary<byte, Ddr5SpdInfo> ddr5Info = Ddr5SpdReader.ReadInitInfoAll();
-            SpdInfo = ddr5Info;
+        /// <summary>True once the startup SPD read is done.</summary>
+        public bool IsSpdInfoLoaded
+        {
+            get { return spdLoaded.WaitOne(0, false); }
+        }
 
-            var ddr5Names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var spdEntry in ddr5Info.Values)
-            {
-                if (spdEntry != null && spdEntry.IsValid)
-                    AddModuleManufacturer(ddr5Names, spdEntry.ModulePartNumber, spdEntry.ModuleManufacturer);
-            }
-            UpdateModuleManufacturers(ddr5Names);
+        /// <summary>Waits for the startup SPD read. True when it is done.</summary>
+        public bool WaitForSpdInfo(int millisecondsTimeout)
+        {
+            return spdLoaded.WaitOne(millisecondsTimeout, false);
+        }
 
-            // Should not need a try/catch here, but just in case
-            // The command is largely untested and may not return a valid result for all platforms
+        private void StartSpdLoad()
+        {
             try
             {
-                using (var cmd = new GetEXPOProfileActive(cpu.smu))
+                var thread = new Thread(LoadSpdInfo)
                 {
-                    cmd.Execute();
-                    IsExpoProfileActive = cmd.IsEXPOProfileActive;
+                    IsBackground = true,
+                    Name = "ZenStates SPD",
+                };
+                thread.Start();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"MemoryConfig: could not start the SPD thread: {ex.Message}");
+                spdLoaded.Set();
+            }
+        }
+
+        private void LoadSpdInfo()
+        {
+            Stopwatch total = Stopwatch.StartNew();
+            Stopwatch sw = Stopwatch.StartNew();
+
+            try
+            {
+                if (Type == MemType.DDR4)
+                {
+                    // Module thermal sensors (TSOD); read-only, modules without one are simply listed without data.
+                    Dictionary<byte, Ddr4ThermalData> sensors = Ddr4ThermalSensor.ReadAll(smbusDriver);
+                    Ddr4ThermalSensors = sensors;
+
+                    // Only the SPD bytes needed at startup; the SPD window reads the rest
+                    Dictionary<byte, Ddr4SpdInfo> ddr4Info = Ddr4SpdReader.ReadInitInfoAll();
+                    LinkDdr4ThermalSensors(ddr4Info);
+                    Ddr4Spd = ddr4Info;
+
+                    var names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (Ddr4SpdInfo entry in ddr4Info.Values)
+                    {
+                        if (entry != null && entry.IsValid)
+                            AddModuleManufacturer(names, entry.ModulePartNumber, entry.ModuleManufacturer);
+                    }
+                    UpdateModuleManufacturers(names);
+                }
+                else
+                {
+                    // Only read partial info needed for initialization as reading whole SPD data is expensive
+                    Dictionary<byte, Ddr5SpdInfo> ddr5Info = Ddr5SpdReader.ReadInitInfoAll();
+
+                    lock (spdInfoLock)
+                    {
+                        Dictionary<byte, Ddr5SpdInfo> current = spdInfo;
+                        if (ddr5Info.Count > 0 || current == null)
+                            spdInfo = CopySnapshot(ddr5Info);
+                    }
+
+                    var ddr5Names = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var spdEntry in ddr5Info.Values)
+                    {
+                        if (spdEntry != null && spdEntry.IsValid)
+                            AddModuleManufacturer(ddr5Names, spdEntry.ModulePartNumber, spdEntry.ModuleManufacturer);
+                    }
+                    UpdateModuleManufacturers(ddr5Names);
                 }
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"MemoryConfig: Failed to get EXPO profile status: {ex.Message}");
+                Debug.WriteLine($"MemoryConfig: background SPD read failed: {ex.Message}");
+            }
+            finally
+            {
+                spdLoaded.Set();
+
+                try
+                {
+                    SpdInfoLoaded?.Invoke(this, EventArgs.Empty);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"MemoryConfig: SpdInfoLoaded handler failed: {ex.Message}");
+                }
             }
         }
 
@@ -394,6 +458,9 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public bool RefreshSpdInfo()
         {
+            // The startup read is still running: let it finish, then this read can merge over it
+            WaitForSpdInfo(10000);
+
             if (Type == MemType.DDR4)
                 return RefreshDdr4SpdInfo();
 
