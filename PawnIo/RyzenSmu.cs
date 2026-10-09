@@ -482,13 +482,21 @@ namespace ZenStates.Core.PawnIo
         /// mapped DRAM buffer (ioctl_read_pm_table) and needs no lock.
         /// Throws <see cref="TimeoutException"/> if the lock cannot be taken in time.
         /// </summary>
-        internal void UpdatePmTable(int lockTimeoutMs)
+        /// <returns>
+        /// True when the module reported the transfer as done. False when it failed (SMU busy or rejected, module not
+        /// loaded): the DRAM copy then still holds whatever was transferred last.
+        /// </returns>
+        internal bool UpdatePmTable(int lockTimeoutMs)
         {
             ThrowIfDisposed();
 
             using (new PciBusLock(lockTimeoutMs))
             {
-                _pawnIo.Execute(IOCTL_UPDATE_PM_TABLE, new long[0], 0);
+                int hr = _pawnIo.ExecuteHr(IOCTL_UPDATE_PM_TABLE, new long[0], 0, new long[0], 0, out uint returnSize);
+                if (hr != 0)
+                    Debug.WriteLine($"RyzenSmu: PM table transfer failed (0x{hr:X8}).");
+
+                return hr == 0;
             }
         }
 

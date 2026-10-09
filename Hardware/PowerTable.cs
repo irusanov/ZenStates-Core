@@ -23,8 +23,19 @@ namespace ZenStates.Core
         // timeout plus a small backoff so a busy bus can't stall one refresh for 25 s.
         private const int RETRY_LOCK_TIMEOUT_MS = 500;
         private const int RETRY_BACKOFF_MS = 20;
+        private const int STALE_AFTER_UNCHANGED = 3;
 
         private readonly object _refreshLock = new object();
+
+        private int _unchangedRefreshes;
+        private float[] _resumeReference;
+
+        private enum RefreshResult
+        {
+            Failed,     // nothing usable was read, or the SMU did not transfer and the table did not change
+            Unchanged,  // the transfer was done but the table is identical to the last one
+            Fresh,      // the table differs from the last one
+        }
 
         private static PowerTable _instance;
         public static PowerTable Instance => _instance;
@@ -209,7 +220,6 @@ namespace ZenStates.Core
             { 0x3F0000, 0x7AC, 0x3BC, 0x3C0, 0x3C4, 0x1A0, -1, -1, -1, -1, -1 },
 
             // Zen3 APU (Cezanne)
-            { 0x400001, 0x8D0, 0x624, 0x628, 0x62C, 0x19C, 0x89C, -1, -1, -1, -1 },
             { 0x400001, 0x910, 0x624, 0x628, 0x62C, 0x19C, 0x89C, -1, -1, -1, -1 },
             { 0x400002, 0x928, 0x63C, 0x640, 0x644, 0x19C, 0x8B4, -1, -1, -1, -1 },
             { 0x400003, 0x94C, 0x660, 0x664, 0x668, 0x19C, 0x8D0, -1, -1, -1, -1 },
@@ -614,6 +624,7 @@ namespace ZenStates.Core
                 }
             }
 
+            pt.IsStale = false;
             return pt;
         }
 
@@ -776,46 +787,89 @@ namespace ZenStates.Core
             VDD_MISC_VRM_TEMP = GetSvi3Value(pt, Svi3Rail.Misc, 0x10);
         }
 
+        public bool IsStale { get; private set; } = true;
+
+        /// <summary>UTC time of the last refresh that read a new table; <see cref="DateTime.MinValue"/> when none did.</summary>
+        public DateTime LastFreshUtc { get; private set; } = DateTime.MinValue;
+
+        /// <summary>
+        /// The SMU did not confirm the last transfer request. A refresh can still succeed in that case when the table in
+        /// DRAM changed anyway (another tool requested a transfer).
+        /// </summary>
+        public bool LastTransferFailed { get; private set; }
+
+        public void InvalidateAfterResume()
+        {
+            lock (_refreshLock)
+            {
+                _resumeReference = Table;
+                _unchangedRefreshes = 0;
+                IsStale = true;
+            }
+        }
+
         public SMU.Status Refresh()
         {
             lock (_refreshLock)
             {
-                if (DramBaseAddress == 0 && !TryLateResolve())
-                    return SMU.Status.FAILED;
+                SMU.Status status = RefreshNoLock();
+                if (status != SMU.Status.OK)
+                    IsStale = true;
 
-                for (int attempt = 0; attempt < MAX_REFRESH_RETRIES; attempt++)
-                {
-                    int lockTimeoutMs = 5000;
-
-                    if (attempt > 0)
-                    {
-                        System.Threading.Thread.Sleep(RETRY_BACKOFF_MS * attempt);
-                        lockTimeoutMs = RETRY_LOCK_TIMEOUT_MS;
-                    }
-
-                    try
-                    {
-                        if (TryRefreshOnce(lockTimeoutMs))
-                            return SMU.Status.OK;
-                    }
-                    catch (TimeoutException ex)
-                    {
-                        // Another process holds the bus; retrying right away won't help.
-                        // The next periodic refresh will try again.
-                        Debug.WriteLine($"Refresh skipped: {ex.Message}");
-                        return SMU.Status.TIMEOUT_MUTEX_LOCK;
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Refresh attempt failed: {ex.Message}");
-                    }
-                }
-
-                return SMU.Status.FAILED;
+                return status;
             }
         }
 
-        private bool TryRefreshOnce(int lockTimeoutMs)
+        private SMU.Status RefreshNoLock()
+        {
+            if (DramBaseAddress == 0 && !TryLateResolve())
+                return SMU.Status.FAILED;
+
+            for (int attempt = 0; attempt < MAX_REFRESH_RETRIES; attempt++)
+            {
+                int lockTimeoutMs = 5000;
+
+                if (attempt > 0)
+                {
+                    System.Threading.Thread.Sleep(RETRY_BACKOFF_MS * attempt);
+                    lockTimeoutMs = RETRY_LOCK_TIMEOUT_MS;
+                }
+
+                try
+                {
+                    switch (TryRefreshOnce(lockTimeoutMs))
+                    {
+                        case RefreshResult.Fresh:
+                            _unchangedRefreshes = 0;
+                            LastFreshUtc = DateTime.UtcNow;
+                            IsStale = false;
+                            return SMU.Status.OK;
+
+                        case RefreshResult.Unchanged:
+                            // The SMU took the request; the values are the latest it has
+                            if (_unchangedRefreshes < int.MaxValue)
+                                _unchangedRefreshes++;
+                            IsStale = _unchangedRefreshes >= STALE_AFTER_UNCHANGED;
+                            return SMU.Status.OK;
+                    }
+                }
+                catch (TimeoutException ex)
+                {
+                    // Another process holds the bus; retrying right away won't help.
+                    // The next periodic refresh will try again.
+                    Debug.WriteLine($"Refresh skipped: {ex.Message}");
+                    return SMU.Status.TIMEOUT_MUTEX_LOCK;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Refresh attempt failed: {ex.Message}");
+                }
+            }
+
+            return SMU.Status.FAILED;
+        }
+
+        private RefreshResult TryRefreshOnce(int lockTimeoutMs)
         {
             uint tableBytes = smu.PmTableSize;
             float[] current = Table;
@@ -834,30 +888,60 @@ namespace ZenStates.Core
 
             int fullLongs = ((int)tableBytes + 7) / 8;
             long[] fullTable;
+            bool transferFailed = false;
 
             if (Utils.AllZero(current) ||
                 Utils.AllZero(tempTable) ||
                 Utils.ArrayMembersEqual(current, tempTable, tempTable.Length) ||
                 tempTable[0] < 0 || tempTable[1] < 0 || tempTable[2] < 0 || tempTable[3] < 0)
             {
-                smu.UpdatePmTable(lockTimeoutMs);
+                transferFailed = !smu.UpdatePmTable(lockTimeoutMs);
+                LastTransferFailed = transferFailed;
                 fullTable = smu.ReadPmTable(fullLongs);
             }
             else
             {
+                // The start of the table already differs from the last copy: the SMU transferred a newer table for
+                // another tool, so it is read as is
                 fullTable = smu.ReadPmTable(fullLongs);
             }
 
             float[] next = new float[wantedLength];
 
             if (RyzenSmu.CopyClamped(fullTable, next, tableBytes) == 0)
-                return false;
+                return RefreshResult.Failed;
 
             if (Utils.AllZero(next))
+                return RefreshResult.Failed;
+
+            // After a resume the DRAM copy can still hold the table from before the sleep
+            bool sameAsBeforeSleep = _resumeReference != null && TablesEqual(next, _resumeReference);
+            if (_resumeReference != null && !sameAsBeforeSleep)
+                _resumeReference = null;
+
+            if (!sameAsBeforeSleep && !TablesEqual(next, Table))
+            {
+                Table = next;
+                ParseTable(next);
+                return RefreshResult.Fresh;
+            }
+
+            // Same table as before: only a transfer the SMU confirmed makes it the current one
+            return transferFailed || sameAsBeforeSleep ? RefreshResult.Failed : RefreshResult.Unchanged;
+        }
+
+        // Exact comparison, NaN equal to NaN (float.Equals)
+        private static bool TablesEqual(float[] a, float[] b)
+        {
+            if (a == null || b == null || a.Length != b.Length)
                 return false;
 
-            Table = next;
-            ParseTable(next);
+            for (int i = 0; i < a.Length; i++)
+            {
+                if (!a[i].Equals(b[i]))
+                    return false;
+            }
+
             return true;
         }
 
