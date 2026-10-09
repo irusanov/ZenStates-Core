@@ -406,6 +406,8 @@ namespace ZenStates.Core.Hardware.Motherboard
                     return Model.ROG_CROSSHAIR_X870E_HERO;
                 case var _ when name.Equals("ROG CROSSHAIR X870E DARK HERO", StringComparison.OrdinalIgnoreCase):
                     return Model.ROG_CROSSHAIR_X870E_DARK_HERO;
+                case var _ when name.Equals("ROG CROSSHAIR X870E GLACIAL", StringComparison.OrdinalIgnoreCase):
+                    return Model.ROG_CROSSHAIR_X870E_GLACIAL;
                 case var _ when name.Equals("MAG X870E TOMAHAWK WIFI (MS-7E59)", StringComparison.OrdinalIgnoreCase):
                     return Model.X870E_TOMAHAWK_WIFI;
                 case var _ when name.Equals("MPG X870E CARBON WIFI (MS-7E49)", StringComparison.OrdinalIgnoreCase):

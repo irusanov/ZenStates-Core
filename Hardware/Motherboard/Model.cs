@@ -82,6 +82,7 @@ namespace ZenStates.Core.Hardware.Motherboard
         TUF_GAMING_B850_BTF_WIFI_W,
         TUF_GAMING_B850M_PLUS_II,
         TUF_GAMING_X870_PRO_WIFI7_W_NEO,
+        ROG_CROSSHAIR_X870E_GLACIAL,
 
         //BIOSTAR
         B660GTN,
