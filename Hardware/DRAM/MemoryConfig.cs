@@ -243,9 +243,6 @@ namespace ZenStates.Core.Hardware.DRAM
 
         private void LoadSpdInfo()
         {
-            Stopwatch total = Stopwatch.StartNew();
-            Stopwatch sw = Stopwatch.StartNew();
-
             try
             {
                 if (Type == MemType.DDR4)
