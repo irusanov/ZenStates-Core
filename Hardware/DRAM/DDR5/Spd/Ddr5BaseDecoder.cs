@@ -32,6 +32,22 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         private const int SPD_TRFC1 = 42;
         private const int SPD_TRFC2 = 44;
         private const int SPD_TRFCSB = 46;
+        private const int SPD_TRFC1_DLR = 48;         // bytes 48~53: 3DS different logical rank (ns), 0 on monolithic
+        private const int SPD_TRFC2_DLR = 50;
+        private const int SPD_TRFCSB_DLR = 52;
+
+        // Bytes 70~102: 16-bit minimum time (ps) followed by a lower clock limit (nCK), 3 bytes each
+        private const int SPD_TRRD_L = 70;
+        private const int SPD_TCCD_L = 73;
+        private const int SPD_TCCD_L_WR = 76;
+        private const int SPD_TCCD_L_WR2 = 79;
+        private const int SPD_TFAW = 82;
+        private const int SPD_TCCD_L_WTR = 85;        // WTR(L), the analog part: tCCD_L_WTR = CWL + WBL/2 + WTR(L)
+        private const int SPD_TCCD_S_WTR = 88;        // WTR(S)
+        private const int SPD_TRTP = 91;
+        private const int SPD_TCCD_M = 94;            // tCCD_M* added in SPD revision 1.1, 0 before
+        private const int SPD_TCCD_M_WR = 97;
+        private const int SPD_TCCD_M_WTR = 100;       // WTR(M)
 
         private const int SPD_MODULE_ORGANISATION = 234;   // [6] asymmetrical
 
@@ -185,6 +201,31 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
             info.tRFC1minNs = U16(spd, SPD_TRFC1);
             info.tRFC2minNs = U16(spd, SPD_TRFC2);
             info.tRFCsbMinNs = U16(spd, SPD_TRFCSB);
+            info.tRFC1dlrMinNs = U16(spd, SPD_TRFC1_DLR);
+            info.tRFC2dlrMinNs = U16(spd, SPD_TRFC2_DLR);
+            info.tRFCsbDlrMinNs = U16(spd, SPD_TRFCSB_DLR);
+
+            int tck = info.tCKAVGminPs;
+            info.tRRD_L = Timing(spd, SPD_TRRD_L, tck);
+            info.tCCD_L = Timing(spd, SPD_TCCD_L, tck);
+            info.tCCD_L_WR = Timing(spd, SPD_TCCD_L_WR, tck);
+            info.tCCD_L_WR2 = Timing(spd, SPD_TCCD_L_WR2, tck);
+            info.tFAW = Timing(spd, SPD_TFAW, tck);
+            info.tCCD_L_WTR = Timing(spd, SPD_TCCD_L_WTR, tck);
+            info.tCCD_S_WTR = Timing(spd, SPD_TCCD_S_WTR, tck);
+            info.tRTP = Timing(spd, SPD_TRTP, tck);
+            info.tCCD_M = Timing(spd, SPD_TCCD_M, tck);
+            info.tCCD_M_WR = Timing(spd, SPD_TCCD_M_WR, tck);
+            info.tCCD_M_WTR = Timing(spd, SPD_TCCD_M_WTR, tck);
+        }
+
+        /// <summary>
+        /// A 3-byte timing: the ps value converted with the rounding algorithm and raised to the lower clock limit. For the
+        /// WTR timings this is the WTR part only, the command time (CWL + WBL/2) depends on the CWL the controller uses.
+        /// </summary>
+        private static Ddr5SpdTiming Timing(byte[] spd, int offset, int tckPs)
+        {
+            return Ddr5SpdTiming.Create(U16(spd, offset), B(spd, offset + 2), tckPs);
         }
 
         /// <summary>CAS latency mask (5 bytes): bit n of the 40 is CL 20 + 2n.</summary>

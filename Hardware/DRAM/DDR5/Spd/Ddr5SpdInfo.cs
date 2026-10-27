@@ -128,6 +128,29 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
         public int tRFC2minNs;
         public int tRFCsbMinNs;
 
+        /// <summary>DDR5 3DS only (0 on monolithic SDRAM): refresh recovery to a different logical rank, ns.</summary>
+        public int tRFC1dlrMinNs;
+        public int tRFC2dlrMinNs;
+        public int tRFCsbDlrMinNs;
+
+        /// <summary>
+        /// DDR5 only (null on LPDDR5), bytes 70~102: minimum time, lower clock limit and the clocks at tCKAVGmin. On 3DS
+        /// SDRAM these are the _slr values.
+        /// </summary>
+        public Ddr5SpdTiming tRRD_L;
+        public Ddr5SpdTiming tCCD_L;
+        public Ddr5SpdTiming tCCD_L_WR;
+        public Ddr5SpdTiming tCCD_L_WR2;
+        public Ddr5SpdTiming tFAW;
+        /// <summary>WTR(L), WTR(S) and WTR(M): the analog part of tCCD_x_WTR, which is CWL + WBL/2 + WTR.</summary>
+        public Ddr5SpdTiming tCCD_L_WTR;
+        public Ddr5SpdTiming tCCD_S_WTR;
+        public Ddr5SpdTiming tRTP;
+        /// <summary>SPD revision 1.1 and later, undefined (0) before.</summary>
+        public Ddr5SpdTiming tCCD_M;
+        public Ddr5SpdTiming tCCD_M_WR;
+        public Ddr5SpdTiming tCCD_M_WTR;
+
         /// <summary>LPDDR5 only: tRFCab / tRFCpb in picoseconds.</summary>
         public int tRFCabMinPs;
         public int tRFCpbMinPs;
@@ -290,6 +313,23 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
                 sb.AppendFormat("  tRFC1              : {0} ns\n", tRFC1minNs);
                 sb.AppendFormat("  tRFC2              : {0} ns\n", tRFC2minNs);
                 sb.AppendFormat("  tRFCsb             : {0} ns\n", tRFCsbMinNs);
+                if (tRFC1dlrMinNs > 0)
+                    sb.AppendFormat("  tRFC1_dlr          : {0} ns\n", tRFC1dlrMinNs);
+                if (tRFC2dlrMinNs > 0)
+                    sb.AppendFormat("  tRFC2_dlr          : {0} ns\n", tRFC2dlrMinNs);
+                if (tRFCsbDlrMinNs > 0)
+                    sb.AppendFormat("  tRFCsb_dlr         : {0} ns\n", tRFCsbDlrMinNs);
+                AppendTiming(sb, "tRRD_L", tRRD_L);
+                AppendTiming(sb, "tCCD_L", tCCD_L);
+                AppendTiming(sb, "tCCD_L_WR", tCCD_L_WR);
+                AppendTiming(sb, "tCCD_L_WR2", tCCD_L_WR2);
+                AppendTiming(sb, "tFAW", tFAW);
+                AppendTiming(sb, "tCCD_L_WTR", tCCD_L_WTR);
+                AppendTiming(sb, "tCCD_S_WTR", tCCD_S_WTR);
+                AppendTiming(sb, "tRTP", tRTP);
+                AppendTiming(sb, "tCCD_M", tCCD_M);
+                AppendTiming(sb, "tCCD_M_WR", tCCD_M_WR);
+                AppendTiming(sb, "tCCD_M_WTR", tCCD_M_WTR);
             }
 
             if (SupportedCLs != null && SupportedCLs.Count > 0)
@@ -419,6 +459,12 @@ namespace ZenStates.Core.Hardware.DRAM.DDR5.Spd
 
             sb.AppendLine("===============================================");
             return sb.ToString();
+        }
+
+        private static void AppendTiming(StringBuilder sb, string name, Ddr5SpdTiming timing)
+        {
+            if (timing != null && timing.IsDefined)
+                sb.AppendFormat("  {0,-19}: {1}\n", name, timing);
         }
     }
 }
