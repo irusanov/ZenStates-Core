@@ -1,4 +1,4 @@
-﻿/*
+/*
  
   This Source Code Form is subject to the terms of the Mozilla Public
   License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -67,7 +67,7 @@ namespace ZenStates.Core.OHWM
                 rdtscCode = RDTSC_64;
 
 #if NET5_0_OR_GREATER
-                cpuidCode = CPUID_64_WINDOWS;
+                cpuidCode = OperatingSystem.IsUnix ? CPUID_64_LINUX : CPUID_64_WINDOWS;
 #else
                 if (OperatingSystem.IsUnix)
                 { // Unix
@@ -83,9 +83,17 @@ namespace ZenStates.Core.OHWM
             size = (ulong)(rdtscCode.Length + cpuidCode.Length);
 
 #if NET5_0_OR_GREATER
-            codeBuffer = NativeMethods.VirtualAlloc(IntPtr.Zero,
-              (UIntPtr)size, AllocationType.COMMIT | AllocationType.RESERVE,
-              MemoryProtection.EXECUTE_READWRITE);
+            if (OperatingSystem.IsUnix)
+            {
+                IntPtr mapped = NativeMethods.mmap(IntPtr.Zero, (UIntPtr)size, 7, 0x22, -1, IntPtr.Zero);
+                codeBuffer = mapped == (IntPtr)(-1) ? IntPtr.Zero : mapped;
+            }
+            else
+            {
+                codeBuffer = NativeMethods.VirtualAlloc(IntPtr.Zero,
+                  (UIntPtr)size, AllocationType.COMMIT | AllocationType.RESERVE,
+                  MemoryProtection.EXECUTE_READWRITE);
+            }
 #else
             if (OperatingSystem.IsUnix)
             { // Unix   
@@ -191,7 +199,10 @@ namespace ZenStates.Core.OHWM
             Cpuid = null;
 
 #if NET5_0_OR_GREATER
-            NativeMethods.VirtualFree(codeBuffer, UIntPtr.Zero, FreeType.RELEASE);
+            if (OperatingSystem.IsUnix)
+                NativeMethods.munmap(codeBuffer, (UIntPtr)size);
+            else
+                NativeMethods.VirtualFree(codeBuffer, UIntPtr.Zero, FreeType.RELEASE);
 #else
             if (OperatingSystem.IsUnix)
             { // Unix
@@ -304,7 +315,6 @@ namespace ZenStates.Core.OHWM
       0xC3                            // ret  
     };
 
-#if !NET5_0_OR_GREATER
         private static readonly byte[] CPUID_64_LINUX = new byte[] {
       0x49, 0x89, 0xD2,               // mov r10, rdx
       0x49, 0x89, 0xCB,               // mov r11, rcx
@@ -319,7 +329,6 @@ namespace ZenStates.Core.OHWM
       0x5B,                           // pop rbx
       0xC3,                           // ret
     };
-#endif
 
         public static bool CpuidTx(uint index, uint ecxValue,
           out uint eax, out uint ebx, out uint ecx, out uint edx,
@@ -376,6 +385,12 @@ namespace ZenStates.Core.OHWM
 
         private static class NativeMethods
         {
+            [DllImport("libc", SetLastError = true)]
+            public static extern IntPtr mmap(IntPtr addr, UIntPtr length, int prot, int flags, int fd, IntPtr offset);
+
+            [DllImport("libc", SetLastError = true)]
+            public static extern int munmap(IntPtr addr, UIntPtr length);
+
             private const string KERNEL = "kernel32.dll";
 
             [DllImport(KERNEL, CallingConvention = CallingConvention.Winapi)]

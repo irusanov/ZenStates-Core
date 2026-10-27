@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <RootNamespace>ZenStates.Core</RootNamespace>
-    <TargetFrameworks>net20;netstandard2.1;net8.0-windows</TargetFrameworks>
+    <TargetFrameworks>net20;netstandard2.1;net8.0-windows;net8.0</TargetFrameworks>
     <AssemblyTitle>ZenStates.Core</AssemblyTitle>
     <Company>irusanov</Company>
     <Product>ZenStates.Core</Product>
@@ -9,6 +9,9 @@
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <IsWindows Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Windows)))' == 'true'">true</IsWindows> 
     <IsLinux Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))' == 'true'">true</IsLinux> 
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(TargetFramework)' == 'net8.0' ">
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugType>full</DebugType>
@@ -29,6 +32,14 @@
     <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
   </PropertyGroup>
 <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net8.0-windows|AnyCPU'">
+	<WarningLevel>4</WarningLevel>
+	<CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+</PropertyGroup>
+<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Release|net8.0|AnyCPU'">
+	<WarningLevel>4</WarningLevel>
+	<CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+</PropertyGroup>
+<PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net8.0|AnyCPU'">
 	<WarningLevel>4</WarningLevel>
 	<CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
 </PropertyGroup>

@@ -41,6 +41,9 @@ namespace ZenStates.Core.PawnIo
 
         private static Version ReadInstalledVersion()
         {
+            if (Drivers.LinuxAmdAccess.IsLinux)
+                return null;
+
 #if NET20
             // .NET 2.0 framework defaults to system architecture (x86 or x64)
             using (RegistryKey subKey = Registry.LocalMachine.OpenSubKey(UninstallKeyPath))
@@ -91,6 +94,9 @@ namespace ZenStates.Core.PawnIo
 
         public static PawnIo LoadModuleFromResource(Assembly assembly, string resourceName)
         {
+            if (Drivers.LinuxAmdAccess.IsLinux)
+                return new PawnIo(null);
+
             IntPtr handle = CreateFile(@"\\?\GLOBALROOT\Device\PawnIO", FileAccess.GENERIC_READ | FileAccess.GENERIC_WRITE, 0x00000003, IntPtr.Zero, CreationDisposition.OPEN_EXISTING, FileAttributes.None, IntPtr.Zero);
             if (handle == IntPtr.Zero || handle.ToInt64() == -1)
                 return new PawnIo(null);
@@ -131,6 +137,9 @@ namespace ZenStates.Core.PawnIo
         /// <returns></returns>
         public static PawnIo LoadModuleFromFile(string filePath)
         {
+            if (Drivers.LinuxAmdAccess.IsLinux)
+                return new PawnIo(null);
+
             if (!File.Exists(filePath))
                 throw new FileNotFoundException(@"PawnIO module not found.", filePath);
 

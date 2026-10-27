@@ -28,7 +28,10 @@ namespace ZenStates.Core.PawnIo
         #region Private Fields
 
         private readonly PawnIo _pawnIo;
-        private readonly CpuCodeName _cpuCodeName;
+        private CpuCodeName _cpuCodeName;
+        private readonly bool _linux = Drivers.LinuxAmdAccess.IsLinux;
+        internal delegate bool TransferHandler();
+        private TransferHandler _linuxTransfer;
         private bool _isSupported;
         private Exception _initializationException;
         private uint _pmTableVersion;
@@ -134,6 +137,13 @@ namespace ZenStates.Core.PawnIo
         /// </summary>
         public RyzenSmu()
         {
+            if (_linux)
+            {
+                _cpuCodeName = CpuCodeName.Undefined;
+                _isSupported = false;
+                return;
+            }
+
             try
             {
                 // Load the PawnIO module from embedded resource
@@ -178,7 +188,31 @@ namespace ZenStates.Core.PawnIo
         /// <summary>
         /// Gets a value indicating whether the PawnIO module is loaded.
         /// </summary>
-        public bool IsLoaded => _pawnIo?.IsLoaded ?? false;
+        public bool IsLoaded => _linux ? Drivers.LinuxAmdAccess.IsAvailable : _pawnIo?.IsLoaded ?? false;
+
+        /// <summary>
+        /// Linux only: sets the PM table parameters resolved through the SMU mailbox commands.
+        /// </summary>
+        internal void InitLinuxPmTable(CpuCodeName codeName, uint version, long baseAddress, TransferHandler transfer)
+        {
+            _cpuCodeName = codeName;
+            _pmTableVersion = version;
+            _dramBaseAddress = baseAddress;
+            _linuxTransfer = transfer;
+            ConfigurePmTableSize();
+            _isSupported = version != 0 && baseAddress != 0;
+        }
+
+        private long[] ReadLinuxPmTable(int longs)
+        {
+            byte[] buffer = new byte[longs * 8];
+            if (_dramBaseAddress == 0 || !Drivers.LinuxAmdAccess.ReadPhysical(_dramBaseAddress, buffer))
+                throw new InvalidOperationException("Unable to read the PM table from physical memory.");
+
+            long[] result = new long[longs];
+            Buffer.BlockCopy(buffer, 0, result, 0, buffer.Length);
+            return result;
+        }
 
         /// <summary>
         /// Gets a value indicating whether the current CPU is supported.
@@ -324,6 +358,9 @@ namespace ZenStates.Core.PawnIo
         {
             ThrowIfDisposed();
 
+            if (_linux)
+                return Drivers.LinuxAmdAccess.ReadSmn(register, out value);
+
             try
             {
                 long[] inputBuffer = new long[1];
@@ -358,6 +395,9 @@ namespace ZenStates.Core.PawnIo
         internal bool SmuWriteRegNoLock(uint register, uint value)
         {
             ThrowIfDisposed();
+
+            if (_linux)
+                return Drivers.LinuxAmdAccess.WriteSmn(register, value);
 
             try
             {
@@ -467,6 +507,9 @@ namespace ZenStates.Core.PawnIo
 
         public long[] ReadPmTable(int size)
         {
+            if (_linux)
+                return ReadLinuxPmTable(size);
+
             long[] outArray = _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[0], size);
             return outArray;
         }
@@ -490,6 +533,9 @@ namespace ZenStates.Core.PawnIo
         {
             ThrowIfDisposed();
 
+            if (_linux)
+                return _linuxTransfer != null && _linuxTransfer();
+
             using (new PciBusLock(lockTimeoutMs))
             {
                 int hr = _pawnIo.ExecuteHr(IOCTL_UPDATE_PM_TABLE, new long[0], 0, new long[0], 0, out uint returnSize);
@@ -506,6 +552,8 @@ namespace ZenStates.Core.PawnIo
         private long[] UpdateAndReadPmTableRaw(int longs)
         {
             UpdatePmTable(DEFAULT_LOCK_TIMEOUT_MS);
+            if (_linux)
+                return ReadLinuxPmTable(longs);
             return _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[0], longs);
         }
 

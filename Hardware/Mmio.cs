@@ -53,16 +53,32 @@ namespace ZenStates.Core.Hardware
 
         public Mmio(Cpu.Family family = Cpu.Family.UNSUPPORTED)
         {
-            if (IODriver.Instance == null)
+            if (!LinuxAmdAccess.IsLinux && IODriver.Instance == null)
             {
                 return;
             }
 
-            this.io = IODriver.Instance;
+            this.io = LinuxAmdAccess.IsLinux ? null : IODriver.Instance;
             _family = family;
             _instance = this;
             _eclkMode = GetEclkMode();
             _clkGen = GetStrapStatus();
+        }
+
+        private bool IsAvailable => LinuxAmdAccess.IsLinux || io != null;
+
+        private bool GetPhys(UIntPtr address, out uint value)
+        {
+            if (LinuxAmdAccess.IsLinux)
+                return LinuxPhysicalMemory.ReadDword((long)(ulong)address, out value);
+            return io.GetPhysLong(address, out value);
+        }
+
+        private bool SetPhys(UIntPtr address, uint value)
+        {
+            if (LinuxAmdAccess.IsLinux)
+                return LinuxPhysicalMemory.WriteDword((long)(ulong)address, value);
+            return io.SetPhysLong(address, value);
         }
 
         private bool IsFam15 => _family == Cpu.Family.FAMILY_15H;
@@ -81,7 +97,7 @@ namespace ZenStates.Core.Hardware
 
         private uint GetSmbusBaseAddress()
         {
-            io.GetPhysLong(new UIntPtr(AMD_MMIO_BASE_ADDRESS + SMBUS_BASE_ADDRESS_REG), out uint data);
+            GetPhys(new UIntPtr(AMD_MMIO_BASE_ADDRESS + SMBUS_BASE_ADDRESS_REG), out uint data);
             if (data != 0)
             {
                 uint value = (data >> 8) & 0x7F;
@@ -106,10 +122,10 @@ namespace ZenStates.Core.Hardware
          */
         public ClkGen GetStrapStatus()
         {
-            if (io == null)
+            if (!IsAvailable)
                 return ClkGen.ERROR;
 
-            if (io.GetPhysLong((UIntPtr)MISC_StrapStatus, out uint value))
+            if (GetPhys((UIntPtr)MISC_StrapStatus, out uint value))
                 return (ClkGen)Utils.GetBit(value, 17);
             return ClkGen.ERROR;
         }
@@ -120,7 +136,7 @@ namespace ZenStates.Core.Hardware
         /// </summary>
         public EclkMode GetEclkMode()
         {
-            if (!io.GetPhysLong((UIntPtr)MISC_EclkModeStatus, out uint value))
+            if (!GetPhys((UIntPtr)MISC_EclkModeStatus, out uint value))
                 return EclkMode.UNKNOWN;
 
             switch (Utils.GetBits(value, 16, 8))
@@ -134,17 +150,17 @@ namespace ZenStates.Core.Hardware
 
         private bool DisableSpreadSpectrum()
         {
-            if (io.GetPhysLong((UIntPtr)MISC_CGPLLConfig1, out uint value))
+            if (GetPhys((UIntPtr)MISC_CGPLLConfig1, out uint value))
             {
-                return io.SetPhysLong((UIntPtr)MISC_CGPLLConfig1, Utils.ClearBit(value, 0));
+                return SetPhys((UIntPtr)MISC_CGPLLConfig1, Utils.ClearBit(value, 0));
             }
             return false;
         }
 
         private bool CG1AtomicUpdate()
         {
-            if (io.GetPhysLong((UIntPtr)MISC_ClkCntl1, out uint value))
-                return io.SetPhysLong((UIntPtr)MISC_ClkCntl1, Utils.SetBit(value, 30));
+            if (GetPhys((UIntPtr)MISC_ClkCntl1, out uint value))
+                return SetPhys((UIntPtr)MISC_ClkCntl1, Utils.SetBit(value, 30));
             return false;
         }
 
@@ -166,7 +182,7 @@ namespace ZenStates.Core.Hardware
          */
         public bool SetBclk(double bclk)
         {
-            if (io == null)
+            if (!IsAvailable)
                 return false;
 
             if (bclk > 151)
@@ -184,11 +200,11 @@ namespace ZenStates.Core.Hardware
                 // [9:0]=REFDIV, [21:10]=FBDIV (12 bits), [25:22]=FBDIV_Fraction (4 bits, tenths:
                 // 1h-9h => *0.1, 0h/Ah-Fh => 0). The generic path's index/fraction offsets ([4:9]/[25:4]) and
                 // the XOR-based CalculateBclkIndex don't apply to this family's PLL at all.
-                if (!io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out uint cfg3))
+                if (!GetPhys((UIntPtr)MISC_CGPLLConfig3, out uint cfg3))
                     return false;
 
                 uint refDiv = Utils.GetBits(cfg3, 0, 10);
-                if (!io.GetPhysLong((UIntPtr)MISC_CGPLLConfig2, out uint cfg2))
+                if (!GetPhys((UIntPtr)MISC_CGPLLConfig2, out uint cfg2))
                     return false;
 
                 // [24:18] CG1PLL_PDIV_CoreCLK: post-divider from the VCO down to the "400 MHz core clock" domain.
@@ -220,13 +236,13 @@ namespace ZenStates.Core.Hardware
                 uint newCfg3 = Utils.SetBits(cfg3, 10, 12, (uint)fbdivInt);
                 newCfg3 = Utils.SetBits(newCfg3, 22, 4, fraction15h);
 
-                if (!io.SetPhysLong((UIntPtr)MISC_CGPLLConfig3, newCfg3))
+                if (!SetPhys((UIntPtr)MISC_CGPLLConfig3, newCfg3))
                     return false;
 
                 // MISCx44[0] CG1_FBDIV_LoadEn: "Enable loading CG1PLL_FBDIV value from register MISCx10[CG1PLL_FBDIV]."
-                if (!io.GetPhysLong((UIntPtr)MISC_ClkCntl2, out uint cfg44))
+                if (!GetPhys((UIntPtr)MISC_ClkCntl2, out uint cfg44))
                     return false;
-                if (!io.SetPhysLong((UIntPtr)MISC_ClkCntl2, Utils.SetBit(cfg44, 0)))
+                if (!SetPhys((UIntPtr)MISC_ClkCntl2, Utils.SetBit(cfg44, 0)))
                     return false;
 
                 // Same Atomic_Update bit (30) as the path below
@@ -241,10 +257,10 @@ namespace ZenStates.Core.Hardware
             DisableSpreadSpectrum();
 
             // CCG1PLL_FBDIV_Enable, bit 25
-            if (!io.GetPhysLong((UIntPtr)MISC_ClkCntl1, out uint value))
+            if (!GetPhys((UIntPtr)MISC_ClkCntl1, out uint value))
                 return false;
 
-            bool res = io.SetPhysLong((UIntPtr)MISC_ClkCntl1, Utils.SetBit(value, 25));
+            bool res = SetPhys((UIntPtr)MISC_ClkCntl1, Utils.SetBit(value, 25));
 
             if (res)
             {
@@ -254,12 +270,12 @@ namespace ZenStates.Core.Hardware
                 if (fraction > 15)
                     fraction = 15;
 
-                if (!io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out value))
+                if (!GetPhys((UIntPtr)MISC_CGPLLConfig3, out value))
                     return false;
 
                 value = Utils.SetBits(value, 4, 9, (uint)index);
                 value = Utils.SetBits(value, 25, 4, fraction);
-                if (io.SetPhysLong((UIntPtr)MISC_CGPLLConfig3, value))
+                if (SetPhys((UIntPtr)MISC_CGPLLConfig3, value))
                     return CG1AtomicUpdate();
 
                 return false;
@@ -270,7 +286,7 @@ namespace ZenStates.Core.Hardware
 
         public double? GetBclk()
         {
-            if (io == null)
+            if (!IsAvailable)
                 return null;
 
             // On MSI X870E Unify-X BCLK1 is correctly detected when in eCLK1 mode (async)
@@ -284,7 +300,7 @@ namespace ZenStates.Core.Hardware
                 if (_clkGen != ClkGen.INTERNAL)
                     return null;
 
-                if (!io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out uint cfg3))
+                if (!GetPhys((UIntPtr)MISC_CGPLLConfig3, out uint cfg3))
                     return null;
 
                 uint fbdiv = Utils.GetBits(cfg3, 10, 12);
@@ -293,7 +309,7 @@ namespace ZenStates.Core.Hardware
                 // 0h and Ah-Fh both mean "no fraction" per CGPLLConfig3[CG1PLL_FBDIV_Fraction]'s definition table.
                 double fraction15h = (fracRaw >= 1 && fracRaw <= 9) ? fracRaw * 0.1 : 0.0;
 
-                if (!io.GetPhysLong((UIntPtr)MISC_CGPLLConfig2, out uint cfg2))
+                if (!GetPhys((UIntPtr)MISC_CGPLLConfig2, out uint cfg2))
                     return null;
 
                 uint coreClkPostDiv = Utils.GetBits(cfg2, 18, 7);
@@ -311,7 +327,7 @@ namespace ZenStates.Core.Hardware
             if (_clkGen == ClkGen.EXTERNAL && _eclkMode == EclkMode.ASYNC)
                 return null;
 
-            if (io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out uint value))
+            if (GetPhys((UIntPtr)MISC_CGPLLConfig3, out uint value))
             {
                 uint index = Utils.GetBits(value, 4, 9);
                 uint fMul = Utils.GetBits(value, 25, 4);
@@ -332,7 +348,7 @@ namespace ZenStates.Core.Hardware
 
             for (int i = 0; i < 0x1000; i += 4)
             {
-                if (io.GetPhysLong((UIntPtr)(AMD_MMIO_BASE_ADDRESS + i), out uint value))
+                if (GetPhys((UIntPtr)(AMD_MMIO_BASE_ADDRESS + i), out uint value))
                 {
                     sb.AppendLine(string.Format("0x{0:X8}: 0x{1:X8}", AMD_MMIO_BASE_ADDRESS + i, value));
                 }

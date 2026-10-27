@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using ZenStates.Core.Drivers;
 using ZenStates.Core.OHWM;
 
 namespace ZenStates.Core.PawnIo
@@ -18,10 +19,15 @@ namespace ZenStates.Core.PawnIo
         /// <summary>
         /// Gets a value indicating whether the underlying PawnIo module is currently loaded.
         /// </summary>
-        public bool IsLoaded => _pawnIo.IsLoaded;
+        public bool IsLoaded => _linux ? LinuxAmdAccess.IsAvailable : _pawnIo.IsLoaded;
+
+        private readonly bool _linux = LinuxAmdAccess.IsLinux;
 
         public AmdFamily17()
         {
+            if (_linux)
+                return;
+
             string resourceName = "ZenStates.Core.Resources.PawnIo.AMDFamily17.bin";
             _pawnIo = PawnIo.LoadModuleFromResource(typeof(AmdFamily17).Assembly, resourceName);
             //_pawnIo = PawnIo.LoadModuleFromFile("AMDFamily17.amx");
@@ -39,6 +45,9 @@ namespace ZenStates.Core.PawnIo
 
         public bool ReadSmnNoLock(uint offset, out uint data)
         {
+            if (_linux)
+                return LinuxAmdAccess.ReadSmn(offset, out data);
+
             long[] input = new long[] { offset };
             long[] output = new long[1];
 
@@ -55,6 +64,9 @@ namespace ZenStates.Core.PawnIo
 
         public bool ReadMsr(uint index, out ulong eaxedx)
         {
+            if (_linux)
+                return LinuxAmdAccess.ReadMsr(0, index, out eaxedx);
+
             try
             {
                 long[] output = new long[1];
@@ -101,6 +113,14 @@ namespace ZenStates.Core.PawnIo
 
         public bool ReadMsrTx(uint index, out uint eax, out uint edx, GroupAffinity affinity)
         {
+            if (_linux)
+            {
+                bool ok = LinuxAmdAccess.ReadMsr(LinuxAmdAccess.CpuFromAffinity(affinity.Group, affinity.Mask), index, out ulong v);
+                eax = unchecked((uint)v);
+                edx = unchecked((uint)(v >> 32));
+                return ok;
+            }
+
             GroupAffinity previousAffinity = ThreadAffinity.Set(affinity);
 
             // Undefined means the affinity change did not take. Reading anyway would return
@@ -136,6 +156,9 @@ namespace ZenStates.Core.PawnIo
 
         public bool WriteMsr(uint index, ulong eaxedx)
         {
+            if (_linux)
+                return LinuxAmdAccess.WriteMsr(0, index, eaxedx);
+
             try
             {
                 int status = _pawnIo.ExecuteHr(
@@ -159,6 +182,9 @@ namespace ZenStates.Core.PawnIo
 
         public bool WriteMsrTx(uint index, uint eax, uint edx, GroupAffinity affinity)
         {
+            if (_linux)
+                return LinuxAmdAccess.WriteMsr(LinuxAmdAccess.CpuFromAffinity(affinity.Group, affinity.Mask), index, ((ulong)edx << 32) | eax);
+
             GroupAffinity previousAffinity = ThreadAffinity.Set(affinity);
 
             // Writing to the wrong core is worse than reading from it: this path carries
@@ -186,9 +212,9 @@ namespace ZenStates.Core.PawnIo
                 return;
 
             _disposed = true;
-            _pawnIo.Close();
+            _pawnIo?.Close();
         }
 
-        public void Dispose() => Close();
+        public void Dispose() { Close(); }
     }
 }

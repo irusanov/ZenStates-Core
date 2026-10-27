@@ -1219,7 +1219,7 @@ namespace ZenStates.Core.OHWM
             ProcessorCaches = new CacheInformation[0];
             Processors = new ProcessorInformation[0];
 
-            if (OperatingSystem.IsUnix)
+            if (OperatingSystem.IsUnix && !LinuxSmbiosTable.TryRead(out _raw))
             {
                 _raw = null;
 
@@ -1247,10 +1247,11 @@ namespace ZenStates.Core.OHWM
                 List<CacheInformation> processorCacheList = new List<CacheInformation>();
                 List<ProcessorInformation> processorInformationList = new List<ProcessorInformation>();
 
-                string[] tables = FirmwareTable.EnumerateTables(FirmwareTable.Provider.RSMB);
-                if (tables?.Length > 0)
+                string[] tables = OperatingSystem.IsUnix ? null : FirmwareTable.EnumerateTables(FirmwareTable.Provider.RSMB);
+                if (OperatingSystem.IsUnix || tables?.Length > 0)
                 {
-                    _raw = FirmwareTable.GetTable(FirmwareTable.Provider.RSMB, tables[0]);
+                    if (!OperatingSystem.IsUnix)
+                        _raw = FirmwareTable.GetTable(FirmwareTable.Provider.RSMB, tables[0]);
                     if (_raw == null || _raw.Length == 0)
                         return;
 

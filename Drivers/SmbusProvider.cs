@@ -12,7 +12,7 @@ namespace ZenStates.Core.Drivers
         /// </summary>
         public static SmbusDriverBase Instance
         {
-            get { return SmbusPiix4.Instance; }
+            get { return LinuxAmdAccess.IsLinux ? (SmbusDriverBase)SmbusLinuxI2c.Instance : SmbusPiix4.Instance; }
         }
     }
 }

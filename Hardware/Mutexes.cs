@@ -22,6 +22,18 @@ namespace ZenStates.Core.Hardware
 
             Mutex CreateOrOpenExistingMutex(string name)
             {
+                if (Drivers.LinuxAmdAccess.IsLinux)
+                {
+                    try
+                    {
+                        return new Mutex(false, name);
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                }
+
                 try
                 {
                     var worldRule = new MutexAccessRule(new SecurityIdentifier(WellKnownSidType.WorldSid, null), MutexRights.FullControl, AccessControlType.Allow);

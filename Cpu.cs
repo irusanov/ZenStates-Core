@@ -647,7 +647,7 @@ namespace ZenStates.Core
 #if !NET20
             CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 #endif
-            if (!PawnIo.PawnIo.IsInstalled)
+            if (!Drivers.LinuxAmdAccess.IsLinux && !PawnIo.PawnIo.IsInstalled)
             {
                 ApplicationException notInstalled = new ApplicationException("PawnIO is not installed.");
                 WriteCrashLog(notInstalled, null);
@@ -710,7 +710,7 @@ namespace ZenStates.Core
 
                 try
                 {
-                    io = new IODriver();
+                    io = Drivers.LinuxAmdAccess.IsLinux ? null : new IODriver();
                 }
                 catch (Exception ex)
                 {
@@ -730,6 +730,8 @@ namespace ZenStates.Core
                     smu = GetMaintainedSettings.GetByType(info.codeName);
                     smu.Hsmp.Init(this);
                     smu.Version = GetSmuVersion();
+                    if (Drivers.LinuxAmdAccess.IsLinux)
+                        InitLinuxPmTable();
                     var tableVersionResult = GetTableVersion();
                     smu.TableVersion = tableVersionResult.TableVersion;
                     // Temporary workaround for pmt not refreshing with PawnIO module
@@ -952,6 +954,12 @@ namespace ZenStates.Core
                 return null;
 
             return MakeCoreMask((uint)core.PhysicalCore, (uint)core.PhysicalCcd, (uint)core.PhysicalCcx);
+        }
+
+        /// <summary>Linux only: raw SMN probe results and the access errors, for troubleshooting zero reads.</summary>
+        public static string LinuxSmnDiagnostics()
+        {
+            return Drivers.LinuxAmdAccess.IsLinux ? Drivers.LinuxAmdAccess.Diagnose() : string.Empty;
         }
 
         public bool ReadDwordExNoLock(uint addr, ref uint data, int maxRetries = 10)
@@ -1548,7 +1556,31 @@ namespace ZenStates.Core
             return result.Success && cmd.IsSumCorrect;
         }
 
-        public uint GetSmuVersion() => _pawnRyzenSmu.GetSmuVersion();
+        public uint GetSmuVersion() => Drivers.LinuxAmdAccess.IsLinux
+            ? new GetSmuVersion(smu).Execute().args[0]
+            : _pawnRyzenSmu.GetSmuVersion();
+
+        private void InitLinuxPmTable()
+        {
+            try
+            {
+                CmdResult version = new GetTableVersion(smu).Execute();
+                CmdResult address = new GetDramAddress(smu).Execute();
+
+                PawnIo.CpuCodeName name = PawnIo.CpuCodeName.Undefined;
+                if (Enum.IsDefined(typeof(PawnIo.CpuCodeName), info.codeName.ToString())) name = (PawnIo.CpuCodeName)Enum.Parse(typeof(PawnIo.CpuCodeName), info.codeName.ToString());
+
+                _pawnRyzenSmu.InitLinuxPmTable(
+                    name,
+                    version.Success ? version.args[0] : 0,
+                    address.Success ? address.args[0] : 0,
+                    () => new TransferTableToDram(smu).Execute().Success);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Linux PM table init failed: " + ex.Message);
+            }
+        }
 
         public double? GetBclk() => mmio?.GetBclk() ?? null;
 
