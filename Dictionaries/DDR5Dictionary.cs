@@ -82,7 +82,6 @@ namespace ZenStates.Core.Dictionaries
                 new TimingDef { Name = "WR",                            HiBit = 7   ,   LoBit = 0   },
             }},
             { 0x5021C, new[] {
-                new TimingDef { Name = "TRCPAGE",                       HiBit = 31  ,   LoBit = 20  },
                 new TimingDef { Name = "PPD",                           HiBit = 2   ,   LoBit = 0   },
             }},
             { 0x50220, new[] {
@@ -96,18 +95,17 @@ namespace ZenStates.Core.Dictionaries
                 new TimingDef { Name = "WRWRBan",                       HiBit = 31  ,   LoBit = 30  },
                 new TimingDef { Name = "WRWRSCL",                       HiBit = 29  ,   LoBit = 24  },
                 new TimingDef { Name = "WRWRSC",                        HiBit = 19  ,   LoBit = 16  },
-                new TimingDef { Name = "WRWRSD",                        HiBit = 11  ,   LoBit = 8   },
+                new TimingDef { Name = "WRWRSD",                        HiBit = 13  ,   LoBit = 8   },
                 new TimingDef { Name = "WRWRDD",                        HiBit = 3   ,   LoBit = 0   },
             }},
             { 0x50228, new[] {
-                new TimingDef { Name = "MW",                            HiBit = 28  ,   LoBit = 24  },
                 new TimingDef { Name = "RDWR",                          HiBit = 13  ,   LoBit = 8   },
                 new TimingDef { Name = "WRRD",                          HiBit = 3   ,   LoBit = 0   },
             }},
             { 0x5022c, new[] {
                 new TimingDef { Name = "ShortInit",                     HiBit = 31  ,   LoBit = 31  }, // 1 = ZqcsInterval in 2^10 clocks, 0 = 2^20 clocks
                 new TimingDef { Name = "ZqcsInterval",                  HiBit = 29  ,   LoBit = 20  },
-                new TimingDef { Name = "TzqOperCal",                    HiBit = 19  ,   LoBit = 8   },
+                new TimingDef { Name = "TzqOperCal",                    HiBit = 19  ,   LoBit = 8   }, // in units of 8 MEMCLKs, scaled in Ddr5Timings
                 new TimingDef { Name = "Tzqcs",                         HiBit = 7   ,   LoBit = 0   },
             }},
             { 0x50230, new[] {
@@ -143,8 +141,8 @@ namespace ZenStates.Core.Dictionaries
                 new TimingDef { Name = "PD",                            HiBit = 4   ,   LoBit = 0   },
             }},
             { 0x50248, new[] {
-                new TimingDef { Name = "SRX2SRX",                       HiBit = 15  ,   LoBit = 10  },
-                new TimingDef { Name = "STAB",                          HiBit = 9   ,   LoBit = 0   },
+                new TimingDef { Name = "SRX2SRX",                       HiBit = 21  ,   LoBit = 16  },
+                new TimingDef { Name = "STAB",                          HiBit = 13  ,   LoBit = 0   },
             }},
             { 0x5024c, new[] {
                 new TimingDef { Name = "AlertCrcPulse",                 HiBit = 10  ,   LoBit = 8   },

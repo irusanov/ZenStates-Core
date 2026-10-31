@@ -18,9 +18,9 @@ namespace ZenStates.Core.Hardware.DRAM
 
             public NitroSettings(uint registerValue)
             {
-                CtrlLine = (byte)(registerValue & 0x3);
-                TxData = (byte)((registerValue >> 4) & 0x3);
-                RxData = (byte)((registerValue >> 8) & 0x3);
+                CtrlLine = (byte)(registerValue & 0x7);
+                TxData = (byte)((registerValue >> 4) & 0x7);
+                RxData = (byte)((registerValue >> 8) & 0x7);
                 CtrlLineDlyMode = (byte)((registerValue >> 16) & 0x1);
                 TxDatChnDlyMode = (byte)((registerValue >> 17) & 0x1);
                 RxDatChnDlyMode = (byte)((registerValue >> 18) & 0x1);
@@ -86,9 +86,6 @@ namespace ZenStates.Core.Hardware.DRAM
 
         // 0x5021C
         public uint PPD { get; internal set; }
-
-        // 0x50228
-        public uint MW { get; internal set; }
 
         // 0x50230
         public uint OdtsReadInterval { get; internal set; }
@@ -165,17 +162,54 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public NitroSettings Nitro { get; private set; }
 
+        public uint AllBankRefEn { get; private set; }
+        public uint PerBankRefEn { get; private set; }
+
+        /// <summary>
+        /// tRFC of the refresh in use in ns: tRFCsb with same-bank refresh only, otherwise the all-bank refresh period
+        /// for the fine granularity mode (tRFC for Fixed 1X, tRFC2 for Fixed 2X); 0 for a reserved mode.
+        /// </summary>
         public new float RFCns
         {
             get
             {
-                if (RefreshMode == BankRefreshMode.NORMAL)
-                {
-                    return ClocksToNs(RFC);
-                }
+                if (RefreshMode == BankRefreshMode.PBONLY)
+                    return ClocksToNs(RFCsb);
 
-                return ClocksToNs(RFC2);
+                switch (FGR)
+                {
+                    case 0: return ClocksToNs(RFC);
+                    case 1: return ClocksToNs(RFC2);
+                    default: return 0;
+                }
             }
+        }
+
+        /// <summary>
+        /// DDR5 has no DDR4 style bank group swap: 0x50050 / 0x50058 are AddrSel and 0x500D0 / 0x500D4 the DQ maps.
+        /// BGS reports the bank address hashing instead, XorEnable of any AddrHashBank (0x50098 + 4 x n, n = 0 to 4).
+        /// BGSAlt has no DDR5 counterpart and stays 0.
+        /// </summary>
+        public override void ReadBankGroupSwap(uint offset = 0)
+        {
+            bool anyRead = false;
+            bool hashEnabled = false;
+
+            for (uint n = 0; n < 5; n++)
+            {
+                if (TryReadRegister(offset | (0x50098u + 4u * n), out uint addrHashBank))
+                {
+                    anyRead = true;
+                    if ((addrHashBank & 1) != 0)
+                        hashEnabled = true;
+                }
+            }
+
+            if (!anyRead)
+                return;
+
+            BGS = hashEnabled ? 1U : 0;
+            BGSAlt = 0;
         }
 
         public override void ReadRatio(uint offset = 0)
@@ -204,6 +238,12 @@ namespace ZenStates.Core.Hardware.DRAM
         public override void Read(uint offset = 0)
         {
             base.Read(offset);
+
+            // TzqOperCal [19:8] is in units of 8 MEMCLKs
+            if (TryReadRegister(offset | 0x5022C, out uint dramTiming11))
+            {
+                TzqOperCal = Utils.BitSlice(dramTiming11, 19, 8) * 8;
+            }
 
             // TRFC
             // define as separate variables to avoid false-positives on virus scans
@@ -277,27 +317,17 @@ namespace ZenStates.Core.Hardware.DRAM
                 Nitro = new NitroSettings(nitroReg);
             }
 
-            // Refresh mode
+            // Refresh mode: REFab is enabled if AllBankRefEn | !PerBankRefEn, both set is mixed mode
             if (TryReadRegister(offset | 0x5012C, out uint refreshModeValue))
             {
                 FGR = Utils.BitSlice(refreshModeValue, 18, 16);
-                //var allBankRefresh = Utils.GetBit(refreshModeValue, 19);
-                var perBankRefresh = Utils.GetBit(refreshModeValue, 1);
+                AllBankRefEn = Utils.GetBit(refreshModeValue, 19);
+                PerBankRefEn = Utils.GetBit(refreshModeValue, 1);
 
-                if (/*allBankRefresh == 1 && */perBankRefresh == 0)
-                {
-                    if (FGR == 0)
-                        RefreshMode = BankRefreshMode.NORMAL;
-                    else
-                        RefreshMode = BankRefreshMode.FGR;
-                }
-                else if (/*allBankRefresh == 1 && */perBankRefresh == 1)
-                {
-                    if (FGR != 0)
-                        RefreshMode = BankRefreshMode.MIXED;
-                    else
-                        RefreshMode = BankRefreshMode.PBONLY;
-                }
+                if (PerBankRefEn == 0)
+                    RefreshMode = FGR == 0 ? BankRefreshMode.NORMAL : BankRefreshMode.FGR;
+                else
+                    RefreshMode = AllBankRefEn != 0 ? BankRefreshMode.MIXED : BankRefreshMode.PBONLY;
             }
         }
     }
