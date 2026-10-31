@@ -134,7 +134,8 @@ namespace ZenStates.Core.Hardware.Apob
 
         /// <summary>
         /// Distance between the timing blocks of the memory P-states of a channel, 0 when there is one block per
-        /// channel. A block at another distance from the previous one starts the next channel.
+        /// channel. A block a whole number of strides after the previous one is a later P-state of its channel (up to
+        /// <see cref="ApobChannelTimings.MaxMemPstates"/>), a block at another distance starts the next channel.
         /// </summary>
         public int PStateBlockStride { get; private set; }
 
@@ -336,9 +337,16 @@ namespace ZenStates.Core.Hardware.Apob
         }
 
         /// <summary>
+        /// Memory P-states a channel can have: the memory controller holds a timing set for each (mp0 to mp3), in the
+        /// order of the blocks of a channel (checked on Rembrandt and Krackan dumps).
+        /// </summary>
+        public const int MaxMemPstates = 4;
+
+        /// <summary>
         /// Finds the timing blocks in the entry at <paramref name="entryOffset"/> of <paramref name="buffer"/>, in
         /// order. Empty when there are none or the entry is not complete.
         /// </summary>
+        /// <param name="maxChannels">Channels (not blocks) to read at most.</param>
         internal static List<ApobChannelTimings> Read(byte[] buffer, uint entryOffset, ApobChannelTimingLayout layout, int maxChannels = 16)
         {
             var result = new List<ApobChannelTimings>();
@@ -348,105 +356,160 @@ namespace ZenStates.Core.Hardware.Apob
             ulong end = (ulong)data + size;
             // Blocks are at least 2-byte aligned relative to the entry
             uint o = data;
-            while ((ulong)o + (ulong)layout.Span <= end && result.Count < maxChannels)
+            while ((ulong)o + (ulong)layout.Span <= end)
             {
-                // ulong: the fields are arbitrary data until the block is found
-                ulong clk = layout.Read(buffer, o, layout.MemClkOffset);
-                ulong half = layout.HalfMemClkOffset >= 0 ? layout.Read(buffer, o, layout.HalfMemClkOffset) : clk / 2;
-                ulong rate = layout.DataRateOffset >= 0 ? layout.Read(buffer, o, layout.DataRateOffset) : clk * 2;
-                bool rateOk = rate == clk * 2;
-                if (layout.WckOffset >= 0)
+                ApobChannelTimings timings = TryReadBlock(buffer, entryOffset, o, end, layout, out uint clocks);
+                if (timings == null)
                 {
-                    ulong wck = layout.Read(buffer, o, layout.WckOffset);
-                    rateOk = clk > 0 && (wck == clk * 2 || wck == clk * 4);
-                    rate = wck * 2;
-                }
-
-                uint clocks = o;
-                bool found = false;
-
-                if (clk >= (ulong)layout.MinMemClk && clk <= (ulong)layout.MaxMemClk && half * 2 == clk - (clk & 1) && rateOk)
-                {
-                    if (layout.ClockBytesSearchEnd > 0)
-                    {
-                        // DDR4: the clock bytes follow MEMCLK at a program dependent distance
-                        for (int gap = layout.ClockBytesSearchStart; gap <= layout.ClockBytesSearchEnd && !found; gap++)
-                        {
-                            uint candidate = o + (uint)layout.MemClkOffset + (uint)gap;
-                            if (layout.IsDdr4ClockBytes(buffer, candidate, end))
-                            {
-                                clocks = candidate;
-                                found = true;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        ulong cas = layout.Read(buffer, o, layout.ClOffset);
-                        found = cas >= (ulong)layout.MinCl && cas <= (ulong)layout.MaxCl;
-                    }
-                }
-
-                if (found)
-                {
-                    var timings = new ApobChannelTimings
-                    {
-                        Index = result.Count,
-                        Channel = 0,
-                        PState = 0,
-                        EntryRelativeOffset = o - entryOffset,
-                        DataRate = (uint)rate,
-                        MemClk = (uint)clk,
-                    };
-
-                    for (int i = 0; i < layout.Fields.Length; i++)
-                    {
-                        ApobTimingField field = layout.Fields[i];
-                        timings.Values.Add(new ApobTimingValue
-                        {
-                            Field = field,
-                            Value = layout.ReadField(buffer, o, clocks, field),
-                        });
-                    }
-
-                    // LPDDR5: the mode registers, checked against the WCK ratio of the block
-                    for (int copy = 0; copy < layout.Lpddr5ModeRegisterCopies && clk > 0; copy++)
-                    {
-                        uint mrOffset = o + (uint)layout.Lpddr5ModeRegisterOffset + (uint)(copy * ApobLpddr5ModeRegisters.Count);
-                        ApobLpddr5ModeRegisters registers = ApobLpddr5ModeRegisters.TryRead(buffer, mrOffset, end, (int)(rate / 2 / clk));
-                        if (registers == null)
-                            break;
-                        timings.Lpddr5ModeRegisterSets.Add(registers);
-                    }
-
-                    // DDR4: the mode registers, found by the timings they encode
-                    if (layout.Ddr4ModeRegisterSearchEnd > 0 && layout.ClockBytesSearchEnd > 0)
-                    {
-                        timings.Ddr4ModeRegisters = ApobDdr4ModeRegisters.Find(buffer,
-                            clocks + (uint)layout.Ddr4ModeRegisterSearchStart, clocks + (uint)layout.Ddr4ModeRegisterSearchEnd, end,
-                            timings.Tcas, timings.Get("Tcwl"), timings.Twr, timings.Tccdl);
-                    }
-
-                    if (result.Count > 0)
-                    {
-                        ApobChannelTimings previous = result[result.Count - 1];
-                        bool samechannel = layout.PStateBlockStride > 0 &&
-                            timings.EntryRelativeOffset - previous.EntryRelativeOffset == (uint)layout.PStateBlockStride;
-                        timings.Channel = samechannel ? previous.Channel : previous.Channel + 1;
-                        timings.PState = samechannel ? previous.PState + 1 : 0;
-                    }
-
-                    result.Add(timings);
-                    o = layout.ClockBytesSearchEnd > 0 ? clocks + ApobChannelTimingLayout.DDR4_CLOCK_BYTES : o + (uint)layout.Span;
-                    if ((o & 1) != (entryOffset & 1))
-                        o++;
+                    o += 2;
                     continue;
                 }
 
-                o += 2;
+                if (!Add(result, timings, layout, maxChannels))
+                    break;
+
+                // The next memory P-states of the channel are at a fixed distance: they are taken from there, so data
+                // in between that passes for a block can't split the channel
+                while (layout.PStateBlockStride > 0 && result[result.Count - 1].PState + 1 < MaxMemPstates)
+                {
+                    uint next = o + (uint)layout.PStateBlockStride;
+                    if ((ulong)next + (ulong)layout.Span > end)
+                        break;
+
+                    ApobChannelTimings pState = TryReadBlock(buffer, entryOffset, next, end, layout, out uint nextClocks);
+                    if (pState == null)
+                        break;
+
+                    if (!Add(result, pState, layout, maxChannels))
+                        return result;
+
+                    o = next;
+                    clocks = nextClocks;
+                }
+
+                o = layout.ClockBytesSearchEnd > 0 ? clocks + ApobChannelTimingLayout.DDR4_CLOCK_BYTES : o + (uint)layout.Span;
+                if ((o & 1) != (entryOffset & 1))
+                    o++;
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// Numbers the block after the previous one and adds it. A block a whole number of P-state strides after the
+        /// previous one is a later P-state of the same channel (a P-state block in between that does not validate is
+        /// skipped), within <see cref="MaxMemPstates"/>; otherwise it starts the next channel.
+        /// </summary>
+        /// <returns>False when the block is past <paramref name="maxChannels"/> channels, it is not added then.</returns>
+        private static bool Add(List<ApobChannelTimings> result, ApobChannelTimings timings, ApobChannelTimingLayout layout, int maxChannels)
+        {
+            timings.Index = result.Count;
+
+            if (result.Count > 0)
+            {
+                ApobChannelTimings previous = result[result.Count - 1];
+                uint distance = timings.EntryRelativeOffset - previous.EntryRelativeOffset;
+                uint stride = (uint)Math.Max(layout.PStateBlockStride, 0);
+                int steps = stride > 0 && distance % stride == 0 ? (int)(distance / stride) : 0;
+                bool sameChannel = steps > 0 && previous.PState + steps < MaxMemPstates;
+
+                timings.Channel = sameChannel ? previous.Channel : previous.Channel + 1;
+                timings.PState = sameChannel ? previous.PState + steps : 0;
+            }
+
+            if (timings.Channel >= maxChannels)
+                return false;
+
+            result.Add(timings);
+            return true;
+        }
+
+        /// <summary>
+        /// The timing block at <paramref name="o"/>, null when there is none: MEMCLK in range, the half MEMCLK and
+        /// data rate (or WCK) consistent with it, and a sane CL (DDR4: plausible clock bytes after MEMCLK).
+        /// </summary>
+        /// <param name="clocks">DDR4: where the clock bytes are; otherwise <paramref name="o"/>.</param>
+        private static ApobChannelTimings TryReadBlock(byte[] buffer, uint entryOffset, uint o, ulong end, ApobChannelTimingLayout layout, out uint clocks)
+        {
+            clocks = o;
+
+            // ulong: the fields are arbitrary data until the block is found
+            ulong clk = layout.Read(buffer, o, layout.MemClkOffset);
+            ulong half = layout.HalfMemClkOffset >= 0 ? layout.Read(buffer, o, layout.HalfMemClkOffset) : clk / 2;
+            ulong rate = layout.DataRateOffset >= 0 ? layout.Read(buffer, o, layout.DataRateOffset) : clk * 2;
+            bool rateOk = rate == clk * 2;
+            if (layout.WckOffset >= 0)
+            {
+                ulong wck = layout.Read(buffer, o, layout.WckOffset);
+                rateOk = clk > 0 && (wck == clk * 2 || wck == clk * 4);
+                rate = wck * 2;
+            }
+
+            bool found = false;
+
+            if (clk >= (ulong)layout.MinMemClk && clk <= (ulong)layout.MaxMemClk && half * 2 == clk - (clk & 1) && rateOk)
+            {
+                if (layout.ClockBytesSearchEnd > 0)
+                {
+                    // DDR4: the clock bytes follow MEMCLK at a program dependent distance
+                    for (int gap = layout.ClockBytesSearchStart; gap <= layout.ClockBytesSearchEnd && !found; gap++)
+                    {
+                        uint candidate = o + (uint)layout.MemClkOffset + (uint)gap;
+                        if (layout.IsDdr4ClockBytes(buffer, candidate, end))
+                        {
+                            clocks = candidate;
+                            found = true;
+                        }
+                    }
+                }
+                else
+                {
+                    ulong cas = layout.Read(buffer, o, layout.ClOffset);
+                    found = cas >= (ulong)layout.MinCl && cas <= (ulong)layout.MaxCl;
+                }
+            }
+
+            if (!found)
+                return null;
+
+            var timings = new ApobChannelTimings
+            {
+                Channel = 0,
+                PState = 0,
+                EntryRelativeOffset = o - entryOffset,
+                DataRate = (uint)rate,
+                MemClk = (uint)clk,
+            };
+
+            for (int i = 0; i < layout.Fields.Length; i++)
+            {
+                ApobTimingField field = layout.Fields[i];
+                timings.Values.Add(new ApobTimingValue
+                {
+                    Field = field,
+                    Value = layout.ReadField(buffer, o, clocks, field),
+                });
+            }
+
+            // LPDDR5: the mode registers, checked against the WCK ratio of the block
+            for (int copy = 0; copy < layout.Lpddr5ModeRegisterCopies && clk > 0; copy++)
+            {
+                uint mrOffset = o + (uint)layout.Lpddr5ModeRegisterOffset + (uint)(copy * ApobLpddr5ModeRegisters.Count);
+                ApobLpddr5ModeRegisters registers = ApobLpddr5ModeRegisters.TryRead(buffer, mrOffset, end, (int)(rate / 2 / clk));
+                if (registers == null)
+                    break;
+                timings.Lpddr5ModeRegisterSets.Add(registers);
+            }
+
+            // DDR4: the mode registers, found by the timings they encode
+            if (layout.Ddr4ModeRegisterSearchEnd > 0 && layout.ClockBytesSearchEnd > 0)
+            {
+                timings.Ddr4ModeRegisters = ApobDdr4ModeRegisters.Find(buffer,
+                    clocks + (uint)layout.Ddr4ModeRegisterSearchStart, clocks + (uint)layout.Ddr4ModeRegisterSearchEnd, end,
+                    timings.Tcas, timings.Get("Tcwl"), timings.Twr, timings.Tccdl);
+            }
+
+            return timings;
         }
     }
 }

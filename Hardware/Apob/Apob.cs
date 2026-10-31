@@ -629,6 +629,7 @@ namespace ZenStates.Core.Hardware.Apob
                     ChannelTimings = ApobChannelTimings.Read(extended, 0, timingLayout);
                     ReadChannelExtendedData(extended, timingLayout);
                     MarkActiveChannelTimings(timingsOverride);
+                    UseActiveExtendedData();
                     MapChannelsToDimms();
                 }
             }
@@ -641,7 +642,9 @@ namespace ZenStates.Core.Hardware.Apob
         /// <summary>
         /// Marks the timing blocks of the MEMCLK the memory runs at: the timings ratio x 100, the same MEMCLK the AOD
         /// table is searched with. The ratio comes from <paramref name="timingsOverride"/> (a debug report) or
-        /// from the memory config.
+        /// from the memory config. With memory P-state blocks, only the blocks of the P-state the memory controller
+        /// runs (<see cref="Ddr5Timings.MemPstate"/>, whose timing set the ratio is read from) are marked, as P-states
+        /// can share MEMCLK and data rate (Rembrandt: P0 and P2 at LPDDR5-6400).
         /// </summary>
         private void MarkActiveChannelTimings(BaseDramTimings timingsOverride)
         {
@@ -656,6 +659,11 @@ namespace ZenStates.Core.Hardware.Apob
                     timings = list != null && list.Count > 0 ? list[0].Value : null;
                     lpddr5 = _memoryConfig.Type == MemType.LPDDR5;
                 }
+
+                // Debug report timings: LPDDR5 has a WCK ratio
+                Ddr5Timings ddr5 = timings as Ddr5Timings;
+                if (ddr5 != null && ddr5.WckRatioMode != 0)
+                    lpddr5 = true;
 
                 float ratio = timings != null ? timings.Ratio : 0;
                 if (ratio <= 0 || ChannelTimings == null)
@@ -680,6 +688,21 @@ namespace ZenStates.Core.Hardware.Apob
                     // AOD uses 4 x MEMCLK on LPDDR5; the Rembrandt LPDDR5 blocks hold MEMCLK itself
                     ChannelTimings[i].IsActive = NearlyEqual(clk, mclk) ||
                         (lpddr5 && (NearlyEqual(clk, mclk * 2) || NearlyEqual(clk, mclk * 4)));
+                }
+
+                // The P-state the memory controller runs, when a block of it matches; otherwise the MEMCLK match stands
+                if (ddr5 != null && _profile?.ChannelTimingLayout?.PStateBlockStride > 0)
+                {
+                    int active = (int)ddr5.MemPstate;
+                    bool found = false;
+                    for (int i = 0; i < ChannelTimings.Count && !found; i++)
+                        found = ChannelTimings[i].IsActive && ChannelTimings[i].PState == active;
+
+                    if (found)
+                    {
+                        for (int i = 0; i < ChannelTimings.Count; i++)
+                            ChannelTimings[i].IsActive &= ChannelTimings[i].PState == active;
+                    }
                 }
             }
             catch (Exception ex)
@@ -723,8 +746,7 @@ namespace ZenStates.Core.Hardware.Apob
 
         /// <summary>
         /// Reads the extended copy of the ODT / drive strength record of each timing block at its place in the
-        /// channel, and makes the first one <see cref="ExtendedData"/> (in place of the one found by searching for
-        /// the RTT values).
+        /// channel (<see cref="UseActiveExtendedData"/> picks the one shown as <see cref="ExtendedData"/>).
         /// </summary>
         private void ReadChannelExtendedData(byte[] extended, ApobChannelTimingLayout timingLayout)
         {
@@ -732,18 +754,15 @@ namespace ZenStates.Core.Hardware.Apob
             if (layout == null || timingLayout.ExtendedRecordOffset < 0 || ChannelTimings == null)
                 return;
 
-            ApobChannelTimings channelStart = null;
             for (int i = 0; i < ChannelTimings.Count; i++)
             {
                 ApobChannelTimings t = ChannelTimings[i];
-                if (t.PState == 0)
-                    channelStart = t;
-                if (channelStart == null)
-                    continue;
 
-                long offset = (long)channelStart.EntryRelativeOffset + timingLayout.ExtendedRecordOffset +
+                // From where the P-state 0 block of the channel is, also when that block is not found
+                long channelStart = (long)t.EntryRelativeOffset - (long)t.PState * timingLayout.PStateBlockStride;
+                long offset = channelStart + timingLayout.ExtendedRecordOffset +
                     (long)t.PState * timingLayout.ExtendedRecordStride;
-                if (offset + layout.BlockSize > extended.Length)
+                if (offset < 0 || offset + layout.BlockSize > extended.Length)
                     continue;
 
                 if (ApobBytes.CountNonZero(extended, (uint)offset, (uint)layout.BlockSize) == 0)
@@ -755,12 +774,33 @@ namespace ZenStates.Core.Hardware.Apob
                     t.ExtendedDataOffset = (uint)offset;
                 }
             }
+        }
 
-            if (ChannelTimings.Count > 0 && ChannelTimings[0].ExtendedData != null)
+        /// <summary>
+        /// Makes the extended record of the first active timing block <see cref="ExtendedData"/> (in place of the one
+        /// found by searching for the RTT values), of the first block when none is active: the ODT / drive strengths
+        /// differ between memory P-states (Krackan: DDR5-2000 against 5600 and 4800).
+        /// </summary>
+        private void UseActiveExtendedData()
+        {
+            if (ChannelTimings == null || ChannelTimings.Count == 0)
+                return;
+
+            ApobChannelTimings source = ChannelTimings[0];
+            for (int i = 0; i < ChannelTimings.Count; i++)
             {
-                ExtendedData = ChannelTimings[0].ExtendedData;
-                ExtendedLayoutDataRelativeOffset = (int)ChannelTimings[0].ExtendedDataOffset;
-                ExtendedLayoutDataOffset = (int)(ExtendedDataOffset + ChannelTimings[0].ExtendedDataOffset);
+                if (ChannelTimings[i].IsActive && ChannelTimings[i].ExtendedData != null)
+                {
+                    source = ChannelTimings[i];
+                    break;
+                }
+            }
+
+            if (source.ExtendedData != null)
+            {
+                ExtendedData = source.ExtendedData;
+                ExtendedLayoutDataRelativeOffset = (int)source.ExtendedDataOffset;
+                ExtendedLayoutDataOffset = (int)(ExtendedDataOffset + source.ExtendedDataOffset);
             }
         }
 
@@ -1760,11 +1800,11 @@ namespace ZenStates.Core.Hardware.Apob
                 report.AppendLine("(?) = placement not confirmed");
             report.AppendLine("One block per channel, per memory P-state on APUs");
 
-            // The extended record of each block, Blk0 is Extended Data
-            for (int c = 1; c < ChannelTimings.Count; c++)
+            // The extended record of each block, except the one shown as Extended Data
+            for (int c = 0; c < ChannelTimings.Count; c++)
             {
                 ApobData ext = ChannelTimings[c].ExtendedData;
-                if (ext == null)
+                if (ext == null || ReferenceEquals(ext, ExtendedData))
                     continue;
 
                 byte[] raw = ext.RawBytes;

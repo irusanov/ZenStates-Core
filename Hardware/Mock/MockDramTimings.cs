@@ -50,7 +50,7 @@ namespace ZenStates.Core.Hardware.Mock
             source = new MockTimingsSource(registers, reportedFrequency);
         }
 
-        protected override bool TryReadRegister(uint address, out uint value)
+        protected override bool TryReadRegisterRaw(uint address, out uint value)
         {
             return source.TryReadRegister(address, out value);
         }
@@ -71,7 +71,7 @@ namespace ZenStates.Core.Hardware.Mock
             source = new MockTimingsSource(registers, reportedFrequency);
         }
 
-        protected override bool TryReadRegister(uint address, out uint value)
+        protected override bool TryReadRegisterRaw(uint address, out uint value)
         {
             return source.TryReadRegister(address, out value);
         }

@@ -121,10 +121,28 @@ namespace ZenStates.Core.Hardware.DRAM
         }
 
         /// <summary>
-        /// Reads one UMC register.
+        /// Reads one UMC register, at the address <see cref="MapRegisterAddress"/> gives for it.
         /// </summary>
         /// <returns>False when the register could not be read; <paramref name="value"/> is then 0.</returns>
-        protected virtual bool TryReadRegister(uint address, out uint value)
+        protected bool TryReadRegister(uint address, out uint value)
+        {
+            return TryReadRegisterRaw(MapRegisterAddress(address), out value);
+        }
+
+        /// <summary>
+        /// Address actually read for a register. The default reads it as is; a subclass can move the registers that
+        /// are replicated per memory P-state to the set of the active one.
+        /// </summary>
+        protected virtual uint MapRegisterAddress(uint address)
+        {
+            return address;
+        }
+
+        /// <summary>
+        /// Reads one UMC register at exactly this address.
+        /// </summary>
+        /// <returns>False when the register could not be read; <paramref name="value"/> is then 0.</returns>
+        protected virtual bool TryReadRegisterRaw(uint address, out uint value)
         {
             // A null Cpu is legitimate for subclasses that never touch hardware.
             if (cpu == null)

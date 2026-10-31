@@ -212,6 +212,49 @@ namespace ZenStates.Core.Hardware.DRAM
             BGSAlt = 0;
         }
 
+        // The timing registers 0x50200 to 0x502DF are replicated per memory P-state, 0x100 apart
+        private const uint PstateRegistersStart = 0x200;
+        private const uint PstateRegistersEnd = 0x2E0;
+        private const uint PstateRegistersStride = 0x100;
+        private const uint MaxMemPstate = 3;
+
+        /// <summary>
+        /// Current memory P-state (DebugMisc, 0x50D6C [2:0]); the timings are read from its register set.
+        /// 0 when it can't be read or isn't valid.
+        /// </summary>
+        public uint MemPstate { get; private set; }
+
+        protected override uint MapRegisterAddress(uint address)
+        {
+            uint register = address & 0xFFF;
+            if (MemPstate == 0 || (address & 0xFF000) != 0x50000 ||
+                register < PstateRegistersStart || register >= PstateRegistersEnd)
+            {
+                return address;
+            }
+
+            return address + MemPstate * PstateRegistersStride;
+        }
+
+        private void ReadMemPstate(uint offset)
+        {
+            MemPstate = 0;
+
+            if (!TryReadRegister(offset | 0x50D6C, out uint debugMisc))
+                return;
+
+            uint pstate = Utils.BitSlice(debugMisc, 2, 0);
+            if (pstate == 0 || pstate > MaxMemPstate)
+                return;
+
+            // Only use a set that is programmed: its memory clock must not be 0
+            if (TryReadRegisterRaw(offset | (0x50200 + pstate * PstateRegistersStride), out uint dramConfig) &&
+                Utils.BitSlice(dramConfig, 15, 0) != 0)
+            {
+                MemPstate = pstate;
+            }
+        }
+
         public override void ReadRatio(uint offset = 0)
         {
             if (TryReadRegister(offset | 0x50200, out uint ratioReg))
@@ -237,6 +280,7 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public override void Read(uint offset = 0)
         {
+            ReadMemPstate(offset);
             base.Read(offset);
 
             // TzqOperCal [19:8] is in units of 8 MEMCLKs
