@@ -733,16 +733,17 @@ namespace ZenStates.Core.Hardware.DRAM
         }
 
         // TODO: Use rank from spd with priority over register value
-        /// <param name="address">DDR5: the DIMM's first address mask register.</param>
+        /// <param name="address">LPDDR5: the DIMM's first address mask register.</param>
         /// <param name="channelOffset">The UMC offset of the channel.</param>
         /// <param name="dimm">The DIMM in the channel, 0 or 1.</param>
         private MemRank GetRank(uint address, uint channelOffset, int dimm)
         {
-            if (Type == MemType.DDR4 || Type == MemType.LPDDR4)
+            if (Type == MemType.DDR4 || Type == MemType.LPDDR4 || Type == MemType.DDR5)
             {
                 // The ranks are the chip selects in use: DIMM n has CS 2n and 2n+1, whose base address registers
-                // (0x50000 + 4 x CS) have bit 0 set when enabled (Linux amd64_edac). Bit 0 of DIMM_CFG, read before, is
-                // OnDimmMirror (see DimmConfiguration), which only usually goes with a second rank.
+                // (BaseAddr, 0x50000 + 4 x CS) have CSEnable, bit 0, set when enabled; the even CS of a pair is
+                // populated whenever the odd one is. Bit 0 of DIMM_CFG, read before, is OnDimmMirror (see
+                // DimmConfiguration), which only usually goes with a second rank.
                 int ranks = 0;
                 for (int cs = 2 * dimm; cs <= 2 * dimm + 1; cs++)
                 {
@@ -751,7 +752,7 @@ namespace ZenStates.Core.Hardware.DRAM
                 }
                 return ranks > 1 ? MemRank.DR : MemRank.SR;
             }
-            if (Type == MemType.DDR5 || Type == MemType.LPDDR5)
+            if (Type == MemType.LPDDR5)
             {
                 var value = cpu.ReadDwordNoLock(address);
                 if (value != 0 && (value == 0x07FFFBFE || Utils.GetBits(value, 9, 2) < 3))

@@ -186,6 +186,21 @@ namespace ZenStates.Core.Hardware.DRAM
             }
         }
 
+        /// <summary>
+        /// Index of the first enabled chip select whose per-CS register value is not 0.
+        /// </summary>
+        /// <returns>-1 when no enabled chip select has a value, or the chip selects could not be read.</returns>
+        private int FindEnabledChipSelect(uint offset, uint[] perCsValues)
+        {
+            for (int cs = 0; cs < perCsValues.Length; cs++)
+            {
+                if (perCsValues[cs] != 0 && IsChipSelectEnabled(offset, cs) == true)
+                    return cs;
+            }
+
+            return -1;
+        }
+
         public override void Read(uint offset = 0)
         {
             base.Read(offset);
@@ -197,17 +212,24 @@ namespace ZenStates.Core.Hardware.DRAM
             TryReadRegister(offset | 0x50268, out uint trfcTimings2);
             TryReadRegister(offset | 0x5026C, out uint trfcTimings3);
 
-            uint trfcRegValue = 0;
-            bool trfcFound = false;
+            // One register per chip select (0x50260 + 4 x CS): use the one of the first enabled CS.
+            // The register of an unused CS is not reliably at its reset value (ryzen_smu issue #70), so the
+            // default-value comparison is only a fallback for when the chip selects are unknown.
             uint[] ddr5Regs = new[] { trfcTimings0, trfcTimings1, trfcTimings2, trfcTimings3 };
+            int trfcCs = FindEnabledChipSelect(offset, ddr5Regs);
+            uint trfcRegValue = trfcCs >= 0 ? ddr5Regs[trfcCs] : 0;
+            bool trfcFound = trfcCs >= 0;
 
-            foreach (uint reg in ddr5Regs)
+            if (!trfcFound)
             {
-                if (reg > 0 && reg != 0x00C00138)
+                foreach (uint reg in ddr5Regs)
                 {
-                    trfcRegValue = reg;
-                    trfcFound = true;
-                    break;
+                    if (reg > 0 && reg != 0x00C00138)
+                    {
+                        trfcRegValue = reg;
+                        trfcFound = true;
+                        break;
+                    }
                 }
             }
 
@@ -232,12 +254,21 @@ namespace ZenStates.Core.Hardware.DRAM
                 Utils.BitSlice(trfcsbTimings3, 10, 0)
             };
 
-            foreach (uint value in ddr5Regs)
+            // Also one register per chip select (0x502C0 + 4 x CS)
+            int trfcsbCs = FindEnabledChipSelect(offset, ddr5Regs);
+            if (trfcsbCs >= 0)
             {
-                if (value != 0)
+                RFCsb = ddr5Regs[trfcsbCs];
+            }
+            else
+            {
+                foreach (uint value in ddr5Regs)
                 {
-                    RFCsb = value;
-                    break;
+                    if (value != 0)
+                    {
+                        RFCsb = value;
+                        break;
+                    }
                 }
             }
 

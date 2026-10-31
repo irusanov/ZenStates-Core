@@ -141,6 +141,27 @@ namespace ZenStates.Core.Hardware.DRAM
             return TryReadRegister(address, out uint value) ? value : 0;
         }
 
+        /// <summary>
+        /// Whether a chip select is enabled: CSEnable, bit 0 of BaseAddr (0x50000 + 4 x CS) or
+        /// BaseAddrSec (0x50010 + 4 x CS).
+        /// </summary>
+        /// <returns>Null when neither register could be read.</returns>
+        protected bool? IsChipSelectEnabled(uint offset, int cs)
+        {
+            bool anyRead = false;
+            foreach (uint baseAddr in new[] { 0x50000u, 0x50010u })
+            {
+                if (TryReadRegister(offset | (baseAddr + 4u * (uint)cs), out uint value))
+                {
+                    anyRead = true;
+                    if ((value & 1) != 0)
+                        return true;
+                }
+            }
+
+            return anyRead ? false : (bool?)null;
+        }
+
         public object this[string propertyName]
         {
             get
