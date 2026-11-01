@@ -795,6 +795,7 @@ namespace ZenStates.Core.Hardware.Motherboard
                             break;
 
                         case Model.TUF_X470_PLUS_GAMING: // IT8665E
+                    	case Model.ROG_STRIX_B450_F_GAMING: // IT8665E
                             v.Add(new Voltage("Vcore", 0));
                             v.Add(new Voltage("Southbridge 2.5V", 1));
                             v.Add(new Voltage("+12V", 2, 5, 1));
@@ -2950,9 +2951,10 @@ namespace ZenStates.Core.Hardware.Motherboard
                                 v.Add(new Voltage("1.8V PLL", 14, 17, 36));
 
                                 // The following mappings only apply when FanXpert is off in Armoury Crate.
-                                t.Add(new Temperature("CPU Package", 0));
-                                t.Add(new Temperature("VRM", 1));
-                                t.Add(new Temperature("Motherboard", 2));
+                                t.Add(new Temperature("CPU Package", 26)); // CPU PACKAGE
+                                t.Add(new Temperature("CPU Socket", 1)); // CPUTIN
+                                t.Add(new Temperature("Motherboard", 2)); // SYSTIN
+                                t.Add(new Temperature("DIMM Thermistor", 28));
 
                                 // BIOS 1804 or above moved CPU Temp Sensor to 21
                                 t.Add(new Temperature("CPU", 21));
@@ -2961,10 +2963,9 @@ namespace ZenStates.Core.Hardware.Motherboard
                                 t.Add(new Temperature("CPU", 22));
 
                                 // Add all unmapped temperature sensors
-                                for (int i = 3; i < superIO.Temperatures.Length; i++)
+                                 for (int i = 0; i < superIO.Temperatures.Length; i++)
                                 {
-                                    // 21 and 22 are not used at the same time
-                                    if (i != 21 && i != 22)
+                                    if (i != 1 && i != 2 && i != 21 && i != 22 && i != 26 && i != 28)
                                     {
                                         t.Add(new Temperature($"Temperature #{i}", i));
                                     }
