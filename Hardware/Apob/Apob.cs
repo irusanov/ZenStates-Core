@@ -134,6 +134,13 @@ namespace ZenStates.Core.Hardware.Apob
         public ApobData Data { get; private set; }
         public ApobData ExtendedData { get; private set; }
 
+        /// <summary>
+        /// True when <see cref="ExtendedData"/> is the record of the active memory P-state (the layout keeps one
+        /// extended record per P-state), so its ODT / drive strength values take precedence over <see cref="Data"/>,
+        /// which only holds the P-state 0 set.
+        /// </summary>
+        public bool ExtendedDataPerPstate { get; private set; }
+
         public CcdlData CcdlData { get; private set; } = new CcdlData();
 
         /// <summary>
@@ -739,6 +746,21 @@ namespace ZenStates.Core.Hardware.Apob
                 t.Channel = populated[t.Channel];
         }
 
+        /// <summary>
+        /// Marks the timing blocks again for <paramref name="timings"/>, read after the memory controller switched
+        /// memory P-state, and updates what follows from the active blocks: <see cref="ExtendedData"/>, the active
+        /// LPDDR5 mode registers and CCD_L. The ODT / drive strengths / Vrefs differ between P-states.
+        /// </summary>
+        public void UpdateActiveTimings(BaseDramTimings timings)
+        {
+            if (timings == null || ChannelTimings == null || ChannelTimings.Count == 0)
+                return;
+
+            MarkActiveChannelTimings(timings);
+            UseActiveExtendedData();
+            TryGetCcdlFromChannelTimings();
+        }
+
         private static bool NearlyEqual(uint a, uint b)
         {
             return a >= b ? a - b <= 1 : b - a <= 1;
@@ -802,6 +824,9 @@ namespace ZenStates.Core.Hardware.Apob
                 ExtendedLayoutDataRelativeOffset = (int)source.ExtendedDataOffset;
                 ExtendedLayoutDataOffset = (int)(ExtendedDataOffset + source.ExtendedDataOffset);
             }
+
+            ExtendedDataPerPstate = source.ExtendedData != null &&
+                _profile?.ChannelTimingLayout?.ExtendedRecordStride > 0;
         }
 
         private void TryParseCoreMap()

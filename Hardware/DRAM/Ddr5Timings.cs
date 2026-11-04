@@ -238,21 +238,35 @@ namespace ZenStates.Core.Hardware.DRAM
 
         private void ReadMemPstate(uint offset)
         {
-            MemPstate = 0;
+            MemPstate = ReadCurrentMemPstate(offset);
+        }
 
+        /// <summary>
+        /// The memory controller now runs another memory P-state than the one the timings were read in (APUs switch
+        /// with load), so they need reading again. One register read, cheap enough for a refresh tick.
+        /// </summary>
+        public bool MemPstateChanged(uint offset = 0)
+        {
+            return ReadCurrentMemPstate(offset) != MemPstate;
+        }
+
+        private uint ReadCurrentMemPstate(uint offset)
+        {
             if (!TryReadRegister(offset | 0x50D6C, out uint debugMisc))
-                return;
+                return 0;
 
             uint pstate = Utils.BitSlice(debugMisc, 2, 0);
             if (pstate == 0 || pstate > MaxMemPstate)
-                return;
+                return 0;
 
             // Only use a set that is programmed: its memory clock must not be 0
             if (TryReadRegisterRaw(offset | (0x50200 + pstate * PstateRegistersStride), out uint dramConfig) &&
                 Utils.BitSlice(dramConfig, 15, 0) != 0)
             {
-                MemPstate = pstate;
+                return pstate;
             }
+
+            return 0;
         }
 
         public override void ReadRatio(uint offset = 0)
