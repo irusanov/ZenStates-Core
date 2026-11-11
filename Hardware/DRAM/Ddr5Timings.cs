@@ -281,11 +281,11 @@ namespace ZenStates.Core.Hardware.DRAM
         /// Index of the first enabled chip select whose per-CS register value is not 0.
         /// </summary>
         /// <returns>-1 when no enabled chip select has a value, or the chip selects could not be read.</returns>
-        private int FindEnabledChipSelect(uint offset, uint[] perCsValues)
+        private static int FindEnabledChipSelect(ChipSelectCache chipSelects, uint[] perCsValues)
         {
             for (int cs = 0; cs < perCsValues.Length; cs++)
             {
-                if (perCsValues[cs] != 0 && IsChipSelectEnabled(offset, cs) == true)
+                if (perCsValues[cs] != 0 && chipSelects[cs] == true)
                     return cs;
             }
 
@@ -313,8 +313,10 @@ namespace ZenStates.Core.Hardware.DRAM
             // One register per chip select (0x50260 + 4 x CS): use the one of the first enabled CS.
             // The register of an unused CS is not reliably at its reset value (ryzen_smu issue #70), so the
             // default-value comparison is only a fallback for when the chip selects are unknown.
+            // The chip selects are read once for both lookups, and only as far as needed.
+            ChipSelectCache chipSelects = GetChipSelects(offset);
             uint[] ddr5Regs = new[] { trfcTimings0, trfcTimings1, trfcTimings2, trfcTimings3 };
-            int trfcCs = FindEnabledChipSelect(offset, ddr5Regs);
+            int trfcCs = FindEnabledChipSelect(chipSelects, ddr5Regs);
             uint trfcRegValue = trfcCs >= 0 ? ddr5Regs[trfcCs] : 0;
             bool trfcFound = trfcCs >= 0;
 
@@ -353,7 +355,7 @@ namespace ZenStates.Core.Hardware.DRAM
             };
 
             // Also one register per chip select (0x502C0 + 4 x CS)
-            int trfcsbCs = FindEnabledChipSelect(offset, ddr5Regs);
+            int trfcsbCs = FindEnabledChipSelect(chipSelects, ddr5Regs);
             if (trfcsbCs >= 0)
             {
                 RFCsb = ddr5Regs[trfcsbCs];

@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Text;
 using ZenStates.Core.Common;
 using ZenStates.Core.Hardware.MutexLock;
+using Mutexes = ZenStates.Core.Hardware.Mutexes;
 
 namespace ZenStates.Core.PawnIo
 {
@@ -272,15 +273,35 @@ namespace ZenStates.Core.PawnIo
         /// <summary>
         /// Gets the SMU version.
         /// </summary>
-        /// <returns>The SMU version as a 32-bit unsigned integer.</returns>
+        /// <returns>
+        /// The SMU version as a 32-bit unsigned integer, or 0 when it could not be read (the driver call failed or
+        /// the PCI bus lock timed out).
+        /// </returns>
         public uint GetSmuVersion()
         {
             ThrowIfDisposed();
 
-            using (new PciBusLock())
+            if (!Mutexes.WaitPciBus(DEFAULT_LOCK_TIMEOUT_MS))
             {
-                long[] result = _pawnIo.Execute(IOCTL_GET_SMU_VERSION, new long[0], 1);
-                return Convert.ToUInt32(result[0] & 0xffffffff);
+                Debug.WriteLine("RyzenSmu: timed out waiting for the PCI bus lock, SMU version not read.");
+                return 0;
+            }
+
+            try
+            {
+                long[] output = new long[1];
+                int hr = _pawnIo.ExecuteHr(IOCTL_GET_SMU_VERSION, new long[0], 0, output, 1, out uint returnSize);
+                if (hr != 0 || returnSize == 0)
+                {
+                    Debug.WriteLine($"RyzenSmu: ioctl_get_smu_version failed (0x{hr:X8}, {returnSize} value(s) returned).");
+                    return 0;
+                }
+
+                return unchecked((uint)(output[0] & 0xffffffff));
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
             }
         }
 
@@ -341,13 +362,22 @@ namespace ZenStates.Core.PawnIo
             }
         }
 
+        /// <returns>False when the read failed or the PCI bus lock timed out; <paramref name="value"/> is then 0.</returns>
         public bool SmuReadReg(uint register, out uint value)
         {
             ThrowIfDisposed();
 
-            using (new PciBusLock())
+            value = 0;
+            if (!Mutexes.WaitPciBus(DEFAULT_LOCK_TIMEOUT_MS))
+                return false;
+
+            try
             {
                 return SmuReadRegNoLock(register, out value);
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
             }
         }
 
@@ -375,13 +405,21 @@ namespace ZenStates.Core.PawnIo
             }
         }
 
+        /// <returns>False when the write failed or the PCI bus lock timed out.</returns>
         public bool SmuWriteReg(uint register, uint value)
         {
             ThrowIfDisposed();
 
-            using (new PciBusLock())
+            if (!Mutexes.WaitPciBus(DEFAULT_LOCK_TIMEOUT_MS))
+                return false;
+
+            try
             {
                 return SmuWriteRegNoLock(register, value);
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
             }
         }
 
@@ -417,7 +455,16 @@ namespace ZenStates.Core.PawnIo
             {
                 try
                 {
-                    table = UpdateAndReadPmTable();
+                    table = UpdateAndReadPmTable(out bool transferred);
+
+                    // Without a confirmed transfer the DRAM copy is whatever was transferred last: not returned as
+                    // the current table
+                    if (!transferred)
+                    {
+                        Debug.WriteLine("GetPmTable: the SMU did not confirm the PM table transfer.");
+                        table = null;
+                        continue;
+                    }
 
                     // Check if table is valid (not empty and first value is not zero)
                     if (table.Length > 0 && table[0] != 0)
@@ -459,8 +506,14 @@ namespace ZenStates.Core.PawnIo
         {
             using (new PciBusLock(lockTimeoutMs))
             {
-                long[] result = _pawnIo.Execute(IOCTL_RESOLVE_PM_TABLE, new long[0], 2);
-                version = Convert.ToUInt32(result[0] & 0xffffffff);
+                // ExecuteHr, not Execute: a failed call must not pass for "version 0, base address 0"
+                long[] result = new long[2];
+                int hr = _pawnIo.ExecuteHr(IOCTL_RESOLVE_PM_TABLE, new long[0], 0, result, 2, out uint returnSize);
+                if (hr != 0 || returnSize == 0)
+                    throw new InvalidOperationException(
+                        $"The PM table could not be resolved (0x{hr:X8}, {returnSize} value(s) returned).");
+
+                version = unchecked((uint)(result[0] & 0xffffffff));
                 baseAddress = result[1];
             }
         }
@@ -492,21 +545,48 @@ namespace ZenStates.Core.PawnIo
 
             using (new PciBusLock(lockTimeoutMs))
             {
-                int hr = _pawnIo.ExecuteHr(IOCTL_UPDATE_PM_TABLE, new long[0], 0, new long[0], 0, out uint returnSize);
-                if (hr != 0)
-                    Debug.WriteLine($"RyzenSmu: PM table transfer failed (0x{hr:X8}).");
-
-                return hr == 0;
+                return UpdatePmTableNoLock();
             }
         }
 
-        /// <summary>
-        /// Triggers the SMU transfer (under the PCI bus lock) and then reads the table from DRAM.
-        /// </summary>
-        private long[] UpdateAndReadPmTableRaw(int longs)
+        // The caller holds the PCI bus lock.
+        private bool UpdatePmTableNoLock()
         {
-            UpdatePmTable(DEFAULT_LOCK_TIMEOUT_MS);
-            return _pawnIo.Execute(IOCTL_READ_PM_TABLE, new long[0], longs);
+            int hr = _pawnIo.ExecuteHr(IOCTL_UPDATE_PM_TABLE, new long[0], 0, new long[0], 0, out uint returnSize);
+            if (hr != 0)
+                Debug.WriteLine($"RyzenSmu: PM table transfer failed (0x{hr:X8}).");
+
+            return hr == 0;
+        }
+
+        /// <summary>
+        /// Triggers the SMU transfer and reads the table from DRAM, both under one hold of the PCI bus lock so that
+        /// no other transfer can land between the two.
+        /// </summary>
+        /// <param name="transferred">
+        /// False when the SMU did not confirm the transfer: the data read is then whatever was transferred last.
+        /// </param>
+        /// <exception cref="TimeoutException">The PCI bus lock could not be taken.</exception>
+        /// <exception cref="InvalidOperationException">The table could not be read.</exception>
+        private long[] UpdateAndReadPmTableRaw(int longs, out bool transferred)
+        {
+            ThrowIfDisposed();
+
+            transferred = false;
+            if (longs <= 0)
+                return new long[0];
+
+            using (new PciBusLock(DEFAULT_LOCK_TIMEOUT_MS))
+            {
+                transferred = UpdatePmTableNoLock();
+
+                long[] raw = new long[longs];
+                int hr = _pawnIo.ExecuteHr(IOCTL_READ_PM_TABLE, new long[0], 0, raw, (uint)longs, out uint returnSize);
+                if (hr != 0)
+                    throw new InvalidOperationException($"The PM table could not be read (0x{hr:X8}).");
+
+                return raw;
+            }
         }
 
         /// <summary>
@@ -542,13 +622,14 @@ namespace ZenStates.Core.PawnIo
         /// <summary>
         /// Updates and reads the PM table from DRAM.
         /// </summary>
+        /// <param name="transferred">False when the SMU did not confirm the transfer and the values may be stale.</param>
         /// <returns>An array of float values from the PM table.</returns>
-        private float[] UpdateAndReadPmTable()
+        private float[] UpdateAndReadPmTable(out bool transferred)
         {
             uint tableBytes = _pmTableSize;
             float[] table = new float[(tableBytes + 3) / 4];
 
-            long[] rawData = UpdateAndReadPmTableRaw((int)((tableBytes + 7) / 8));
+            long[] rawData = UpdateAndReadPmTableRaw((int)((tableBytes + 7) / 8), out transferred);
             CopyClamped(rawData, table, tableBytes);
 
             return table;
@@ -604,7 +685,10 @@ namespace ZenStates.Core.PawnIo
 
             try
             {
-                float[] pmValues = UpdateAndReadPmTable();
+                float[] pmValues = UpdateAndReadPmTable(out bool transferred);
+                if (!transferred)
+                    report.AppendLine("  (the SMU did not confirm the table transfer, the values below may be stale)");
+
                 Dictionary<uint, SmuSensorDefinition> sensorMap = GetPmTableStructure();
 
                 for (int i = 0; i < pmValues.Length; i++)

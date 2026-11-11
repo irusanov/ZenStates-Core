@@ -108,12 +108,11 @@ namespace ZenStates.Core.Hardware.DRAM
             uint trfcTimings0 = ReadRegister(offset | 0x50260);
             uint trfcTimings1 = ReadRegister(offset | 0x50264);
 
-            bool? dimm0 = IsDimmEnabled(offset, 0);
-            bool? dimm1 = IsDimmEnabled(offset, 1);
+            ChipSelectCache chipSelects = GetChipSelects(offset);
 
-            if (dimm0 == true && trfcTimings0 != 0)
+            if (trfcTimings0 != 0 && IsDimmEnabled(chipSelects, 0) == true)
                 return trfcTimings0;
-            if (dimm1 == true && trfcTimings1 != 0)
+            if (trfcTimings1 != 0 && IsDimmEnabled(chipSelects, 1) == true)
                 return trfcTimings1;
 
             // Chip selects unknown (registers not readable, e.g. a debug report without them)
@@ -122,12 +121,14 @@ namespace ZenStates.Core.Hardware.DRAM
 
         /// <summary>Whether a chip select of the DIMM is enabled, DIMM n having CS 2n and 2n+1.</summary>
         /// <returns>Null when none of the chip select registers could be read.</returns>
-        private bool? IsDimmEnabled(uint offset, int dimm)
+        private static bool? IsDimmEnabled(ChipSelectCache chipSelects, int dimm)
         {
-            bool? even = IsChipSelectEnabled(offset, 2 * dimm);
-            bool? odd = IsChipSelectEnabled(offset, 2 * dimm + 1);
+            bool? even = chipSelects[2 * dimm];
+            if (even == true)
+                return true;
 
-            if (even == true || odd == true)
+            bool? odd = chipSelects[2 * dimm + 1];
+            if (odd == true)
                 return true;
 
             return even == null && odd == null ? (bool?)null : false;

@@ -16,6 +16,17 @@ namespace ZenStates.Core
         public const int DefaultAutorefreshIntervalMs = 1000;
 
         public bool PrintSerialNumbers { get; set; }
+
+        /// <summary>
+        /// Read the SPD, the hub / PMIC telemetry and the DDR4 thermal sensors on a background thread, so
+        /// <see cref="Cpu"/> starts without waiting for hundreds of ms of SMBus traffic. Off by default: then
+        /// <see cref="Hardware.DRAM.MemoryConfig.SpdInfo"/>, <see cref="Hardware.DRAM.MemoryConfig.Ddr4Spd"/>,
+        /// <see cref="Hardware.DRAM.MemoryConfig.Ddr4ThermalSensors"/> and the module manufacturers are complete
+        /// when the constructor returns. When on, they are empty until <see cref="Hardware.DRAM.MemoryConfig.SpdInfoLoaded"/>
+        /// is raised (or <see cref="Hardware.DRAM.MemoryConfig.WaitForSpdInfo"/> returns true), and the consumer must
+        /// handle that.
+        /// </summary>
+        public bool SpdLoadInBackground { get; set; } = true;
         public ModuleSettings IoModule { get; set; }
         public ModuleSettings Timings { get; set; }
         public ModuleSettings Aod { get; set; }

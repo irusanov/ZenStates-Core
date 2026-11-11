@@ -237,6 +237,58 @@ namespace ZenStates.Core.Hardware.Aod
 
         struct BaseDictionary { public Dictionary<string, int> Dict; public int LastOffset; }
 
+        // The 32-bit fields right after MemClk (Tcl, Trcd, Trp, Tras, Trc, Twr) that an occurrence of the MemClk
+        // value must be followed by, and the largest value one of them can hold.
+        private const int MemClkAnchorFields = 6;
+        private const uint MemClkAnchorMaxValue = 0x3FF;
+
+        /// <summary>
+        /// Finds MemClk in the raw AOD table, which every other field is located from. The two bytes of the value can
+        /// also turn up elsewhere in the table, so the last occurrence that is followed by plausible timings is
+        /// taken. When none is, the last occurrence is used as before.
+        /// </summary>
+        private static int FindMemClkIndex(byte[] table, byte[] pattern)
+        {
+            List<int> candidates = new List<int>();
+            for (int found = Utils.FindSequence(table, 0, pattern);
+                 found != -1;
+                 found = Utils.FindSequence(table, found + 1, pattern))
+            {
+                candidates.Add(found);
+            }
+
+            if (candidates.Count == 0)
+                return -1;
+
+            for (int i = candidates.Count - 1; i >= 0; i--)
+            {
+                if (LooksLikeTimingBlock(table, candidates[i]))
+                    return candidates[i];
+            }
+
+            Debug.WriteLine("AOD: no MemClk occurrence is followed by plausible timings, using the last one.");
+            return candidates[candidates.Count - 1];
+        }
+
+        private static bool LooksLikeTimingBlock(byte[] table, int index)
+        {
+            if (index < 0 || index + 4 * (MemClkAnchorFields + 1) > table.Length)
+                return false;
+
+            // MemClk is a 32-bit field holding a 16-bit value
+            if (table[index + 2] != 0 || table[index + 3] != 0)
+                return false;
+
+            for (int field = 1; field <= MemClkAnchorFields; field++)
+            {
+                uint value = BitConverter.ToUInt32(table, index + field * 4);
+                if (value == 0 || value > MemClkAnchorMaxValue)
+                    return false;
+            }
+
+            return true;
+        }
+
         // TODO: Make generic for all CPUs
         private BaseDictionary GetBaseDictionaryByFrequency()
         {
@@ -250,7 +302,7 @@ namespace ZenStates.Core.Hardware.Aod
                     mclk = mclk * 4;
                 }
 
-                var tableIndex = Utils.FindLastSequence(this.Table.RawAodTable, 0, Utils.ToBytes2(mclk));
+                var tableIndex = FindMemClkIndex(this.Table.RawAodTable, Utils.ToBytes2(mclk));
                 if (tableIndex > -1)
                 {
                     return new BaseDictionary()

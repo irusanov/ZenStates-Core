@@ -25,7 +25,7 @@ namespace ZenStates.Core.Hardware
         internal const uint EBDA_EARLIEST_START = 0x80000;
         internal const uint EBDA_END = 0x9ffff;
         internal const uint RSDP_REGION_BASE_ADDRESS = 0x0e0000;
-        internal const int RSDP_REGION_LENGTH = 0x01ffff;
+        internal const int RSDP_REGION_LENGTH = 0x020000;
 
         // 5.2.5.3 RSDP Structure
         // https://uefi.org/sites/default/files/resources/ACPI_5_1_Errata_B.PDF p.110
@@ -248,6 +248,9 @@ namespace ZenStates.Core.Hardware
         public RSDP GetRsdp()
         {
             byte[] bytes = io.ReadMemory(new IntPtr(RSDP_REGION_BASE_ADDRESS), RSDP_REGION_LENGTH);
+            if (bytes == null)
+                throw new SystemException("ACPI: Could not read the RSDP region");
+
             int rsdpOffset = Utils.FindSequence(bytes, 0, ByteSignatureUL(TableSignature.RSDP));
 
             if (rsdpOffset < 0)
@@ -258,13 +261,17 @@ namespace ZenStates.Core.Hardware
             var size = Marshal.SizeOf<RSDP>();
 #endif
 
-            RSDP rsdp = Utils.ByteArrayToStructure<RSDP>(
-                io.ReadMemory(new IntPtr(RSDP_REGION_BASE_ADDRESS + rsdpOffset), size));
+            if (rsdpOffset + size > bytes.Length)
+                throw new SystemException("ACPI: RSDP is cut off at the end of the region");
 
             if (!VerifyChecksum(bytes, rsdpOffset, 20))
                 throw new SystemException("ACPI: RSDP checksum validation failed");
 
-            return rsdp;
+            // Taken from the region already read, so the structure is the one the checksum was verified on
+            byte[] rawRsdp = new byte[size];
+            Buffer.BlockCopy(bytes, rsdpOffset, rawRsdp, 0, size);
+
+            return Utils.ByteArrayToStructure<RSDP>(rawRsdp);
         }
 
         /// <summary>
@@ -367,6 +374,14 @@ namespace ZenStates.Core.Hardware
         {
             if (rawTable == null) throw new ArgumentNullException(nameof(rawTable));
 
+#if NET20
+            int headerSize = Marshal.SizeOf(typeof(SDTHeader));
+#else
+            int headerSize = Marshal.SizeOf<SDTHeader>();
+#endif
+            if (rawTable.Length < headerSize)
+                throw new ArgumentException("The buffer is smaller than an ACPI table header.", nameof(rawTable));
+
             GCHandle handle = GCHandle.Alloc(rawTable, GCHandleType.Pinned);
             SDTHeader rawHeader;
             try
@@ -382,12 +397,8 @@ namespace ZenStates.Core.Hardware
                 handle.Free();
             }
 
-#if NET20
-            int headerSize = Marshal.SizeOf(typeof(SDTHeader));
-#else
-            int headerSize = Marshal.SizeOf<SDTHeader>();
-#endif
-            int dataSize = Math.Max(0, (int)rawHeader.Length - headerSize);
+            // The length comes from the table itself: never more than the buffer holds
+            int dataSize = Math.Max(0, Math.Min((int)rawHeader.Length - headerSize, rawTable.Length - headerSize));
             ACPITable acpiTable = new ACPITable
             {
                 RawHeader = rawHeader,
@@ -397,13 +408,6 @@ namespace ZenStates.Core.Hardware
             if (dataSize > 0)
                 Buffer.BlockCopy(rawTable, headerSize, acpiTable.Data, 0, dataSize);
             return acpiTable;
-        }
-
-        private static T ReadMemory<T>(IntPtr address)
-        {
-            T result = default;
-            Marshal.PtrToStructure(address, result);
-            return result;
         }
     }
 }

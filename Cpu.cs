@@ -414,6 +414,14 @@ namespace ZenStates.Core
             else
                 throw new ApplicationException(InitializationExceptionText);
 
+            // The count above is 8 bits wide and reads 0 on a 256-thread package. Fn8000_0008 ECX[7:0] (NC) is the
+            // thread count minus one, so it still holds 255 there.
+            if (topology.logicalCores == 0 &&
+                Opcode.Cpuid(0x80000008, 0, out _, out _, out uint threadInfo, out _))
+            {
+                topology.logicalCores = (threadInfo & 0xFF) + 1;
+            }
+
             if (Opcode.Cpuid(0x8000001E, 0, out eax, out ebx, out ecx, out edx))
             {
                 topology.threadsPerCore = Utils.GetBits(ebx, 8, 4) + 1;
@@ -963,7 +971,8 @@ namespace ZenStates.Core
             {
                 try
                 {
-                    return _pawnAmd.ReadSmnNoLock(addr, out data);
+                    if (_pawnAmd.ReadSmnNoLock(addr, out data))
+                        return true;
                 }
                 catch (Exception ex)
                 {
@@ -975,11 +984,22 @@ namespace ZenStates.Core
             return false;
         }
 
+        /// <returns>False when the read failed or the PCI bus lock timed out; <paramref name="data"/> is then 0.</returns>
         public bool ReadDwordEx(uint addr, ref uint data, int maxRetries = 10)
         {
-            using (new PciBusLock())
+            if (!Mutexes.WaitPciBus(5000))
+            {
+                data = 0;
+                return false;
+            }
+
+            try
             {
                 return ReadDwordExNoLock(addr, ref data, maxRetries);
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
             }
         }
 
@@ -991,14 +1011,26 @@ namespace ZenStates.Core
             if (!Mutexes.WaitPciBus(5000))
                 return false;
 
+            if (maxRetries < 1)
+                maxRetries = 1;
+
             try
             {
-                io.DlPortWritePortUlong(0x0CF8, addr);
-                data = unchecked((uint)(io.DlPortReadPortUlong(0x0CFC)));
-                return true;
-            }
-            catch
-            {
+                // Port I/O reports no status, so only an exception from the driver counts as a failed attempt
+                for (int retry = 0; retry < maxRetries; retry++)
+                {
+                    try
+                    {
+                        io.DlPortWritePortUlong(0x0CF8, addr);
+                        data = unchecked((uint)(io.DlPortReadPortUlong(0x0CFC)));
+                        return true;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"IoReadDwordEx(0x{addr:X8}) attempt {retry + 1} threw: {ex.Message}");
+                    }
+                }
+
                 return false;
             }
             finally
@@ -1020,19 +1052,44 @@ namespace ZenStates.Core
             return ReadDwordExNoLock(addr, ref data, maxRetries);
         }
 
+        /// <returns>The value read, or 0 when the read failed or the PCI bus lock timed out.</returns>
         public uint ReadDword(uint addr, int maxRetries = 10)
         {
-            using (new PciBusLock())
+            if (!Mutexes.WaitPciBus(5000))
+                return 0;
+
+            try
             {
                 return ReadDwordNoLock(addr, maxRetries);
             }
+            finally
+            {
+                Mutexes.ReleasePciBus();
+            }
         }
 
+        /// <returns>False when the write failed on every attempt or the PCI bus lock timed out.</returns>
         public bool WriteDwordEx(uint addr, uint data, int maxRetries = 10)
         {
-            using (new PciBusLock())
+            if (maxRetries < 1)
+                maxRetries = 1;
+
+            if (!Mutexes.WaitPciBus(5000))
+                return false;
+
+            try
             {
-                return _pawnRyzenSmu.SmuWriteRegNoLock(addr, data);
+                for (int retry = 0; retry < maxRetries; retry++)
+                {
+                    if (_pawnRyzenSmu.SmuWriteRegNoLock(addr, data))
+                        return true;
+                }
+
+                return false;
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
             }
         }
 
@@ -1129,16 +1186,37 @@ namespace ZenStates.Core
             return _pawnAmd.ReadMsrTx(index, out eax, out edx, affinity);
         }
 
+        /// <summary>
+        /// Writes an MSR on every logical processor. When the write fails on one of them, the processors already
+        /// written get their previous value back (where it could be read), so they are not left with different values.
+        /// </summary>
+        /// <returns>True when every logical processor took the value.</returns>
         public bool WriteMsr(uint msr, uint eax, uint edx)
         {
-            bool res = true;
+            int count = (int)info.topology.logicalCores;
+            uint[] previousEax = new uint[count];
+            uint[] previousEdx = new uint[count];
+            bool[] previousKnown = new bool[count];
 
-            for (var i = 0; i < info.topology.logicalCores; i++)
+            for (int i = 0; i < count; i++)
             {
-                res &= _pawnAmd.WriteMsrTx(msr, eax, edx, GroupAffinity.ForLogicalProcessor(i));
+                GroupAffinity affinity = GroupAffinity.ForLogicalProcessor(i);
+                previousKnown[i] = _pawnAmd.ReadMsrTx(msr, out previousEax[i], out previousEdx[i], affinity);
+
+                if (_pawnAmd.WriteMsrTx(msr, eax, edx, affinity))
+                    continue;
+
+                Debug.WriteLine($"WriteMsr(0x{msr:X8}) failed on logical processor {i}, restoring the ones already written.");
+                for (int j = i - 1; j >= 0; j--)
+                {
+                    if (previousKnown[j])
+                        _pawnAmd.WriteMsrTx(msr, previousEax[j], previousEdx[j], GroupAffinity.ForLogicalProcessor(j));
+                }
+
+                return false;
             }
 
-            return res;
+            return true;
         }
 
         //public void WriteIoPort(uint port, byte value) => Ring0.WriteIoPort(port, value);
@@ -1875,8 +1953,9 @@ namespace ZenStates.Core
             return true;
         }
 
+        // Core slots in a CCX, as MakeCoreMask numbers them: 4 up to family 17h (Zen to Zen 2), 8 from family 19h on.
         public bool SetFrequencyCCX(uint mask, uint frequency) =>
-            SetFrequencyMultipleCores(mask, frequency, 8/*SI.NumCoresInCCX*/);
+            SetFrequencyMultipleCores(mask, frequency, info.family > Family.FAMILY_17H ? 8 : 4);
 
         public bool SetFrequencyCCD(uint mask, uint frequency)
         {
@@ -2073,29 +2152,32 @@ namespace ZenStates.Core
 
         private string GetAgesaVersion()
         {
-            if (io == null)
+            // The legacy BIOS region first (the driver is needed to read it); it is empty on UEFI / secure boot
+            // systems, so SMBIOS is the fallback there and when there is no driver
+            if (io != null)
             {
                 try
                 {
-                    return SMBiosSingleton.Instance.Bios.AgesaVersion;
+                    var data = io.ReadMemory(new IntPtr(0xE0000), (int)(0xFFFFF - 0xE0000));
+                    string version = AgesaUtils.ParseVersion(data);
+                    if (!string.IsNullOrEmpty(version))
+                        return version;
                 }
-                catch
+                catch (Exception ex)
                 {
-                    return string.Empty;
+                    Debug.WriteLine($"Could not find AGESA version: {ex.Message}");
                 }
             }
 
             try
             {
-                var data = io.ReadMemory(new IntPtr(0xE0000), (int)(0xFFFFF - 0xE0000));
-                return AgesaUtils.ParseVersion(data);
+                return SMBiosSingleton.Instance.Bios.AgesaVersion ?? string.Empty;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Could not find AGESA version: {ex.Message}");
+                Debug.WriteLine($"Could not read AGESA version from SMBIOS: {ex.Message}");
+                return string.Empty;
             }
-
-            return string.Empty;
         }
 
         public MemoryConfig GetMemoryConfig() => memoryConfig;
@@ -2106,6 +2188,13 @@ namespace ZenStates.Core
             {
                 if (disposing)
                 {
+                    // The statics go first: anything still reaching the hardware through Mmio.Instance or
+                    // PowerTable.Instance (BaseDramTimings.Frequency, for one) must not find a live object
+                    // once the drivers below are gone.
+                    mmio?.Close();
+                    powerTable?.Close();
+                    memoryConfig?.Dispose();
+
                     _pawnAmd?.Close();
                     _pawnRyzenSmu?.Dispose();
                     _smbusPiix4?.Dispose();

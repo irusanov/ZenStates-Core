@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Management;
@@ -185,6 +185,11 @@ namespace ZenStates.Core.Hardware
             {
                 return null;
             }
+            catch (System.Runtime.InteropServices.COMException ex)
+            {
+                Debug.WriteLine(ex.Message);
+                return null;
+            }
         }
 
         public static ManagementBaseObject InvokeMethodAndGetValue(ManagementObject mo, string methodName, string propName,
@@ -192,8 +197,10 @@ namespace ZenStates.Core.Hardware
         {
             try
             {
-                ManagementBaseObject outParams = InvokeMethod(mo, methodName, inParamName, arg);
-                return (ManagementBaseObject)outParams?.Properties[propName].Value;
+                using (ManagementBaseObject outParams = InvokeMethod(mo, methodName, inParamName, arg))
+                {
+                    return (ManagementBaseObject)outParams?.Properties[propName].Value;
+                }
             }
             catch (Exception ex)
             {

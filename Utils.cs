@@ -738,6 +738,11 @@ namespace ZenStates.Core
             return result.Success;
         }
 
+        // Target type to source type to its conversion operator, null when the pair has none. Filled by
+        // ConvertValue, which would otherwise re-probe the same two operators on every call.
+        private static readonly Dictionary<Type, Dictionary<Type, MethodInfo>> ConversionOperators =
+            new Dictionary<Type, Dictionary<Type, MethodInfo>>();
+
         /// <summary>
         /// Attempts to convert a value to the specified target type.
         /// Supports implicit/explicit operators, enums, primitives, and nullable types.
@@ -767,13 +772,31 @@ namespace ZenStates.Core
                 if (underlyingTarget.IsPrimitive)
                     return Convert.ChangeType(value, underlyingTarget);
 
-                MethodInfo op = underlyingTarget.GetMethod("op_Implicit", new[] { sourceType });
+                // Probing for the operators costs more than the call they find, and this runs for every
+                // timing field of every refresh, so each type pair is resolved once (misses included).
+                MethodInfo op;
+
+                lock (ConversionOperators)
+                {
+                    if (!ConversionOperators.TryGetValue(underlyingTarget, out Dictionary<Type, MethodInfo> bySource))
+                    {
+                        bySource = new Dictionary<Type, MethodInfo>();
+                        ConversionOperators.Add(underlyingTarget, bySource);
+                    }
+
+                    if (!bySource.TryGetValue(sourceType, out op))
+                    {
+                        Type[] signature = new[] { sourceType };
+                        op = underlyingTarget.GetMethod("op_Implicit", signature);
+                        if (op == null)
+                            op = underlyingTarget.GetMethod("op_Explicit", signature);
+
+                        bySource.Add(sourceType, op);
+                    }
+                }
+
                 if (op != null)
                     return op.Invoke(null, new[] { value });
-
-                MethodInfo opExplicit = underlyingTarget.GetMethod("op_Explicit", new[] { sourceType });
-                if (opExplicit != null)
-                    return opExplicit.Invoke(null, new[] { value });
             }
             catch
             {

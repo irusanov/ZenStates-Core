@@ -10,15 +10,22 @@ namespace ZenStates.Core.Hardware
         private static Mutex _isaBusMutex;
         private static Mutex _pciBusMutex;
         private static Mutex _smbusMutex;
+        private static readonly object _openLock = new object();
 
         /// <summary>
-        /// Opens the mutexes.
+        /// Opens the mutexes. Calling it again keeps the ones already open, so no handle is leaked.
         /// </summary>
         public static void Open()
         {
-            _isaBusMutex = CreateOrOpenExistingMutex("Global\\Access_ISABUS.HTP.Method");
-            _smbusMutex = CreateOrOpenExistingMutex("Global\\Access_SMBUS.HTP.Method");
-            _pciBusMutex = CreateOrOpenExistingMutex("Global\\Access_PCI");
+            lock (_openLock)
+            {
+                if (_isaBusMutex == null)
+                    _isaBusMutex = CreateOrOpenExistingMutex("Global\\Access_ISABUS.HTP.Method");
+                if (_smbusMutex == null)
+                    _smbusMutex = CreateOrOpenExistingMutex("Global\\Access_SMBUS.HTP.Method");
+                if (_pciBusMutex == null)
+                    _pciBusMutex = CreateOrOpenExistingMutex("Global\\Access_PCI");
+            }
 
             Mutex CreateOrOpenExistingMutex(string name)
             {
@@ -54,13 +61,20 @@ namespace ZenStates.Core.Hardware
         /// </summary>
         public static void Close()
         {
-            Mutex isa = _isaBusMutex;
-            Mutex pci = _pciBusMutex;
-            Mutex smbus = _smbusMutex;
+            Mutex isa;
+            Mutex pci;
+            Mutex smbus;
 
-            _isaBusMutex = null;
-            _pciBusMutex = null;
-            _smbusMutex = null;
+            lock (_openLock)
+            {
+                isa = _isaBusMutex;
+                pci = _pciBusMutex;
+                smbus = _smbusMutex;
+
+                _isaBusMutex = null;
+                _pciBusMutex = null;
+                _smbusMutex = null;
+            }
 
             isa?.Close();
             pci?.Close();
@@ -112,7 +126,10 @@ namespace ZenStates.Core.Hardware
             }
             catch (ApplicationException)
             {
-                // Not the owner - a release without a matching successful wait.
+                // Not the owner: a release without a matching successful wait, or from another thread than the one
+                // that waited. In the second case the mutex stays held by that thread, so it is worth a trace.
+                System.Diagnostics.Debug.WriteLine(
+                    "Mutexes: release by a thread that does not own the mutex (wait and release must be on the same thread).");
             }
         }
 

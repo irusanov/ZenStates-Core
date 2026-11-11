@@ -19,16 +19,42 @@ namespace ZenStates.Core
 
             foreach (byte[] marker in Markers)
             {
-                int markerOffset = Utils.FindSequence(source, 0, marker);
-                if (markerOffset == -1)
-                    continue;
+                // The marker can show up more than once (stray copies, other tables), so keep going
+                // until one of them is followed by something that really is a version string
+                int searchFrom = 0;
+                while (searchFrom < source.Length)
+                {
+                    int markerOffset = Utils.FindSequence(source, searchFrom, marker);
+                    if (markerOffset == -1)
+                        break;
 
-                string version = ExtractVersionAt(source, markerOffset + marker.Length);
-                if (version.Length > 0)
-                    return version;
+                    string version = ExtractVersionAt(source, markerOffset + marker.Length);
+                    if (IsPlausibleVersion(version))
+                        return version;
+
+                    searchFrom = markerOffset + marker.Length;
+                }
             }
 
             return string.Empty;
+        }
+
+        // A real one looks like "ComboAm5PI 1.3.0.1d": a name and a dotted number. This rules out
+        // leftovers such as "0" that follow a stray marker
+        private static bool IsPlausibleVersion(string version)
+        {
+            if (string.IsNullOrEmpty(version) || version.Length < 5)
+                return false;
+
+            bool hasDigit = false;
+            bool hasDot = false;
+            foreach (char c in version)
+            {
+                if (c >= '0' && c <= '9') hasDigit = true;
+                else if (c == '.') hasDot = true;
+            }
+
+            return hasDigit && hasDot;
         }
 
         private static string ExtractVersionAt(byte[] source, int offset)

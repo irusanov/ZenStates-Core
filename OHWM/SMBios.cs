@@ -628,21 +628,8 @@ namespace ZenStates.Core.OHWM
             if (data == null || data.Length == 0)
                 return null;
 
-            const string marker = "AGESA!";
-
-            string text = Encoding.ASCII.GetString(data);
-            int index = text.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
-
-            if (index < 0)
-                return null;
-
-            int start = index + marker.Length;
-            int end = text.IndexOf('\0', start);
-
-            if (end < 0)
-                end = text.Length;
-
-            string version = text.Substring(start, end - start).Trim();
+            // Same parsing as the memory scan, so "AGESA!V9 ComboAm5PI 1.3.0.1d" gives "ComboAm5PI 1.3.0.1d"
+            string version = AgesaUtils.ParseVersion(data);
 
             return string.IsNullOrEmpty(version) ? null : version;
         }

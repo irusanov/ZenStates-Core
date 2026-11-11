@@ -65,6 +65,16 @@ namespace ZenStates.Core.Hardware
             _clkGen = GetStrapStatus();
         }
 
+        /// <summary>
+        /// Clears <see cref="Instance"/> if it still points here, so nothing reaches the IO driver through it once
+        /// <see cref="Cpu"/> has disposed that driver. Callers of <see cref="Instance"/> already null-check it.
+        /// </summary>
+        internal void Close()
+        {
+            if (ReferenceEquals(_instance, this))
+                _instance = null;
+        }
+
         private bool IsFam15 => _family == Cpu.Family.FAMILY_15H;
 
         private static int CalculateBclkIndex(int bclk)
@@ -120,6 +130,9 @@ namespace ZenStates.Core.Hardware
         /// </summary>
         public EclkMode GetEclkMode()
         {
+            if (io == null)
+                return EclkMode.UNKNOWN;
+
             if (!io.GetPhysLong((UIntPtr)MISC_EclkModeStatus, out uint value))
                 return EclkMode.UNKNOWN;
 

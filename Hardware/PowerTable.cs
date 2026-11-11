@@ -517,6 +517,16 @@ namespace ZenStates.Core
             this.Refresh();
         }
 
+        /// <summary>
+        /// Clears <see cref="Instance"/> if it still points here, so nothing reaches the SMU through it once
+        /// <see cref="Cpu"/> has disposed it. Callers of <see cref="Instance"/> already null-check it.
+        /// </summary>
+        internal void Close()
+        {
+            if (ReferenceEquals(_instance, this))
+                _instance = null;
+        }
+
         private void InitFromSmu()
         {
             PTDef def = GetPowerTableDef(smu.PmTableVersion) ?? new PTDef();

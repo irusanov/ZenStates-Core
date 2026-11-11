@@ -167,17 +167,72 @@ namespace ZenStates.Core.Hardware.DRAM
         protected bool? IsChipSelectEnabled(uint offset, int cs)
         {
             bool anyRead = false;
-            foreach (uint baseAddr in new[] { 0x50000u, 0x50010u })
+
+            if (TryReadRegister(offset | (0x50000u + 4u * (uint)cs), out uint baseAddr))
             {
-                if (TryReadRegister(offset | (baseAddr + 4u * (uint)cs), out uint value))
-                {
-                    anyRead = true;
-                    if ((value & 1) != 0)
-                        return true;
-                }
+                anyRead = true;
+                if ((baseAddr & 1) != 0)
+                    return true;
+            }
+
+            if (TryReadRegister(offset | (0x50010u + 4u * (uint)cs), out uint baseAddrSec))
+            {
+                anyRead = true;
+                if ((baseAddrSec & 1) != 0)
+                    return true;
             }
 
             return anyRead ? false : (bool?)null;
+        }
+
+        /// <summary>
+        /// The chip selects of one channel for the duration of a <c>Read</c>: each is read at most once, and only when
+        /// it is asked for. Create it with <see cref="GetChipSelects"/> and drop it after the read, the state is not
+        /// refreshed.
+        /// </summary>
+        protected sealed class ChipSelectCache
+        {
+            private readonly BaseDramTimings owner;
+            private readonly uint offset;
+            private uint resolved;
+            private uint enabled;
+            private uint known;
+
+            internal ChipSelectCache(BaseDramTimings owner, uint offset)
+            {
+                this.owner = owner;
+                this.offset = offset;
+            }
+
+            /// <summary>Whether the chip select is enabled; null when its registers could not be read.</summary>
+            public bool? this[int cs]
+            {
+                get
+                {
+                    if (cs < 0 || cs >= 32)
+                        return null;
+
+                    uint bit = 1u << cs;
+                    if ((resolved & bit) == 0)
+                    {
+                        bool? state = owner.IsChipSelectEnabled(offset, cs);
+                        resolved |= bit;
+                        if (state.HasValue)
+                        {
+                            known |= bit;
+                            if (state.Value)
+                                enabled |= bit;
+                        }
+                    }
+
+                    return (known & bit) == 0 ? (bool?)null : (enabled & bit) != 0;
+                }
+            }
+        }
+
+        protected ChipSelectCache GetChipSelects(uint offset)
+        {
+            return new ChipSelectCache(this, offset);
         }
 
         public object this[string propertyName]
@@ -200,46 +255,70 @@ namespace ZenStates.Core.Hardware.DRAM
             }
             set
             {
-                try
-                {
-                    if (!string.IsNullOrEmpty(propertyName))
-                    {
-                        PropertyInfo propertyInfo = GetPropertyInfo(propertyName);
-                        if (propertyInfo != null)
-                        {
-#pragma warning disable IL2026
-                            object converted = Utils.ConvertValue(value, propertyInfo.PropertyType);
-#pragma warning restore IL2026
-                            //if (converted != null)
-                            {
-                                propertyInfo.SetValue(this, converted, null);
-                            }
-                        }
-                    }
-                }
-                catch
-                {
-                    // do nothing
-                }
+                if (!string.IsNullOrEmpty(propertyName))
+                    SetProperty(GetPropertyInfo(propertyName), value);
             }
         }
 
+        /// <summary>
+        /// Assigns one already resolved property, converting <paramref name="value"/> to its type. Does nothing
+        /// when <paramref name="property"/> is null or the value does not convert.
+        /// </summary>
+        private void SetProperty(PropertyInfo property, object value)
+        {
+            if (property == null)
+                return;
+
+            try
+            {
+#pragma warning disable IL2026
+                object converted = Utils.ConvertValue(value, property.PropertyType);
+#pragma warning restore IL2026
+                property.SetValue(this, converted, null);
+            }
+            catch
+            {
+                // do nothing
+            }
+        }
+
+        // Name to property, per concrete timings type. The names come from the register dictionaries, so the
+        // same handful is resolved over and over: Read() alone looks up every field of every register on each
+        // refresh. Misses are cached too, which also keeps the warning below to one line per name.
+        private static readonly Dictionary<Type, Dictionary<string, PropertyInfo>> PropertyCache =
+            new Dictionary<Type, Dictionary<string, PropertyInfo>>();
+
         private PropertyInfo GetPropertyInfo(string propertyName)
         {
-            PropertyInfo info = GetType().GetProperty(propertyName,
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            Type type = GetType();
 
-            // Under a trimmed or NativeAOT build a missing property means the member was
-            // trimmed, not that the name was wrong — and the callers' null checks turn that
-            // into every timing silently reading as unset. Make it visible.
-            if (info == null)
+            lock (PropertyCache)
             {
-                Debug.WriteLine(
-                    $"{GetType().Name}: no property '{propertyName}'. In a trimmed/AOT build this " +
-                    "usually means it was trimmed; check AotRoots.xml.");
-            }
+                if (!PropertyCache.TryGetValue(type, out Dictionary<string, PropertyInfo> byName))
+                {
+                    byName = new Dictionary<string, PropertyInfo>(StringComparer.Ordinal);
+                    PropertyCache.Add(type, byName);
+                }
 
-            return info;
+                if (byName.TryGetValue(propertyName, out PropertyInfo cached))
+                    return cached;
+
+                PropertyInfo info = type.GetProperty(propertyName,
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+                // Under a trimmed or NativeAOT build a missing property means the member was
+                // trimmed, not that the name was wrong — and the callers' null checks turn that
+                // into every timing silently reading as unset. Make it visible.
+                if (info == null)
+                {
+                    Debug.WriteLine(
+                        $"{type.Name}: no property '{propertyName}'. In a trimmed/AOT build this " +
+                        "usually means it was trimmed; check AotRoots.xml.");
+                }
+
+                byName.Add(propertyName, info);
+                return info;
+            }
         }
 
         public abstract void ReadRatio(uint offset = 0);
@@ -266,17 +345,39 @@ namespace ZenStates.Core.Hardware.DRAM
             ReadRatio(offset);
             ReadBankGroupSwap(offset);
 
+            // Dispose() drops Dict, so a refresh racing with teardown finds nothing to read
+            if (Dict == null)
+                return;
+
             foreach (KeyValuePair<uint, TimingDef[]> entry in Dict)
             {
-                foreach (TimingDef def in entry.Value)
+                TimingDef[] defs = entry.Value;
+                if (defs == null)
+                    continue;
+
+                // One read per register rather than one per field: the fields of a register are bit ranges of
+                // the same value, and every read is a driver call made while the PCI bus mutex is held. The
+                // read is put off until a field actually resolves to a property, so a name that does not costs
+                // nothing.
+                bool haveData = false;
+                uint data = 0;
+
+                foreach (TimingDef def in defs)
                 {
-                    if (this[def.Name] != null)
+                    PropertyInfo property = GetPropertyInfo(def.Name);
+                    if (property == null)
+                        continue;
+
+                    if (!haveData)
                     {
-                        if (TryReadRegister(offset | entry.Key, out uint data))
-                        {
-                            this[def.Name] = Utils.BitSlice(data, def.HiBit, def.LoBit);
-                        }
+                        // A failed read will not start working for the next field of the same register
+                        if (!TryReadRegister(offset | entry.Key, out data))
+                            break;
+
+                        haveData = true;
                     }
+
+                    SetProperty(property, Utils.BitSlice(data, def.HiBit, def.LoBit));
                 }
             }
         }

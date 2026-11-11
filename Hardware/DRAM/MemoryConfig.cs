@@ -14,7 +14,7 @@ using ZenStates.Core.OHWM;
 
 namespace ZenStates.Core.Hardware.DRAM
 {
-    public class MemoryConfig
+    public class MemoryConfig : IDisposable
     {
         private readonly SmbusDriverBase smbusDriver = SmbusProvider.Instance;
 
@@ -190,13 +190,22 @@ namespace ZenStates.Core.Hardware.DRAM
                 Mutexes.ReleasePciBus();
             }
 
-            // The SPD, the hub / PMIC telemetry and the DDR4 thermal sensors are read on a background thread
-            // (hundreds of ms of SMBus traffic), so startup only waits for the UMC registers above. Consumers get
-            // SpdInfoLoaded when they are in, or wait for them with WaitForSpdInfo.
+            // The SPD, the hub / PMIC telemetry and the DDR4 thermal sensors take hundreds of ms of SMBus traffic.
+            // By default they are read here, so SpdInfo / Ddr4Spd / Ddr4ThermalSensors and the module manufacturers
+            // are complete when the constructor returns. With CoreOptions.SpdLoadInBackground the read runs on a
+            // background thread instead and startup only waits for the UMC registers above; consumers then get
+            // SpdInfoLoaded when the data is in, or wait for it with WaitForSpdInfo.
             if (Type == MemType.DDR4 || IsSpdSupported)
-                StartSpdLoad();
+            {
+                if (CoreOptions.Current.SpdLoadInBackground)
+                    StartSpdLoad();
+                else
+                    LoadSpdInfo();
+            }
             else
-                spdLoaded.Set();
+            {
+                MarkSpdLoaded();
+            }
         }
 
         // ---------------------------------------------------------------- background SPD load
@@ -204,24 +213,167 @@ namespace ZenStates.Core.Hardware.DRAM
         // Set once the background SPD load has finished (or there is nothing to load).
         private readonly ManualResetEvent spdLoaded = new ManualResetEvent(false);
 
-        /// <summary>
-        /// Raised on a background thread once the startup SPD read is done: <see cref="SpdInfo"/> / <see cref="Ddr4Spd"/>,
-        /// the DDR4 thermal sensors and the module manufacturers from the SPD are then available. Also raised when it
-        /// failed (the data is then empty). Handlers must not block; marshal to the UI thread as needed.
-        /// </summary>
-        public event EventHandler SpdInfoLoaded;
+        private readonly object spdEventLock = new object();
+        private EventHandler spdInfoLoadedHandlers;
 
-        /// <summary>True once the startup SPD read is done.</summary>
+        // Set by Dispose under spdEventLock: spdLoaded is neither signalled nor subscribed to after that.
+        private bool spdDisposed;
+
+        /// <summary>
+        /// Raised once the startup SPD read is done: <see cref="SpdInfo"/> / <see cref="Ddr4Spd"/>, the DDR4 thermal
+        /// sensors and the module manufacturers from the SPD are then available. Also raised when it failed (the data is
+        /// then empty). With <see cref="CoreOptions.SpdLoadInBackground"/> it is raised on the loading thread, so handlers
+        /// must not block and must marshal to the UI thread as needed. Subscribing does not replay an event that has
+        /// already been raised, so a subscriber that may be late checks <see cref="IsSpdInfoLoaded"/> itself.
+        /// </summary>
+        public event EventHandler SpdInfoLoaded
+        {
+            add
+            {
+                if (value == null)
+                    return;
+
+                lock (spdEventLock)
+                {
+                    if (spdDisposed)
+                        return;
+
+                    spdInfoLoadedHandlers += value;
+                }
+            }
+            remove
+            {
+                lock (spdEventLock)
+                {
+                    spdInfoLoadedHandlers -= value;
+                }
+            }
+        }
+
+        // Marks the startup SPD read as done and calls the handlers added so far. Later ones are called when added.
+        private void MarkSpdLoaded()
+        {
+            EventHandler handlers;
+            lock (spdEventLock)
+            {
+                if (spdDisposed)
+                    return;
+
+                spdLoaded.Set();
+                handlers = spdInfoLoadedHandlers;
+                spdInfoLoadedHandlers = null;
+            }
+
+            RaiseSpdInfoLoaded(handlers);
+        }
+
+        private void RaiseSpdInfoLoaded(EventHandler handlers)
+        {
+            if (handlers == null)
+                return;
+
+            try
+            {
+                handlers(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"MemoryConfig: SpdInfoLoaded handler failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>True once the startup SPD read is done, or this instance was disposed.</summary>
         public bool IsSpdInfoLoaded
         {
-            get { return spdLoaded.WaitOne(0, false); }
+            get
+            {
+                try
+                {
+                    return spdLoaded.WaitOne(0, false);
+                }
+                catch (ObjectDisposedException)
+                {
+                    return true;
+                }
+            }
         }
 
-        /// <summary>Waits for the startup SPD read. True when it is done.</summary>
+        /// <summary>
+        /// Waits for the startup SPD read. True when it is done. Returns at once unless
+        /// <see cref="CoreOptions.SpdLoadInBackground"/> is set; do not wait on the UI thread.
+        /// </summary>
         public bool WaitForSpdInfo(int millisecondsTimeout)
         {
-            return spdLoaded.WaitOne(millisecondsTimeout, false);
+            try
+            {
+                return spdLoaded.WaitOne(millisecondsTimeout, false);
+            }
+            catch (ObjectDisposedException)
+            {
+                return true;
+            }
         }
+
+        /// <summary>
+        /// Drops what this instance owns: the subscribers of <see cref="SpdInfoLoaded"/>, the event the startup
+        /// SPD read signals, and the per-module timings. The SMBus driver is shared and outlives this object, so
+        /// it is left alone. Safe to call while the background SPD read is still running.
+        /// </summary>
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposing || disposedValue)
+                return;
+
+            disposedValue = true;
+
+            bool loadFinished;
+            lock (spdEventLock)
+            {
+                // Handlers go first: nothing more is raised, and subscribers are no longer kept alive by this
+                spdInfoLoadedHandlers = null;
+                spdDisposed = true;
+                loadFinished = spdLoaded.WaitOne(0, false);
+            }
+
+            // Only close the handle once the loader can no longer signal it. While a load is still in flight the
+            // handle is left to its finalizer rather than risking a throw on that thread, which would be unhandled.
+            if (loadFinished)
+            {
+                try
+                {
+                    spdLoaded.Close();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"MemoryConfig: could not close the SPD event: {ex.Message}");
+                }
+            }
+
+            List<KeyValuePair<uint, BaseDramTimings>> timings = Timings;
+            if (timings != null)
+            {
+                foreach (KeyValuePair<uint, BaseDramTimings> entry in timings)
+                {
+                    try
+                    {
+                        if (entry.Value != null)
+                            entry.Value.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"MemoryConfig: disposing timings failed: {ex.Message}");
+                    }
+                }
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        private bool disposedValue;
 
         private void StartSpdLoad()
         {
@@ -237,7 +389,7 @@ namespace ZenStates.Core.Hardware.DRAM
             catch (Exception ex)
             {
                 Debug.WriteLine($"MemoryConfig: could not start the SPD thread: {ex.Message}");
-                spdLoaded.Set();
+                MarkSpdLoaded();
             }
         }
 
@@ -291,16 +443,7 @@ namespace ZenStates.Core.Hardware.DRAM
             }
             finally
             {
-                spdLoaded.Set();
-
-                try
-                {
-                    SpdInfoLoaded?.Invoke(this, EventArgs.Empty);
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"MemoryConfig: SpdInfoLoaded handler failed: {ex.Message}");
-                }
+                MarkSpdLoaded();
             }
         }
 
@@ -416,7 +559,15 @@ namespace ZenStates.Core.Hardware.DRAM
             try
             {
                 ReadTimingsInternal(offset);
-                return Timings.Find(x => x.Key == offset).Value;
+
+                // A plain scan: Find would allocate a closure and a delegate on every refresh
+                foreach (KeyValuePair<uint, BaseDramTimings> entry in Timings)
+                {
+                    if (entry.Key == offset)
+                        return entry.Value;
+                }
+
+                return null;
             }
             finally
             {
@@ -455,7 +606,8 @@ namespace ZenStates.Core.Hardware.DRAM
 
         public bool RefreshSpdInfo()
         {
-            // The startup read is still running: let it finish, then this read can merge over it
+            // The startup read is still running (background load only): let it finish, then this read can merge over it.
+            // Blocks up to 10 s then, so call this from a worker thread.
             WaitForSpdInfo(10000);
 
             if (Type == MemType.DDR4)
