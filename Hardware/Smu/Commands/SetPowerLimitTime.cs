@@ -2,11 +2,17 @@
 {
     internal class SetPowerLimitTime : BaseSMUCommand
     {
-        public SetPowerLimitTime(SMU smu) : base(smu) { }
+        public SetPowerLimitTime(SMU smu) : base(smu) { }        
+        
+        public override bool CanExecute()
+        {
+            return base.CanExecute() && smu.SMU_TYPE != SMU.SmuType.TYPE_CPU9;
+        }
+        
         public CmdResult Execute(uint cmdRsmu, uint cmdMp1 = 0, uint arg = 0U)
         {
             // Smu time limits are different on Bristol
-            if (CanExecute() && smu.SMU_TYPE != SMU.SmuType.TYPE_CPU9)
+            if (CanExecute())
             {
                 result.args[0] = arg;
 
