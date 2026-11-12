@@ -1687,11 +1687,11 @@ namespace ZenStates.Core
             return status;
         }
 
-        public SMU.Status SetSlowTime(uint arg = 0U) => new SetSmuLimit(smu)
+        public SMU.Status SetSlowTime(uint arg = 0U) => new SetPowerLimitTime(smu)
             .Execute(smu.Rsmu.SMU_MSG_SetSlowTime,
                 smu.Mp1Smu.SMU_MSG_SetSlowTime, arg).status;
 
-        public SMU.Status SetStapmTime(uint arg = 0U) => new SetSmuLimit(smu)
+        public SMU.Status SetStapmTime(uint arg = 0U) => new SetPowerLimitTime(smu)
             .Execute(smu.Rsmu.SMU_MSG_SetStapmTime,
                 smu.Mp1Smu.SMU_MSG_SetStapmTime, arg).status;
 
