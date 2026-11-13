@@ -754,7 +754,7 @@ namespace ZenStates.Core
                     throw new ApplicationException(InitializationExceptionText);
                 }
 
-                mmio = new Mmio(info.family);
+                mmio = new Mmio(info.family, info.codeName);
             }
             catch (Exception ex)
             {
@@ -1633,6 +1633,11 @@ namespace ZenStates.Core
         public Mmio.ClkGen GetStrapStatus() => mmio?.GetStrapStatus() ?? Mmio.ClkGen.ERROR;
 
         public bool SetBclk(double blck) => mmio?.SetBclk(blck) ?? false;
+
+        /// <summary>Why the last <see cref="SetBclk"/> failed or only partly succeeded, null if it was clean.</summary>
+        public string GetBclkStatus() => mmio?.LastBclkStatus;
+
+        public Mmio.CpuRefClkSource GetCpuRefClkSource() => mmio?.GetCpuRefClkSource() ?? Mmio.CpuRefClkSource.UNKNOWN;
 
         public SMU.Status TransferTableToDram() => new TransferTableToDram(smu).Execute().status;
 
