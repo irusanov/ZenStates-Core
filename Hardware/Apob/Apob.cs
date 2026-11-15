@@ -232,6 +232,39 @@ namespace ZenStates.Core.Hardware.Apob
         /// <summary>Non-zero data bytes of the MBIST result info entry, null when the APOB has none.</summary>
         public int? MbistResultDataBytes { get; private set; }
 
+        /// <summary>
+        /// Trained per-lane PHY values decoded from the S3 DDR PHY replay buffer (MEM group, type 30), or null when
+        /// the APOB has none or the layout is unknown. Field labels are PROVISIONAL (see <see cref="ApobS3PhyReplay"/>).
+        /// </summary>
+        public ApobS3PhyReplay S3PhyReplay { get; private set; }
+
+        /// <summary>
+        /// DRAM-side training results (data rate, RttNomWr, TX DFE) decoded from the PMU message block (MEM group,
+        /// type 5), or null when the APOB has none or the layout is unknown.
+        /// </summary>
+        public ApobPmuMsgBlock PmuMsgBlock { get; private set; }
+
+        /// <summary>
+        /// The APCBs of the SPI flash (BIOS option tokens), read on the first call of <see cref="ReadApcb"/>; null
+        /// before that and for instances built from captured data.
+        /// </summary>
+        public List<ApcbBlob> Apcb { get; private set; }
+
+        /// <summary>
+        /// Unique instance (write counter) of the APCB the firmware booted with, as recorded in the APOB; null when
+        /// the APOB doesn't have it. Compare with <see cref="ApcbBlob.UniqueInstance"/> to find the booted APCB.
+        /// </summary>
+        public uint? LiveApcbInstance
+        {
+            get { return GetLiveApcbInstance(); }
+        }
+
+        /// <summary>Steps of the APCB lookup, shown in the debug report.</summary>
+        public List<string> ApcbTrace { get; private set; } = new List<string>();
+
+        // True for an instance that reads the running system (not one built from a dump or a debug report)
+        private readonly bool _live;
+
         /// <summary>Offsets of all non-zero config entries found inside the header region.</summary>
         public List<uint> ConfigOffsets { get; private set; } = new List<uint>();
 
@@ -264,6 +297,7 @@ namespace ZenStates.Core.Hardware.Apob
 
             _cpuInfo = cpuInfo;
             _memoryConfig = memoryConfig;
+            _live = true;
             // Might be not defined, but we still need to get raw data
             _profile = ApobProfiles.Resolve(_cpuInfo);
 
@@ -433,6 +467,159 @@ namespace ZenStates.Core.Hardware.Apob
         }
 
         /// <summary>
+        /// Reads the APCBs (BIOS option tokens) from the SPI flash through the BIOS directories, once; later calls
+        /// return the same list. Returns null for an instance built from captured data or without a driver.
+        /// </summary>
+        public List<ApcbBlob> ReadApcb()
+        {
+            if (Apcb != null || !_live || _ioDriver == null)
+                return Apcb;
+
+            try
+            {
+                Apcb = ApcbReader.ReadAll(ReadPhysicalDword, ReadPhysicalBlock, GetFlashWindows(ApcbTrace), ApcbTrace);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"APCB read failed: {ex.Message}");
+                ApcbTrace.Add("failed: " + ex.Message);
+                Apcb = new List<ApcbBlob>();
+            }
+
+            return Apcb;
+        }
+
+        // Bulk physical read; only in a 64-bit process, where the flash addresses fit an IntPtr.
+        private static byte[] ReadPhysicalBlock(ulong address, int size)
+        {
+            if (!Utils.Is64BitProcess)
+                return null;
+
+            return _ioDriver.ReadMemory(new IntPtr(unchecked((long)address)), size);
+        }
+
+        private static bool ReadPhysicalDword(ulong address, out uint value)
+        {
+            value = 0;
+            if (address > uint.MaxValue && !Utils.Is64BitProcess)
+                return false;
+
+            return _ioDriver.GetPhysLong(new UIntPtr(address), out value);
+        }
+
+        // FCH LPC bridge (bus 0, device 0x14, function 3) registers that give the ROM decode windows
+        // (coreboot, soc/amd/common/block/lpc/lpc_util.c).
+        private const uint LPC_PCI_ADDRESS = 0x80000000 | (0x14 << 11) | (3 << 8);
+        private const uint LPC_ROM_ADDRESS_RANGE2 = 0x6C;   // [15:0] start >> 16, [31:16] end >> 16
+        private const uint LPC_ROM_ADDRESS_RANGE3 = 0xA8;   // 64-bit ROM3 base, 0 when disabled
+        private const ushort AMD_VENDOR_ID = 0x1022;
+
+        // ROM3 is in high MMIO: 16 MiB aligned, above 4 GiB and below the 48-bit physical address limit
+        private const ulong ROM3_MIN_BASE = 0x100000000;
+        private const ulong ROM3_MAX_BASE = 0xFFFF00000000;
+
+        private static bool TryReadLpcConfig(uint register, out uint value)
+        {
+            value = 0;
+            if (!Mutexes.WaitPciBus(5000))
+                return false;
+
+            try
+            {
+                _ioDriver.DlPortWritePortUlong(0xCF8, LPC_PCI_ADDRESS | (register & 0xFC));
+                value = _ioDriver.DlPortReadPortUlong(0xCFC);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                Mutexes.ReleasePciBus();
+            }
+        }
+
+        // ROM2 (below 4 GiB) always; ROM3 (high MMIO, up to 64 MiB of flash) at the base the LPC bridge gives, or at
+        // the default base when the LPC registers cannot be trusted. On boards with more than 16 MiB of flash ROM2
+        // shows only the top 16 MiB (the UEFI volumes), so the firmware directories are reachable through ROM3 only.
+        // Probing the default base is safe: the window is read-only flash and is only used when an EFS is found in it.
+        private static List<ApobLocator.FlashWindow> GetFlashWindows(List<string> trace)
+        {
+            var windows = new List<ApobLocator.FlashWindow>
+            {
+                new ApobLocator.FlashWindow("ROM2", ApobLocator.ROM2_DEFAULT_BASE, ApobLocator.ROM2_MAX_SIZE)
+            };
+
+            ulong rom3;
+            string name;
+            if (TryGetLpcRom3Base(trace, out rom3))
+            {
+                if (rom3 == 0)
+                {
+                    trace.Add("ROM3 window disabled");
+                    return windows;
+                }
+
+                name = "ROM3";
+            }
+            else
+            {
+                rom3 = ApobLocator.ROM3_DEFAULT_BASE;
+                name = "ROM3 (default base)";
+                trace.Add(string.Format("ROM3 base unknown, probing the default base 0x{0:X}", rom3));
+            }
+
+            if (!Utils.Is64BitProcess)
+                trace.Add("ROM3 window needs a 64-bit process, not used");
+            else
+                windows.Add(new ApobLocator.FlashWindow(name, rom3, ApobLocator.ROM3_MAX_SIZE));
+
+            return windows;
+        }
+
+        // The ROM3 base from the LPC bridge. False when the registers cannot be read or do not make sense; true
+        // with 0 when ROM3 is disabled.
+        private static bool TryGetLpcRom3Base(List<string> trace, out ulong rom3)
+        {
+            rom3 = 0;
+
+            if (!TryReadLpcConfig(0, out uint id) || (id & 0xFFFF) != AMD_VENDOR_ID)
+            {
+                trace.Add(string.Format("LPC bridge not found (0x{0:X8})", id));
+                return false;
+            }
+
+            if (!TryReadLpcConfig(LPC_ROM_ADDRESS_RANGE2, out uint range2) ||
+                !TryReadLpcConfig(LPC_ROM_ADDRESS_RANGE3, out uint low) ||
+                !TryReadLpcConfig(LPC_ROM_ADDRESS_RANGE3 + 4, out uint high))
+            {
+                trace.Add("LPC bridge registers could not be read");
+                return false;
+            }
+
+            trace.Add(string.Format("LPC 0x00: 0x{0:X8}, ROM2 range: 0x{1:X8}, ROM3: 0x{2:X8}{3:X8}", id, range2, high, low));
+
+            // Every register reading back as the ID dword means the config space access did not reach the
+            // LPC bridge (the 0xCF8 address was not applied); none of the values can be used then.
+            if (range2 == id && low == id && high == id)
+            {
+                trace.Add("LPC registers all read back as the device ID, config access is unreliable");
+                return false;
+            }
+
+            ulong value = ((ulong)high << 32) | low;
+            if (value != 0 && ((value & 0xFFFFFF) != 0 || value < ROM3_MIN_BASE || value > ROM3_MAX_BASE))
+            {
+                trace.Add(string.Format("ROM3 base 0x{0:X} is not a valid window address", value));
+                return false;
+            }
+
+            rom3 = value;
+            return true;
+        }
+
+        /// <summary>
         /// Reads the header size from offset 0xC, then reads and deserialises the full header.
         /// </summary>
         private static bool TryParseHeader(uint address, out ApobHeader header)
@@ -553,6 +740,14 @@ namespace ZenStates.Core.Hardware.Apob
             ApobEntry mbist = FindEntry(APOB_MEM, APOB_MEM_MBIST_RESULT_INFO_TYPE);
             if (mbist != null)
                 MbistResultDataBytes = mbist.CountNonZeroDataBytes(RawTable);
+
+            ApobEntry s3Phy = FindEntry(APOB_MEM, APOB_MEM_S3_DDR_PHY_REPLAY_PHASE0_BUFFER_INFO_TYPE);
+            if (s3Phy != null)
+                S3PhyReplay = ApobS3PhyReplay.TryDecode(s3Phy.GetRawEntry(RawTable));
+
+            ApobEntry pmuSmb = FindEntry(APOB_MEM, APOB_MEM_PMU_SMB_TYPE);
+            if (pmuSmb != null)
+                PmuMsgBlock = ApobPmuMsgBlock.TryDecode(pmuSmb.GetRawEntry(RawTable));
         }
 
         private delegate byte[] RawEntryProvider(uint groupId, uint dataTypeId);
@@ -1377,6 +1572,18 @@ namespace ZenStates.Core.Hardware.Apob
                 report.AppendValue("Tccdlwr2", CcdlData.Tccdlwr2);
 
                 report.AppendLine();
+                report.AppendSection("Trained PHY Data (APOB S3 replay, type 30)");
+                AppendS3PhyReplay(report);
+
+                report.AppendLine();
+                report.AppendSection("DRAM Training (APOB PMU message block, type 5)");
+                AppendPmuMsgBlock(report);
+
+                report.AppendLine();
+                report.AppendSection("APCB (BIOS option tokens, SPI flash)");
+                AppendApcb(report);
+
+                report.AppendLine();
                 report.AppendSection("Core Map");
                 AppendCoreMaps(report);
 
@@ -2004,6 +2211,206 @@ namespace ZenStates.Core.Hardware.Apob
             return nonZeroBytes.Value == 0 ? "no data (all zero)" : nonZeroBytes.Value + " non-zero bytes";
         }
 
+        private void AppendS3PhyReplay(ReportBuilder report)
+        {
+            ApobS3PhyReplay phy = S3PhyReplay;
+            if (phy == null || phy.Channels.Count == 0)
+            {
+                report.AppendLine("<APOB S3 PHY replay (type 30) not present or layout unknown>");
+                return;
+            }
+
+            report.AppendLine("Trained per-lane PHY values from the S3 DDR PHY replay buffer (MEM type 30), hex.");
+            report.AppendLine("Layout derived from differential APOB dumps; RX DFE Tap-2 is confirmed, delay names are by behavior.");
+            report.AppendValue("Channels", phy.Channels.Count.ToString(CultureInfo.InvariantCulture), 28);
+            report.AppendValue("Block stride", "0x" + ApobS3PhyReplay.ChannelStride.ToString("X", CultureInfo.InvariantCulture), 28);
+
+            for (int ch = 0; ch < phy.Channels.Count; ch++)
+            {
+                report.AppendLine();
+                report.AppendLine(string.Format(CultureInfo.InvariantCulture, "-- Channel {0} --", ch));
+                ApobS3PhyReplay.ChannelPhy c = phy.Channels[ch];
+                for (int a = 0; a < c.Arrays.Count; a++)
+                {
+                    ApobS3PhyReplay.PhyArray arr = c.Arrays[a];
+                    System.Text.StringBuilder sb = new System.Text.StringBuilder();
+                    for (int i = 0; i < arr.Values.Length; i++)
+                    {
+                        if (i > 0)
+                            sb.Append(arr.GroupSize > 0 && i % arr.GroupSize == 0 ? " | " : " ");
+                        sb.Append(arr.Values[i].ToString("X", CultureInfo.InvariantCulture));
+                    }
+                    report.AppendLine(string.Format(CultureInfo.InvariantCulture, "  +0x{0:X4} {1,-28}: {2}",
+                        arr.PayloadOffset, arr.Label, sb.ToString()));
+                }
+            }
+        }
+
+        private void AppendPmuMsgBlock(ReportBuilder report)
+        {
+            ApobPmuMsgBlock pmu = PmuMsgBlock;
+            if (pmu == null || pmu.Channels.Count == 0)
+            {
+                report.AppendLine("<APOB PMU message block (type 5) not present or layout unknown>");
+                return;
+            }
+
+            report.AppendLine("DRAM-side training results from the PMU message block (MEM type 5).");
+            report.AppendLine("TX DFE = DRAM receiver DFE (DDR5 MR111 + per-DQ tap MRs); signed bias steps, -- = tap disabled.");
+
+            for (int ch = 0; ch < pmu.Channels.Count; ch++)
+            {
+                ApobPmuMsgBlock.ChannelMsg c = pmu.Channels[ch];
+                report.AppendLine();
+                report.AppendLine(string.Format(CultureInfo.InvariantCulture, "-- Channel {0} --", ch));
+                report.AppendValue("Data rate", c.DataRate.ToString(CultureInfo.InvariantCulture) + " MT/s", 28);
+                report.AppendValue("RttNomWr (raw)", "0x" + c.RttNomWr.ToString("X2", CultureInfo.InvariantCulture), 28);
+                report.AppendValue("TX DFE taps", string.Format(CultureInfo.InvariantCulture, "{0} (MR111=0x{1:X2}{2})",
+                    c.TxDfeTaps, c.Mr111, c.Mr111Uniform ? "" : ", devices differ"), 28);
+
+                for (int d = 0; d < c.Devices.Count; d++)
+                {
+                    ApobPmuMsgBlock.DeviceDfe dev = c.Devices[d];
+                    report.AppendLine(string.Format(CultureInfo.InvariantCulture, "  Dev{0} Tap1: {1} | Tap2: {2}",
+                        d, ApobPmuMsgBlock.FormatTaps(dev.Tap1), ApobPmuMsgBlock.FormatTaps(dev.Tap2)));
+                }
+            }
+        }
+
+        private void AppendApcb(ReportBuilder report)
+        {
+            List<ApcbBlob> blobs = ReadApcb();
+            if (blobs == null)
+            {
+                report.AppendLine("<APCB not read (captured data or no driver)>");
+                return;
+            }
+
+            report.AppendLine("Type 0x60 = writable copy (holds the options changed in BIOS), 0x68 = backup / defaults.");
+            report.AppendLine("Tokens are sorted by type and id so two reports can be diffed line by line.");
+            report.AppendLine("Names: setup prompt [option name] = value label, from the CBS / AOD setup code (see ApcbTokenNames).");
+
+            if (blobs.Count == 0)
+                report.AppendLine("<no APCB found in the BIOS directories>");
+
+            // The APCB the firmware booted with: its unique instance (write counter) is mirrored in the APOB.
+            uint? liveInstance = GetLiveApcbInstance();
+            bool haveActive = false;
+            if (liveInstance.HasValue)
+            {
+                foreach (ApcbBlob blob in blobs)
+                {
+                    if (blob.UniqueInstance == liveInstance.Value)
+                        haveActive = true;
+                }
+
+                report.AppendLine(string.Format(CultureInfo.InvariantCulture,
+                    "Booted APCB unique instance (APOB GEN type 3): 0x{0:X}{1}", liveInstance.Value,
+                    haveActive ? "" : " - no matching APCB, listing all tokens"));
+            }
+
+            foreach (ApcbBlob blob in blobs)
+            {
+                bool active = haveActive && blob.UniqueInstance == liveInstance.Value;
+                bool listTokens = active || !haveActive;
+
+                report.AppendLine();
+                report.AppendLine(string.Format(CultureInfo.InvariantCulture,
+                    "-- APCB type 0x{0:X2} inst {1} at 0x{2:X} (dir 0x{3:X}): size 0x{4:X} / slot 0x{5:X}, ver 0x{6:X}, unique 0x{7:X}, checksum {8}{9}",
+                    blob.EntryType, blob.EntryInstance, blob.Address, blob.Directory, blob.Size, blob.SlotSize, blob.Version,
+                    blob.UniqueInstance, blob.ChecksumValid ? "OK" : "BAD", active ? " [ACTIVE]" : ""));
+
+                if (blob.AlsoAt.Count > 0)
+                {
+                    var copies = new List<string>();
+                    foreach (ulong a in blob.AlsoAt)
+                        copies.Add("0x" + a.ToString("X", CultureInfo.InvariantCulture));
+                    report.AppendLine("   identical copies at " + string.Join(", ", copies.ToArray()));
+                }
+
+                if (blob.Error != null)
+                    report.AppendLine("   error: " + blob.Error);
+
+                if (!listTokens)
+                {
+                    report.AppendLine(string.Format(CultureInfo.InvariantCulture, "   {0} group(s), {1} token(s) - not listed (not the booted APCB)",
+                        blob.Groups.Count, blob.Tokens.Count));
+                    continue;
+                }
+
+                foreach (ApcbGroup group in blob.Groups)
+                {
+                    report.AppendLine(string.Format(CultureInfo.InvariantCulture, "   group {0} 0x{1:X4}: 0x{2:X} bytes, {3} type(s)",
+                        group.Signature, group.GroupId, group.Size, group.TypeCount));
+                }
+
+                List<ApcbToken> tokens = new List<ApcbToken>(blob.Tokens);
+                tokens.Sort(delegate (ApcbToken x, ApcbToken y)
+                {
+                    int c = x.TypeId.CompareTo(y.TypeId);
+                    if (c == 0) c = x.Id.CompareTo(y.Id);
+                    if (c == 0) c = x.Instance.CompareTo(y.Instance);
+                    return c;
+                });
+
+                report.AppendLine(string.Format(CultureInfo.InvariantCulture, "   {0} token(s)", tokens.Count));
+                foreach (ApcbToken t in tokens)
+                {
+                    report.AppendLine(string.Format(CultureInfo.InvariantCulture, "   {0,-4} 0x{1:X8} = {2,-10} (inst {3}, prio 0x{4:X2}){5}",
+                        t.TypeName, t.Id, t.ValueText, t.Instance, t.PriorityMask, FormatTokenName(t)));
+                }
+            }
+
+            if (ApcbTrace != null && ApcbTrace.Count > 0)
+            {
+                report.AppendLine();
+                report.AppendLine("-- APCB lookup:");
+                foreach (string line in ApcbTrace)
+                    report.AppendLine("   " + line);
+            }
+        }
+
+        // "  Tcl [CbsCmnMemTimingTclDdr]", with the setup label of the value when the option has one
+        private static string FormatTokenName(ApcbToken t)
+        {
+            ApcbTokenName name = t.Name;
+            if (name == null)
+                return "";
+
+            uint value = t.TypeId == 1 ? t.Value & 0xFF : t.TypeId == 2 ? t.Value & 0xFFFF : t.Value;
+            string label = name.GetValueLabel(value);
+            string prompt = string.IsNullOrEmpty(name.Prompt) || name.Source == ApcbTokenSource.AodDerived ? null : name.Prompt;
+
+            var sb = new System.Text.StringBuilder("  ");
+            if (prompt != null)
+                sb.Append(prompt).Append(' ');
+            sb.Append('[').Append(name.Name).Append(']');
+            if (label != null)
+                sb.Append(" = ").Append(label);
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Unique instance (write counter) of the APCB the firmware booted with, as recorded in the APOB
+        /// (GEN type 3 payload +0x30 = raw entry +0x60). Null if the entry is missing.
+        /// </summary>
+        private uint? GetLiveApcbInstance()
+        {
+            try
+            {
+                byte[] raw = GetRawEntry(APOB_GEN, APOB_GEN_CONFIGURATION_INFO_TYPE);
+                if (raw == null || raw.Length < 0x64)
+                    return null;
+
+                uint value = BitConverter.ToUInt32(raw, 0x60);
+                return value != 0 && value != 0xFFFFFFFF ? (uint?)value : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         private static void AppendRawBlock(ReportBuilder report, string title, byte[] data, string unavailableText)
         {
             report.AppendSection(title);
@@ -2018,6 +2425,285 @@ namespace ZenStates.Core.Hardware.Apob
             {
                 report.AppendFailure(ex);
             }
+        }
+    }
+
+    /// <summary>
+    /// Trained per-lane PHY values decoded from the APOB S3 DDR PHY replay buffer (MEM group, type 30) - the PHY
+    /// register image AGESA writes back on S3 resume to skip retraining. The payload is one identical block per
+    /// memory channel, <see cref="ChannelStride"/> bytes apart, each holding per-lane arrays of 16-bit values.
+    ///
+    /// The array offsets are EMPIRICAL (Granite Ridge, AGESA ComboAm5PI 1.3.0.x), established with differential
+    /// APOB dumps: the RX DFE Tap-2 block is confirmed (populated only when RX DFE taps go 1 -> 2); the delay arrays
+    /// are named by measured behavior (frequency scaling), not by a register spec. TX DFE is DRAM-side and lives in
+    /// the PMU message block instead (<see cref="ApobPmuMsgBlock"/>). Decoding is bounds-checked and returns null
+    /// on any mismatch so a layout change on a future AGESA cannot surface wrong values - it simply yields no data.
+    /// </summary>
+    public sealed class ApobS3PhyReplay
+    {
+        // A raw entry is {16-byte header}{32-byte HMAC}{payload}; the arrays below are payload-relative.
+        private const int LeadBytes = 48;
+
+        /// <summary>Per-channel block stride in payload bytes (two mirrored blocks observed on a 2-channel board).</summary>
+        public const int ChannelStride = 0x1172;
+
+        private const int MaxChannels = 4;
+
+        public sealed class PhyArray
+        {
+            public PhyArray(int payloadOffset, string label, ushort[] values, int groupSize)
+            {
+                PayloadOffset = payloadOffset;
+                Label = label;
+                Values = values;
+                GroupSize = groupSize;
+            }
+
+            /// <summary>Offset of this array within its channel block (payload-relative, channel 0).</summary>
+            public int PayloadOffset { get; }
+            public string Label { get; }
+            public ushort[] Values { get; }
+
+            /// <summary>Elements per lane group (e.g. 9 = DQ0-7 + DBI per byte lane), 0 when ungrouped.</summary>
+            public int GroupSize { get; }
+        }
+
+        public sealed class ChannelPhy
+        {
+            public List<PhyArray> Arrays { get; } = new List<PhyArray>();
+        }
+
+        public List<ChannelPhy> Channels { get; } = new List<ChannelPhy>();
+
+        // {payload offset, element count, lane group size} for each decoded array (channel 0). Established with
+        // differential dumps: 8000/7800/6000 MT/s, ProcODT, RttNomWr, RX and TX DFE taps 1->2, DFE auto.
+        // Delays are in 1/64-UI units; "scales with rate" = a fixed time, so 6000/8000 gives exactly 0.75x.
+        private static readonly int[][] ArrayMap =
+        {
+            new[] { 0x0EC, 14, 0 },
+            new[] { 0x10A, 12, 0 },
+            new[] { 0x124, 14, 0 },
+            new[] { 0x630, 16, 0 },
+            new[] { 0x6D0, 16, 0 },
+            new[] { 0xA68, 72, 9 },
+        };
+
+        private static readonly string[] ArrayLabels =
+        {
+            // Per-DQ deskew around a 0x40 center; shrink toward 0x40 at lower rate. RX vs TX not separated yet.
+            "DqDeskew0 (0x40=center)",
+            "DqDeskew1 (0x40=center)",
+            // Identical across every rate / ODT / RTT / DFE change: a fixed pattern, not a trained value.
+            "FixedPattern",
+            // 6000/8000 ratio = 0.750 exactly: a pure fixed time (flight/round trip) in UI units.
+            "FlightDly (x rate)",
+            // ~0.80x: constant pipeline offset (~0x140 = 5 UI) + fixed time. RxEnDly / TxDqsDly style.
+            "ByteDly (pipeline+flight)",
+            // CONFIRMED: all zero until RX DFE Taps 1->2. 8 byte lanes x [DQ0-7, DBI(always 0)].
+            "RxDfeTap2 [lane: DQ0-7,DBI]",
+        };
+
+        /// <summary>Decodes the replay buffer from a raw entry (header included), or null when the layout does not fit.</summary>
+        public static ApobS3PhyReplay TryDecode(byte[] rawEntry)
+        {
+            if (rawEntry == null || rawEntry.Length <= LeadBytes)
+                return null;
+
+            int payloadLen = rawEntry.Length - LeadBytes;
+
+            int maxReach = 0;
+            for (int i = 0; i < ArrayMap.Length; i++)
+            {
+                int end = ArrayMap[i][0] + ArrayMap[i][1] * 2;
+                if (end > maxReach)
+                    maxReach = end;
+            }
+
+            if (maxReach > payloadLen)
+                return null;
+
+            ApobS3PhyReplay result = new ApobS3PhyReplay();
+
+            for (int ch = 0; ch < MaxChannels; ch++)
+            {
+                int baseOff = ch * ChannelStride;
+                if (baseOff + maxReach > payloadLen)
+                    break;
+
+                ChannelPhy channel = new ChannelPhy();
+                for (int a = 0; a < ArrayMap.Length; a++)
+                {
+                    int off = ArrayMap[a][0];
+                    int count = ArrayMap[a][1];
+                    ushort[] values = new ushort[count];
+                    for (int i = 0; i < count; i++)
+                    {
+                        int p = LeadBytes + baseOff + off + i * 2;
+                        values[i] = (ushort)(rawEntry[p] | (rawEntry[p + 1] << 8));
+                    }
+
+                    channel.Arrays.Add(new PhyArray(off, ArrayLabels[a], values, ArrayMap[a][2]));
+                }
+
+                result.Channels.Add(channel);
+            }
+
+            return result.Channels.Count > 0 ? result : null;
+        }
+    }
+
+    /// <summary>
+    /// DRAM-side training results decoded from the APOB PMU message block (MEM group, type 5): one block per channel,
+    /// <see cref="ChannelStride"/> bytes apart. On DDR5 the write-path (TX) DFE is the DRAM receiver's DFE, so it is
+    /// held here as mode-register shadows rather than as PHY CSRs.
+    ///
+    /// Established with differential APOB dumps (Granite Ridge, AGESA ComboAm5PI 1.3.0.x): +0x02 tracks the data
+    /// rate exactly (6000/7800/8000), +0x35 tracks RttNomWr (3 / off), and per device MR111 plus the Tap-1/Tap-2 MRs
+    /// follow TX DFE taps 1 -> 2. Tap MRs use the JEDEC DDR5 per-DQ DFE format: OP[7] enable, OP[6] sign (1 = negative),
+    /// OP[5:0] bias step. Bounds-checked; returns null on any mismatch.
+    /// </summary>
+    public sealed class ApobPmuMsgBlock
+    {
+        // A raw entry is {16-byte header}{32-byte HMAC}{payload}; offsets below are payload-relative.
+        private const int LeadBytes = 48;
+
+        /// <summary>Per-channel message block stride in payload bytes.</summary>
+        public const int ChannelStride = 0x1FB0;
+
+        private const int MaxChannels = 4;
+        private const int DataRateOffset = 0x02;          // u16, MT/s
+        private const int RttNomWrOffset = 0x35;          // raw setting byte
+        private const int DeviceCount = 8;                // x8 devices per channel (2 sub-channels x 4)
+        private const int Mr111Offset = 0x3D;             // first device record, MR111 (DFE global, 1 = disabled)
+        private const int Mr111Stride = 0x1C;
+        private const int Tap1Offset = 0x0A8A;            // first device, per-DQ Tap-1 MRs
+        private const int DeviceStride = 0x140;
+        private const int Tap2Delta = 0x50;               // Tap-2 MRs follow Tap-1
+        private const int DqPerDevice = 8;                // each MR stored twice (identical byte pair)
+
+        public sealed class DeviceDfe
+        {
+            public DeviceDfe(byte[] tap1, byte[] tap2)
+            {
+                Tap1 = tap1;
+                Tap2 = tap2;
+            }
+
+            /// <summary>Raw per-DQ Tap-1 MR bytes (DQ0-7).</summary>
+            public byte[] Tap1 { get; }
+
+            /// <summary>Raw per-DQ Tap-2 MR bytes (DQ0-7).</summary>
+            public byte[] Tap2 { get; }
+        }
+
+        public sealed class ChannelMsg
+        {
+            public int DataRate { get; internal set; }
+            public byte RttNomWr { get; internal set; }
+
+            /// <summary>MR111 of the first device: DFE global settings, bit n (1..4) set = Tap-n disabled.</summary>
+            public byte Mr111 { get; internal set; }
+
+            /// <summary>True when every device reports the same MR111.</summary>
+            public bool Mr111Uniform { get; internal set; }
+
+            /// <summary>Number of enabled TX (DRAM) DFE taps, from MR111.</summary>
+            public int TxDfeTaps { get; internal set; }
+
+            public List<DeviceDfe> Devices { get; } = new List<DeviceDfe>();
+        }
+
+        public List<ChannelMsg> Channels { get; } = new List<ChannelMsg>();
+
+        /// <summary>Signed bias of a JEDEC DDR5 DFE tap MR byte, or null when the tap is disabled.</summary>
+        public static int? DecodeTap(byte mr)
+        {
+            if ((mr & 0x80) == 0)
+                return null;
+
+            int magnitude = mr & 0x3F;
+            return (mr & 0x40) != 0 ? -magnitude : magnitude;
+        }
+
+        public static string FormatTaps(byte[] taps)
+        {
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+            for (int i = 0; i < taps.Length; i++)
+            {
+                if (i > 0)
+                    sb.Append(' ');
+                int? v = DecodeTap(taps[i]);
+                sb.Append(v.HasValue ? v.Value.ToString("+0;-0;0", CultureInfo.InvariantCulture).PadLeft(3) : " --");
+            }
+
+            return sb.ToString();
+        }
+
+        /// <summary>Decodes the message block from a raw entry (header included), or null when the layout does not fit.</summary>
+        public static ApobPmuMsgBlock TryDecode(byte[] rawEntry)
+        {
+            if (rawEntry == null || rawEntry.Length <= LeadBytes)
+                return null;
+
+            int payloadLen = rawEntry.Length - LeadBytes;
+            int maxReach = Tap1Offset + (DeviceCount - 1) * DeviceStride + Tap2Delta + DqPerDevice * 2;
+
+            ApobPmuMsgBlock result = new ApobPmuMsgBlock();
+
+            for (int ch = 0; ch < MaxChannels; ch++)
+            {
+                int baseOff = LeadBytes + ch * ChannelStride;
+                if (ch * ChannelStride + maxReach > payloadLen)
+                    break;
+
+                int rate = rawEntry[baseOff + DataRateOffset] | (rawEntry[baseOff + DataRateOffset + 1] << 8);
+
+                // Sanity: a real block carries a plausible DDR5 data rate; anything else means the layout moved.
+                if (rate < 3200 || rate > 12800)
+                    break;
+
+                ChannelMsg channel = new ChannelMsg
+                {
+                    DataRate = rate,
+                    RttNomWr = rawEntry[baseOff + RttNomWrOffset],
+                    Mr111 = rawEntry[baseOff + Mr111Offset],
+                    Mr111Uniform = true,
+                };
+
+                for (int d = 1; d < DeviceCount; d++)
+                {
+                    if (rawEntry[baseOff + Mr111Offset + d * Mr111Stride] != channel.Mr111)
+                        channel.Mr111Uniform = false;
+                }
+
+                int taps = 0;
+                for (int bit = 1; bit <= 4; bit++)
+                {
+                    if (((channel.Mr111 >> bit) & 1) == 0)
+                        taps++;
+                }
+
+                channel.TxDfeTaps = taps;
+
+                for (int d = 0; d < DeviceCount; d++)
+                {
+                    int t1 = baseOff + Tap1Offset + d * DeviceStride;
+                    int t2 = t1 + Tap2Delta;
+                    byte[] tap1 = new byte[DqPerDevice];
+                    byte[] tap2 = new byte[DqPerDevice];
+                    for (int i = 0; i < DqPerDevice; i++)
+                    {
+                        tap1[i] = rawEntry[t1 + i * 2];
+                        tap2[i] = rawEntry[t2 + i * 2];
+                    }
+
+                    channel.Devices.Add(new DeviceDfe(tap1, tap2));
+                }
+
+                result.Channels.Add(channel);
+            }
+
+            return result.Channels.Count > 0 ? result : null;
         }
     }
 }
