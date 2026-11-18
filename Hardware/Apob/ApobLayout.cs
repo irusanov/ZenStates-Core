@@ -649,8 +649,8 @@ namespace ZenStates.Core.Hardware.Apob
                 new ApobTimingField("TrrdS", 0x08, false, ApobValueWidth.UInt8, true),
                 new ApobTimingField("TwtrS", 0x09, false, ApobValueWidth.UInt8, true),
                 new ApobTimingField("Tfaw", 0x0A, false, ApobValueWidth.UInt8, true),
-                new ApobTimingField("Unknown_1", 0x0B, true, ApobValueWidth.UInt8, true),
-                new ApobTimingField("Unknown_2", 0x0C, true, ApobValueWidth.UInt8, true),
+                new ApobTimingField("TrrdL", 0x0B, false, ApobValueWidth.UInt8, true),
+                new ApobTimingField("TwtrL", 0x0C, false, ApobValueWidth.UInt8, true),
                 new ApobTimingField("Tccdl", 0x0D, false, ApobValueWidth.UInt8, true),
                 new ApobTimingField("TrfcNs", rfcOffset, false, ApobValueWidth.UInt16, true),
                 new ApobTimingField("Trfc2Ns", rfcOffset + 4, false, ApobValueWidth.UInt16, true),
@@ -658,7 +658,8 @@ namespace ZenStates.Core.Hardware.Apob
             };
         }
 
-        // Zen 1 / Zen+ / Zen 2: tRFC right after the clock bytes, the memory P-state blocks 0x70 apart (Matisse)
+        // Zen 1 / Zen+ desktop and Zen 2: tRFC right after the clock bytes (Summit Ridge, Matisse), the memory P-state
+        // blocks 0x70 apart (Matisse)
         private static readonly ApobChannelTimingLayout Zen2Ddr4ChannelTimingLayout = new ApobChannelTimingLayout(
             "Zen2 DDR4 channel timings",
             7, 3,
@@ -677,6 +678,33 @@ namespace ZenStates.Core.Hardware.Apob
             clockBytesSearchEnd: 10,
             ddr4ModeRegisterSearchStart: 0x10,
             ddr4ModeRegisterSearchEnd: 0x70);
+
+        // Zen 1 APU (Raven Ridge): tRFC two bytes after the clock bytes as on Zen 3, the memory P-state blocks 0x54
+        // apart. Worked out on an Athlon 240GE (CH6, DDR4-2133): three blocks per channel at 2133, 1866 and 1600,
+        // tRFC / tRFC2 / tRFC4 350 / 260 / 160 ns (UMC: 374 / 278 / 171 clocks at MEMCLK 1067). A channel record is
+        // 0x190 bytes, its number (u16) 0x48 before the MEMCLK of its first block; a channel without DIMMs has no blocks.
+        // The channels' blocks are followed by a byte-identical copy of them (checked with B2 alone and A2 + B2).
+        // Picasso and Dali are the same die family, untested.
+        private static readonly ApobChannelTimingLayout Zen1ApuDdr4ChannelTimingLayout = new ApobChannelTimingLayout(
+            "Zen1 APU DDR4 channel timings",
+            7, 3,
+            ApobValueWidth.UInt16,
+            dataRateOffset: -1,
+            memClkOffset: 0x00,
+            halfMemClkOffset: -1,
+            minMemClk: 600,
+            maxMemClk: 2400,
+            clOffset: 0,
+            minCl: 8,
+            maxCl: 40,
+            fields: Ddr4TimingFields(0x10),
+            pStateBlockStride: 0x54,
+            clockBytesSearchStart: 2,
+            clockBytesSearchEnd: 10,
+            ddr4ModeRegisterSearchStart: 0x10,
+            ddr4ModeRegisterSearchEnd: 0x70,
+            channelIdOffset: -0x48,
+            skipDuplicateChannels: true);
 
         // Zen 3: two more bytes before tRFC, the memory P-state blocks 0x108 apart (Vermeer, Cezanne). Both DDR4 layouts
         // have MR0 to MR6 a few bytes after tRFC (ApobDdr4ModeRegisters), with the starting VrefDQ in MR6.
@@ -754,6 +782,9 @@ namespace ZenStates.Core.Hardware.Apob
         private static readonly ApobProfile Zen2Ddr4Profile = new ApobProfile(
             "Zen2 DDR4", null, null, null, Zen2Ddr4ChannelTimingLayout);
 
+        private static readonly ApobProfile Zen1ApuDdr4Profile = new ApobProfile(
+            "Zen1 APU DDR4", null, null, null, Zen1ApuDdr4ChannelTimingLayout);
+
         private static readonly ApobProfile Zen3Ddr4Profile = new ApobProfile(
             "Zen3 DDR4", null, null, null, Zen3Ddr4ChannelTimingLayout);
 
@@ -795,7 +826,15 @@ namespace ZenStates.Core.Hardware.Apob
         {
             if (cpuInfo.family == Family.FAMILY_17H)
             {
-                return Zen2Ddr4Profile;
+                switch (cpuInfo.codeName)
+                {
+                    case CodeName.RavenRidge:
+                    case CodeName.Picasso:
+                    case CodeName.Dali:
+                        return Zen1ApuDdr4Profile;
+                    default:
+                        return Zen2Ddr4Profile;
+                }
             }
 
             if (cpuInfo.family == Family.FAMILY_19H)
