@@ -63,7 +63,8 @@ namespace ZenStates.Core.Hardware
     }
 
     /// <summary>
-    /// Sensors read from one source: a SuperIO chip, or the SVI3 telemetry in the power table.
+    /// Sensors read from one source: a SuperIO chip, the SVI3 telemetry in the power table, or the
+    /// ASUS WMI interface.
     /// </summary>
     public readonly struct SensorGroup
     {
@@ -90,6 +91,11 @@ namespace ZenStates.Core.Hardware
         internal static SensorGroup FromSvi3(Svi3Hardware hardware)
         {
             return new SensorGroup(hardware.Name, HardwareType.Svi3, Chip.Unknown, hardware.Sensors);
+        }
+
+        internal static SensorGroup FromAsusWmi(AsusWmiHardware hardware)
+        {
+            return new SensorGroup(hardware.Name, HardwareType.AsusWmi, Chip.Unknown, hardware.Sensors);
         }
     }
 
@@ -167,7 +173,7 @@ namespace ZenStates.Core.Hardware
 
         // Sensors grouped by where they were read from: the SVI3 telemetry first when the CPU reports
         // it (a handful of values), then one group per SuperIO chip, so boards with several chips can
-        // label them per chip.
+        // label them per chip, then the ASUS WMI sensors on boards that have them.
 
         public List<IHardware> Hardware => _hardware;
 
@@ -186,12 +192,34 @@ namespace ZenStates.Core.Hardware
                     if (hardware is SuperIOHardware superIo)
                         yield return SensorGroup.FromSuperIo(superIo);
                 }
+
+                foreach (IHardware hardware in _hardware)
+                {
+                    if (hardware is AsusWmiHardware asusWmi && asusWmi.HasSensors)
+                        yield return SensorGroup.FromAsusWmi(asusWmi);
+                }
             }
         }
 
         /// <summary>
+        /// The ASUS WMI sensors; null when the board doesn't have them. A method rather than a property, so
+        /// the reports that list this class's properties leave it out.
+        /// </summary>
+        public AsusWmiHardware GetAsusWmi()
+        {
+            foreach (IHardware hardware in _hardware)
+            {
+                if (hardware is AsusWmiHardware asusWmi)
+                    return asusWmi;
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// Reads the SuperIO chips and copies the power table's SVI3 values into their sensors, so
-        /// refresh the power table first.
+        /// refresh the power table first. The ASUS WMI sensors are left out, as each of them is a WMI
+        /// call: update them with <see cref="AsusWmiHardware.Update()"/> while they are shown.
         /// </summary>
         public void UpdateSensors()
         {
@@ -225,6 +253,8 @@ namespace ZenStates.Core.Hardware
                 if (disposing)
                 {
                     _lpcIO?.Close();
+
+                    GetAsusWmi()?.Dispose();
                 }
 
                 disposedValue = true;

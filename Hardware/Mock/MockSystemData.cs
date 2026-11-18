@@ -60,11 +60,17 @@ namespace ZenStates.Core.Hardware.Mock
 
         /// <summary>
         /// The SVI3 telemetry of the report's power table, followed by the SuperIO sensors replayed from
-        /// its register dumps, decoded with the same board configuration - the mock counterpart of
-        /// <c>cpu.systemInfo.SensorGroups</c>. Values are the captured ones and don't change. Empty
-        /// when the report has neither.
+        /// its register dumps, decoded with the same board configuration, then the ASUS WMI sensors - the
+        /// mock counterpart of <c>cpu.systemInfo.SensorGroups</c>. Values are the captured ones and don't
+        /// change. Empty when the report has none of them.
         /// </summary>
         public List<SensorGroup> SensorGroups { get; } = new List<SensorGroup>();
+
+        /// <summary>
+        /// The ASUS WMI sensors rebuilt from the report's "ASUS WMI" section - the mock counterpart of
+        /// <c>cpu.systemInfo.GetAsusWmi()</c>. Null when the report has none.
+        /// </summary>
+        public AsusWmiHardware AsusWmi { get; private set; }
 
         public Capacity TotalCapacity { get; private set; } = new Capacity();
         public string CpuName { get; private set; }
@@ -182,6 +188,15 @@ namespace ZenStates.Core.Hardware.Mock
             catch (Exception ex)
             {
                 data.AddSectionWarning("SuperIO", ex);
+            }
+
+            try
+            {
+                data.ReadAsusWmi(lines);
+            }
+            catch (Exception ex)
+            {
+                data.AddSectionWarning("ASUS WMI", ex);
             }
 
             try
@@ -410,6 +425,14 @@ namespace ZenStates.Core.Hardware.Mock
                     Warnings.Add($"SuperIO: could not replay {dump.Chip}: {ex.Message}");
                 }
             }
+        }
+
+        /// <summary>Rebuilds the ASUS WMI sensors, after the SuperIO groups as the live SystemInfo lists them.</summary>
+        private void ReadAsusWmi(string[] lines)
+        {
+            AsusWmi = DebugReportParser.ParseAsusWmi(lines);
+            if (AsusWmi != null)
+                SensorGroups.Add(SensorGroup.FromAsusWmi(AsusWmi));
         }
 
         /// <summary>Exposes the power table's SVI3 readings as a sensor group, as the live SystemInfo does.</summary>

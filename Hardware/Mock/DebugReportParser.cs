@@ -853,6 +853,19 @@ namespace ZenStates.Core.Hardware.Mock
 
         #endregion
 
+        #region ASUS WMI
+
+        /// <summary>
+        /// Rebuilds the ASUS WMI sensors from the "ASUS WMI" section, in the format of old and new reports.
+        /// Null when the report has none.
+        /// </summary>
+        public static AsusWmiHardware ParseAsusWmi(string[] lines)
+        {
+            return AsusWmiHardware.CreateFromReport(GetSectionLines(lines, AsusWmiHardware.GroupName));
+        }
+
+        #endregion
+
         #region SuperIO
 
         /// <summary>Heading of the section holding each SuperIO chip's report.</summary>

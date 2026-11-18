@@ -17,5 +17,6 @@
         Battery,
         PowerMonitor,
         Svi3,
+        AsusWmi,
     }
 }
