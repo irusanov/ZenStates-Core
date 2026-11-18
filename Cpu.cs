@@ -1639,6 +1639,190 @@ namespace ZenStates.Core
 
         public Mmio.CpuRefClkSource GetCpuRefClkSource() => mmio?.GetCpuRefClkSource() ?? Mmio.CpuRefClkSource.UNKNOWN;
 
+        /// <summary>
+        /// Measures the real BCLK without reading any PLL register: the TSC runs at the P0 frequency (PPR 55570, HWCR[TscFreqSel]),
+        /// P0 = PStateDef0 FID / DID * 200 MHz at a 100 MHz BCLK, and the ACPI timer is clocked from the crystal, independent of CG1_PLL.
+        /// BCLK = measured TSC MHz / P0 MHz * 100. Blocks for about samples * durationMs, call it from a background thread.
+        /// Family 17h/19h/1Ah; the result is meaningless if the TSC is virtualized or P0 was changed while measuring.
+        /// </summary>
+        public BclkMeasurement MeasureBclk(int durationMs = 200, int samples = 3)
+        {
+            BclkMeasurement r = new BclkMeasurement();
+
+            if (mmio == null || _pawnAmd == null || !_pawnAmd.IsLoaded)
+            {
+                r.Error = "MMIO or MSR access is not available.";
+                return r;
+            }
+
+            if ((int)info.family < (int)Family.FAMILY_17H || (int)info.family > (int)Family.FAMILY_1AH)
+            {
+                r.Error = "Unsupported CPU family.";
+                return r;
+            }
+
+            if (Opcode.Rdtsc == null)
+            {
+                r.Error = "RDTSC is not available.";
+                return r;
+            }
+
+            if (durationMs < 50) durationMs = 50;
+            if (samples < 1) samples = 1;
+
+            if (!TryGetP0Mhz(out double p0Mhz, out string p0Error))
+            {
+                r.Error = p0Error;
+                return r;
+            }
+
+            r.P0Mhz = p0Mhz;
+
+            double[] results = new double[samples];
+            double[] tscMhz = new double[samples];
+            GroupAffinity previous = ThreadAffinity.Set(GroupAffinity.ForLogicalProcessor(0));
+
+            try
+            {
+                for (int i = 0; i < samples; i++)
+                {
+                    if (!ReadTscAndTimer(out ulong tsc0, out uint tmr0))
+                    {
+                        r.Error = "Could not read the ACPI timer.";
+                        return r;
+                    }
+
+                    System.Threading.Thread.Sleep(durationMs);
+
+                    if (!ReadTscAndTimer(out ulong tsc1, out uint tmr1))
+                    {
+                        r.Error = "Could not read the ACPI timer.";
+                        return r;
+                    }
+
+                    uint ticks = unchecked(tmr1 - tmr0);
+                    if (ticks == 0 || tsc1 <= tsc0)
+                    {
+                        r.Error = "The ACPI timer or the TSC did not advance.";
+                        return r;
+                    }
+
+                    double seconds = ticks / Mmio.AcpiPmTimerHz;
+                    tscMhz[i] = (tsc1 - tsc0) / seconds / 1e6;
+                    results[i] = tscMhz[i] / p0Mhz * 100.0;
+                }
+            }
+            finally
+            {
+                if (previous != GroupAffinity.Undefined)
+                    ThreadAffinity.Set(previous);
+            }
+
+            Array.Sort(results);
+            Array.Sort(tscMhz);
+            r.Samples = samples;
+            r.BclkMhz = results[samples / 2];
+            r.TscMhz = tscMhz[samples / 2];
+            r.SpreadMhz = results[samples - 1] - results[0];
+            return r;
+        }
+
+        /// <summary>
+        /// P0 core frequency in MHz at a 100 MHz BCLK, from PStateDef0 (MSR C0010064, PstateEn is bit 63).
+        /// Family 17h/19h: CpuFid [7:0] / CpuDfsId [13:8] * 200 MHz.
+        /// Family 1Ah: CpuFid [11:0] in 5 MHz steps, no divider (same field layout as the [11:0] of <see cref="HwPstateStatus"/> on 1Ah,
+        /// see <see cref="GetCoreMulti"/>).
+        /// </summary>
+        private bool TryGetP0Mhz(out double p0Mhz, out string error)
+        {
+            p0Mhz = 0;
+            error = null;
+
+            if (!_pawnAmd.ReadMsr(0xC0010064, out uint eax, out uint edx) || (edx & 0x80000000) == 0)
+            {
+                error = "Could not read PStateDef0.";
+                return false;
+            }
+
+            if (info.family >= Family.FAMILY_1AH)
+            {
+                uint fid1a = eax & 0xFFF;
+                if (fid1a == 0)
+                {
+                    error = "PStateDef0 has no valid frequency.";
+                    return false;
+                }
+
+                p0Mhz = 5.0 * fid1a;
+                return true;
+            }
+
+            uint fid = eax & 0xFF;
+            uint did = (eax >> 8) & 0x3F;
+            if (fid == 0 || did == 0)
+            {
+                error = "PStateDef0 has no valid frequency.";
+                return false;
+            }
+
+            p0Mhz = 200.0 * fid / did;
+            return true;
+        }
+
+        /// <summary>
+        /// Debug report section: BCLK measured from the TSC against the ACPI timer, next to the PLL register value.
+        /// Takes about a second. Never throws.
+        /// </summary>
+        public string GetBclkMeasurementReport()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine(ReportBuilder.Heading("BCLK Measurement"));
+            sb.AppendLine("-- Method: TSC rate against the ACPI timer (no PLL register is read for the result)");
+
+            try
+            {
+                BclkMeasurement m = MeasureBclk();
+                System.Globalization.CultureInfo ic = System.Globalization.CultureInfo.InvariantCulture;
+
+                if (m.P0Mhz > 0)
+                    sb.AppendLine(string.Format(ic, "-- P0 at 100 MHz BCLK (PStateDef0): {0:0.00} MHz", m.P0Mhz));
+
+                if (m.BclkMhz.HasValue)
+                {
+                    sb.AppendLine(string.Format(ic, "-- Measured TSC: {0:0.00} MHz", m.TscMhz));
+                    sb.AppendLine(string.Format(ic, "-- Measured BCLK: {0:0.00} MHz (spread {1:0.000} MHz, {2} samples)",
+                        m.BclkMhz.Value, m.SpreadMhz, m.Samples));
+                }
+                else
+                {
+                    sb.AppendLine("-- Measured BCLK: not available (" + m.Error + ")");
+                }
+
+                double? reg = GetBclk();
+                sb.AppendLine(string.Format(ic, "-- Register BCLK (GetBclk): {0}",
+                    reg.HasValue ? reg.Value.ToString("0.00", ic) + " MHz" : "n/a"));
+
+                if (m.BclkMhz.HasValue && reg.HasValue && Math.Abs(m.BclkMhz.Value - reg.Value) > 0.5)
+                    sb.AppendLine("-- The register value does not match the measured clock.");
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine("-- Measured BCLK: failed (" + ex.Message + ")");
+            }
+
+            return sb.ToString();
+        }
+
+        // TSC read before and after the timer read; their midpoint pairs the two clocks. The latency is the same at both ends of a sample.
+        private bool ReadTscAndTimer(out ulong tsc, out uint timer)
+        {
+            ulong a = Opcode.Rdtsc();
+            bool ok = mmio.TryReadAcpiPmTimer(out timer);
+            ulong b = Opcode.Rdtsc();
+            tsc = a / 2 + b / 2;
+            return ok;
+        }
+
         public SMU.Status TransferTableToDram() => new TransferTableToDram(smu).Execute().status;
 
         public struct TableVersionResult

@@ -7,6 +7,24 @@ using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core.Hardware
 {
+    /// <summary>
+    /// Result of <see cref="Cpu.MeasureBclk"/>: BCLK derived from the TSC rate against the ACPI timer, not from any register.
+    /// </summary>
+    public sealed class BclkMeasurement
+    {
+        /// <summary>Implied BCLK in MHz (median of the samples), null when the measurement failed.</summary>
+        public double? BclkMhz { get; set; }
+        /// <summary>Measured TSC frequency in MHz (median).</summary>
+        public double TscMhz { get; set; }
+        /// <summary>P0 core frequency in MHz at a 100 MHz BCLK, from PStateDef0.</summary>
+        public double P0Mhz { get; set; }
+        /// <summary>Largest minus smallest implied BCLK between samples, in MHz. Large values mean an unreliable measurement.</summary>
+        public double SpreadMhz { get; set; }
+        public int Samples { get; set; }
+        /// <summary>Why the measurement could not be made, null on success.</summary>
+        public string Error { get; set; }
+    }
+
     public class Mmio
     {
         // https://www.amd.com/system/files/TechDocs/52740_16h_Models_30h-3Fh_BKDG.pdf (page 859)
@@ -31,6 +49,10 @@ namespace ZenStates.Core.Hardware
         internal const uint MISC_EclkModeStatus = AMD_MMIO_BASE_ADDRESS + 0xEAC;
         internal const uint MISC_CGPLLCntrlReg4 = MISC_BASE_ADDRESS + 0xAC;
         internal const uint MISC_CGPLLConfig8 = MISC_BASE_ADDRESS + 0x34;
+        // FCH::PM::TmrValue (ACPI power management timer), 32-bit read-only count, PPR 55570 PMx0808
+        internal const uint ACPI_PM_TIMER = AMD_MMIO_BASE_ADDRESS + 0x808;
+        /// <summary>ACPI power management timer frequency as defined by the ACPI specification (derived from the 48 MHz crystal, not from CG1_PLL).</summary>
+        public const double AcpiPmTimerHz = 3579545.0;
         internal const uint SMBUS_BASE_ADDRESS_REG = 0x300;
         // internal const uint IOMUX_LPCCLK1 = IOMUX_BASE + 0x1F;
 
@@ -105,6 +127,20 @@ namespace ZenStates.Core.Hardware
         private bool IsFam15 => _family == Cpu.Family.FAMILY_15H;
 
         /// <summary>
+        /// Reads a 32-bit FCH register. A read that fails, or returns all ones (MMIO window disabled by PMx04[MmioEn]
+        /// or not mapped), is reported as a failure instead of being decoded as valid register content.
+        /// </summary>
+        private bool ReadReg(uint address, out uint value)
+        {
+            value = 0;
+            if (io == null || !io.GetPhysLong((UIntPtr)address, out uint raw) || raw == 0xFFFFFFFF)
+                return false;
+
+            value = raw;
+            return true;
+        }
+
+        /// <summary>
         /// Raven Ridge / Picasso / Dali: APUs with the FCH on the SoC. Their register layout follows the Family 17h Model 18h PPR
         /// (55570), where the CPU reference clock only comes from CG1_PLL when the strap is internal and
         /// MISCx0AC[23:22] selects CG1_PLL. Newer platforms keep the behaviour that was tested on them.
@@ -119,7 +155,7 @@ namespace ZenStates.Core.Hardware
             if (io == null)
                 return CpuRefClkSource.UNKNOWN;
 
-            if (!io.GetPhysLong((UIntPtr)MISC_CGPLLCntrlReg4, out uint value))
+            if (!ReadReg(MISC_CGPLLCntrlReg4, out uint value))
                 return CpuRefClkSource.UNKNOWN;
 
             return (CpuRefClkSource)Utils.GetBits(value, 22, 2);
@@ -138,7 +174,7 @@ namespace ZenStates.Core.Hardware
             Stopwatch sw = Stopwatch.StartNew();
             do
             {
-                if (!io.GetPhysLong((UIntPtr)MISC_ClkCntl1, out uint v))
+                if (!ReadReg(MISC_ClkCntl1, out uint v))
                     return false;
                 if (Utils.GetBit(v, 30) == 0)
                     return true;
@@ -162,13 +198,11 @@ namespace ZenStates.Core.Hardware
 
         private uint GetSmbusBaseAddress()
         {
-            io.GetPhysLong(new UIntPtr(AMD_MMIO_BASE_ADDRESS + SMBUS_BASE_ADDRESS_REG), out uint data);
-            if (data != 0)
-            {
-                uint value = (data >> 8) & 0x7F;
-                return value << 8;
-            }
-            return 0;
+            // PMx000[15:8] SmbusAsfIoBase: IO base address bits 15:8, a full 8-bit field (PPR 55570, reset 0Bh -> 0x0B00).
+            if (!ReadReg(AMD_MMIO_BASE_ADDRESS + SMBUS_BASE_ADDRESS_REG, out uint data) || data == 0)
+                return 0;
+
+            return ((data >> 8) & 0xFF) << 8;
         }
 
         private static int CalculateBclkFromIndex(int index)
@@ -190,7 +224,7 @@ namespace ZenStates.Core.Hardware
             if (io == null)
                 return ClkGen.ERROR;
 
-            if (io.GetPhysLong((UIntPtr)MISC_StrapStatus, out uint value))
+            if (ReadReg(MISC_StrapStatus, out uint value))
                 return (ClkGen)Utils.GetBit(value, 17);
             return ClkGen.ERROR;
         }
@@ -209,7 +243,7 @@ namespace ZenStates.Core.Hardware
             if (IsLegacyApuClocking)
                 return EclkMode.UNKNOWN;
 
-            if (!io.GetPhysLong((UIntPtr)MISC_EclkModeStatus, out uint value))
+            if (!ReadReg(MISC_EclkModeStatus, out uint value))
                 return EclkMode.UNKNOWN;
 
             switch (Utils.GetBits(value, 16, 8))
@@ -223,7 +257,7 @@ namespace ZenStates.Core.Hardware
 
         private bool DisableSpreadSpectrum()
         {
-            if (io.GetPhysLong((UIntPtr)MISC_CGPLLConfig1, out uint value))
+            if (ReadReg(MISC_CGPLLConfig1, out uint value))
             {
                 return io.SetPhysLong((UIntPtr)MISC_CGPLLConfig1, Utils.ClearBit(value, 0));
             }
@@ -232,7 +266,7 @@ namespace ZenStates.Core.Hardware
 
         private bool CG1AtomicUpdate()
         {
-            if (io.GetPhysLong((UIntPtr)MISC_ClkCntl1, out uint value))
+            if (ReadReg(MISC_ClkCntl1, out uint value))
                 return io.SetPhysLong((UIntPtr)MISC_ClkCntl1, Utils.SetBit(value, 30));
             return false;
         }
@@ -278,11 +312,11 @@ namespace ZenStates.Core.Hardware
                 // [9:0]=REFDIV, [21:10]=FBDIV (12 bits), [25:22]=FBDIV_Fraction (4 bits, tenths:
                 // 1h-9h => *0.1, 0h/Ah-Fh => 0). The generic path's index/fraction offsets ([4:9]/[25:4]) and
                 // the XOR-based CalculateBclkIndex don't apply to this family's PLL at all.
-                if (!io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out uint cfg3))
+                if (!ReadReg(MISC_CGPLLConfig3, out uint cfg3))
                     return false;
 
                 uint refDiv = Utils.GetBits(cfg3, 0, 10);
-                if (!io.GetPhysLong((UIntPtr)MISC_CGPLLConfig2, out uint cfg2))
+                if (!ReadReg(MISC_CGPLLConfig2, out uint cfg2))
                     return false;
 
                 // [24:18] CG1PLL_PDIV_CoreCLK: post-divider from the VCO down to the "400 MHz core clock" domain.
@@ -318,7 +352,7 @@ namespace ZenStates.Core.Hardware
                     return false;
 
                 // MISCx44[0] CG1_FBDIV_LoadEn: "Enable loading CG1PLL_FBDIV value from register MISCx10[CG1PLL_FBDIV]."
-                if (!io.GetPhysLong((UIntPtr)MISC_ClkCntl2, out uint cfg44))
+                if (!ReadReg(MISC_ClkCntl2, out uint cfg44))
                     return false;
                 if (!io.SetPhysLong((UIntPtr)MISC_ClkCntl2, Utils.SetBit(cfg44, 0)))
                     return false;
@@ -347,10 +381,20 @@ namespace ZenStates.Core.Hardware
                 }
             }
 
+            // Raven / Picasso / Dali: CGPllCfg3[28:25] are reserved, there is no 1/16 MHz fraction field. Round to a whole MHz
+            // instead of writing reserved bits and reporting a value that is never applied.
+            if (IsLegacyApuClocking)
+            {
+                double whole = Math.Round(bclk, MidpointRounding.AwayFromZero);
+                if (Math.Abs(whole - bclk) > 0.0001)
+                    LastBclkStatus = "Fractional BCLK is not supported on this platform, rounded to " + whole.ToString("0") + " MHz.";
+                bclk = whole;
+            }
+
             DisableSpreadSpectrum();
 
             // CCG1PLL_FBDIV_Enable, bit 25
-            if (!io.GetPhysLong((UIntPtr)MISC_ClkCntl1, out uint value))
+            if (!ReadReg(MISC_ClkCntl1, out uint value))
                 return false;
 
             bool res = io.SetPhysLong((UIntPtr)MISC_ClkCntl1, Utils.SetBit(value, 25));
@@ -363,11 +407,12 @@ namespace ZenStates.Core.Hardware
                 if (fraction > 15)
                     fraction = 15;
 
-                if (!io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out value))
+                if (!ReadReg(MISC_CGPLLConfig3, out value))
                     return false;
 
                 value = Utils.SetBits(value, 4, 9, (uint)index);
-                value = Utils.SetBits(value, 25, 4, fraction);
+                if (!IsLegacyApuClocking)
+                    value = Utils.SetBits(value, 25, 4, fraction);
                 if (!io.SetPhysLong((UIntPtr)MISC_CGPLLConfig3, value))
                 {
                     LastBclkStatus = "Writing CGPLLConfig3 failed.";
@@ -383,7 +428,7 @@ namespace ZenStates.Core.Hardware
                 // MiscClkCntl1[30] CG1_cfg_update_req is cleared by hardware once the request has been sent to CG1_PLL.
                 // Stays set when the PLL never accepted the new value. Only strict on the platforms that document it (PPR 55570).
                 bool updateDone = WaitCfgUpdateDone();
-                bool readBackOk = io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out uint readBack) &&
+                bool readBackOk = ReadReg(MISC_CGPLLConfig3, out uint readBack) &&
                                   Utils.GetBits(readBack, 4, 9) == (uint)index;
 
                 if (!updateDone)
@@ -418,7 +463,7 @@ namespace ZenStates.Core.Hardware
                 if (_clkGen != ClkGen.INTERNAL)
                     return null;
 
-                if (!io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out uint cfg3))
+                if (!ReadReg(MISC_CGPLLConfig3, out uint cfg3))
                     return null;
 
                 uint fbdiv = Utils.GetBits(cfg3, 10, 12);
@@ -427,7 +472,7 @@ namespace ZenStates.Core.Hardware
                 // 0h and Ah-Fh both mean "no fraction" per CGPLLConfig3[CG1PLL_FBDIV_Fraction]'s definition table.
                 double fraction15h = (fracRaw >= 1 && fracRaw <= 9) ? fracRaw * 0.1 : 0.0;
 
-                if (!io.GetPhysLong((UIntPtr)MISC_CGPLLConfig2, out uint cfg2))
+                if (!ReadReg(MISC_CGPLLConfig2, out uint cfg2))
                     return null;
 
                 uint coreClkPostDiv = Utils.GetBits(cfg2, 18, 7);
@@ -445,20 +490,19 @@ namespace ZenStates.Core.Hardware
             if (_clkGen == ClkGen.EXTERNAL && _eclkMode == EclkMode.ASYNC)
                 return null;
 
-            if (io.GetPhysLong((UIntPtr)MISC_CGPLLConfig3, out uint value))
+            if (ReadReg(MISC_CGPLLConfig3, out uint value))
             {
                 uint index = Utils.GetBits(value, 4, 9);
-                uint fMul = Utils.GetBits(value, 25, 4);
+                uint fMul = IsLegacyApuClocking ? 0 : Utils.GetBits(value, 25, 4);
                 return CalculateBclkFromIndex((int)index) + fMul * 0.0625f;
             }
             return null;
         }
 
-        private bool TryRead(uint address, out uint value)
-        {
-            value = 0;
-            return io != null && io.GetPhysLong((UIntPtr)address, out value);
-        }
+        /// <summary>Reads the 32-bit free running ACPI timer through the FCH MMIO window.</summary>
+        public bool TryReadAcpiPmTimer(out uint value) => ReadReg(ACPI_PM_TIMER, out value);
+
+        private bool TryRead(uint address, out uint value) => ReadReg(address, out value);
 
         /// <summary>
         /// Decoded CG1_PLL / reference clock registers. Field positions follow FCH::MISC in AMD PPR 55570 (Family 17h Model 18h).
