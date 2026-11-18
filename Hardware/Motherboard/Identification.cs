@@ -146,6 +146,8 @@ namespace ZenStates.Core.Hardware.Motherboard
                     return Model.AB350M_HDV;
                 case var _ when name.Equals("A320M-HDV", StringComparison.OrdinalIgnoreCase):
                     return Model.A320M_HDV;
+                case var _ when name.Equals("CROSSHAIR VI HERO", StringComparison.OrdinalIgnoreCase):
+                    return Model.ROG_CROSSHAIR_VI_HERO;
                 case var _ when name.Equals("ROG CROSSHAIR VIII HERO", StringComparison.OrdinalIgnoreCase):
                     return Model.ROG_CROSSHAIR_VIII_HERO;
                 case var _ when name.Equals("ROG CROSSHAIR VIII HERO (WI-FI)", StringComparison.OrdinalIgnoreCase):

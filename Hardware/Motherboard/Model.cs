@@ -35,6 +35,7 @@ namespace ZenStates.Core.Hardware.Motherboard
         B650M_HDV_M_2,
 
         // ASUS
+        ROG_CROSSHAIR_VI_HERO,
         ROG_CROSSHAIR_VIII_HERO,
         ROG_CROSSHAIR_VIII_HERO_WIFI,
         ROG_CROSSHAIR_VIII_DARK_HERO,

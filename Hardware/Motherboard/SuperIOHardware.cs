@@ -760,6 +760,41 @@ namespace ZenStates.Core.Hardware.Motherboard
                 case Manufacturer.ASUS:
                     switch (model)
                     {
+                        case Model.ROG_CROSSHAIR_VI_HERO: // IT8665E
+                            v.Add(new Voltage("Vcore", 0, 1, 1));
+                            v.Add(new Voltage("DRAM Voltage", 1, 1, 1));
+                            v.Add(new Voltage("+12V", 2, 5, 1));
+                            v.Add(new Voltage("+5V", 3, 1.5f, 1));
+                            v.Add(new Voltage("CPU NB/SoC", 4, 1, 1)); // matches ASUS WMI "CPU SOC Voltage"
+                            v.Add(new Voltage("VDDP Voltage", 5, 1, 1));
+                            v.Add(new Voltage("1.8V PLL", 6, 1, 1)); // matches ASUS WMI and the BIOS monitor
+                            v.Add(new Voltage("3VSB", 7, 10, 10));
+                            v.Add(new Voltage("CMOS Battery", 8, 10, 10));
+
+                            t.Add(new Temperature("CPU", 0));
+                            t.Add(new Temperature("Motherboard", 1));
+                            // These 4 temperatures move in sync and I can't tell them apart
+                            t.Add(new Temperature("VRM", 2));
+                            t.Add(new Temperature("Temperature #4", 3));
+                            t.Add(new Temperature("Temperature #5", 4));
+                            t.Add(new Temperature("Temperature #6", 5));
+
+                            f.Add(new Fan("CPU Fan", 0));
+                            f.Add(new Fan("Fan #2", 1));
+                            f.Add(new Fan("Fan #3", 2));
+                            f.Add(new Fan("Fan #4", 3));
+                            f.Add(new Fan("Fan #5", 4));
+                            f.Add(new Fan("Fan #6", 5));
+
+                            c.Add(new Control("CPU Fan", 0));
+                            c.Add(new Control("Fan #2", 1));
+                            c.Add(new Control("Fan #3", 2));
+                            c.Add(new Control("Fan #4", 3));
+                            c.Add(new Control("Fan #5", 4));
+                            c.Add(new Control("Fan #6", 5));
+
+                            break;
+
                         case Model.PRIME_X370_PRO: // IT8665E
                             v.Add(new Voltage("Vcore", 0));
                             v.Add(new Voltage("Southbridge 2.5V", 1));
