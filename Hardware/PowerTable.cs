@@ -651,8 +651,10 @@ namespace ZenStates.Core
                 return;
 
             float bclkCorrection = 1.0f;
-            Mmio mmio = Mmio.Instance;
-            double? bclk = mmio != null ? mmio.GetBclk() : null;
+            // MCLK, FCLK and UCLK are reported for a 100 MHz reference; the memory side one also covers
+            // asynchronous eCLK mode, where the cores have their own
+            Bclk clock = Bclk.Instance;
+            double? bclk = clock != null ? clock.GetMemoryBclk() : null;
 
             if (bclk != null)
                 bclkCorrection = (float)bclk / 100.0f;

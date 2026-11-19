@@ -42,6 +42,22 @@ namespace ZenStates.Core
         public ApobDriverType ApobDriver { get; set; } = ApobDriverType.Auto;
 
         /// <summary>
+        /// Measure the reference clock of the memory side on a background thread after start
+        /// (<see cref="Hardware.Bclk.RefreshMemoryBclk"/>), so MEMCLK, UCLK, FCLK and the timings in ns follow the real clock.
+        /// On by default; needs InpOut. When off, or until the measurement is done, the PLL register is used.
+        /// </summary>
+        public bool MeasureMemoryBclk { get; set; } = true;
+
+        /// <summary>
+        /// How often the memory side reference clock is measured again after start, in ms, as some boards let tools change
+        /// it while running. 0 measures only at start and after <see cref="Hardware.Bclk.SetBclk"/>. A measurement takes about 0.4 s
+        /// and holds the PCI bus lock only for a few short reads.
+        /// </summary>
+        public int MemoryBclkRefreshIntervalMs { get; set; } = DefaultMemoryBclkRefreshIntervalMs;
+
+        public const int DefaultMemoryBclkRefreshIntervalMs = 10000;
+
+        /// <summary>
         /// Called with a short description of each initialization stage as <see cref="Cpu"/> starts it,
         /// e.g. to show progress on a splash screen. Runs on the constructing thread; exceptions are ignored.
         /// </summary>

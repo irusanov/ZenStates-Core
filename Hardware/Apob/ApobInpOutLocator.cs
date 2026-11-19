@@ -143,7 +143,7 @@ namespace ZenStates.Core.Hardware.Apob
         }
 
         /// <summary>The ECAM base of PCI segment 0, bus 0 from the ACPI MCFG table; 0 when not found.</summary>
-        private static ulong EcamBaseFromMcfg(byte[] mcfg, List<string> trace)
+        internal static ulong EcamBaseFromMcfg(byte[] mcfg, List<string> trace)
         {
             if (mcfg == null || mcfg.Length < MCFG_ENTRIES_OFFSET + MCFG_ENTRY_SIZE
                 || mcfg[0] != (byte)'M' || mcfg[1] != (byte)'C' || mcfg[2] != (byte)'F' || mcfg[3] != (byte)'G')

@@ -190,6 +190,12 @@ namespace ZenStates.Core
 
         public readonly IODriver io;
         private readonly Mmio mmio;
+
+        /// <summary>
+        /// The reference clock: the clock generator registers, setting BCLK and the measured CPU and memory side clocks.
+        /// Null when the core could not start.
+        /// </summary>
+        public readonly Bclk bclk;
         public readonly CPUInfo info;
         public readonly SystemInfo systemInfo;
         public readonly SMU smu;
@@ -760,7 +766,8 @@ namespace ZenStates.Core
                     throw new ApplicationException(InitializationExceptionText);
                 }
 
-                mmio = new Mmio(info.family, info.codeName);
+                mmio = new Mmio();
+                bclk = new Bclk(this, mmio);
             }
             catch (Exception ex)
             {
@@ -788,6 +795,28 @@ namespace ZenStates.Core
             catch (Exception ex)
             {
                 RecordError(errors, ex, "MemoryConfig");
+            }
+
+            // Before the first power table read, so MCLK, FCLK, UCLK and the timings in ns start with the real clock.
+            // Needs the memory clock ratio from above. Short samples keep it to about half a second; when InpOut is not
+            // open yet it runs on a background thread instead.
+            bool memoryBclkMeasured = false;
+            if (Options.MeasureMemoryBclk && bclk != null)
+            {
+                ReportProgress("BCLK");
+                try
+                {
+                    if (io != null && io.IsInpOutDriverOpen())
+                    {
+                        bclk.RefreshMemoryBclk(Bclk.StartupSampleMs, Bclk.StartupSamples, false,
+                            method => ReportProgress("BCLK, " + method));
+                        memoryBclkMeasured = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    RecordError(errors, ex, "BCLK");
+                }
             }
 
             try
@@ -895,6 +924,11 @@ namespace ZenStates.Core
             InitErrors = errors.AsReadOnly();
             LastError = BuildInitException(errors);
             Status = errors.Count > 0 ? IODriver.LibStatus.PARTIALLY_OK : IODriver.LibStatus.OK;
+
+            // Measures again periodically (tools can change BCLK while running), or for the first time when InpOut was
+            // not open yet above
+            if (Options.MeasureMemoryBclk && bclk != null)
+                bclk.StartBackgroundMeasurement(!memoryBclkMeasured);
         }
 
         private void ReportProgress(string stage)
@@ -1209,6 +1243,9 @@ namespace ZenStates.Core
         {
             return Opcode.Cpuid(index, 0, out eax, out ebx, out ecx, out edx);
         }
+
+        /// <summary>The PawnIO AMDFamily17 module (MSR and SMN access) is loaded.</summary>
+        internal bool IsAmdModuleLoaded => _pawnAmd != null && _pawnAmd.IsLoaded;
 
         public bool ReadMsr(uint index, ref uint eax, ref uint edx)
         {
@@ -1662,199 +1699,125 @@ namespace ZenStates.Core
 
         public uint GetSmuVersion() => _pawnRyzenSmu.GetSmuVersion();
 
-        public double? GetBclk() => mmio?.GetBclk() ?? null;
-
-        public Mmio.ClkGen GetStrapStatus() => mmio?.GetStrapStatus() ?? Mmio.ClkGen.ERROR;
-
-        public bool SetBclk(double blck) => mmio?.SetBclk(blck) ?? false;
-
-        /// <summary>Why the last <see cref="SetBclk"/> failed or only partly succeeded, null if it was clean.</summary>
-        public string GetBclkStatus() => mmio?.LastBclkStatus;
-
-        public Mmio.CpuRefClkSource GetCpuRefClkSource() => mmio?.GetCpuRefClkSource() ?? Mmio.CpuRefClkSource.UNKNOWN;
-
         /// <summary>
-        /// Measures the real BCLK without reading any PLL register: the TSC runs at the P0 frequency (PPR 55570, HWCR[TscFreqSel]),
-        /// P0 = PStateDef0 FID / DID * 200 MHz at a 100 MHz BCLK, and the ACPI timer is clocked from the crystal, independent of CG1_PLL.
-        /// BCLK = measured TSC MHz / P0 MHz * 100. Blocks for about samples * durationMs, call it from a background thread.
-        /// Family 17h/19h/1Ah; the result is meaningless if the TSC is virtualized or P0 was changed while measuring.
+        /// Writes an SMN register through InpOut: the SMN index / data pair of D0F0 (0x60 / 0x64) in the memory-mapped
+        /// PCI configuration space (ECAM, base from the ACPI MCFG table). The legacy 0xCF8 / 0xCFC ports do not work
+        /// through InpOut. For registers the PawnIO modules do not allow writing. Takes the PCI bus lock and puts the
+        /// SMN index back. False when InpOut is not loaded, there is no ECAM range, D0F0 is not an AMD device or the
+        /// lock timed out.
         /// </summary>
-        public BclkMeasurement MeasureBclk(int durationMs = 200, int samples = 3)
+        public bool IoWriteSmn(uint address, uint value) => TryIoWriteSmn(address, value, out _);
+
+        /// <summary>Reads an SMN register the same way as <see cref="IoWriteSmn"/>, through InpOut and ECAM.</summary>
+        public bool IoReadSmn(uint address, out uint value) => TryIoReadSmn(address, out value, out _);
+
+        private const uint SMN_INDEX_REG = 0x60;
+        private const uint SMN_DATA_REG = 0x64;
+
+        // ECAM base of segment 0, bus 0; 0 not looked up yet, ulong.MaxValue when there is none
+        private ulong _ecamBase;
+
+        internal bool TryIoWriteSmn(uint address, uint value, out string error)
         {
-            BclkMeasurement r = new BclkMeasurement();
-
-            if (mmio == null || _pawnAmd == null || !_pawnAmd.IsLoaded)
-            {
-                r.Error = "MMIO or MSR access is not available.";
-                return r;
-            }
-
-            if ((int)info.family < (int)Family.FAMILY_17H || (int)info.family > (int)Family.FAMILY_1AH)
-            {
-                r.Error = "Unsupported CPU family.";
-                return r;
-            }
-
-            if (Opcode.Rdtsc == null)
-            {
-                r.Error = "RDTSC is not available.";
-                return r;
-            }
-
-            if (durationMs < 50) durationMs = 50;
-            if (samples < 1) samples = 1;
-
-            if (!TryGetP0Mhz(out double p0Mhz, out string p0Error))
-            {
-                r.Error = p0Error;
-                return r;
-            }
-
-            r.P0Mhz = p0Mhz;
-
-            double[] results = new double[samples];
-            double[] tscMhz = new double[samples];
-            GroupAffinity previous = ThreadAffinity.Set(GroupAffinity.ForLogicalProcessor(0));
-
-            try
-            {
-                for (int i = 0; i < samples; i++)
-                {
-                    if (!ReadTscAndTimer(out ulong tsc0, out uint tmr0))
-                    {
-                        r.Error = "Could not read the ACPI timer.";
-                        return r;
-                    }
-
-                    System.Threading.Thread.Sleep(durationMs);
-
-                    if (!ReadTscAndTimer(out ulong tsc1, out uint tmr1))
-                    {
-                        r.Error = "Could not read the ACPI timer.";
-                        return r;
-                    }
-
-                    uint ticks = unchecked(tmr1 - tmr0);
-                    if (ticks == 0 || tsc1 <= tsc0)
-                    {
-                        r.Error = "The ACPI timer or the TSC did not advance.";
-                        return r;
-                    }
-
-                    double seconds = ticks / Mmio.AcpiPmTimerHz;
-                    tscMhz[i] = (tsc1 - tsc0) / seconds / 1e6;
-                    results[i] = tscMhz[i] / p0Mhz * 100.0;
-                }
-            }
-            finally
-            {
-                if (previous != GroupAffinity.Undefined)
-                    ThreadAffinity.Set(previous);
-            }
-
-            Array.Sort(results);
-            Array.Sort(tscMhz);
-            r.Samples = samples;
-            r.BclkMhz = results[samples / 2];
-            r.TscMhz = tscMhz[samples / 2];
-            r.SpreadMhz = results[samples - 1] - results[0];
-            return r;
+            uint unused = 0;
+            return IoSmnAccess(address, true, value, ref unused, out error);
         }
 
-        /// <summary>
-        /// P0 core frequency in MHz at a 100 MHz BCLK, from PStateDef0 (MSR C0010064, PstateEn is bit 63).
-        /// Family 17h/19h: CpuFid [7:0] / CpuDfsId [13:8] * 200 MHz.
-        /// Family 1Ah: CpuFid [11:0] in 5 MHz steps, no divider (same field layout as the [11:0] of <see cref="HwPstateStatus"/> on 1Ah,
-        /// see <see cref="GetCoreMulti"/>).
-        /// </summary>
-        private bool TryGetP0Mhz(out double p0Mhz, out string error)
+        internal bool TryIoReadSmn(uint address, out uint value, out string error)
         {
-            p0Mhz = 0;
+            value = 0;
+            return IoSmnAccess(address, false, 0, ref value, out error);
+        }
+
+        private ulong GetEcamBase()
+        {
+            if (_ecamBase == 0)
+            {
+                ulong ecam = 0;
+                try
+                {
+                    byte[] mcfg = OHWM.FirmwareTable.GetTable(OHWM.FirmwareTable.Provider.ACPI, "MCFG");
+                    ecam = ApobInpOutLocator.EcamBaseFromMcfg(mcfg, null);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"GetEcamBase: {ex.Message}");
+                }
+
+                _ecamBase = ecam != 0 ? ecam : ulong.MaxValue;
+            }
+
+            return _ecamBase == ulong.MaxValue ? 0 : _ecamBase;
+        }
+
+        private bool IoSmnAccess(uint address, bool write, uint value, ref uint read, out string error)
+        {
             error = null;
 
-            if (!_pawnAmd.ReadMsr(0xC0010064, out uint eax, out uint edx) || (edx & 0x80000000) == 0)
+            if (io == null || !io.IsInpOutDriverOpen())
             {
-                error = "Could not read PStateDef0.";
+                error = "InpOut is not loaded";
                 return false;
             }
 
-            if (info.family >= Family.FAMILY_1AH)
+            // D0F0 is the first function of the range
+            ulong d0f0 = GetEcamBase();
+            if (d0f0 == 0)
             {
-                uint fid1a = eax & 0xFFF;
-                if (fid1a == 0)
+                error = "no ECAM range in the ACPI MCFG table";
+                return false;
+            }
+
+            if (!Mutexes.WaitPciBus(5000))
+            {
+                error = "the PCI bus lock timed out";
+                return false;
+            }
+
+            try
+            {
+                if (!io.GetPhysLong((UIntPtr)d0f0, out uint id) || (id & 0xFFFF) != 0x1022)
                 {
-                    error = "PStateDef0 has no valid frequency.";
+                    error = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                        "D0F0 at ECAM 0x{0:X} reads 0x{1:X8}, not an AMD host bridge", d0f0, id);
                     return false;
                 }
 
-                p0Mhz = 5.0 * fid1a;
-                return true;
-            }
+                if (!io.GetPhysLong((UIntPtr)(d0f0 + SMN_INDEX_REG), out uint savedIndex))
+                    savedIndex = 0;
 
-            uint fid = eax & 0xFF;
-            uint did = (eax >> 8) & 0x3F;
-            if (fid == 0 || did == 0)
-            {
-                error = "PStateDef0 has no valid frequency.";
-                return false;
-            }
-
-            p0Mhz = 200.0 * fid / did;
-            return true;
-        }
-
-        /// <summary>
-        /// Debug report section: BCLK measured from the TSC against the ACPI timer, next to the PLL register value.
-        /// Takes about a second. Never throws.
-        /// </summary>
-        public string GetBclkMeasurementReport()
-        {
-            StringBuilder sb = new StringBuilder();
-            sb.AppendLine(ReportBuilder.Heading("BCLK Measurement"));
-            sb.AppendLine("-- Method: TSC rate against the ACPI timer (no PLL register is read for the result)");
-
-            try
-            {
-                BclkMeasurement m = MeasureBclk();
-                System.Globalization.CultureInfo ic = System.Globalization.CultureInfo.InvariantCulture;
-
-                if (m.P0Mhz > 0)
-                    sb.AppendLine(string.Format(ic, "-- P0 at 100 MHz BCLK (PStateDef0): {0:0.00} MHz", m.P0Mhz));
-
-                if (m.BclkMhz.HasValue)
+                try
                 {
-                    sb.AppendLine(string.Format(ic, "-- Measured TSC: {0:0.00} MHz", m.TscMhz));
-                    sb.AppendLine(string.Format(ic, "-- Measured BCLK: {0:0.00} MHz (spread {1:0.000} MHz, {2} samples)",
-                        m.BclkMhz.Value, m.SpreadMhz, m.Samples));
+                    if (!io.SetPhysLong((UIntPtr)(d0f0 + SMN_INDEX_REG), address))
+                    {
+                        error = "the SMN index write failed";
+                        return false;
+                    }
+
+                    bool ok = write
+                        ? io.SetPhysLong((UIntPtr)(d0f0 + SMN_DATA_REG), value)
+                        : io.GetPhysLong((UIntPtr)(d0f0 + SMN_DATA_REG), out read);
+
+                    if (!ok)
+                        error = write ? "the SMN data write failed" : "the SMN data read failed";
+
+                    return ok;
                 }
-                else
+                finally
                 {
-                    sb.AppendLine("-- Measured BCLK: not available (" + m.Error + ")");
+                    io.SetPhysLong((UIntPtr)(d0f0 + SMN_INDEX_REG), savedIndex);
                 }
-
-                double? reg = GetBclk();
-                sb.AppendLine(string.Format(ic, "-- Register BCLK (GetBclk): {0}",
-                    reg.HasValue ? reg.Value.ToString("0.00", ic) + " MHz" : "n/a"));
-
-                if (m.BclkMhz.HasValue && reg.HasValue && Math.Abs(m.BclkMhz.Value - reg.Value) > 0.5)
-                    sb.AppendLine("-- The register value does not match the measured clock.");
             }
             catch (Exception ex)
             {
-                sb.AppendLine("-- Measured BCLK: failed (" + ex.Message + ")");
+                error = ex.GetType().Name + ": " + ex.Message;
+                Debug.WriteLine($"IoSmnAccess(0x{address:X8}) threw: {ex.Message}");
+                return false;
             }
-
-            return sb.ToString();
-        }
-
-        // TSC read before and after the timer read; their midpoint pairs the two clocks. The latency is the same at both ends of a sample.
-        private bool ReadTscAndTimer(out ulong tsc, out uint timer)
-        {
-            ulong a = Opcode.Rdtsc();
-            bool ok = mmio.TryReadAcpiPmTimer(out timer);
-            ulong b = Opcode.Rdtsc();
-            tsc = a / 2 + b / 2;
-            return ok;
+            finally
+            {
+                Mutexes.ReleasePciBus();
+            }
         }
 
         public SMU.Status TransferTableToDram() => new TransferTableToDram(smu).Execute().status;
@@ -2411,6 +2374,9 @@ namespace ZenStates.Core
             {
                 if (disposing)
                 {
+                    // Stops the background clock measurement first, while the drivers are still there
+                    bclk?.Close();
+
                     // The statics go first: anything still reaching the hardware through Mmio.Instance or
                     // PowerTable.Instance (BaseDramTimings.Frequency, for one) must not find a live object
                     // once the drivers below are gone.

@@ -406,7 +406,7 @@ namespace ZenStates.Core.Hardware.DRAM
                     return mclk * 2;
                 }
 
-                double bclk = Mmio.Instance?.GetBclk() ?? DefaultBclk;
+                double bclk = Bclk.Instance?.GetMemoryBclk() ?? DefaultBclk;
                 return Ratio * (float)bclk * ClockToDataRate;
             }
         }
