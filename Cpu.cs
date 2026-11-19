@@ -27,6 +27,7 @@ namespace ZenStates.Core
     {
         private readonly AmdFamily17 _pawnAmd;
         private readonly RyzenSmu _pawnRyzenSmu;
+        private readonly AmdApob _pawnApob;
         private readonly SmbusDriverBase _smbusPiix4;
         private readonly LpcIO _lpcIO;
         private bool disposedValue;
@@ -43,6 +44,9 @@ namespace ZenStates.Core
         public readonly Version Version = Assembly.GetExecutingAssembly().GetName().Version;
 
         public RyzenSmu RyzenSmu => _pawnRyzenSmu;
+
+        /// <summary>The AMDAPOB PawnIO module, null when it could not be loaded.</summary>
+        public AmdApob PawnApob => _pawnApob;
 
         public enum Family
         {
@@ -716,6 +720,20 @@ namespace ZenStates.Core
                         "PawnIO Ryzen SMU module could not be loaded. Make sure the PawnIO driver is installed and running, and that the application runs as administrator.");
                 }
 
+                // Optional: without it only the APOB is unavailable
+                try
+                {
+                    _pawnApob = new AmdApob();
+                    if (!_pawnApob.IsLoaded)
+                        Debug.WriteLine("The PawnIO AMDAPOB module could not be loaded.");
+                }
+                catch (Exception ex)
+                {
+                    // Not an init error: Apob.ErrorReason reports the missing module
+                    _pawnApob = null;
+                    Debug.WriteLine("PawnIO AMDAPOB module: " + ex.Message);
+                }
+
                 try
                 {
                     io = new IODriver();
@@ -807,7 +825,7 @@ namespace ZenStates.Core
             ReportProgress("APOB");
             try
             {
-                info.apob = new Apob(info, memoryConfig);
+                info.apob = new Apob(info, memoryConfig, _pawnApob);
 
                 // Soldered LPDDR5 has no SPD device; the APOB keeps the copy the BIOS used
                 memoryConfig?.UseApobSpd(info.apob.DimmSpd);
@@ -2386,6 +2404,7 @@ namespace ZenStates.Core
 
                     _pawnAmd?.Close();
                     _pawnRyzenSmu?.Dispose();
+                    _pawnApob?.Dispose();
                     _smbusPiix4?.Dispose();
                     _lpcIO?.Close();
                     systemInfo?.Dispose();

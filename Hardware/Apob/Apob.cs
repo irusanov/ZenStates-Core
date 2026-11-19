@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using ZenStates.Core.Common;
 using ZenStates.Core.Drivers;
 using ZenStates.Core.Hardware.DRAM;
+using ZenStates.Core.PawnIo;
 using static ZenStates.Core.Cpu;
 
 namespace ZenStates.Core.Hardware.Apob
@@ -92,7 +93,8 @@ namespace ZenStates.Core.Hardware.Apob
         private const uint APOB_CCX_EDC_THROTTLE_THRESH_TYPE      = 2;
         private const uint APOB_CCD_LOGICAL_TO_PHYSICAL_MAP_TYPE  = 3;
 
-        private static readonly uint[] KnownAddresses = new uint[] { 0xA200000, 0x9F00000, 0x4000000 };
+        // InpOut path, replaced by the AMDAPOB PawnIO module (which locates the table itself)
+        //private static readonly uint[] KnownAddresses = new uint[] { 0xA200000, 0x9F00000, 0x4000000 };
         private static IODriver _ioDriver => IODriver.Instance;
 
         private readonly CPUInfo _cpuInfo;
@@ -118,6 +120,12 @@ namespace ZenStates.Core.Hardware.Apob
 
         /// <summary>Human-readable reason why APOB initialisation failed, or <c>null</c> on success.</summary>
         public string ErrorReason { get; private set; }
+
+        /// <summary>
+        /// How the AMDAPOB PawnIO module located the table (address source, EFS), for the debug report;
+        /// null when it is not known.
+        /// </summary>
+        public string LocateInfo { get; private set; }
 
         /// <summary>Physical base address of the APOB table.</summary>
         public uint Address { get; private set; }
@@ -286,14 +294,19 @@ namespace ZenStates.Core.Hardware.Apob
             get { return SliceRawTable(ExtendedDataOffset, ExtendedDataSize); }
         }
 
-        public Apob(CPUInfo cpuInfo, MemoryConfig memoryConfig = null)
+        /// <summary>
+        /// Reads the APOB of the running system through the AMDAPOB PawnIO module, which locates the table and
+        /// returns its bytes.
+        /// </summary>
+        public Apob(CPUInfo cpuInfo, MemoryConfig memoryConfig = null, AmdApob pawnApob = null)
         {
-            if (_ioDriver == null)
-            {
-                ErrorReason = "I/O Driver instance is not available.";
-                Debug.WriteLine(ErrorReason);
-                return;
-            }
+            // InpOut path, replaced by the AMDAPOB PawnIO module
+            //if (_ioDriver == null)
+            //{
+            //    ErrorReason = "I/O Driver instance is not available.";
+            //    Debug.WriteLine(ErrorReason);
+            //    return;
+            //}
 
             _cpuInfo = cpuInfo;
             _memoryConfig = memoryConfig;
@@ -301,28 +314,74 @@ namespace ZenStates.Core.Hardware.Apob
             // Might be not defined, but we still need to get raw data
             _profile = ApobProfiles.Resolve(_cpuInfo);
 
-            Address = FindApobAddress();
-            if (!IsAvailable)
+            if (pawnApob == null || !pawnApob.IsLoaded)
             {
-                ErrorReason = "APOB signature not found at any known physical address.";
+                ErrorReason = "The PawnIO AMDAPOB module is not loaded.";
+                Debug.WriteLine(ErrorReason);
                 return;
             }
 
-            if (!TryParseHeader(Address, out ApobHeader header))
+            if (!pawnApob.GetApobInfo(out uint address, out uint _, out uint tableSize, out uint headerSize) || address == 0)
             {
-                ErrorReason = string.Format("Failed to read or parse APOB header at address 0x{0:X8}.", Address);
+                ErrorReason = "The PawnIO AMDAPOB module could not locate the APOB table.";
+                return;
+            }
+            Address = address;
+            LocateInfo = DescribeLocate(pawnApob);
+
+            byte[] table = tableSize != 0 ? pawnApob.ReadTable(0, tableSize) : null;
+            if (table == null || table.Length < 16 || Utils.ReadUInt32(table, 0) != APOB_SIGNATURE)
+            {
+                Address = 0;
+                ErrorReason = string.Format("Failed to read the APOB table ({0} bytes) at address 0x{1:X8} through the PawnIO AMDAPOB module.", tableSize, address);
+                return;
+            }
+
+            if (!TryParseHeader(table, headerSize, out ApobHeader header))
+            {
+                Address = 0;
+                ErrorReason = string.Format("Failed to parse the APOB header at address 0x{0:X8}.", address);
                 return;
             }
             Header = header;
+            RawTable = table;
 
-            RawTable = _ioDriver.ReadMemory(new IntPtr(Address), unchecked((int)Header.TableSize));
-            if (RawTable == null || RawTable.Length == 0)
-            {
-                ErrorReason = string.Format("Failed to read APOB table body ({0} bytes) at address 0x{1:X8}.", Header.TableSize, Address);
-                return;
-            }
+            // InpOut path, replaced by the AMDAPOB PawnIO module
+            //Address = FindApobAddress();
+            //if (!IsAvailable)
+            //{
+            //    ErrorReason = "APOB signature not found at any known physical address.";
+            //    return;
+            //}
+            //
+            //if (!TryParseHeader(Address, out ApobHeader header))
+            //{
+            //    ErrorReason = string.Format("Failed to read or parse APOB header at address 0x{0:X8}.", Address);
+            //    return;
+            //}
+            //Header = header;
+            //
+            //RawTable = _ioDriver.ReadMemory(new IntPtr(Address), unchecked((int)Header.TableSize));
+            //if (RawTable == null || RawTable.Length == 0)
+            //{
+            //    ErrorReason = string.Format("Failed to read APOB table body ({0} bytes) at address 0x{1:X8}.", Header.TableSize, Address);
+            //    return;
+            //}
 
             ParseTable();
+        }
+
+        private static string DescribeLocate(AmdApob pawnApob)
+        {
+            if (!pawnApob.GetApobDebugInfo(out int source, out int firmwareAddresses, out ulong efsAddress))
+                return null;
+
+            string from = source == AmdApob.SOURCE_FIRMWARE ? "firmware image"
+                : source == AmdApob.SOURCE_KNOWN_ADDRESS ? "known address list"
+                : string.Format(CultureInfo.InvariantCulture, "unknown ({0})", source);
+
+            return string.Format(CultureInfo.InvariantCulture, "{0}; firmware addresses: {1}, EFS: 0x{2:X}",
+                from, firmwareAddresses, efsAddress);
         }
 
         /// <summary>
@@ -455,16 +514,17 @@ namespace ZenStates.Core.Hardware.Apob
             return buffer;
         }
 
-        private static uint FindApobAddress()
-        {
-            for (int i = 0; i < KnownAddresses.Length; i++)
-            {
-                if (_ioDriver.GetPhysLong(new UIntPtr(KnownAddresses[i]), out uint data) && data == APOB_SIGNATURE)
-                    return KnownAddresses[i];
-            }
-
-            return 0;
-        }
+        // InpOut path, replaced by the AMDAPOB PawnIO module
+        //private static uint FindApobAddress()
+        //{
+        //    for (int i = 0; i < KnownAddresses.Length; i++)
+        //    {
+        //        if (_ioDriver.GetPhysLong(new UIntPtr(KnownAddresses[i]), out uint data) && data == APOB_SIGNATURE)
+        //            return KnownAddresses[i];
+        //    }
+        //
+        //    return 0;
+        //}
 
         /// <summary>
         /// Reads the APCBs (BIOS option tokens) from the SPI flash through the BIOS directories, once; later calls
@@ -619,23 +679,20 @@ namespace ZenStates.Core.Hardware.Apob
             return true;
         }
 
-        /// <summary>
-        /// Reads the header size from offset 0xC, then reads and deserialises the full header.
-        /// </summary>
-        private static bool TryParseHeader(uint address, out ApobHeader header)
+        /// <summary>Deserialises the header from the first <paramref name="headerSize"/> bytes of the table.</summary>
+        private static bool TryParseHeader(byte[] table, uint headerSize, out ApobHeader header)
         {
             header = default;
             try
             {
-                if (!_ioDriver.GetPhysLong(new UIntPtr(address + ENTRY_SIZE_OFFSET), out uint headerSize) || headerSize == 0)
+                if (table == null || headerSize == 0 || headerSize > table.Length)
                     return false;
 
-                byte[] headerData = _ioDriver.ReadMemory(new IntPtr(address), (int)headerSize);
-                if (headerData == null || headerData.Length < (int)headerSize)
-                    return false;
+                byte[] headerData = new byte[headerSize];
+                Buffer.BlockCopy(table, 0, headerData, 0, (int)headerSize);
 
                 header = Utils.ByteArrayToStructure<ApobHeader>(headerData);
-                return true;
+                return header.HeaderSize != 0 && header.TableSize != 0;
             }
             catch (Exception ex)
             {
@@ -643,6 +700,32 @@ namespace ZenStates.Core.Hardware.Apob
                 return false;
             }
         }
+
+        // InpOut path, replaced by the AMDAPOB PawnIO module
+        ///// <summary>
+        ///// Reads the header size from offset 0xC, then reads and deserialises the full header.
+        ///// </summary>
+        //private static bool TryParseHeader(uint address, out ApobHeader header)
+        //{
+        //    header = default;
+        //    try
+        //    {
+        //        if (!_ioDriver.GetPhysLong(new UIntPtr(address + ENTRY_SIZE_OFFSET), out uint headerSize) || headerSize == 0)
+        //            return false;
+        //
+        //        byte[] headerData = _ioDriver.ReadMemory(new IntPtr(address), (int)headerSize);
+        //        if (headerData == null || headerData.Length < (int)headerSize)
+        //            return false;
+        //
+        //        header = Utils.ByteArrayToStructure<ApobHeader>(headerData);
+        //        return true;
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        Debug.WriteLine(ex.Message);
+        //        return false;
+        //    }
+        //}
 
         private static List<uint> GetConfigOffsets(byte[] table, ApobHeader header)
         {
@@ -1529,6 +1612,8 @@ namespace ZenStates.Core.Hardware.Apob
                 }
 
                 report.AppendLine(string.Format("-- Address: 0x{0:X8}", Address));
+                if (!string.IsNullOrEmpty(LocateInfo))
+                    report.AppendLine("-- Located By: " + LocateInfo);
                 report.AppendLine(string.Format("-- Main Data Offset: 0x{0:X8}", DataOffset));
                 report.AppendLine(string.Format("-- Main Data Size: 0x{0:X8} ({0})", DataSize));
                 report.AppendLine(string.Format("-- Main Layout Offset: 0x{0:X8}", MainLayoutDataOffset));
