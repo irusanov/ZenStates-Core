@@ -53,8 +53,11 @@ namespace ZenStates.Core.Hardware.Apob
             int extendedRecordOffset = -1, int extendedRecordStride = 0, int pStateBlockStride = 0,
             int clockBytesSearchStart = 0, int clockBytesSearchEnd = 0, int wckOffset = -1,
             int lpddr5ModeRegisterOffset = -1, int lpddr5ModeRegisterCopies = 0,
-            int ddr4ModeRegisterSearchStart = 0, int ddr4ModeRegisterSearchEnd = 0)
+            int ddr4ModeRegisterSearchStart = 0, int ddr4ModeRegisterSearchEnd = 0,
+            int channelIdOffset = NoChannelId, bool skipDuplicateChannels = false)
         {
+            ChannelIdOffset = channelIdOffset;
+            SkipDuplicateChannels = skipDuplicateChannels;
             Ddr4ModeRegisterSearchStart = ddr4ModeRegisterSearchStart;
             Ddr4ModeRegisterSearchEnd = ddr4ModeRegisterSearchEnd;
             Lpddr5ModeRegisterOffset = lpddr5ModeRegisterOffset;
@@ -152,6 +155,22 @@ namespace ZenStates.Core.Hardware.Apob
         /// </summary>
         public int Lpddr5ModeRegisterOffset { get; private set; }
         public int Lpddr5ModeRegisterCopies { get; private set; }
+
+        /// <summary><see cref="ChannelIdOffset"/> when the layout has no channel number.</summary>
+        public const int NoChannelId = int.MinValue;
+
+        /// <summary>
+        /// Where the channel number (u16) of a channel's timing blocks is, relative to the MEMCLK of its first block;
+        /// <see cref="NoChannelId"/> to number the channels in order. Used where a channel without DIMMs has no blocks,
+        /// so the order alone would give the next channel its number.
+        /// </summary>
+        public int ChannelIdOffset { get; private set; }
+
+        /// <summary>
+        /// The entry keeps a second copy of the channels' blocks: a channel whose blocks repeat those of an earlier one
+        /// byte for byte is dropped.
+        /// </summary>
+        public bool SkipDuplicateChannels { get; private set; }
 
         /// <summary>
         /// First and last distance after the DDR4 clock bytes to look for the DDR4 mode registers
@@ -392,7 +411,113 @@ namespace ZenStates.Core.Hardware.Apob
                     o++;
             }
 
+            if (layout.SkipDuplicateChannels)
+                result = DropDuplicateChannels(buffer, entryOffset, result, layout);
+
+            if (layout.ChannelIdOffset != ApobChannelTimingLayout.NoChannelId)
+                ApplyChannelIds(buffer, entryOffset, result, layout, maxChannels);
+
             return result;
+        }
+
+        /// <summary>
+        /// Drops the channels whose blocks repeat those of an earlier channel byte for byte (a P-state stride per block),
+        /// and numbers the blocks again.
+        /// </summary>
+        private static List<ApobChannelTimings> DropDuplicateChannels(byte[] buffer, uint entryOffset, List<ApobChannelTimings> blocks,
+            ApobChannelTimingLayout layout)
+        {
+            int length = Math.Max(layout.PStateBlockStride, layout.Span);
+            var channels = new List<List<ApobChannelTimings>>();
+            foreach (ApobChannelTimings block in blocks)
+            {
+                if (channels.Count == 0 || channels[channels.Count - 1][0].Channel != block.Channel)
+                    channels.Add(new List<ApobChannelTimings>());
+                channels[channels.Count - 1].Add(block);
+            }
+
+            var kept = new List<List<ApobChannelTimings>>();
+            foreach (List<ApobChannelTimings> channel in channels)
+            {
+                bool duplicate = false;
+                foreach (List<ApobChannelTimings> earlier in kept)
+                {
+                    if (earlier.Count != channel.Count)
+                        continue;
+
+                    bool same = true;
+                    for (int i = 0; i < channel.Count && same; i++)
+                        same = SameBytes(buffer, entryOffset + earlier[i].EntryRelativeOffset, entryOffset + channel[i].EntryRelativeOffset, length);
+
+                    if (same)
+                    {
+                        duplicate = true;
+                        break;
+                    }
+                }
+
+                if (!duplicate)
+                    kept.Add(channel);
+            }
+
+            var result = new List<ApobChannelTimings>();
+            for (int c = 0; c < kept.Count; c++)
+            {
+                foreach (ApobChannelTimings block in kept[c])
+                {
+                    block.Channel = c;
+                    block.Index = result.Count;
+                    result.Add(block);
+                }
+            }
+
+            return result;
+        }
+
+        private static bool SameBytes(byte[] buffer, uint a, uint b, int length)
+        {
+            if ((ulong)a + (ulong)length > (ulong)buffer.Length || (ulong)b + (ulong)length > (ulong)buffer.Length)
+                return false;
+
+            for (int i = 0; i < length; i++)
+            {
+                if (buffer[a + i] != buffer[b + i])
+                    return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Takes the channel numbers from the entry. The numbers in order are kept when one is out of range or is
+        /// repeated.
+        /// </summary>
+        private static void ApplyChannelIds(byte[] buffer, uint entryOffset, List<ApobChannelTimings> blocks,
+            ApobChannelTimingLayout layout, int maxChannels)
+        {
+            var ids = new Dictionary<int, int>();
+            // Channel numbers taken so far (a list: HashSet is not in .NET 2.0)
+            var used = new List<int>();
+            foreach (ApobChannelTimings block in blocks)
+            {
+                if (ids.ContainsKey(block.Channel))
+                    continue;
+
+                long at = (long)entryOffset + block.EntryRelativeOffset + layout.MemClkOffset + layout.ChannelIdOffset;
+                if (at < 0 || at + 2 > buffer.Length)
+                    return;
+
+                int id = ApobBytes.U16(buffer, (uint)at);
+                if (id >= maxChannels || used.Contains(id))
+                    return;
+
+                used.Add(id);
+
+                ids[block.Channel] = id;
+            }
+
+            foreach (ApobChannelTimings block in blocks)
+                block.Channel = ids[block.Channel];
         }
 
         /// <summary>
