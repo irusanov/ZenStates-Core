@@ -85,6 +85,12 @@ namespace ZenStates.Core.Hardware.Apob
         private const uint PSP_TYPE_BIOS_L2 = 0x49;
         private const uint PSP_TYPE_L2B = 0x4A;
         private const uint BIOS_TYPE_L2 = 0x70;
+        private const uint BIOS_TYPE_APOB = 0x61;
+
+        // BIOS directory entry: destination (64-bit) of the data in DRAM
+        private const uint BIOS_ENTRY_DESTINATION = 0x10;
+        private const uint PAGE_SIZE = 0x1000;
+        private const int MAX_APOB_DESTINATIONS = 4;
 
         private const int ADDR_MODE_REL_TAB = 2;
 
@@ -126,6 +132,43 @@ namespace ZenStates.Core.Hardware.Apob
             return entries;
         }
 
+        /// <summary>
+        /// Returns the APOB addresses recorded in the firmware: the destinations of the APOB entries (type 0x61) of
+        /// the BIOS directories, page aligned and below 4 GiB, without duplicates (at most 4). The windows are tried
+        /// in order; the first window that gives an address wins. This is the walk of the AMDAPOB PawnIO module.
+        /// </summary>
+        /// <param name="efsAddress">Physical address of the last EFS found, 0 when none.</param>
+        public static List<uint> FindApobDestinations(PhysicalDwordReader read, IList<FlashWindow> windows, out ulong efsAddress,
+            List<string> trace = null)
+        {
+            var addresses = new List<uint>();
+            efsAddress = 0;
+
+            foreach (FlashWindow window in windows)
+            {
+                if (window.Size < IMAGE_SIZE)
+                {
+                    Log(trace, "{0} 0x{1:X}: window of 0x{2:X} bytes skipped", window.Name, window.Base, window.Size);
+                    continue;
+                }
+
+                var walker = new Walker(read, window, trace, null) { CollectApob = true };
+                WalkWindow(walker, window);
+                walker.Log("{0}: {1} APOB address(es)", window.Name, walker.ApobDestinations.Count);
+
+                if (walker.EfsAddress != 0)
+                    efsAddress = walker.EfsAddress;
+
+                if (walker.ApobDestinations.Count > 0)
+                {
+                    addresses = walker.ApobDestinations;
+                    break;
+                }
+            }
+
+            return addresses;
+        }
+
         // Searches every 16 MiB page of the window for an EFS and walks the directories it points to.
         private static void WalkWindow(Walker walker, FlashWindow window)
         {
@@ -141,6 +184,7 @@ namespace ZenStates.Core.Hardware.Apob
                         continue;
 
                     efsFound = true;
+                    walker.EfsAddress = window.Base + efs;
                     walker.Log("EFS at 0x{0:X7}", efs);
                     walker.WalkEfs(efs, image);
                 }
@@ -167,6 +211,13 @@ namespace ZenStates.Core.Hardware.Apob
             private readonly uint[] _collectTypes;
 
             public readonly List<BiosEntry> Entries = new List<BiosEntry>();
+
+            /// <summary>Collect the destinations of the APOB entries into <see cref="ApobDestinations"/>.</summary>
+            public bool CollectApob;
+            public readonly List<uint> ApobDestinations = new List<uint>();
+
+            /// <summary>Physical address of the last EFS found in the window, 0 when none.</summary>
+            public ulong EfsAddress;
 
             public Walker(PhysicalDwordReader read, FlashWindow window, List<string> trace, uint[] collectTypes)
             {
@@ -366,6 +417,9 @@ namespace ZenStates.Core.Hardware.Apob
                         if (_collectTypes != null && System.Array.IndexOf(_collectTypes, type) >= 0)
                             CollectEntry(offset, image, entry, typeField, location, mode);
 
+                        if (CollectApob && type == BIOS_TYPE_APOB)
+                            CollectApobDestination(entry);
+
                         if (type == BIOS_TYPE_L2)
                         {
                             if (TryEntryOffset(offset, image, location, mode, out uint target))
@@ -422,6 +476,27 @@ namespace ZenStates.Core.Hardware.Apob
 
                 // Physical address or offset from the start of the image; images mix both in either mode.
                 return TryImageOffset(image, location, out offset);
+            }
+
+            // The APOB entry has no data in the flash; its destination is where the PSP puts the table in DRAM.
+            private void CollectApobDestination(uint entry)
+            {
+                if (!Read64(entry + BIOS_ENTRY_DESTINATION, out ulong destination))
+                    return;
+
+                // A page aligned address below 4 GiB
+                if (destination == 0 || destination > uint.MaxValue || (destination & (PAGE_SIZE - 1)) != 0)
+                {
+                    Log("    entry 0x61: destination 0x{0:X} not used", destination);
+                    return;
+                }
+
+                uint address = (uint)destination;
+                if (ApobDestinations.Contains(address) || ApobDestinations.Count >= MAX_APOB_DESTINATIONS)
+                    return;
+
+                Log("    entry 0x61: APOB destination 0x{0:X8}", address);
+                ApobDestinations.Add(address);
             }
 
             private void CollectEntry(uint directory, uint image, uint entry, uint typeField, ulong location, int mode)
