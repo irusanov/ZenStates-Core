@@ -858,6 +858,19 @@ namespace ZenStates.Core
                 RecordError(errors, ex, "SystemInfo");
             }
 
+            if (systemInfo != null && Options.Wmi.Enabled != false)
+            {
+                ReportProgress("ASUS WMI");
+                try
+                {
+                    systemInfo.AddHardware(AsusWmiHardware.TryCreate());
+                }
+                catch (Exception ex)
+                {
+                    RecordError(errors, ex, "ASUS WMI");
+                }
+            }
+
             ReportProgress("Power table");
             try
             {
