@@ -1,4 +1,5 @@
 using System;
+using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core
 {
@@ -32,6 +33,13 @@ namespace ZenStates.Core
         public ModuleSettings Aod { get; set; }
         public ModuleSettings Wmi { get; set; }
         public ModuleSettings Sensors { get; set; }
+
+        /// <summary>
+        /// The driver that reads the APOB: <see cref="ApobDriverType.Auto"/> (default) takes the PawnIO AMDAPOB
+        /// module when it loads and InpOut otherwise; <see cref="ApobDriverType.PawnIo"/> or
+        /// <see cref="ApobDriverType.InpOut"/> use only that one.
+        /// </summary>
+        public ApobDriverType ApobDriver { get; set; } = ApobDriverType.Auto;
 
         /// <summary>
         /// Called with a short description of each initialization stage as <see cref="Cpu"/> starts it,

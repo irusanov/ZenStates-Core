@@ -27,7 +27,7 @@ namespace ZenStates.Core
     {
         private readonly AmdFamily17 _pawnAmd;
         private readonly RyzenSmu _pawnRyzenSmu;
-        private readonly AmdApob _pawnApob;
+        private ApobDriverBase _apobDriver;
         private readonly SmbusDriverBase _smbusPiix4;
         private readonly LpcIO _lpcIO;
         private bool disposedValue;
@@ -45,8 +45,10 @@ namespace ZenStates.Core
 
         public RyzenSmu RyzenSmu => _pawnRyzenSmu;
 
-        /// <summary>The AMDAPOB PawnIO module, null when it could not be loaded.</summary>
-        public AmdApob PawnApob => _pawnApob;
+        /// <summary>
+        /// The driver that read the APOB (<see cref="CoreOptions.ApobDriver"/>), null when none was available.
+        /// </summary>
+        public ApobDriverBase ApobDriver => _apobDriver;
 
         public enum Family
         {
@@ -720,20 +722,6 @@ namespace ZenStates.Core
                         "PawnIO Ryzen SMU module could not be loaded. Make sure the PawnIO driver is installed and running, and that the application runs as administrator.");
                 }
 
-                // Optional: without it only the APOB is unavailable
-                try
-                {
-                    _pawnApob = new AmdApob();
-                    if (!_pawnApob.IsLoaded)
-                        Debug.WriteLine("The PawnIO AMDAPOB module could not be loaded.");
-                }
-                catch (Exception ex)
-                {
-                    // Not an init error: Apob.ErrorReason reports the missing module
-                    _pawnApob = null;
-                    Debug.WriteLine("PawnIO AMDAPOB module: " + ex.Message);
-                }
-
                 try
                 {
                     io = new IODriver();
@@ -825,7 +813,7 @@ namespace ZenStates.Core
             ReportProgress("APOB");
             try
             {
-                // TOP_MEM limits the InpOut lookup to DRAM when the AMDAPOB module is not loaded
+                // TOP_MEM limits the InpOut lookup to DRAM; the PawnIO module reads it itself
                 ulong topMem = 0;
                 try
                 {
@@ -838,7 +826,9 @@ namespace ZenStates.Core
                     Debug.WriteLine("TOP_MEM: " + ex.Message);
                 }
 
-                info.apob = new Apob(info, memoryConfig, _pawnApob, topMem);
+                // Optional: without a driver only the APOB is unavailable, and Apob.ErrorReason says why
+                _apobDriver = ApobProvider.Create(Options.ApobDriver, topMem);
+                info.apob = new Apob(info, memoryConfig, _apobDriver);
 
                 // Soldered LPDDR5 has no SPD device; the APOB keeps the copy the BIOS used
                 memoryConfig?.UseApobSpd(info.apob.DimmSpd);
@@ -2430,7 +2420,7 @@ namespace ZenStates.Core
 
                     _pawnAmd?.Close();
                     _pawnRyzenSmu?.Dispose();
-                    _pawnApob?.Dispose();
+                    _apobDriver?.Dispose();
                     _smbusPiix4?.Dispose();
                     _lpcIO?.Close();
                     systemInfo?.Dispose();

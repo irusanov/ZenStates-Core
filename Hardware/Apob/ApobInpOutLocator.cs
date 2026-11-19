@@ -67,7 +67,7 @@ namespace ZenStates.Core.Hardware.Apob
             public string Describe()
             {
                 string from = Source == SOURCE_FIRMWARE ? "firmware image" : "known address list";
-                return string.Format(CultureInfo.InvariantCulture, "InpOut, {0}; firmware addresses: {1}, EFS: 0x{2:X}",
+                return string.Format(CultureInfo.InvariantCulture, "{0}; firmware addresses: {1}, EFS: 0x{2:X}",
                     from, FirmwareAddresses, EfsAddress);
             }
         }

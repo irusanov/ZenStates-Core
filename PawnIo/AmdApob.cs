@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Globalization;
 using System.IO;
+using ZenStates.Core.Drivers;
 
 namespace ZenStates.Core.PawnIo
 {
@@ -7,8 +9,12 @@ namespace ZenStates.Core.PawnIo
     /// Read-only access to the AGESA PSP Output Block (APOB) through the AMDAPOB PawnIO module.
     /// The module locates the table when it is loaded (the address recorded in the firmware image first, then
     /// the known addresses) and fails to load when there is none; parsing is left to the caller.
+    /// <para>
+    /// The PawnIO APOB driver: <see cref="ApobDriverBase.Locate"/> and <see cref="ApobDriverBase.Read"/> go
+    /// through the ioctls below.
+    /// </para>
     /// </summary>
-    public class AmdApob : IDisposable
+    public class AmdApob : ApobDriverBase
     {
         // ioctl_get_apob_info: in = none, out = [address, version, table size, header size] (exactly 4 cells)
         private const string IOCTL_GET_APOB_INFO = "ioctl_get_apob_info";
@@ -41,6 +47,12 @@ namespace ZenStates.Core.PawnIo
         /// loads on a supported CPU with an APOB it could find.
         /// </summary>
         public bool IsLoaded => _pawnIo.IsLoaded;
+
+        public override ApobDriverType Type => ApobDriverType.PawnIo;
+
+        public override string Name => "PawnIO AMDAPOB";
+
+        public override bool IsAvailable => !_disposed && IsLoaded;
 
         public AmdApob()
         {
@@ -172,15 +184,54 @@ namespace ZenStates.Core.PawnIo
             return status == STATUS_SUCCESS && returnSize > 0;
         }
 
-        public void Close()
+        protected override ApobLocation LocateTable()
         {
-            if (_disposed)
-                return;
+            if (!GetApobInfo(out uint address, out uint version, out uint tableSize, out uint headerSize))
+            {
+                Trace.Add("the module did not return a table address");
+                return null;
+            }
 
-            _disposed = true;
-            _pawnIo.Close();
+            return new ApobLocation
+            {
+                Address = address,
+                Version = version,
+                TableSize = tableSize,
+                HeaderSize = headerSize,
+                Description = DescribeSource(),
+            };
         }
 
-        public void Dispose() => Close();
+        protected override byte[] ReadTable(ApobLocation location)
+        {
+            return ReadTable(0, location.TableSize);
+        }
+
+        // How the module located the table; null with a module build without the debug ioctl
+        private string DescribeSource()
+        {
+            if (!GetApobDebugInfo(out int source, out int firmwareAddresses, out ulong efsAddress))
+                return null;
+
+            string from = source == SOURCE_FIRMWARE ? "firmware image"
+                : source == SOURCE_KNOWN_ADDRESS ? "known address list"
+                : string.Format(CultureInfo.InvariantCulture, "unknown ({0})", source);
+
+            return string.Format(CultureInfo.InvariantCulture, "{0}; firmware addresses: {1}, EFS: 0x{2:X}",
+                from, firmwareAddresses, efsAddress);
+        }
+
+        public void Close() => Dispose();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                _disposed = true;
+                _pawnIo.Close();
+            }
+
+            base.Dispose(disposing);
+        }
     }
 }

@@ -6,7 +6,6 @@ using System.Text.RegularExpressions;
 using ZenStates.Core.Common;
 using ZenStates.Core.Drivers;
 using ZenStates.Core.Hardware.DRAM;
-using ZenStates.Core.PawnIo;
 using static ZenStates.Core.Cpu;
 
 namespace ZenStates.Core.Hardware.Apob
@@ -93,8 +92,7 @@ namespace ZenStates.Core.Hardware.Apob
         private const uint APOB_CCX_EDC_THROTTLE_THRESH_TYPE      = 2;
         private const uint APOB_CCD_LOGICAL_TO_PHYSICAL_MAP_TYPE  = 3;
 
-        // InpOut path, replaced by the AMDAPOB PawnIO module (which locates the table itself)
-        //private static readonly uint[] KnownAddresses = new uint[] { 0xA200000, 0x9F00000, 0x4000000 };
+        // Physical reads for the APCB in the SPI flash; the table itself comes from the APOB driver
         private static IODriver _ioDriver => IODriver.Instance;
 
         private readonly CPUInfo _cpuInfo;
@@ -122,10 +120,13 @@ namespace ZenStates.Core.Hardware.Apob
         public string ErrorReason { get; private set; }
 
         /// <summary>
-        /// How the AMDAPOB PawnIO module located the table (address source, EFS), for the debug report;
+        /// The driver that read the table and how it located it (address source, EFS), for the debug report;
         /// null when it is not known.
         /// </summary>
         public string LocateInfo { get; private set; }
+
+        /// <summary>The driver that read the table; null for a table that was not read from this system.</summary>
+        public ApobDriverType? DriverType { get; private set; }
 
         /// <summary>Physical base address of the APOB table.</summary>
         public uint Address { get; private set; }
@@ -294,145 +295,72 @@ namespace ZenStates.Core.Hardware.Apob
             get { return SliceRawTable(ExtendedDataOffset, ExtendedDataSize); }
         }
 
-        /// <summary>Steps of the APOB lookup through InpOut, shown in the debug report.</summary>
+        /// <summary>Steps of the APOB lookup, shown in the debug report; empty when the driver keeps none.</summary>
         public List<string> LocateTrace { get; private set; } = new List<string>();
 
         /// <summary>
-        /// Reads the APOB of the running system through the AMDAPOB PawnIO module, which locates the table and
-        /// returns its bytes. Without the module (for example with Secure Boot, where the unsigned module cannot be
-        /// loaded) the table is located the same way and read through the InpOut driver.
+        /// Reads the APOB of the running system through <paramref name="driver"/>, which locates the table and
+        /// returns its bytes: the AMDAPOB PawnIO module or InpOut physical memory reads, see
+        /// <see cref="ApobProvider.Create(ApobDriverType, ulong)"/>. The caller keeps owning the driver.
         /// </summary>
-        /// <param name="topMemMsr">The TOP_MEM MSR (0xC001001A), for the InpOut lookup; 0 when it could not be read.</param>
-        public Apob(CPUInfo cpuInfo, MemoryConfig memoryConfig = null, AmdApob pawnApob = null, ulong topMemMsr = 0)
+        public Apob(CPUInfo cpuInfo, MemoryConfig memoryConfig, ApobDriverBase driver)
         {
-            // InpOut path, replaced by the AMDAPOB PawnIO module
-            //if (_ioDriver == null)
-            //{
-            //    ErrorReason = "I/O Driver instance is not available.";
-            //    Debug.WriteLine(ErrorReason);
-            //    return;
-            //}
-
             _cpuInfo = cpuInfo;
             _memoryConfig = memoryConfig;
             _live = true;
             // Might be not defined, but we still need to get raw data
             _profile = ApobProfiles.Resolve(_cpuInfo);
 
-            if (pawnApob == null || !pawnApob.IsLoaded)
+            if (driver == null || !driver.IsAvailable)
             {
-                if (_ioDriver == null)
-                {
-                    ErrorReason = "The PawnIO AMDAPOB module is not loaded and the I/O driver is not available.";
-                    Debug.WriteLine(ErrorReason);
-                    return;
-                }
-
-                ReadThroughInpOut(topMemMsr);
+                ErrorReason = driver == null
+                    ? "No APOB driver is available: neither the PawnIO AMDAPOB module nor the I/O driver could be loaded."
+                    : string.Format("The {0} APOB driver is not available.", driver.Name);
+                Debug.WriteLine(ErrorReason);
                 return;
             }
 
-            if (!pawnApob.GetApobInfo(out uint address, out uint _, out uint tableSize, out uint headerSize) || address == 0)
-            {
-                ErrorReason = "The PawnIO AMDAPOB module could not locate the APOB table.";
-                return;
-            }
-            Address = address;
-            LocateInfo = DescribeLocate(pawnApob);
+            DriverType = driver.Type;
+            LocateTrace = driver.Trace;
 
-            byte[] table = tableSize != 0 ? pawnApob.ReadTable(0, tableSize) : null;
-            if (table == null || table.Length < 16 || Utils.ReadUInt32(table, 0) != APOB_SIGNATURE)
+            ApobLocation location = driver.Locate();
+            if (location == null || location.Address == 0)
             {
-                Address = 0;
-                ErrorReason = string.Format("Failed to read the APOB table ({0} bytes) at address 0x{1:X8} through the PawnIO AMDAPOB module.", tableSize, address);
+                ErrorReason = string.Format("The APOB table was not found through the {0} driver.", driver.Name);
                 return;
             }
 
-            if (!TryParseHeader(table, headerSize, out ApobHeader header))
+            byte[] table = driver.Read(location);
+            if (table == null)
             {
-                Address = 0;
-                ErrorReason = string.Format("Failed to parse the APOB header at address 0x{0:X8}.", address);
+                ErrorReason = string.Format("Failed to read the APOB table ({0} bytes) at address 0x{1:X8} through the {2} driver.",
+                    location.TableSize, location.Address, driver.Name);
                 return;
             }
+
+            if (!TryParseHeader(table, location.HeaderSize, out ApobHeader header) || header.TableSize != location.TableSize)
+            {
+                ErrorReason = string.Format("Failed to parse the APOB header at address 0x{0:X8}.", location.Address);
+                return;
+            }
+
+            Address = location.Address;
+            LocateInfo = string.IsNullOrEmpty(location.Description) ? driver.Name : driver.Name + ", " + location.Description;
             Header = header;
             RawTable = table;
-
-            // InpOut path, replaced by the AMDAPOB PawnIO module
-            //Address = FindApobAddress();
-            //if (!IsAvailable)
-            //{
-            //    ErrorReason = "APOB signature not found at any known physical address.";
-            //    return;
-            //}
-            //
-            //if (!TryParseHeader(Address, out ApobHeader header))
-            //{
-            //    ErrorReason = string.Format("Failed to read or parse APOB header at address 0x{0:X8}.", Address);
-            //    return;
-            //}
-            //Header = header;
-            //
-            //RawTable = _ioDriver.ReadMemory(new IntPtr(Address), unchecked((int)Header.TableSize));
-            //if (RawTable == null || RawTable.Length == 0)
-            //{
-            //    ErrorReason = string.Format("Failed to read APOB table body ({0} bytes) at address 0x{1:X8}.", Header.TableSize, Address);
-            //    return;
-            //}
 
             ParseTable();
         }
 
         /// <summary>
-        /// Locates the table as the AMDAPOB module does and reads it through the InpOut driver.
+        /// Reads the APOB of the running system through the driver picked by <see cref="CoreOptions.ApobDriver"/>,
+        /// created for this read and disposed after it.
         /// </summary>
-        private void ReadThroughInpOut(ulong topMemMsr)
+        /// <param name="topMemMsr">The TOP_MEM MSR (0xC001001A), for InpOut; 0 when it could not be read.</param>
+        public static Apob Read(CPUInfo cpuInfo, MemoryConfig memoryConfig = null, ulong topMemMsr = 0)
         {
-            ApobInpOutLocator.Result located;
-            try
-            {
-                // TOP_MEM from the MSR, else from the data fabric (through ECAM), else the locator's fallback
-                ulong topMem = ApobInpOutLocator.TopMemFromMsr(topMemMsr);
-                if (topMem == 0)
-                {
-                    LocateTrace.Add("TOP_MEM MSR not readable, trying the data fabric");
-                    byte[] mcfg = OHWM.FirmwareTable.GetTable(OHWM.FirmwareTable.Provider.ACPI, "MCFG");
-                    topMem = ApobInpOutLocator.TopMemFromDataFabric(ReadPhysicalDword, mcfg, LocateTrace);
-                }
-
-                located = ApobInpOutLocator.Locate(ReadPhysicalDword, topMem, LocateTrace);
-            }
-            catch (Exception ex)
-            {
-                LocateTrace.Add("failed: " + ex.Message);
-                located = null;
-            }
-
-            if (located == null)
-            {
-                ErrorReason = "The PawnIO AMDAPOB module is not loaded, and the APOB table was not found through the I/O driver.";
-                return;
-            }
-
-            byte[] table = _ioDriver.ReadMemory(new IntPtr(located.Address), unchecked((int)located.TableSize));
-            if (table == null || table.Length < (int)located.TableSize || Utils.ReadUInt32(table, 0) != APOB_SIGNATURE)
-            {
-                ErrorReason = string.Format("Failed to read the APOB table ({0} bytes) at address 0x{1:X8} through the I/O driver.",
-                    located.TableSize, located.Address);
-                return;
-            }
-
-            if (!TryParseHeader(table, located.HeaderSize, out ApobHeader header) || header.TableSize != located.TableSize)
-            {
-                ErrorReason = string.Format("Failed to parse the APOB header at address 0x{0:X8}.", located.Address);
-                return;
-            }
-
-            Address = located.Address;
-            LocateInfo = located.Describe();
-            Header = header;
-            RawTable = table;
-
-            ParseTable();
+            using (ApobDriverBase driver = ApobProvider.CreateFromOptions(topMemMsr))
+                return new Apob(cpuInfo, memoryConfig, driver);
         }
 
         private void AppendLocateTrace(ReportBuilder report)
@@ -440,22 +368,9 @@ namespace ZenStates.Core.Hardware.Apob
             if (LocateTrace == null || LocateTrace.Count == 0)
                 return;
 
-            report.AppendLine("-- Locate Trace (InpOut):");
+            report.AppendLine("-- Locate Trace:");
             foreach (string line in LocateTrace)
                 report.AppendLine("   " + line);
-        }
-
-        private static string DescribeLocate(AmdApob pawnApob)
-        {
-            if (!pawnApob.GetApobDebugInfo(out int source, out int firmwareAddresses, out ulong efsAddress))
-                return null;
-
-            string from = source == AmdApob.SOURCE_FIRMWARE ? "firmware image"
-                : source == AmdApob.SOURCE_KNOWN_ADDRESS ? "known address list"
-                : string.Format(CultureInfo.InvariantCulture, "unknown ({0})", source);
-
-            return string.Format(CultureInfo.InvariantCulture, "{0}; firmware addresses: {1}, EFS: 0x{2:X}",
-                from, firmwareAddresses, efsAddress);
         }
 
         /// <summary>
@@ -587,18 +502,6 @@ namespace ZenStates.Core.Hardware.Apob
             Buffer.BlockCopy(RawTable, (int)offset, buffer, 0, (int)size);
             return buffer;
         }
-
-        // InpOut path, replaced by the AMDAPOB PawnIO module
-        //private static uint FindApobAddress()
-        //{
-        //    for (int i = 0; i < KnownAddresses.Length; i++)
-        //    {
-        //        if (_ioDriver.GetPhysLong(new UIntPtr(KnownAddresses[i]), out uint data) && data == APOB_SIGNATURE)
-        //            return KnownAddresses[i];
-        //    }
-        //
-        //    return 0;
-        //}
 
         /// <summary>
         /// Reads the APCBs (BIOS option tokens) from the SPI flash through the BIOS directories, once; later calls
@@ -774,32 +677,6 @@ namespace ZenStates.Core.Hardware.Apob
                 return false;
             }
         }
-
-        // InpOut path, replaced by the AMDAPOB PawnIO module
-        ///// <summary>
-        ///// Reads the header size from offset 0xC, then reads and deserialises the full header.
-        ///// </summary>
-        //private static bool TryParseHeader(uint address, out ApobHeader header)
-        //{
-        //    header = default;
-        //    try
-        //    {
-        //        if (!_ioDriver.GetPhysLong(new UIntPtr(address + ENTRY_SIZE_OFFSET), out uint headerSize) || headerSize == 0)
-        //            return false;
-        //
-        //        byte[] headerData = _ioDriver.ReadMemory(new IntPtr(address), (int)headerSize);
-        //        if (headerData == null || headerData.Length < (int)headerSize)
-        //            return false;
-        //
-        //        header = Utils.ByteArrayToStructure<ApobHeader>(headerData);
-        //        return true;
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        Debug.WriteLine(ex.Message);
-        //        return false;
-        //    }
-        //}
 
         private static List<uint> GetConfigOffsets(byte[] table, ApobHeader header)
         {
