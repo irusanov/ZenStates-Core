@@ -390,7 +390,16 @@ namespace ZenStates.Core.Hardware.Apob
             ApobInpOutLocator.Result located;
             try
             {
-                located = ApobInpOutLocator.Locate(ReadPhysicalDword, ApobInpOutLocator.TopMemFromMsr(topMemMsr), LocateTrace);
+                // TOP_MEM from the MSR, else from the data fabric (through ECAM), else the locator's fallback
+                ulong topMem = ApobInpOutLocator.TopMemFromMsr(topMemMsr);
+                if (topMem == 0)
+                {
+                    LocateTrace.Add("TOP_MEM MSR not readable, trying the data fabric");
+                    byte[] mcfg = OHWM.FirmwareTable.GetTable(OHWM.FirmwareTable.Provider.ACPI, "MCFG");
+                    topMem = ApobInpOutLocator.TopMemFromDataFabric(ReadPhysicalDword, mcfg, LocateTrace);
+                }
+
+                located = ApobInpOutLocator.Locate(ReadPhysicalDword, topMem, LocateTrace);
             }
             catch (Exception ex)
             {

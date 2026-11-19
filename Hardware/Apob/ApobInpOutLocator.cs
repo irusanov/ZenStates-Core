@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 
 namespace ZenStates.Core.Hardware.Apob
@@ -75,6 +76,99 @@ namespace ZenStates.Core.Hardware.Apob
         public static ulong TopMemFromMsr(ulong msr)
         {
             return msr & TOP_MEM_ADDR_MASK;
+        }
+
+        // Data fabric (PCI 0:18h), read through ECAM. Sources: illumos amdzen/df.h,
+        // coreboot soc/amd/*/data_fabric.h, Linux drivers/ras/amd/atl.
+        private const uint DF_DEVICE = 0x18;
+        private const uint AMD_VENDOR_ID = 0x1022;
+        // DF::FabricBlockInstanceCount (D18F0x040): bits 27:24 hold the major revision from DF4 on, 0 before
+        private const uint DF_FBICNT = 0x040;
+        // DF::DramHoleControl: D18F0x104 on DF2 to DF3.5 (Zen 1 to Zen 3), D18F7x104 on DF4 and later
+        // (Zen 4 and Zen 5). Bit 0 is the valid flag and bits 31:24 the base of the MMIO hole below 4 GiB,
+        // which the firmware sets to the same address as TOP_MEM.
+        private const uint DF_DRAM_HOLE_CTL = 0x104;
+        private const uint DRAM_HOLE_VALID = 0x1;
+        private const uint DRAM_HOLE_BASE_MASK = 0xFF000000;
+        // ACPI MCFG: 36-byte table header and 8 reserved bytes, then 16-byte allocation entries
+        // (base address, PCI segment, start bus, end bus)
+        private const int MCFG_ENTRIES_OFFSET = 44;
+        private const int MCFG_ENTRY_SIZE = 16;
+        private const ulong ECAM_ALIGNMENT_MASK = 0xFFFFF; // 1 MiB
+        // The lowest TOP_MEM taken from the data fabric; anything below is treated as a bad read
+        private const ulong TOP_MEM_MIN = 0x10000000; // 256 MiB
+
+        /// <summary>
+        /// TOP_MEM from the data fabric's DRAM hole control register, read through the ECAM range
+        /// from the ACPI MCFG table. 0 when it cannot be read.
+        /// </summary>
+        /// <param name="mcfg">The ACPI MCFG table, with its header; null when it is not available.</param>
+        public static ulong TopMemFromDataFabric(ApobLocator.PhysicalDwordReader read, byte[] mcfg, List<string> trace)
+        {
+            ulong ecam = EcamBaseFromMcfg(mcfg, trace);
+            if (ecam == 0)
+                return 0;
+
+            ulong df = ecam + (DF_DEVICE << 15);
+            if (!read(df, out uint id) || (id & 0xFFFF) != AMD_VENDOR_ID)
+            {
+                Log(trace, "DF: D18F0x000 = 0x{0:X8}, not an AMD device", id);
+                return 0;
+            }
+
+            if (!read(df + DF_FBICNT, out uint fbicnt))
+            {
+                Log(trace, "DF: D18F0x040 not readable");
+                return 0;
+            }
+
+            uint major = (fbicnt >> 24) & 0xF;
+            uint function = major >= 4 ? 7u : 0u;
+            if (!read(df + (function << 12) + DF_DRAM_HOLE_CTL, out uint hole))
+            {
+                Log(trace, "DF: D18F{0}x104 not readable", function);
+                return 0;
+            }
+
+            ulong holeBase = hole & DRAM_HOLE_BASE_MASK;
+            Log(trace, "DF: major revision {0}, D18F{1}x104 = 0x{2:X8}", major, function, hole);
+
+            if ((hole & DRAM_HOLE_VALID) == 0 || holeBase < TOP_MEM_MIN)
+            {
+                Log(trace, "DF: no valid DRAM hole");
+                return 0;
+            }
+
+            return holeBase;
+        }
+
+        /// <summary>The ECAM base of PCI segment 0, bus 0 from the ACPI MCFG table; 0 when not found.</summary>
+        private static ulong EcamBaseFromMcfg(byte[] mcfg, List<string> trace)
+        {
+            if (mcfg == null || mcfg.Length < MCFG_ENTRIES_OFFSET + MCFG_ENTRY_SIZE
+                || mcfg[0] != (byte)'M' || mcfg[1] != (byte)'C' || mcfg[2] != (byte)'F' || mcfg[3] != (byte)'G')
+            {
+                Log(trace, "DF: no ACPI MCFG table");
+                return 0;
+            }
+
+            int length = (int)Math.Min(BitConverter.ToUInt32(mcfg, 4), (uint)mcfg.Length);
+            for (int offset = MCFG_ENTRIES_OFFSET; offset + MCFG_ENTRY_SIZE <= length; offset += MCFG_ENTRY_SIZE)
+            {
+                ulong address = BitConverter.ToUInt64(mcfg, offset);
+                ushort segment = BitConverter.ToUInt16(mcfg, offset + 8);
+                byte startBus = mcfg[offset + 10];
+
+                // The base address is that of bus 0 even when the range starts at a later bus
+                if (segment == 0 && startBus == 0 && address != 0 && (address & ECAM_ALIGNMENT_MASK) == 0)
+                {
+                    Log(trace, "DF: ECAM base 0x{0:X} (MCFG)", address);
+                    return address;
+                }
+            }
+
+            Log(trace, "DF: MCFG has no range for segment 0, bus 0");
+            return 0;
         }
 
         /// <summary>Locates the table. Null when it is not found.</summary>
