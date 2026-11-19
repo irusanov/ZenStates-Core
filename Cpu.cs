@@ -825,7 +825,20 @@ namespace ZenStates.Core
             ReportProgress("APOB");
             try
             {
-                info.apob = new Apob(info, memoryConfig, _pawnApob);
+                // TOP_MEM limits the InpOut lookup to DRAM when the AMDAPOB module is not loaded
+                ulong topMem = 0;
+                try
+                {
+                    uint topMemLow = 0, topMemHigh = 0;
+                    if (ReadMsr(0xC001001A, ref topMemLow, ref topMemHigh))
+                        topMem = ((ulong)topMemHigh << 32) | topMemLow;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("TOP_MEM: " + ex.Message);
+                }
+
+                info.apob = new Apob(info, memoryConfig, _pawnApob, topMem);
 
                 // Soldered LPDDR5 has no SPD device; the APOB keeps the copy the BIOS used
                 memoryConfig?.UseApobSpd(info.apob.DimmSpd);
