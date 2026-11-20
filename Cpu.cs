@@ -871,6 +871,10 @@ namespace ZenStates.Core
             try
             {
                 systemInfo = new SystemInfo(info, smu, GetAgesaVersion());
+
+                // The measured reference clocks, shown as a sensor group named after the CPU
+                if (bclk != null && bclk.IsAvailable)
+                    systemInfo.AddHardware(new BclkHardware(bclk, info.cpuName));
             }
             catch (Exception ex)
             {

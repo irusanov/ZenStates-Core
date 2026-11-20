@@ -173,6 +173,9 @@ namespace ZenStates.Core.Hardware
 
         private bool IsInpOutOpen => _cpu.io != null && _cpu.io.IsInpOutDriverOpen();
 
+        /// <summary>The FCH MMIO window is reachable (InpOut was there at start), so the clocks can be read and measured.</summary>
+        public bool IsAvailable => _mmio.IsAvailable;
+
         /// <summary>
         /// Raven Ridge / Picasso / Dali: APUs with the FCH on the SoC. Their register layout follows the Family 17h Model 18h PPR
         /// (55570), where the CPU reference clock only comes from CG1_PLL when the strap is internal and
@@ -865,6 +868,38 @@ namespace ZenStates.Core.Hardware
         /// <summary>How the last <see cref="RefreshMemoryBclk"/> went, for the debug report; null before the first one.</summary>
         public string MemoryBclkStatus { get; private set; }
 
+        private double? _cpuBclk;
+
+        /// <summary>
+        /// The measured CPU side reference clock in MHz (<see cref="RefreshCpuBclk"/>), null until measured or when it could not
+        /// be. Measured on the background thread with the memory side one; differs from it in asynchronous eCLK mode.
+        /// </summary>
+        public double? CpuBclk
+        {
+            get { lock (_memoryBclkLock) return _cpuBclk; }
+        }
+
+        /// <summary>
+        /// Measures the CPU side reference clock (<see cref="MeasureBclk"/>, the TSC against the ACPI timer) and stores it in
+        /// <see cref="CpuBclk"/>, rounded to 0.01 MHz. A measurement that fails or scatters (spread of 0.1 MHz or more)
+        /// keeps the last value. Blocks for about 3 * <paramref name="durationMs"/>.
+        /// </summary>
+        /// <returns>The value in use afterwards.</returns>
+        public double? RefreshCpuBclk(int durationMs = StartupSampleMs)
+        {
+            if (!_mmio.IsAvailable || _closed)
+                return CpuBclk;
+
+            BclkMeasurement m = MeasureBclk(durationMs, 3);
+            if (m.BclkMhz.HasValue && m.SpreadMhz < 0.1 && m.BclkMhz.Value >= 50 && m.BclkMhz.Value <= 200)
+            {
+                lock (_memoryBclkLock)
+                    _cpuBclk = Math.Round(m.BclkMhz.Value, 2);
+            }
+
+            return CpuBclk;
+        }
+
         private double? MeasuredMemoryBclkValue
         {
             get { lock (_memoryBclkLock) return _measuredMemoryBclk; }
@@ -901,7 +936,8 @@ namespace ZenStates.Core.Hardware
         /// <summary>
         /// Starts the background thread that measures the memory side reference clock every
         /// <see cref="CoreOptions.MemoryBclkRefreshIntervalMs"/> (or only when woken, with 0), and right away with
-        /// <paramref name="measureNow"/>. Called once by <see cref="Cpu"/> after start.
+        /// <paramref name="measureNow"/>. The CPU side (<see cref="CpuBclk"/>) is measured on each pass, the first one right
+        /// away. Called once by <see cref="Cpu"/> after start.
         /// </summary>
         internal void StartBackgroundMeasurement(bool measureNow)
         {
@@ -927,6 +963,17 @@ namespace ZenStates.Core.Hardware
                             {
                                 Debug.WriteLine("Memory BCLK measurement: " + ex.Message);
                             }
+                        }
+
+                        // The CPU side every time, also on the first pass after a memory measurement during start
+                        try
+                        {
+                            if (!_closed)
+                                RefreshCpuBclk();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine("CPU BCLK measurement: " + ex.Message);
                         }
 
                         int interval = _cpu.Options.MemoryBclkRefreshIntervalMs;

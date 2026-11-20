@@ -63,8 +63,8 @@ namespace ZenStates.Core.Hardware
     }
 
     /// <summary>
-    /// Sensors read from one source: a SuperIO chip, the SVI3 telemetry in the power table, or the
-    /// ASUS WMI interface.
+    /// Sensors read from one source: a SuperIO chip, the SVI3 telemetry in the power table, the CPU's
+    /// measured reference clocks, or the ASUS WMI interface.
     /// </summary>
     public readonly struct SensorGroup
     {
@@ -91,6 +91,11 @@ namespace ZenStates.Core.Hardware
         internal static SensorGroup FromSvi3(Svi3Hardware hardware)
         {
             return new SensorGroup(hardware.Name, HardwareType.Svi3, Chip.Unknown, hardware.Sensors);
+        }
+
+        internal static SensorGroup FromBclk(BclkHardware hardware)
+        {
+            return new SensorGroup(hardware.Name, HardwareType.Cpu, Chip.Unknown, hardware.Sensors);
         }
 
         internal static SensorGroup FromAsusWmi(AsusWmiHardware hardware)
@@ -172,8 +177,9 @@ namespace ZenStates.Core.Hardware
         //}
 
         // Sensors grouped by where they were read from: the SVI3 telemetry first when the CPU reports
-        // it (a handful of values), then one group per SuperIO chip, so boards with several chips can
-        // label them per chip, then the ASUS WMI sensors on boards that have them.
+        // it (a handful of values), then the CPU's measured reference clocks (named after the CPU),
+        // then one group per SuperIO chip, so boards with several chips can label them per chip, then
+        // the ASUS WMI sensors on boards that have them.
 
         public List<IHardware> Hardware => _hardware;
 
@@ -185,6 +191,12 @@ namespace ZenStates.Core.Hardware
                 {
                     if (hardware is Svi3Hardware svi3 && svi3.HasSensors)
                         yield return SensorGroup.FromSvi3(svi3);
+                }
+
+                foreach (IHardware hardware in _hardware)
+                {
+                    if (hardware is BclkHardware bclk && bclk.HasSensors)
+                        yield return SensorGroup.FromBclk(bclk);
                 }
 
                 foreach (IHardware hardware in _hardware)
@@ -229,6 +241,8 @@ namespace ZenStates.Core.Hardware
                     superIo.Update();
                 else if (hardware is Svi3Hardware svi3)
                     svi3.Update();
+                else if (hardware is BclkHardware bclk)
+                    bclk.Update();
             }
         }
 
