@@ -80,7 +80,8 @@ namespace ZenStates.Core.Hardware
         internal const uint MISC_ClkCntl2 = Mmio.MISC_BASE_ADDRESS + 0x44;
         internal const uint MISC_StrapStatus = Mmio.MISC_BASE_ADDRESS + 0x80;
         // MISCx0AC is FCH::MISC::CGPLLCntrlReg4. Bits 23:22 are CPU_Refclk_Selection_Override and bits 21:20 are
-        // SMU_100M_Refclk_Selection (AMD PPR 55570, Family 17h Model 18h). The "eCLK mode" decoding below reads the same register.
+        // SMU_100M_Refclk_Selection (AMD PPR 55570, Family 17h Model 18h). GetEclkMode decodes eCLK mode from bits 23:22.
+        // MISC_EclkModeStatus is the same register, kept for existing references.
         internal const uint MISC_EclkModeStatus = Mmio.AMD_MMIO_BASE_ADDRESS + 0xEAC;
         internal const uint MISC_CGPLLCntrlReg4 = Mmio.MISC_BASE_ADDRESS + 0xAC;
         internal const uint MISC_CGPLLConfig8 = Mmio.MISC_BASE_ADDRESS + 0x34;
@@ -127,7 +128,7 @@ namespace ZenStates.Core.Hardware
         public enum EclkMode : int
         {
             UNKNOWN = -1,
-            AUTO = 0,
+            AUTO = 0,   // Not returned by GetEclkMode: the BIOS resolves Auto to SYNC or ASYNC, and only the result is in the registers
             SYNC = 1,   // eCLK0 - CPU cores and the rest of the platform share one external reference
             ASYNC = 2,  // eCLK1 - CPU cores get their own external reference, split from the platform's
         }
@@ -257,28 +258,30 @@ namespace ZenStates.Core.Hardware
         }
 
         /// <summary>
-        /// Reads the eCLK sync/async/auto BIOS selection from MISC_EclkModeStatus
-        /// Only tested on a single board (MSI X870E Unify-X) with a single CPU (Ryzen 9 9950X3D).
+        /// The eCLK mode in effect, from MISCx0AC[23:22] (CPU_Refclk_Selection_Override, <see cref="GetCpuRefClkSource"/>).
+        /// ASYNC when the cores take their reference from the external GPP1 input (2), so they have a clock of their own;
+        /// SYNC when they share the platform reference (0 or 1). The BIOS option Auto is never reported: it ends up as one of
+        /// the two and the registers only hold the result. Bits 23:16 of the register, as observed:
         /// </summary>
         public EclkMode GetEclkMode()
         {
             if (!_mmio.IsAvailable)
                 return EclkMode.UNKNOWN;
 
-            // On the FCH-on-SoC APUs the same bits are CPU_Refclk_Selection_Override, see GetCpuRefClkSource().
-            // The sync/async values below were only observed on a Family 1Ah board.
+            // On the FCH-on-SoC APUs the same bits only select the CPU reference clock, see GetCpuRefClkSource().
+            // The sync/async decoding below was only observed on Family 1Ah boards.
             if (IsLegacyApuClocking)
                 return EclkMode.UNKNOWN;
 
-            if (!_mmio.ReadRegister(MISC_EclkModeStatus, out uint value))
-                return EclkMode.UNKNOWN;
-
-            switch (Utils.GetBits(value, 16, 8))
+            switch (GetCpuRefClkSource())
             {
-                case 0x00: return EclkMode.AUTO;
-                case 0x60: return EclkMode.SYNC;
-                case 0xA0: return EclkMode.ASYNC;
-                default: return EclkMode.UNKNOWN;
+                case CpuRefClkSource.CG1_PLL:
+                case CpuRefClkSource.EXT_GPP0_SRC:
+                    return EclkMode.SYNC;
+                case CpuRefClkSource.EXTERNAL_GPP1:
+                    return EclkMode.ASYNC;
+                default:
+                    return EclkMode.UNKNOWN;
             }
         }
 
@@ -744,9 +747,13 @@ namespace ZenStates.Core.Hardware
             sb.AppendLine(ReportBuilder.Heading("BCLK Measurement"));
             sb.AppendLine("-- Method: TSC rate against the ACPI timer (no PLL register is read for the result)");
 
+            // Both results, to check the eCLK mode read from the registers against the clocks
+            double? cpuMeasured = null, memoryMeasured = null;
+
             try
             {
                 BclkMeasurement m = MeasureBclk();
+                cpuMeasured = m.BclkMhz;
                 System.Globalization.CultureInfo ic = System.Globalization.CultureInfo.InvariantCulture;
 
                 if (m.P0Mhz > 0)
@@ -781,6 +788,8 @@ namespace ZenStates.Core.Hardware
             try
             {
                 MemoryBclkMeasurement mm = MeasureMemoryBclk();
+                if (mm.AgreeingSamples >= 2)
+                    memoryMeasured = mm.BclkMhz;
                 System.Globalization.CultureInfo ic = System.Globalization.CultureInfo.InvariantCulture;
 
                 if (mm.BclkMhz.HasValue)
@@ -815,6 +824,8 @@ namespace ZenStates.Core.Hardware
                 sb.AppendLine("-- Measured memory BCLK: failed (" + ex.Message + ")");
             }
 
+            AppendEclkModeCheck(sb, cpuMeasured, memoryMeasured);
+
             double? applied = MemoryBclk;
             sb.AppendLine(applied.HasValue
                 ? string.Format(System.Globalization.CultureInfo.InvariantCulture,
@@ -824,6 +835,49 @@ namespace ZenStates.Core.Hardware
 
             return sb.ToString();
         }
+
+        /// <summary>
+        /// Puts the eCLK mode from the registers next to what the two measurements say: different CPU and memory side clocks
+        /// can only come from asynchronous mode. The same clocks fit synchronous mode, and also asynchronous mode with both
+        /// references set to the same value, so only a difference contradicts SYNC.
+        /// </summary>
+        private void AppendEclkModeCheck(StringBuilder sb, double? cpuMhz, double? memoryMhz)
+        {
+            System.Globalization.CultureInfo ic = System.Globalization.CultureInfo.InvariantCulture;
+            EclkMode mode;
+            try
+            {
+                mode = GetEclkMode();
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine("-- eCLK mode check: failed (" + ex.Message + ")");
+                return;
+            }
+
+            if (!cpuMhz.HasValue || !memoryMhz.HasValue)
+            {
+                sb.AppendLine(string.Format(ic, "-- eCLK mode (registers): {0}; not checked, a measurement is missing", mode));
+                return;
+            }
+
+            double diff = cpuMhz.Value - memoryMhz.Value;
+            bool split = Math.Abs(diff) >= EclkSplitThresholdMhz;
+            string verdict;
+            if (split)
+                verdict = mode == EclkMode.ASYNC ? "matches" : "does NOT match, the clocks differ so the mode is asynchronous";
+            else
+                verdict = mode == EclkMode.ASYNC ? "matches if both references are set to the same value" : "matches";
+
+            sb.AppendLine(string.Format(ic, "-- eCLK mode (registers): {0}; CPU minus memory BCLK {1:+0.00;-0.00;0.00} MHz, {2}",
+                mode, diff, verdict));
+        }
+
+        /// <summary>
+        /// CPU and memory side BCLK further apart than this (MHz) mean separate references. Both measurements resolve to
+        /// a few kHz; the Apex in async mode was 0.35 MHz apart.
+        /// </summary>
+        private const double EclkSplitThresholdMhz = 0.1;
 
         // TSC read before and after the timer read; their midpoint pairs the two clocks. The latency is the same at both ends of a sample.
         private bool ReadTscAndTimer(out ulong tsc, out uint timer)
