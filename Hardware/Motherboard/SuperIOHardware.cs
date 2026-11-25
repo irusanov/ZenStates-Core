@@ -2726,6 +2726,50 @@ namespace ZenStates.Core.Hardware.Motherboard
 
                             break;
 
+                        // Mapped from a debug report (Ryzen 7 5700X, BIOS 5031, Debug_Report_29858517.0951284.txt)
+                        // and an HWiNFO screenshot of the same board (issue #115). The scale of inputs 9-11 is the one
+                        // HWiNFO applies (x2). No input carries the DRAM voltage (1.40V set in BIOS): none reads it at
+                        // x1 or x2 and HWiNFO shows no DRAM rail either, so VDIMM is left unmapped. The ASUS default
+                        // used to label input 10 "CPU VDDIO", which the DDR4 panel then showed as a 0.92V VDIMM.
+                        case Model.ROG_STRIX_X570_E_GAMING: // NCT6798D-R
+                            v.Add(new Voltage("Vcore", 0));
+                            v.Add(new Voltage("+5V", 1, 4, 1));
+                            v.Add(new Voltage("AVSB", 2, 34, 34));
+                            v.Add(new Voltage("+3.3V", 3, 34, 34));
+                            v.Add(new Voltage("+12V", 4, 11, 1));
+                            v.Add(new Voltage("Voltage #6", 5, true)); // HWiNFO VIN8
+                            v.Add(new Voltage("Voltage #7", 6, true)); // HWiNFO VIN4
+                            v.Add(new Voltage("+3V Standby", 7, 34, 34));
+                            v.Add(new Voltage("CMOS Battery", 8, 34, 34));
+                            v.Add(new Voltage("Voltage #10", 9, 1, 1, 0, true)); // HWiNFO VTT, 1.808V
+                            v.Add(new Voltage("Voltage #11", 10, 1, 1, 0, true)); // HWiNFO VIN5
+                            v.Add(new Voltage("Voltage #12", 11, 1, 1, 0, true)); // HWiNFO VIN6
+                            v.Add(new Voltage("Voltage #13", 12, true)); // HWiNFO VIN2
+                            v.Add(new Voltage("Voltage #14", 13, true)); // HWiNFO VIN3
+                            v.Add(new Voltage("Voltage #15", 14, true)); // HWiNFO VIN7
+                            v.Add(new Voltage("Voltage #16", 15, true)); // HWiNFO VIN9
+
+                            t.Add(new Temperature("CPU", 1)); // HWiNFO CPU
+                            t.Add(new Temperature("Motherboard", 2));
+                            t.Add(new Temperature("Temperature #3", 3));
+                            t.Add(new Temperature("Temperature #4", 4));
+                            t.Add(new Temperature("Temperature #5", 5));
+                            t.Add(new Temperature("Temperature #6", 6));
+
+                            for (int i = 0; i < superIO.Fans.Length; i++)
+                            {
+                                string name = i == 0 ? "Chassis Fan #1" : i == 1 ? "CPU Fan" : "Fan #" + (i + 1);
+                                f.Add(new Fan(name, i));
+                            }
+
+                            for (int i = 0; i < superIO.Controls.Length; i++)
+                            {
+                                string name = i == 0 ? "Chassis Fan #1" : i == 1 ? "CPU Fan" : "Fan #" + (i + 1);
+                                c.Add(new Control(name, i));
+                            }
+
+                            break;
+
                         case Model.ROG_STRIX_B550_F_GAMING_WIFI: // NCT6798D-R
                             v.Add(new Voltage("Vcore", 0, 2, 2));
                             v.Add(new Voltage("+5V", 1, 4, 1));
