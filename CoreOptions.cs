@@ -63,6 +63,12 @@ namespace ZenStates.Core
         /// </summary>
         public Action<string> InitProgress { get; set; }
 
+        /// <summary>
+        /// Report each initialization stage to <see cref="InitProgress"/>. On by default; when off, the callback is not
+        /// called at all.
+        /// </summary>
+        public bool VerboseProgress { get; set; } = true;
+
         public CoreOptions()
         {
             IoModule = new ModuleSettings

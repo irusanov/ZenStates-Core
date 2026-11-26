@@ -896,6 +896,8 @@ namespace ZenStates.Core.Hardware
         public const int StartupSampleMs = 100;
         /// <summary>Samples of the measurement during start and of the periodic one.</summary>
         public const int StartupSamples = 4;
+        // Tries of the CPU side measurement on a pass that has no value yet (the first one runs during start)
+        private const int InitialCpuBclkAttempts = 3;
 
         private System.Threading.Thread _memoryBclkThread;
         private readonly System.Threading.AutoResetEvent _memoryBclkWake = new System.Threading.AutoResetEvent(false);
@@ -991,7 +993,9 @@ namespace ZenStates.Core.Hardware
         /// Starts the background thread that measures the memory side reference clock every
         /// <see cref="CoreOptions.MemoryBclkRefreshIntervalMs"/> (or only when woken, with 0), and right away with
         /// <paramref name="measureNow"/>. The CPU side (<see cref="CpuBclk"/>) is measured on each pass, the first one right
-        /// away. Called once by <see cref="Cpu"/> after start.
+        /// away. Called once by <see cref="Cpu"/> during start, right after the memory configuration is read, so both initial
+        /// measurements run while the rest of the start goes on: <see cref="MemoryBclk"/> and <see cref="CpuBclk"/> are null
+        /// until they are done, and <see cref="MemoryBclkChanged"/> tells when the memory side value arrives.
         /// </summary>
         internal void StartBackgroundMeasurement(bool measureNow)
         {
@@ -1019,11 +1023,16 @@ namespace ZenStates.Core.Hardware
                             }
                         }
 
-                        // The CPU side every time, also on the first pass after a memory measurement during start
+                        // The CPU side every time. On the first pass it can scatter while the rest of the start keeps
+                        // the machine busy, so it is tried a few times until there is a value.
                         try
                         {
-                            if (!_closed)
-                                RefreshCpuBclk();
+                            int attempts = CpuBclk.HasValue ? 1 : InitialCpuBclkAttempts;
+                            for (int attempt = 0; attempt < attempts && !_closed; attempt++)
+                            {
+                                if (RefreshCpuBclk().HasValue)
+                                    break;
+                            }
                         }
                         catch (Exception ex)
                         {
@@ -1055,10 +1064,11 @@ namespace ZenStates.Core.Hardware
 
         /// <summary>
         /// Measures the reference clock of the memory side and makes MEMCLK, UCLK, FCLK and the timings in ns use it
-        /// (<see cref="GetMemoryBclk"/>). Blocks for about samples * durationMs (up to 3 tries). <see cref="Cpu"/> runs it
-        /// during start, before the first power table read (<see cref="CoreOptions.MeasureMemoryBclk"/>; on a background thread
-        /// when InpOut is not open yet), then on a background thread every <see cref="CoreOptions.MemoryBclkRefreshIntervalMs"/>
-        /// and after <see cref="SetBclk"/>, as tools can change BCLK while running.
+        /// (<see cref="GetMemoryBclk"/>). Blocks for about samples * durationMs (up to 3 tries). <see cref="Cpu"/> runs it on a
+        /// background thread (<see cref="StartBackgroundMeasurement"/>, <see cref="CoreOptions.MeasureMemoryBclk"/>): first
+        /// during start, without holding it up, then every <see cref="CoreOptions.MemoryBclkRefreshIntervalMs"/> and after
+        /// <see cref="SetBclk"/>, as tools can change BCLK while running. A changed value also corrects the clocks of the
+        /// last power table read (<see cref="PowerTable.ReapplyBclk"/>), so they do not wait for the next refresh.
         /// <list type="bullet">
         /// <item>The UMC clock counter where there is one (AM5: Raphael, Granite Ridge), which also sees asynchronous
         /// eCLK mode. At least two samples must agree, the others are low while MEMCLK is gated.</item>
@@ -1169,7 +1179,20 @@ namespace ZenStates.Core.Hardware
 
             // Only a real change: the periodic measurement repeats the same value most of the time
             if (bclk.HasValue != previous.HasValue || (bclk.HasValue && Math.Abs(bclk.Value - previous.Value) >= 0.005))
+            {
+                // The first measurement now ends after the first power table read: correct its MCLK, FCLK and UCLK
+                // before telling anyone, so handlers of the event read the new clocks
+                try
+                {
+                    PowerTable.Instance?.ReapplyBclk();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine("Power table BCLK correction: " + ex.Message);
+                }
+
                 MemoryBclkChanged?.Invoke(this, EventArgs.Empty);
+            }
 
             return bclk;
         }

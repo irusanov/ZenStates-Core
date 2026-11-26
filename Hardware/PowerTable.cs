@@ -645,11 +645,9 @@ namespace ZenStates.Core
             return 0;
         }
 
-        private void ParseTable(float[] pt)
+        // MCLK, FCLK and UCLK of a table, corrected for the memory side reference clock
+        private void ParseClocks(float[] pt)
         {
-            if (pt == null)
-                return;
-
             float bclkCorrection = 1.0f;
             // MCLK, FCLK and UCLK are reported for a 100 MHz reference; the memory side one also covers
             // asynchronous eCLK mode, where the cores have their own
@@ -666,6 +664,29 @@ namespace ZenStates.Core
             MCLK = GetDiscreteValue(pt, tableDef.offsetMclk) * bclkCorrection;
             FCLK = GetDiscreteValue(pt, tableDef.offsetFclk) * bclkCorrection;
             UCLK = GetDiscreteValue(pt, tableDef.offsetUclk) * bclkCorrection;
+        }
+
+        /// <summary>
+        /// Corrects MCLK, FCLK and UCLK of the last table read for the current memory side reference clock
+        /// (<see cref="Bclk.GetMemoryBclk"/>), without reading the table again. Called by <see cref="Bclk"/> when its
+        /// measured value changes, as the first measurement now ends after the first table read during start.
+        /// </summary>
+        public void ReapplyBclk()
+        {
+            lock (_refreshLock)
+            {
+                float[] table = Table;
+                if (table != null)
+                    ParseClocks(table);
+            }
+        }
+
+        private void ParseTable(float[] pt)
+        {
+            if (pt == null)
+                return;
+
+            ParseClocks(pt);
             VDDCR_SOC = GetDiscreteValue(pt, tableDef.offsetVddcrSoc);
             CLDO_VDDP = GetDiscreteValue(pt, tableDef.offsetCldoVddp);
             CLDO_VDDG_IOD = GetDiscreteValue(pt, tableDef.offsetCldoVddgIod);

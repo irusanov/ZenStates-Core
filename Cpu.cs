@@ -797,21 +797,16 @@ namespace ZenStates.Core
                 RecordError(errors, ex, "MemoryConfig");
             }
 
-            // Before the first power table read, so MCLK, FCLK, UCLK and the timings in ns start with the real clock.
-            // Needs the memory clock ratio from above. Short samples keep it to about half a second; when InpOut is not
-            // open yet it runs on a background thread instead.
-            bool memoryBclkMeasured = false;
+            // Both initial measurements (memory side, then CPU side) run on the background thread, so the rest of the
+            // start does not wait for them; it then measures again periodically, as tools can change BCLK while running.
+            // Needs the memory clock ratio from above. Until the memory side value is there, MCLK, FCLK, UCLK and the
+            // timings in ns use the PLL register or 100 MHz; when it arrives the power table clocks are corrected and
+            // Bclk.MemoryBclkChanged is raised.
             if (Options.MeasureMemoryBclk && bclk != null)
             {
-                ReportProgress("BCLK");
                 try
                 {
-                    if (io != null && io.IsInpOutDriverOpen())
-                    {
-                        bclk.RefreshMemoryBclk(Bclk.StartupSampleMs, Bclk.StartupSamples, false,
-                            method => ReportProgress("BCLK, " + method));
-                        memoryBclkMeasured = true;
-                    }
+                    bclk.StartBackgroundMeasurement(true);
                 }
                 catch (Exception ex)
                 {
@@ -928,16 +923,14 @@ namespace ZenStates.Core
             InitErrors = errors.AsReadOnly();
             LastError = BuildInitException(errors);
             Status = errors.Count > 0 ? IODriver.LibStatus.PARTIALLY_OK : IODriver.LibStatus.OK;
-
-            // Measures again periodically (tools can change BCLK while running), or for the first time when InpOut was
-            // not open yet above
-            if (Options.MeasureMemoryBclk && bclk != null)
-                bclk.StartBackgroundMeasurement(!memoryBclkMeasured);
         }
 
         private void ReportProgress(string stage)
         {
-            Action<string> callback = Options?.InitProgress;
+            if (Options == null || !Options.VerboseProgress)
+                return;
+
+            Action<string> callback = Options.InitProgress;
             if (callback == null)
                 return;
 
