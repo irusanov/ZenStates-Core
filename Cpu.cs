@@ -1133,24 +1133,34 @@ namespace ZenStates.Core
             }
         }
 
-        /// <returns>False when the write failed on every attempt or the PCI bus lock timed out.</returns>
-        public bool WriteDwordEx(uint addr, uint data, int maxRetries = 10)
+        /// <summary>
+        /// Writes an SMU register without taking the PCI bus lock: for a caller that already holds it
+        /// (<see cref="Mutexes.WaitPciBus"/>) around a sequence of reads and writes that must not be interrupted.
+        /// </summary>
+        /// <returns>False when the write failed on every attempt.</returns>
+        public bool WriteDwordExNoLock(uint addr, uint data, int maxRetries = 10)
         {
             if (maxRetries < 1)
                 maxRetries = 1;
 
+            for (int retry = 0; retry < maxRetries; retry++)
+            {
+                if (_pawnRyzenSmu.SmuWriteRegNoLock(addr, data))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <returns>False when the write failed on every attempt or the PCI bus lock timed out.</returns>
+        public bool WriteDwordEx(uint addr, uint data, int maxRetries = 10)
+        {
             if (!Mutexes.WaitPciBus(5000))
                 return false;
 
             try
             {
-                for (int retry = 0; retry < maxRetries; retry++)
-                {
-                    if (_pawnRyzenSmu.SmuWriteRegNoLock(addr, data))
-                        return true;
-                }
-
-                return false;
+                return WriteDwordExNoLock(addr, data, maxRetries);
             }
             finally
             {
